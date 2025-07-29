@@ -2395,3 +2395,23 @@ pub const invalid_nullability: Diagnostic = .{
     .fmt = "nullability specifier cannot be applied to non-pointer type {qt}",
     .kind = .@"error",
 };
+
+pub const array_not_assignable: Diagnostic = .{
+    .fmt = "array type {qt} is not assignable",
+    .kind = .@"error",
+};
+
+pub const non_object_not_assignable: Diagnostic = .{
+    .fmt = "non-object type {qt} is not assignable",
+    .kind = .@"error",
+};
+
+pub const const_var_assignment: Diagnostic = .{
+    .fmt = "cannot assign to variable '{s}' with const-qualified type {qt}",
+    .kind = .@"error",
+};
+
+pub const declared_const_here: Diagnostic = .{
+    .fmt = "variable '{s}' declared const here",
+    .kind = .note,
+};

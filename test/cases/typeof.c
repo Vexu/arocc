@@ -132,18 +132,28 @@ void initializers(void) {
 
 #define EXPECTED_ERRORS \
     "typeof.c:24:9: warning: incompatible pointer types assigning to 'typeof(typeof(int)) *' (aka 'int *') from incompatible type 'typeof(float) *' (aka 'float *') [-Wincompatible-pointer-types]" \
-    "typeof.c:28:7: error: expression is not assignable" \
-    "typeof.c:30:7: error: expression is not assignable" \
+    "typeof.c:28:7: error: cannot assign to variable 'x' with const-qualified type 'typeof(const int)' (aka 'const int')" \
+    "typeof.c:27:22: note: variable 'x' declared const here" \
+    "typeof.c:30:7: error: cannot assign to variable 'y' with const-qualified type 'typeof(typeof(typeof(int)))' (aka 'const int')" \
+    "typeof.c:29:23: note: variable 'y' declared const here" \
     "typeof.c:34:30: error: initializing 'typeof(int *)' (aka 'int *') from incompatible type 'float'" \
     "typeof.c:35:8: error: expected expression" \
-    "typeof.c:59:13: error: expression is not assignable" \
-    "typeof.c:61:13: error: expression is not assignable" \
-    "typeof.c:64:13: error: expression is not assignable" \
-    "typeof.c:66:13: error: expression is not assignable" \
-    "typeof.c:69:13: error: expression is not assignable" \
-    "typeof.c:71:13: error: expression is not assignable" \
-    "typeof.c:74:13: error: expression is not assignable" \
-    "typeof.c:77:13: error: expression is not assignable" \
+    "typeof.c:59:13: error: cannot assign to variable 'arr1' with const-qualified type 'const int [2]'" \
+    "typeof.c:58:25: note: variable 'arr1' declared const here" \
+    "typeof.c:61:13: error: cannot assign to variable 'arr2' with const-qualified type 'typeof(int [2])' (aka 'const int ')" \
+    "typeof.c:60:26: note: variable 'arr2' declared const here" \
+    "typeof.c:64:13: error: cannot assign to variable 'arr3' with const-qualified type 'const int [2]'" \
+    "typeof.c:63:25: note: variable 'arr3' declared const here" \
+    "typeof.c:66:13: error: cannot assign to variable 'arr4' with const-qualified type 'typeof(const int [2])' (aka 'const int ')" \
+    "typeof.c:65:26: note: variable 'arr4' declared const here" \
+    "typeof.c:69:13: error: cannot assign to variable 'arr5' with const-qualified type 'typeof(int) [2]'" \
+    "typeof.c:68:23: note: variable 'arr5' declared const here" \
+    "typeof.c:71:13: error: cannot assign to variable 'arr6' with const-qualified type 'typeof(const int) [2]'" \
+    "typeof.c:70:23: note: variable 'arr6' declared const here" \
+    "typeof.c:74:13: error: cannot assign to variable 'arr7' with const-qualified type 'const int [2]'" \
+    "typeof.c:73:15: note: variable 'arr7' declared const here" \
+    "typeof.c:77:13: error: cannot assign to variable 'arr8' with const-qualified type 'typeof(typeof(typeof(int [2])))' (aka 'const int ')" \
+    "typeof.c:76:42: note: variable 'arr8' declared const here" \
     "typeof.c:98:29: warning: initializing 'typeof(int *)' (aka 'int *const') from incompatible type 'const int [2]' discards qualifiers [-Wincompatible-pointer-types-discards-qualifiers]" \
     "typeof.c:113:5: error: invalid argument type 'char *' to unary expression" \
     "typeof.c:119:5: warning: declaration does not declare anything [-Wmissing-declaration]" \
