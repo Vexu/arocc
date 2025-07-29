@@ -367,7 +367,7 @@ pub fn parseArgs(
                     continue;
                 }
                 d.raw_cpu = args[i];
-            } else if (option(arg, "--mcpu=")) |cpu| {
+            } else if (option(arg, "-mcpu=")) |cpu| {
                 d.raw_cpu = cpu;
             } else if (mem.eql(u8, arg, "-M") or mem.eql(u8, arg, "--dependencies")) {
                 d.dependencies.m = true;
