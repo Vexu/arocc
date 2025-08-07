@@ -725,7 +725,7 @@ pub const Arguments = blk: {
         field.* = .{
             .name = decl.name,
             .type = @field(attributes, decl.name),
-            .alignment = 0,
+            .alignment = @alignOf(@field(attributes, decl.name)),
         };
     }
 
