@@ -322,7 +322,7 @@ pub fn parseArgs(
                 }
                 try macro_buf.print(d.comp.gpa, "#undef {s}\n", .{macro});
             } else if (mem.eql(u8, arg, "-O")) {
-                d.comp.code_gen_options.optimization_level = .@"0";
+                d.comp.code_gen_options.optimization_level = .@"1";
             } else if (mem.startsWith(u8, arg, "-O")) {
                 d.comp.code_gen_options.optimization_level = backend.CodeGenOptions.OptimizationLevel.fromString(arg["-O".len..]) orelse {
                     try d.err("invalid optimization level '{s}'", .{arg});
