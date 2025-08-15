@@ -111,10 +111,10 @@ pub fn main() !void {
 
     const test_dir = args[1];
 
-    var cases = std.ArrayList([]const u8).init(gpa);
+    var cases: std.ArrayList([]const u8) = .empty;
     defer {
         for (cases.items) |path| gpa.free(path);
-        cases.deinit();
+        cases.deinit(gpa);
     }
 
     // Collect all cases. Set scope to clean when done.
@@ -134,7 +134,7 @@ pub fn main() !void {
             if (std.ascii.indexOfIgnoreCase(entry.name, "_test.c") != null) {
                 var name_writer: std.Io.Writer = .fixed(&name_buf);
                 try name_writer.print("{s}{c}{s}", .{ args[1], std.fs.path.sep, entry.name });
-                try cases.append(try gpa.dupe(u8, name_writer.buffered()));
+                try cases.append(gpa, try gpa.dupe(u8, name_writer.buffered()));
             }
         }
     }
@@ -153,12 +153,12 @@ pub fn main() !void {
 
     var wait_group: std.Thread.WaitGroup = .{};
 
-    var test_cases = TestCase.List.init(gpa);
-    defer test_cases.deinit();
+    var test_cases: TestCase.List = .empty;
+    defer test_cases.deinit(gpa);
 
     for (cases.items) |path| {
         const source = try std.fs.cwd().readFileAlloc(arena, path, std.math.maxInt(u32));
-        try parseTargetsFromCode(&test_cases, path, source);
+        try parseTargetsFromCode(gpa, &test_cases, path, source);
     }
 
     const root_node = std.Progress.start(.{
@@ -403,7 +403,7 @@ fn setTarget(comp: *aro.Compilation, target: []const u8) !void {
     std.debug.assert(std.ascii.eqlIgnoreCase(set_name, expected_compiler_name));
 }
 
-fn parseTargetsFromCode(cases: *TestCase.List, path: []const u8, source: []const u8) !void {
+fn parseTargetsFromCode(gpa: std.mem.Allocator, cases: *TestCase.List, path: []const u8, source: []const u8) !void {
     var lines = std.mem.tokenizeScalar(u8, source, '\n');
     while (lines.next()) |line| {
         if (std.mem.indexOf(u8, line, "// MAPPING|") == null) continue;
@@ -417,7 +417,7 @@ fn parseTargetsFromCode(cases: *TestCase.List, path: []const u8, source: []const
             if (std.mem.startsWith(u8, target, "END")) break;
             // These point to source, which lives
             // for the life of the test. So should be ok
-            try cases.append(.{
+            try cases.append(gpa, .{
                 .path = path,
                 .source = source,
                 .c_define = define,

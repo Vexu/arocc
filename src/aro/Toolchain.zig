@@ -10,7 +10,7 @@ const Multilib = @import("Driver/Multilib.zig");
 const target_util = @import("target.zig");
 const Linux = @import("toolchains/Linux.zig");
 
-pub const PathList = std.ArrayListUnmanaged([]const u8);
+pub const PathList = std.ArrayList([]const u8);
 
 pub const RuntimeLibKind = enum {
     compiler_rt,
@@ -169,8 +169,11 @@ pub fn getLinkerPath(tc: *const Toolchain, buf: []u8) ![]const u8 {
             return use_linker;
         }
     } else {
-        var linker_name = try std.ArrayList(u8).initCapacity(tc.driver.comp.gpa, 5 + use_linker.len); // "ld64." ++ use_linker
-        defer linker_name.deinit();
+        const gpa = tc.driver.comp.gpa;
+        var linker_name: std.ArrayList(u8) = .empty;
+        defer linker_name.deinit(gpa);
+        try linker_name.ensureUnusedCapacity(tc.driver.comp.gpa, 5 + use_linker.len); // "ld64." ++ use_linker
+
         if (tc.getTarget().os.tag.isDarwin()) {
             linker_name.appendSliceAssumeCapacity("ld64.");
         } else {
@@ -217,7 +220,7 @@ fn possibleProgramNames(
 
 /// Add toolchain `file_paths` to argv as `-L` arguments
 pub fn addFilePathLibArgs(tc: *const Toolchain, argv: *std.ArrayList([]const u8)) !void {
-    try argv.ensureUnusedCapacity(tc.file_paths.items.len);
+    try argv.ensureUnusedCapacity(tc.driver.comp.gpa, tc.file_paths.items.len);
 
     var bytes_needed: usize = 0;
     for (tc.file_paths.items) |path| {
@@ -442,42 +445,45 @@ fn addUnwindLibrary(tc: *const Toolchain, argv: *std.ArrayList([]const u8)) !voi
 
     const lgk = tc.getLibGCCKind();
     const as_needed = lgk == .unspecified and !target.abi.isAndroid() and !target_util.isCygwinMinGW(target) and target.os.tag != .aix;
+
+    try argv.ensureUnusedCapacity(tc.driver.comp.gpa, 3);
     if (as_needed) {
-        try argv.append(getAsNeededOption(target.os.tag == .solaris, true));
+        argv.appendAssumeCapacity(getAsNeededOption(target.os.tag == .solaris, true));
     }
     switch (unw) {
         .none => return,
-        .libgcc => if (lgk == .static) try argv.append("-lgcc_eh") else try argv.append("-lgcc_s"),
+        .libgcc => argv.appendAssumeCapacity(if (lgk == .static) "-lgcc_eh" else "-lgcc_s"),
         .compiler_rt => if (target.os.tag == .aix) {
             if (lgk != .static) {
-                try argv.append("-lunwind");
+                argv.appendAssumeCapacity("-lunwind");
             }
         } else if (lgk == .static) {
-            try argv.append("-l:libunwind.a");
+            argv.appendAssumeCapacity("-l:libunwind.a");
         } else if (lgk == .shared) {
             if (target_util.isCygwinMinGW(target)) {
-                try argv.append("-l:libunwind.dll.a");
+                argv.appendAssumeCapacity("-l:libunwind.dll.a");
             } else {
-                try argv.append("-l:libunwind.so");
+                argv.appendAssumeCapacity("-l:libunwind.so");
             }
         } else {
-            try argv.append("-lunwind");
+            argv.appendAssumeCapacity("-lunwind");
         },
     }
 
     if (as_needed) {
-        try argv.append(getAsNeededOption(target.os.tag == .solaris, false));
+        argv.appendAssumeCapacity(getAsNeededOption(target.os.tag == .solaris, false));
     }
 }
 
 fn addLibGCC(tc: *const Toolchain, argv: *std.ArrayList([]const u8)) !void {
+    const gpa = tc.driver.comp.gpa;
     const libgcc_kind = tc.getLibGCCKind();
     if (libgcc_kind == .static or libgcc_kind == .unspecified) {
-        try argv.append("-lgcc");
+        try argv.append(gpa, "-lgcc");
     }
     try tc.addUnwindLibrary(argv);
     if (libgcc_kind == .shared) {
-        try argv.append("-lgcc");
+        try argv.append(gpa, "-lgcc");
     }
 }
 
@@ -501,7 +507,7 @@ pub fn addRuntimeLibs(tc: *const Toolchain, argv: *std.ArrayList([]const u8)) !v
     }
 
     if (target.abi.isAndroid() and !tc.driver.static and !tc.driver.static_pie) {
-        try argv.append("-ldl");
+        try argv.append(tc.driver.comp.gpa, "-ldl");
     }
 }
 

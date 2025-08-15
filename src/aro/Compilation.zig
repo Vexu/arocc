@@ -128,24 +128,24 @@ diagnostics: *Diagnostics,
 
 code_gen_options: CodeGenOptions = .default,
 environment: Environment = .{},
-sources: std.StringArrayHashMapUnmanaged(Source) = .{},
+sources: std.StringArrayHashMapUnmanaged(Source) = .empty,
 /// Allocated into `gpa`, but keys are externally managed.
-include_dirs: std.ArrayListUnmanaged([]const u8) = .empty,
+include_dirs: std.ArrayList([]const u8) = .empty,
 /// Allocated into `gpa`, but keys are externally managed.
-system_include_dirs: std.ArrayListUnmanaged([]const u8) = .empty,
+system_include_dirs: std.ArrayList([]const u8) = .empty,
 /// Allocated into `gpa`, but keys are externally managed.
-after_include_dirs: std.ArrayListUnmanaged([]const u8) = .empty,
+after_include_dirs: std.ArrayList([]const u8) = .empty,
 /// Allocated into `gpa`, but keys are externally managed.
-framework_dirs: std.ArrayListUnmanaged([]const u8) = .empty,
+framework_dirs: std.ArrayList([]const u8) = .empty,
 /// Allocated into `gpa`, but keys are externally managed.
-system_framework_dirs: std.ArrayListUnmanaged([]const u8) = .empty,
+system_framework_dirs: std.ArrayList([]const u8) = .empty,
 /// Allocated into `gpa`, but keys are externally managed.
-embed_dirs: std.ArrayListUnmanaged([]const u8) = .empty,
+embed_dirs: std.ArrayList([]const u8) = .empty,
 target: std.Target = @import("builtin").target,
 cmodel: std.builtin.CodeModel = .default,
-pragma_handlers: std.StringArrayHashMapUnmanaged(*Pragma) = .{},
+pragma_handlers: std.StringArrayHashMapUnmanaged(*Pragma) = .empty,
 langopts: LangOpts = .{},
-generated_buf: std.ArrayListUnmanaged(u8) = .{},
+generated_buf: std.ArrayList(u8) = .empty,
 builtins: Builtins = .{},
 string_interner: StringInterner = .{},
 interner: Interner = .{},
@@ -935,7 +935,7 @@ pub fn generateBuiltinMacros(comp: *Compilation, system_defines_mode: SystemDefi
         error.WriteFailed, error.OutOfMemory => return error.OutOfMemory,
     };
 
-    if (allocating.getWritten().len > std.math.maxInt(u32)) return error.FileTooBig;
+    if (allocating.written().len > std.math.maxInt(u32)) return error.FileTooBig;
 
     const contents = try allocating.toOwnedSlice();
     errdefer comp.gpa.free(contents);
@@ -1385,8 +1385,8 @@ pub fn addSourceFromOwnedBuffer(comp: *Compilation, path: []const u8, buf: []u8,
     const duped_path = try comp.gpa.dupe(u8, path);
     errdefer comp.gpa.free(duped_path);
 
-    var splice_list = std.ArrayList(u32).init(comp.gpa);
-    defer splice_list.deinit();
+    var splice_list: std.ArrayList(u32) = .empty;
+    defer splice_list.deinit(comp.gpa);
 
     const source_id: Source.Id = @enumFromInt(comp.sources.count() + 2);
 
@@ -1419,7 +1419,7 @@ pub fn addSourceFromOwnedBuffer(comp: *Compilation, path: []const u8, buf: []u8,
                     },
                     .back_slash, .trailing_ws, .back_slash_cr => {
                         i = backslash_loc;
-                        try splice_list.append(i);
+                        try splice_list.append(comp.gpa, i);
                         if (state == .trailing_ws) {
                             try comp.addNewlineEscapeError(path, buf, splice_list.items, i, line);
                         }
@@ -1439,7 +1439,7 @@ pub fn addSourceFromOwnedBuffer(comp: *Compilation, path: []const u8, buf: []u8,
                     .back_slash, .trailing_ws => {
                         i = backslash_loc;
                         if (state == .back_slash or state == .trailing_ws) {
-                            try splice_list.append(i);
+                            try splice_list.append(comp.gpa, i);
                         }
                         if (state == .trailing_ws) {
                             try comp.addNewlineEscapeError(path, buf, splice_list.items, i, line);
@@ -1492,11 +1492,11 @@ pub fn addSourceFromOwnedBuffer(comp: *Compilation, path: []const u8, buf: []u8,
         }
     }
 
-    const splice_locs = try splice_list.toOwnedSlice();
+    const splice_locs = try splice_list.toOwnedSlice(comp.gpa);
     errdefer comp.gpa.free(splice_locs);
 
     if (i != contents.len) {
-        var list: std.ArrayListUnmanaged(u8) = .{
+        var list: std.ArrayList(u8) = .{
             .items = contents[0..i],
             .capacity = contents.len,
         };
@@ -1574,7 +1574,9 @@ fn addSourceFromPathExtra(comp: *Compilation, path: []const u8, kind: Source.Kin
 pub fn addSourceFromFile(comp: *Compilation, file: std.fs.File, path: []const u8, kind: Source.Kind) !Source {
     var file_buf: [4096]u8 = undefined;
     var file_reader = file.reader(&file_buf);
-    if (try file_reader.getSize() > std.math.maxInt(u32)) return error.FileTooBig;
+    if (file_reader.getSize()) |size| {
+        if (size > std.math.maxInt(u32)) return error.FileTooBig;
+    } else |_| {}
 
     var allocating: std.Io.Writer.Allocating = .init(comp.gpa);
     _ = allocating.writer.sendFileAll(&file_reader, .limited(std.math.maxInt(u32))) catch |e| switch (e) {
@@ -1785,7 +1787,9 @@ fn getFileContents(comp: *Compilation, path: []const u8, limit: std.Io.Limit) ![
 
     var file_buf: [4096]u8 = undefined;
     var file_reader = file.reader(&file_buf);
-    if (limit.minInt64(try file_reader.getSize()) > std.math.maxInt(u32)) return error.FileTooBig;
+    if (file_reader.getSize()) |size| {
+        if (limit.minInt64(size) > std.math.maxInt(u32)) return error.FileTooBig;
+    } else |_| {}
 
     _ = allocating.writer.sendFileAll(&file_reader, limit) catch |err| switch (err) {
         error.WriteFailed => return error.OutOfMemory,

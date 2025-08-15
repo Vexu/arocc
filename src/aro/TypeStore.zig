@@ -1693,8 +1693,8 @@ pub const Type = union(enum) {
 };
 
 types: std.MultiArrayList(Repr) = .empty,
-extra: std.ArrayListUnmanaged(u32) = .empty,
-attributes: std.ArrayListUnmanaged(Attribute) = .empty,
+extra: std.ArrayList(u32) = .empty,
+attributes: std.ArrayList(Attribute) = .empty,
 anon_name_arena: std.heap.ArenaAllocator.State = .{},
 
 wchar: QualType = .invalid,
@@ -2434,7 +2434,7 @@ pub const Builder = struct {
                 }
                 if (b.complex_tok) |tok| try b.parser.err(tok, .complex_int, .{});
 
-                const qt = try b.parser.comp.type_store.put(b.parser.gpa, .{ .bit_int = .{
+                const qt = try b.parser.comp.type_store.put(b.parser.comp.gpa, .{ .bit_int = .{
                     .signedness = if (unsigned) .unsigned else .signed,
                     .bits = @intCast(bits),
                 } });
@@ -2475,6 +2475,7 @@ pub const Builder = struct {
 
     pub fn finishQuals(b: Builder, qt: QualType) !QualType {
         if (qt.isInvalid()) return .invalid;
+        const gpa = b.parser.comp.gpa;
         var result_qt = qt;
         if (b.atomic_type orelse b.atomic) |atomic_tok| {
             if (result_qt.isAutoType()) return b.parser.todo("_Atomic __auto_type");
@@ -2504,7 +2505,7 @@ pub const Builder = struct {
                     return .invalid;
                 },
                 else => {
-                    result_qt = try b.parser.comp.type_store.put(b.parser.gpa, .{ .atomic = result_qt });
+                    result_qt = try b.parser.comp.type_store.put(gpa, .{ .atomic = result_qt });
                 },
             }
         }
@@ -2513,7 +2514,7 @@ pub const Builder = struct {
         const is_pointer = qt.isAutoType() or qt.isC23Auto() or qt.base(b.parser.comp).type == .pointer;
 
         if (b.unaligned != null and !is_pointer) {
-            result_qt = (try b.parser.comp.type_store.put(b.parser.gpa, .{ .attributed = .{
+            result_qt = (try b.parser.comp.type_store.put(gpa, .{ .attributed = .{
                 .base = result_qt,
                 .attributes = &.{.{ .tag = .unaligned, .args = .{ .unaligned = .{} }, .syntax = .keyword }},
             } })).withQualifiers(result_qt);
