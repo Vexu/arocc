@@ -45,8 +45,8 @@ const Driver = @This();
 comp: *Compilation,
 diagnostics: *Diagnostics,
 
-inputs: std.ArrayListUnmanaged(Source) = .{},
-link_objects: std.ArrayListUnmanaged([]const u8) = .{},
+inputs: std.ArrayList(Source) = .empty,
+link_objects: std.ArrayList([]const u8) = .empty,
 output_name: ?[]const u8 = null,
 sysroot: ?[]const u8 = null,
 resource_dir: ?[]const u8 = null,
@@ -270,7 +270,7 @@ pub const usage =
 pub fn parseArgs(
     d: *Driver,
     stdout: *std.Io.Writer,
-    macro_buf: *std.ArrayListUnmanaged(u8),
+    macro_buf: *std.ArrayList(u8),
     args: []const []const u8,
 ) (Compilation.Error || std.Io.Writer.Error)!bool {
     var i: usize = 1;
@@ -831,7 +831,7 @@ pub fn err(d: *Driver, fmt: []const u8, args: anytype) Compilation.Error!void {
     defer allocating.deinit();
 
     Diagnostics.formatArgs(&allocating.writer, fmt, args) catch return error.OutOfMemory;
-    try d.diagnostics.add(.{ .kind = .@"error", .text = allocating.getWritten(), .location = null });
+    try d.diagnostics.add(.{ .kind = .@"error", .text = allocating.written(), .location = null });
 }
 
 pub fn warn(d: *Driver, fmt: []const u8, args: anytype) Compilation.Error!void {
@@ -840,7 +840,7 @@ pub fn warn(d: *Driver, fmt: []const u8, args: anytype) Compilation.Error!void {
     defer allocating.deinit();
 
     Diagnostics.formatArgs(&allocating.writer, fmt, args) catch return error.OutOfMemory;
-    try d.diagnostics.add(.{ .kind = .warning, .text = allocating.getWritten(), .location = null });
+    try d.diagnostics.add(.{ .kind = .warning, .text = allocating.written(), .location = null });
 }
 
 pub fn unsupportedOptionForTarget(d: *Driver, target: std.Target, opt: []const u8) Compilation.Error!void {
@@ -856,7 +856,7 @@ pub fn fatal(d: *Driver, comptime fmt: []const u8, args: anytype) error{ FatalEr
     defer allocating.deinit();
 
     Diagnostics.formatArgs(&allocating.writer, fmt, args) catch return error.OutOfMemory;
-    try d.diagnostics.add(.{ .kind = .@"fatal error", .text = allocating.getWritten(), .location = null });
+    try d.diagnostics.add(.{ .kind = .@"fatal error", .text = allocating.written(), .location = null });
     unreachable;
 }
 
@@ -921,7 +921,7 @@ pub fn errorDescription(e: anyerror) []const u8 {
 /// **MAY call `exit` if `fast_exit` is set.**
 pub fn main(d: *Driver, tc: *Toolchain, args: []const []const u8, comptime fast_exit: bool, asm_gen_fn: ?AsmCodeGenFn) Compilation.Error!void {
     const user_macros = macros: {
-        var macro_buf: std.ArrayListUnmanaged(u8) = .empty;
+        var macro_buf: std.ArrayList(u8) = .empty;
         defer macro_buf.deinit(d.comp.gpa);
 
         var stdout_buf: [256]u8 = undefined;
@@ -1100,7 +1100,7 @@ fn processSource(
 
     var name_buf: [std.fs.max_name_bytes]u8 = undefined;
     var opt_dep_file = try d.initDepFile(source, &name_buf);
-    defer if (opt_dep_file) |*dep_file| dep_file.deinit(pp.gpa);
+    defer if (opt_dep_file) |*dep_file| dep_file.deinit(d.comp.gpa);
 
     if (opt_dep_file) |*dep_file| pp.dep_file = dep_file;
 
@@ -1288,12 +1288,13 @@ fn dumpLinkerArgs(w: *std.Io.Writer, items: []const []const u8) !void {
 /// The entry point of the Aro compiler.
 /// **MAY call `exit` if `fast_exit` is set.**
 pub fn invokeLinker(d: *Driver, tc: *Toolchain, comptime fast_exit: bool) Compilation.Error!void {
-    var argv = std.ArrayList([]const u8).init(d.comp.gpa);
-    defer argv.deinit();
+    const gpa = d.comp.gpa;
+    var argv: std.ArrayList([]const u8) = .empty;
+    defer argv.deinit(gpa);
 
     var linker_path_buf: [std.fs.max_path_bytes]u8 = undefined;
     const linker_path = try tc.getLinkerPath(&linker_path_buf);
-    try argv.append(linker_path);
+    try argv.append(gpa, linker_path);
 
     try tc.buildLinkerArgs(&argv);
 

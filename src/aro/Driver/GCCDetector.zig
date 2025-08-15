@@ -31,7 +31,7 @@ pub fn appendToolPath(self: *const GCCDetector, tc: *Toolchain) !void {
     }, .program);
 }
 
-fn addDefaultGCCPrefixes(prefixes: *std.ArrayListUnmanaged([]const u8), tc: *const Toolchain) !void {
+fn addDefaultGCCPrefixes(prefixes: *std.ArrayList([]const u8), tc: *const Toolchain) !void {
     const sysroot = tc.getSysroot();
     const target = tc.getTarget();
     if (sysroot.len == 0 and target.os.tag == .linux and tc.filesystem.exists("/opt/rh")) {
@@ -61,10 +61,10 @@ fn addDefaultGCCPrefixes(prefixes: *std.ArrayListUnmanaged([]const u8), tc: *con
 
 fn collectLibDirsAndTriples(
     tc: *Toolchain,
-    lib_dirs: *std.ArrayListUnmanaged([]const u8),
-    triple_aliases: *std.ArrayListUnmanaged([]const u8),
-    biarch_libdirs: *std.ArrayListUnmanaged([]const u8),
-    biarch_triple_aliases: *std.ArrayListUnmanaged([]const u8),
+    lib_dirs: *std.ArrayList([]const u8),
+    triple_aliases: *std.ArrayList([]const u8),
+    biarch_libdirs: *std.ArrayList([]const u8),
+    biarch_triple_aliases: *std.ArrayList([]const u8),
 ) !void {
     const AArch64LibDirs: [2][]const u8 = .{ "/lib64", "/lib" };
     const AArch64Triples: [4][]const u8 = .{ "aarch64-none-linux-gnu", "aarch64-linux-gnu", "aarch64-redhat-linux", "aarch64-suse-linux" };
@@ -400,16 +400,16 @@ pub fn discover(self: *GCCDetector, tc: *Toolchain) !void {
         target_util.get32BitArchVariant(target);
 
     var candidate_lib_dirs_buffer: [16][]const u8 = undefined;
-    var candidate_lib_dirs = std.ArrayListUnmanaged([]const u8).initBuffer(&candidate_lib_dirs_buffer);
+    var candidate_lib_dirs = std.ArrayList([]const u8).initBuffer(&candidate_lib_dirs_buffer);
 
     var candidate_triple_aliases_buffer: [16][]const u8 = undefined;
-    var candidate_triple_aliases = std.ArrayListUnmanaged([]const u8).initBuffer(&candidate_triple_aliases_buffer);
+    var candidate_triple_aliases = std.ArrayList([]const u8).initBuffer(&candidate_triple_aliases_buffer);
 
     var candidate_biarch_lib_dirs_buffer: [16][]const u8 = undefined;
-    var candidate_biarch_lib_dirs = std.ArrayListUnmanaged([]const u8).initBuffer(&candidate_biarch_lib_dirs_buffer);
+    var candidate_biarch_lib_dirs = std.ArrayList([]const u8).initBuffer(&candidate_biarch_lib_dirs_buffer);
 
     var candidate_biarch_triple_aliases_buffer: [20][]const u8 = undefined;
-    var candidate_biarch_triple_aliases = std.ArrayListUnmanaged([]const u8).initBuffer(&candidate_biarch_triple_aliases_buffer);
+    var candidate_biarch_triple_aliases = std.ArrayList([]const u8).initBuffer(&candidate_biarch_triple_aliases_buffer);
 
     try collectLibDirsAndTriples(
         tc,
@@ -433,7 +433,7 @@ pub fn discover(self: *GCCDetector, tc: *Toolchain) !void {
     }
 
     var prefixes_buf: [16][]const u8 = undefined;
-    var prefixes = std.ArrayListUnmanaged([]const u8).initBuffer(&prefixes_buf);
+    var prefixes = std.ArrayList([]const u8).initBuffer(&prefixes_buf);
     const gcc_toolchain_dir = gccToolchainDir(tc);
     if (gcc_toolchain_dir.len != 0) {
         const adjusted = if (gcc_toolchain_dir[gcc_toolchain_dir.len - 1] == '/')
@@ -531,19 +531,20 @@ fn findBiarchMultilibs(
         .want64 => Multilib.init("", "", &.{ "-m32", "+m64", "-mx32" }),
         .wantx32 => Multilib.init("", "", &.{ "-m32", "-m64", "+mx32" }),
     };
-    result.multilibs.appendSliceAssumeCapacity(&.{
+    result.multilib_buf[result.multilib_count..][0..4].* = .{
         default,
         alt_64,
         alt_32,
         alt_x32,
-    });
-    result.filter(multilib_filter, tc.filesystem);
-    var flags: Multilib.Flags = .{};
-    flags.appendAssumeCapacity(if (target_ptr_width == 64 and !is_x32) "+m64" else "-m64");
-    flags.appendAssumeCapacity(if (target_ptr_width == 32) "+m32" else "-m32");
-    flags.appendAssumeCapacity(if (target_ptr_width == 64 and is_x32) "+mx32" else "-mx32");
+    };
+    result.multilib_count += 4;
 
-    return result.select(flags);
+    result.filter(multilib_filter, tc.filesystem);
+    return result.select(&.{
+        if (target_ptr_width == 64 and !is_x32) "+m64" else "-m64",
+        if (target_ptr_width == 32) "+m32" else "-m32",
+        if (target_ptr_width == 64 and is_x32) "+mx32" else "-mx32",
+    });
 }
 
 fn scanGCCForMultilibs(

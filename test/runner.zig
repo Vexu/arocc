@@ -25,11 +25,11 @@ fn addCommandLineArgs(comp: *aro.Compilation, file: aro.Source, macro_buf: *std.
     var dump_mode: aro.Preprocessor.DumpMode = .result_only;
     comp.langopts.gnuc_version = 40201; // Set to clang default value since we do not call parseArgs if there are no args
     if (std.mem.startsWith(u8, file.buf, "//aro-args")) {
-        var test_args = std.ArrayList([]const u8).init(comp.gpa);
-        defer test_args.deinit();
+        var test_args: std.ArrayList([]const u8) = .empty;
+        defer test_args.deinit(comp.gpa);
         const nl = std.mem.indexOfAny(u8, file.buf, "\n\r") orelse file.buf.len;
         var it = std.mem.tokenizeScalar(u8, file.buf[0..nl], ' ');
-        while (it.next()) |some| try test_args.append(some);
+        while (it.next()) |some| try test_args.append(comp.gpa, some);
 
         var driver: aro.Driver = .{ .comp = comp, .diagnostics = comp.diagnostics };
         defer driver.deinit();
@@ -141,9 +141,9 @@ pub fn main() !void {
     const test_dir = args[1];
 
     var buf: std.ArrayListUnmanaged(u8) = .empty;
-    var cases = std.ArrayList([]const u8).init(gpa);
+    var cases: std.ArrayList([]const u8) = .empty;
     defer {
-        cases.deinit();
+        cases.deinit(gpa);
         buf.deinit(gpa);
     }
 
@@ -159,7 +159,7 @@ pub fn main() !void {
                 print("skipping non file entry '{s}'\n", .{entry.name});
                 continue;
             }
-            try cases.append(try std.fmt.allocPrint(arena, "{s}{c}{s}", .{ args[1], std.fs.path.sep, entry.name }));
+            try cases.append(gpa, try std.fmt.allocPrint(arena, "{s}{c}{s}", .{ args[1], std.fs.path.sep, entry.name }));
         }
     }
     if (build_options.test_all_allocation_failures) {
@@ -291,7 +291,7 @@ pub fn main() !void {
         }
 
         if (only_preprocess) {
-            if (try checkExpectedErrors(&pp, &buf, diag_buf.getWritten())) |some| {
+            if (try checkExpectedErrors(&pp, &buf, diag_buf.written())) |some| {
                 if (!some) {
                     std.debug.print("in case {s}\n", .{case});
                     fail_count += 1;
@@ -300,7 +300,7 @@ pub fn main() !void {
             } else {
                 var stderr_buf: [4096]u8 = undefined;
                 var stderr = std.fs.File.stderr().writer(&stderr_buf);
-                try stderr.interface.writeAll(diag_buf.getWritten());
+                try stderr.interface.writeAll(diag_buf.written());
                 try stderr.interface.flush();
 
                 if (comp.diagnostics.errors != 0) {
@@ -328,7 +328,7 @@ pub fn main() !void {
             try pp.prettyPrintTokens(&output.writer, dump_mode);
 
             if (pp.defines.contains("CHECK_PARTIAL_MATCH")) {
-                const index = std.mem.indexOf(u8, output.getWritten(), expected_output);
+                const index = std.mem.indexOf(u8, output.written(), expected_output);
                 if (index != null) {
                     ok_count += 1;
                 } else {
@@ -337,11 +337,11 @@ pub fn main() !void {
                     std.debug.print("\n====== expected to find: =========\n", .{});
                     std.debug.print("{s}", .{expected_output});
                     std.debug.print("\n======== but did not find it in this: =========\n", .{});
-                    std.debug.print("{s}", .{output.getWritten()});
+                    std.debug.print("{s}", .{output.written()});
                     std.debug.print("\n======================================\n", .{});
                 }
             } else {
-                if (std.testing.expectEqualStrings(expected_output, output.getWritten()))
+                if (std.testing.expectEqualStrings(expected_output, output.written()))
                     ok_count += 1
                 else |_|
                     fail_count += 1;
@@ -353,7 +353,7 @@ pub fn main() !void {
 
         var tree = aro.Parser.parse(&pp) catch |err| switch (err) {
             error.FatalError => {
-                if (try checkExpectedErrors(&pp, &buf, diag_buf.getWritten())) |some| {
+                if (try checkExpectedErrors(&pp, &buf, diag_buf.written())) |some| {
                     if (some) ok_count += 1 else {
                         std.debug.print("in case {s}\n", .{case});
                         fail_count += 1;
@@ -374,7 +374,7 @@ pub fn main() !void {
             defer actual_ast.deinit();
 
             try tree.dump(.no_color, &actual_ast.writer);
-            std.testing.expectEqualStrings(expected_ast, actual_ast.getWritten()) catch {
+            std.testing.expectEqualStrings(expected_ast, actual_ast.written()) catch {
                 std.debug.print("in case {s}\n", .{case});
                 fail_count += 1;
                 break;
@@ -396,10 +396,10 @@ pub fn main() !void {
                 break;
             };
 
-            var actual = StmtTypeDumper.init(gpa);
+            var actual: StmtTypeDumper = .{};
             defer actual.deinit(gpa);
 
-            try actual.dump(&tree, test_fn.body.?);
+            try actual.dump(gpa, &tree, test_fn.body.?);
 
             var i: usize = 0;
             for (types.tokens) |str| {
@@ -436,7 +436,7 @@ pub fn main() !void {
             }
         }
 
-        if (try checkExpectedErrors(&pp, &buf, diag_buf.getWritten())) |some| {
+        if (try checkExpectedErrors(&pp, &buf, diag_buf.written())) |some| {
             if (some) ok_count += 1 else {
                 std.debug.print("in case {s}\n", .{case});
                 fail_count += 1;
@@ -448,7 +448,7 @@ pub fn main() !void {
         {
             var stderr_buf: [4096]u8 = undefined;
             var stderr = std.fs.File.stderr().writer(&stderr_buf);
-            try stderr.interface.writeAll(diag_buf.getWritten());
+            try stderr.interface.writeAll(diag_buf.written());
             try stderr.interface.flush();
         }
 
@@ -472,7 +472,7 @@ pub fn main() !void {
             defer buf.items.len = 0;
             // realistically the strings will only contain \" if any escapes so we can use Zig's string parsing
             {
-                var allocating: std.Io.Writer.Allocating = .fromArrayList(pp.gpa, &buf);
+                var allocating: std.Io.Writer.Allocating = .fromArrayList(gpa, &buf);
                 defer buf = allocating.toArrayList();
                 std.debug.assert((try std.zig.string_literal.parseWrite(&allocating.writer, pp.tokSlice(macro.tokens[0]))) == .success);
             }
@@ -567,11 +567,11 @@ fn checkExpectedErrors(pp: *aro.Preprocessor, buf: *std.ArrayListUnmanaged(u8), 
         const start = buf.items.len;
         // realistically the strings will only contain \" if any escapes so we can use Zig's string parsing
         {
-            var allocating: std.Io.Writer.Allocating = .fromArrayList(pp.gpa, buf);
+            var allocating: std.Io.Writer.Allocating = .fromArrayList(pp.comp.gpa, buf);
             defer buf.* = allocating.toArrayList();
             std.debug.assert((try std.zig.string_literal.parseWrite(&allocating.writer, pp.tokSlice(macro.tokens[0]))) == .success);
         }
-        try buf.append(pp.gpa, '\n');
+        try buf.append(pp.comp.gpa, '\n');
         const expected_error = buf.items[start..];
 
         const index = std.mem.indexOf(u8, errors, expected_error);
@@ -617,39 +617,33 @@ fn checkExpectedErrors(pp: *aro.Preprocessor, buf: *std.ArrayListUnmanaged(u8), 
 }
 
 const StmtTypeDumper = struct {
-    types: std.ArrayList([]const u8),
+    types: std.ArrayList([]const u8) = .empty,
 
     fn deinit(self: *StmtTypeDumper, allocator: std.mem.Allocator) void {
         for (self.types.items) |t| {
             allocator.free(t);
         }
-        self.types.deinit();
+        self.types.deinit(allocator);
     }
 
-    fn init(allocator: std.mem.Allocator) StmtTypeDumper {
-        return .{
-            .types = std.ArrayList([]const u8).init(allocator),
-        };
-    }
-
-    fn dumpNode(self: *StmtTypeDumper, tree: *const aro.Tree, node: Node.Index) AllocatorError!void {
+    fn dumpNode(self: *StmtTypeDumper, gpa: std.mem.Allocator, tree: *const aro.Tree, node: Node.Index) AllocatorError!void {
         const maybe_ret = node.get(tree);
         if (maybe_ret == .return_stmt and maybe_ret.return_stmt.operand == .implicit) return;
 
-        var allocating: std.Io.Writer.Allocating = .init(self.types.allocator);
+        var allocating: std.Io.Writer.Allocating = .init(gpa);
         defer allocating.deinit();
 
         node.qt(tree).dump(tree.comp, &allocating.writer) catch {};
         const owned = try allocating.toOwnedSlice();
         errdefer allocating.allocator.free(owned);
 
-        try self.types.append(owned);
+        try self.types.append(gpa, owned);
     }
 
-    fn dump(self: *StmtTypeDumper, tree: *const aro.Tree, body: Node.Index) AllocatorError!void {
+    fn dump(self: *StmtTypeDumper, gpa: std.mem.Allocator, tree: *const aro.Tree, body: Node.Index) AllocatorError!void {
         const compound = body.get(tree).compound_stmt;
         for (compound.body) |stmt| {
-            try self.dumpNode(tree, stmt);
+            try self.dumpNode(gpa, tree, stmt);
         }
     }
 };

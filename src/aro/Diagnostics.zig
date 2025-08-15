@@ -288,7 +288,7 @@ output: union(enum) {
         color: std.Io.tty.Config,
     },
     to_list: struct {
-        messages: std.ArrayListUnmanaged(Message) = .empty,
+        messages: std.ArrayList(Message) = .empty,
         arena: std.heap.ArenaAllocator,
     },
     ignore,

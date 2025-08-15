@@ -70,10 +70,11 @@ pub fn todo(c: *AsmCodeGen, msg: []const u8, tok: Tree.TokenIndex) Error {
     const loc: Source.Location = c.tree.tokens.items(.loc)[tok];
 
     var sf = std.heap.stackFallback(1024, c.comp.gpa);
-    var buf = std.ArrayList(u8).init(sf.get());
-    defer buf.deinit();
+    const allocator = sf.get();
+    var buf: std.ArrayList(u8) = .empty;
+    defer buf.deinit(allocator);
 
-    try buf.print("TODO: {s}", .{msg});
+    try buf.print(allocator, "TODO: {s}", .{msg});
     try c.comp.diagnostics.add(.{
         .text = buf.items,
         .kind = .@"error",
