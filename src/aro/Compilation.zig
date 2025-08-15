@@ -246,6 +246,13 @@ fn generateSystemDefines(comp: *Compilation, w: *std.Io.Writer) !void {
         try w.print("#define __GNUC_PATCHLEVEL__ {d}\n", .{comp.langopts.gnuc_version % 100});
     }
 
+    if (comp.code_gen_options.optimization_level.hasAnyOptimizations()) {
+        try define(w, "__OPTIMIZE__");
+    }
+    if (comp.code_gen_options.optimization_level.isSizeOptimized()) {
+        try define(w, "__OPTIMIZE_SIZE__");
+    }
+
     // os macros
     switch (comp.target.os.tag) {
         .linux => try defineStd(w, "linux", is_gnu),
