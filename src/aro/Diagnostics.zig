@@ -193,6 +193,7 @@ pub const Option = enum {
     @"microsoft-flexible-array",
     @"microsoft-anon-tag",
     @"out-of-scope-function",
+    @"date-time",
 
     /// GNU extensions
     pub const gnu = [_]Option{
@@ -278,6 +279,8 @@ pub const State = struct {
     extensions: Message.Kind = .off,
     /// How to treat individual options, set by -W<name>
     options: std.EnumMap(Option, Message.Kind) = .{},
+    /// Should warnings be suppressed in system headers, set by -Wsystem-headers
+    suppress_system_headers: bool = true,
 };
 
 const Diagnostics = @This();
@@ -373,6 +376,16 @@ pub fn effectiveKind(d: *Diagnostics, message: anytype) Message.Kind {
         return .off;
     }
 
+    if (@hasField(@TypeOf(message), "location")) {
+        if (message.location) |location| {
+            if (location.kind != .user and d.state.suppress_system_headers and
+                (message.kind == .warning or message.kind == .off))
+            {
+                return .off;
+            }
+        }
+    }
+
     var kind = message.kind;
 
     // Get explicit kind set by -W<name>=
@@ -418,9 +431,9 @@ pub fn addWithLocation(
     note_msg_loc: bool,
 ) Compilation.Error!void {
     var copy = msg;
-    copy.effective_kind = d.effectiveKind(msg);
-    if (copy.effective_kind == .off) return;
     if (expansion_locs.len != 0) copy.location = expansion_locs[expansion_locs.len - 1].expand(comp);
+    copy.effective_kind = d.effectiveKind(copy);
+    if (copy.effective_kind == .off) return;
     try d.addMessage(copy);
 
     if (expansion_locs.len != 0) {
