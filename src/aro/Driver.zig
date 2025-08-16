@@ -600,6 +600,10 @@ pub fn parseArgs(
                 d.diagnostics.state.enable_all_warnings = false;
             } else if (mem.eql(u8, arg, "-Weverything")) {
                 d.diagnostics.state.enable_all_warnings = true;
+            } else if (mem.eql(u8, arg, "-Wno-system-headers")) {
+                d.diagnostics.state.suppress_system_headers = true;
+            } else if (mem.eql(u8, arg, "-Wsystem-headers")) {
+                d.diagnostics.state.suppress_system_headers = false;
             } else if (mem.eql(u8, arg, "-Werror")) {
                 d.diagnostics.state.error_warnings = true;
             } else if (mem.eql(u8, arg, "-Wno-error")) {

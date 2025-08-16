@@ -759,6 +759,9 @@ pub const Diagnostic = @import("Preprocessor/Diagnostic.zig");
 
 fn err(pp: *Preprocessor, loc: anytype, diagnostic: Diagnostic, args: anytype) Compilation.Error!void {
     if (pp.diagnostics.effectiveKind(diagnostic) == .off) return;
+    const old_suppress_system = pp.diagnostics.state.suppress_system_headers;
+    defer pp.diagnostics.state.suppress_system_headers = old_suppress_system;
+    if (diagnostic.show_in_system_headers) pp.diagnostics.state.suppress_system_headers = false;
 
     var sf = std.heap.stackFallback(1024, pp.comp.gpa);
     var allocating: std.Io.Writer.Allocating = .init(sf.get());

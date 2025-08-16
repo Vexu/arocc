@@ -10,6 +10,7 @@ fmt: []const u8,
 kind: Diagnostics.Message.Kind,
 opt: ?Diagnostics.Option = null,
 extension: bool = false,
+show_in_system_headers: bool = false,
 
 pub const elif_without_if: Diagnostic = .{
     .fmt = "#elif without #if",
@@ -91,6 +92,7 @@ pub const warning_directive: Diagnostic = .{
     .fmt = "{s}",
     .opt = .@"#warnings",
     .kind = .warning,
+    .show_in_system_headers = true,
 };
 
 pub const macro_name_missing: Diagnostic = .{
@@ -445,4 +447,5 @@ pub const date_time: Diagnostic = .{
     .fmt = "expansion of date or time macro is not reproducible",
     .kind = .off,
     .opt = .@"date-time",
+    .show_in_system_headers = true,
 };

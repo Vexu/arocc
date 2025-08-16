@@ -1428,7 +1428,7 @@ pub fn addSourceFromOwnedBuffer(comp: *Compilation, path: []const u8, buf: []u8,
                         i = backslash_loc;
                         try splice_list.append(comp.gpa, i);
                         if (state == .trailing_ws) {
-                            try comp.addNewlineEscapeError(path, buf, splice_list.items, i, line);
+                            try comp.addNewlineEscapeError(path, buf, splice_list.items, i, line, kind);
                         }
                         state = if (state == .back_slash_cr) .cr else .back_slash_cr;
                     },
@@ -1449,7 +1449,7 @@ pub fn addSourceFromOwnedBuffer(comp: *Compilation, path: []const u8, buf: []u8,
                             try splice_list.append(comp.gpa, i);
                         }
                         if (state == .trailing_ws) {
-                            try comp.addNewlineEscapeError(path, buf, splice_list.items, i, line);
+                            try comp.addNewlineEscapeError(path, buf, splice_list.items, i, line, kind);
                         }
                     },
                     .bom1, .bom2 => break,
@@ -1523,13 +1523,21 @@ pub fn addSourceFromOwnedBuffer(comp: *Compilation, path: []const u8, buf: []u8,
     return source;
 }
 
-fn addNewlineEscapeError(comp: *Compilation, path: []const u8, buf: []const u8, splice_locs: []const u32, byte_offset: u32, line: u32) !void {
+fn addNewlineEscapeError(
+    comp: *Compilation,
+    path: []const u8,
+    buf: []const u8,
+    splice_locs: []const u32,
+    byte_offset: u32,
+    line: u32,
+    kind: Source.Kind,
+) !void {
     // Temporary source for getting the location for errors.
     var tmp_source: Source = .{
         .path = path,
         .buf = buf,
         .id = undefined,
-        .kind = undefined,
+        .kind = kind,
         .splice_locs = splice_locs,
     };
 
