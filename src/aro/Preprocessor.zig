@@ -1213,6 +1213,7 @@ fn expandObjMacro(pp: *Preprocessor, simple_macro: *const Macro) Error!ExpandBuf
                 buf.appendAssumeCapacity(try pp.makeGeneratedToken(start, .pp_num, tok));
             },
             .macro_date, .macro_time => {
+                try pp.err(pp.expansion_source_loc, .date_time, .{});
                 const start = pp.comp.generated_buf.items.len;
                 const timestamp = switch (pp.source_epoch) {
                     .system, .provided => |ts| ts,
@@ -1221,6 +1222,7 @@ fn expandObjMacro(pp: *Preprocessor, simple_macro: *const Macro) Error!ExpandBuf
                 buf.appendAssumeCapacity(try pp.makeGeneratedToken(start, .string_literal, tok));
             },
             .macro_timestamp => {
+                try pp.err(pp.expansion_source_loc, .date_time, .{});
                 const start = pp.comp.generated_buf.items.len;
                 const timestamp = switch (pp.source_epoch) {
                     .provided => |ts| ts,

@@ -440,3 +440,9 @@ pub const invalid_source_epoch: Diagnostic = .{
     .fmt = "environment variable SOURCE_DATE_EPOCH must expand to a non-negative integer less than or equal to 253402300799",
     .kind = .@"error",
 };
+
+pub const date_time: Diagnostic = .{
+    .fmt = "expansion of date or time macro is not reproducible",
+    .kind = .off,
+    .opt = .@"date-time",
+};
