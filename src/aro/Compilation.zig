@@ -1694,7 +1694,7 @@ const FindInclude = struct {
             if (try find.checkFrameworkDir(dir, .system)) |res| return res;
         }
         for (comp.after_include_dirs.items) |dir| {
-            if (try find.checkIncludeDir(dir, .user)) |res| return res;
+            if (try find.checkIncludeDir(dir, .system)) |res| return res;
         }
         if (comp.ms_cwd_source_id) |source_id| {
             if (try find.checkMsCwdIncludeDir(source_id)) |res| return res;
