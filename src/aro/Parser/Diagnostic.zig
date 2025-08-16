@@ -2416,3 +2416,9 @@ pub const declared_const_here: Diagnostic = .{
     .fmt = "variable '{s}' declared const here",
     .kind = .note,
 };
+
+pub const nonnull_not_applicable: Diagnostic = .{
+    .fmt = "'nonnull' attribute only applies to functions, methods, and parameters",
+    .kind = .warning,
+    .opt = .@"ignored-attributes",
+};
