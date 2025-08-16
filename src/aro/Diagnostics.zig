@@ -193,6 +193,7 @@ pub const Option = enum {
     @"microsoft-flexible-array",
     @"microsoft-anon-tag",
     @"out-of-scope-function",
+    @"attribute-todo",
 
     /// GNU extensions
     pub const gnu = [_]Option{
