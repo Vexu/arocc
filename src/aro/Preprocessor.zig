@@ -759,6 +759,9 @@ pub const Diagnostic = @import("Preprocessor/Diagnostic.zig");
 
 fn err(pp: *Preprocessor, loc: anytype, diagnostic: Diagnostic, args: anytype) Compilation.Error!void {
     if (pp.diagnostics.effectiveKind(diagnostic) == .off) return;
+    const old_suppress_system = pp.diagnostics.state.suppress_system_headers;
+    defer pp.diagnostics.state.suppress_system_headers = old_suppress_system;
+    if (diagnostic.show_in_system_headers) pp.diagnostics.state.suppress_system_headers = false;
 
     var sf = std.heap.stackFallback(1024, pp.comp.gpa);
     var allocating: std.Io.Writer.Allocating = .init(sf.get());
@@ -1213,6 +1216,7 @@ fn expandObjMacro(pp: *Preprocessor, simple_macro: *const Macro) Error!ExpandBuf
                 buf.appendAssumeCapacity(try pp.makeGeneratedToken(start, .pp_num, tok));
             },
             .macro_date, .macro_time => {
+                try pp.err(pp.expansion_source_loc, .date_time, .{});
                 const start = pp.comp.generated_buf.items.len;
                 const timestamp = switch (pp.source_epoch) {
                     .system, .provided => |ts| ts,
@@ -1221,6 +1225,7 @@ fn expandObjMacro(pp: *Preprocessor, simple_macro: *const Macro) Error!ExpandBuf
                 buf.appendAssumeCapacity(try pp.makeGeneratedToken(start, .string_literal, tok));
             },
             .macro_timestamp => {
+                try pp.err(pp.expansion_source_loc, .date_time, .{});
                 const start = pp.comp.generated_buf.items.len;
                 const timestamp = switch (pp.source_epoch) {
                     .provided => |ts| ts,
