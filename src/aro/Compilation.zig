@@ -1587,19 +1587,7 @@ fn addSourceFromPathExtra(comp: *Compilation, path: []const u8, kind: Source.Kin
 }
 
 pub fn addSourceFromFile(comp: *Compilation, file: std.fs.File, path: []const u8, kind: Source.Kind) !Source {
-    var file_buf: [4096]u8 = undefined;
-    var file_reader = file.reader(&file_buf);
-    if (file_reader.getSize()) |size| {
-        if (size > std.math.maxInt(u32)) return error.FileTooBig;
-    } else |_| {}
-
-    var allocating: std.Io.Writer.Allocating = .init(comp.gpa);
-    _ = allocating.writer.sendFileAll(&file_reader, .limited(std.math.maxInt(u32))) catch |e| switch (e) {
-        error.WriteFailed => return error.OutOfMemory,
-        error.ReadFailed => return file_reader.err.?,
-    };
-
-    const contents = try allocating.toOwnedSlice();
+    const contents = try comp.getFileContents(file, .unlimited);
     errdefer comp.gpa.free(contents);
     return comp.addSourceFromOwnedBuffer(path, contents, kind);
 }
@@ -1789,28 +1777,38 @@ pub const IncludeType = enum {
     angle_brackets,
 };
 
-fn getFileContents(comp: *Compilation, path: []const u8, limit: std.Io.Limit) ![]const u8 {
+fn getPathContents(comp: *Compilation, path: []const u8, limit: std.Io.Limit) ![]u8 {
     if (mem.indexOfScalar(u8, path, 0) != null) {
         return error.FileNotFound;
     }
 
     const file = try comp.cwd.openFile(path, .{});
     defer file.close();
+    return comp.getFileContents(file, limit);
+}
+
+fn getFileContents(comp: *Compilation, file: std.fs.File, limit: std.Io.Limit) ![]u8 {
+    var file_buf: [4096]u8 = undefined;
+    var file_reader = file.reader(&file_buf);
 
     var allocating: std.Io.Writer.Allocating = .init(comp.gpa);
     defer allocating.deinit();
-
-    var file_buf: [4096]u8 = undefined;
-    var file_reader = file.reader(&file_buf);
     if (file_reader.getSize()) |size| {
-        if (limit.minInt64(size) > std.math.maxInt(u32)) return error.FileTooBig;
+        const limited_size = limit.minInt64(size);
+        if (limited_size > std.math.maxInt(u32)) return error.FileTooBig;
+        try allocating.ensureUnusedCapacity(limited_size);
     } else |_| {}
 
-    _ = allocating.writer.sendFileAll(&file_reader, limit) catch |err| switch (err) {
-        error.WriteFailed => return error.OutOfMemory,
-        error.ReadFailed => return file_reader.err.?,
-    };
-
+    var remaining = limit.min(.limited(std.math.maxInt(u32)));
+    while (remaining.nonzero()) {
+        const n = file_reader.interface.stream(&allocating.writer, remaining) catch |err| switch (err) {
+            error.EndOfStream => return allocating.toOwnedSlice(),
+            error.WriteFailed => return error.OutOfMemory,
+            error.ReadFailed => return file_reader.err.?,
+        };
+        remaining = remaining.subtract(n).?;
+    }
+    if (limit == .unlimited) return error.FileTooBig;
     return allocating.toOwnedSlice();
 }
 
@@ -1822,9 +1820,10 @@ pub fn findEmbed(
     include_type: IncludeType,
     limit: std.Io.Limit,
     opt_dep_file: ?*DepFile,
-) !?[]const u8 {
+) !?[]u8 {
     if (std.fs.path.isAbsolute(filename)) {
-        if (comp.getFileContents(filename, limit)) |some| {
+        if (comp.getPathContents(filename, limit)) |some| {
+            errdefer comp.gpa.free(some);
             if (opt_dep_file) |dep_file| try dep_file.addDependencyDupe(comp.gpa, comp.arena, filename);
             return some;
         } else |err| switch (err) {
@@ -1844,7 +1843,8 @@ pub fn findEmbed(
             if (comp.langopts.ms_extensions) {
                 std.mem.replaceScalar(u8, path, '\\', '/');
             }
-            if (comp.getFileContents(path, limit)) |some| {
+            if (comp.getPathContents(path, limit)) |some| {
+                errdefer comp.gpa.free(some);
                 if (opt_dep_file) |dep_file| try dep_file.addDependencyDupe(comp.gpa, comp.arena, filename);
                 return some;
             } else |err| switch (err) {
@@ -1860,7 +1860,8 @@ pub fn findEmbed(
         if (comp.langopts.ms_extensions) {
             std.mem.replaceScalar(u8, path, '\\', '/');
         }
-        if (comp.getFileContents(path, limit)) |some| {
+        if (comp.getPathContents(path, limit)) |some| {
+            errdefer comp.gpa.free(some);
             if (opt_dep_file) |dep_file| try dep_file.addDependencyDupe(comp.gpa, comp.arena, filename);
             return some;
         } else |err| switch (err) {
