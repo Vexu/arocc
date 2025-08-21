@@ -1699,7 +1699,7 @@ pub const Node = union(enum) {
             return tree.nodes.items(.tok)[@intFromEnum(index)];
         }
 
-        pub fn loc(index: Index, tree: *const Tree) ?Source.Location {
+        pub fn loc(index: Index, tree: *const Tree) Source.Location {
             const tok_i = index.tok(tree);
             return tree.tokens.items(.loc)[tok_i];
         }
