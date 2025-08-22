@@ -10221,12 +10221,30 @@ test "Node locations" {
     try std.testing.expectEqual(0, comp.diagnostics.total);
     for (tree.root_decls.items[tree.root_decls.items.len - 3 ..], 0..) |node, i| {
         const slice = tree.tokSlice(node.tok(&tree));
-        const expected = switch (i) {
+        const expected_slice = switch (i) {
             0 => "foo",
             1 => "bar",
             2 => "main",
             else => unreachable,
         };
-        try std.testing.expectEqualStrings(expected, slice);
+        try std.testing.expectEqualStrings(expected_slice, slice);
+
+        const loc = node.loc(&tree).expand(&comp);
+        const expected_col: u32 = switch (i) {
+            0 => 5,
+            1 => 5,
+            2 => 5,
+            else => unreachable,
+        };
+        try std.testing.expectEqual(expected_col, loc.col);
+
+        const expected_line_no = i + 1;
+        try std.testing.expectEqual(expected_line_no, loc.line_no);
+
+        const expected_source_path = "file.c";
+        try std.testing.expectEqualStrings(expected_source_path, loc.path);
+
+        const expected_source_kind = Source.Kind.user;
+        try std.testing.expectEqual(expected_source_kind, loc.kind);
     }
 }
