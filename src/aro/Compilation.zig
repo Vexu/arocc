@@ -247,6 +247,12 @@ fn generateSystemDefines(comp: *Compilation, w: *std.Io.Writer) !void {
         try w.print("#define __GNUC_PATCHLEVEL__ {d}\n", .{gnuc_version % 100});
     }
 
+    switch (comp.langopts.emulate) {
+        .clang => try w.writeAll("#define __ARO_EMULATE__ 1\n"),
+        .gcc => try w.writeAll("#define __ARO_EMULATE__ 2\n"),
+        .msvc => try w.writeAll("#define __ARO_EMULATE__ 3\n"),
+    }
+
     if (comp.code_gen_options.optimization_level.hasAnyOptimizations()) {
         try define(w, "__OPTIMIZE__");
     }
