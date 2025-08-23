@@ -486,7 +486,9 @@ pub fn addWithLocation(
     if (copy.kind == .@"fatal error") return error.FatalError;
 }
 
-pub fn formatArgs(w: *std.Io.Writer, fmt: []const u8, args: anytype) std.Io.Writer.Error!void {
+const FormatError = error{ TemplateNotFound, TypeNotHandled } || std.Io.Writer.Error;
+
+fn formatArgsSafe(w: *std.Io.Writer, fmt: []const u8, args: anytype) FormatError!void {
     var i: usize = 0;
     inline for (std.meta.fields(@TypeOf(args))) |arg_info| {
         const arg = @field(args, arg_info.name);
@@ -495,24 +497,33 @@ pub fn formatArgs(w: *std.Io.Writer, fmt: []const u8, args: anytype) std.Io.Writ
             else => switch (@typeInfo(@TypeOf(arg))) {
                 .int, .comptime_int => try Diagnostics.formatInt(w, fmt[i..], arg),
                 .pointer => try Diagnostics.formatString(w, fmt[i..], arg),
-                else => unreachable,
+                else => return error.TypeNotHandled,
             },
         };
     }
     try w.writeAll(fmt[i..]);
 }
 
-pub fn formatString(w: *std.Io.Writer, fmt: []const u8, str: []const u8) std.Io.Writer.Error!usize {
+pub fn formatArgs(w: *std.Io.Writer, fmt: []const u8, args: anytype) std.Io.Writer.Error!void {
+    formatArgsSafe(w, fmt, args) catch |err| switch (err) {
+        error.TemplateNotFound => return w.writeAll("Message template not found (this is a bug in arocc)"),
+        error.TypeNotHandled => return w.writeAll("Argument type cannot be formatted (this is a bug in arocc)"),
+        else => |e| return e,
+    };
+}
+
+pub fn formatString(w: *std.Io.Writer, fmt: []const u8, str: []const u8) FormatError!usize {
     const template = "{s}";
-    const i = std.mem.indexOf(u8, fmt, template).?;
+    const i = std.mem.indexOf(u8, fmt, template) orelse return error.TemplateNotFound;
+
     try w.writeAll(fmt[0..i]);
     try w.writeAll(str);
     return i + template.len;
 }
 
-pub fn formatInt(w: *std.Io.Writer, fmt: []const u8, int: anytype) std.Io.Writer.Error!usize {
+pub fn formatInt(w: *std.Io.Writer, fmt: []const u8, int: anytype) FormatError!usize {
     const template = "{d}";
-    const i = std.mem.indexOf(u8, fmt, template).?;
+    const i = std.mem.indexOf(u8, fmt, template) orelse return error.TemplateNotFound;
     try w.writeAll(fmt[0..i]);
     try w.printInt(int, 10, .lower, .{});
     return i + template.len;
