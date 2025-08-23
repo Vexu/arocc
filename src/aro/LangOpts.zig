@@ -7,6 +7,15 @@ pub const Compiler = enum {
     clang,
     gcc,
     msvc,
+
+    /// Report ourselves as this GCC version if not explicitly specified by the user via `-fgnuc-version`
+    pub fn defaultGccVersion(self: Compiler) []const u8 {
+        return switch (self) {
+            .clang => "4.2.1",
+            .gcc => "7.1",
+            .msvc => "0",
+        };
+    }
 };
 
 /// The floating-point evaluation method for intermediate results within a single expression
