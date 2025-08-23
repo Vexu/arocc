@@ -34,6 +34,7 @@ test {
     _ = @import("aro/Driver/Filesystem.zig");
     _ = @import("aro/Driver/GCCVersion.zig");
     _ = @import("aro/InitList.zig");
+    _ = @import("aro/LangOpts.zig");
     _ = @import("aro/Preprocessor.zig");
     _ = @import("aro/target.zig");
     _ = @import("aro/Tokenizer.zig");
