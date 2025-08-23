@@ -345,7 +345,7 @@ pub const Parser = struct {
                 else => switch (@typeInfo(@TypeOf(arg))) {
                     .int, .comptime_int => try Diagnostics.formatInt(w, fmt[i..], arg),
                     .pointer => try Diagnostics.formatString(w, fmt[i..], arg),
-                    else => unreachable,
+                    else => comptime unreachable,
                 },
             };
         }
