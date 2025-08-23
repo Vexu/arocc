@@ -469,7 +469,7 @@ fn formatArgs(p: *Parser, w: *std.Io.Writer, fmt: []const u8, args: anytype) !vo
             else => switch (@typeInfo(@TypeOf(arg))) {
                 .int, .comptime_int => try Diagnostics.formatInt(w, fmt[i..], arg),
                 .pointer => try Diagnostics.formatString(w, fmt[i..], arg),
-                else => unreachable,
+                else => comptime unreachable,
             },
         };
     }
@@ -626,11 +626,11 @@ pub fn errValueChanged(p: *Parser, tok_i: TokenIndex, diagnostic: Diagnostic, re
 fn checkDeprecatedUnavailable(p: *Parser, ty: QualType, usage_tok: TokenIndex, decl_tok: TokenIndex) !void {
     if (ty.getAttribute(p.comp, .@"error")) |@"error"| {
         const msg_str = p.comp.interner.get(@"error".msg.ref()).bytes;
-        try p.err(usage_tok, .error_attribute, .{ p.tokSlice(@"error".__name_tok), std.zig.fmtString(msg_str) });
+        try p.err(usage_tok, .error_attribute, .{ p.tokSlice(@"error".__name_tok), Escaped.init(msg_str) });
     }
     if (ty.getAttribute(p.comp, .warning)) |warning| {
         const msg_str = p.comp.interner.get(warning.msg.ref()).bytes;
-        try p.err(usage_tok, .warning_attribute, .{ p.tokSlice(warning.__name_tok), std.zig.fmtString(msg_str) });
+        try p.err(usage_tok, .warning_attribute, .{ p.tokSlice(warning.__name_tok), Escaped.init(msg_str) });
     }
     if (ty.getAttribute(p.comp, .unavailable)) |unavailable| {
         try p.errDeprecated(usage_tok, .unavailable, unavailable.msg);
@@ -4734,7 +4734,7 @@ fn asmOperand(p: *Parser, names: *std.ArrayList(?TokenIndex), constraints: *Node
     try constraints.append(gpa, constraint.node);
 
     const l_paren = p.eatToken(.l_paren) orelse {
-        try p.err(p.tok_i, .expected_token, .{ p.tok_ids[p.tok_i], .l_paren });
+        try p.err(p.tok_i, .expected_token, .{ p.tok_ids[p.tok_i], Token.Id.l_paren });
         return error.ParsingFailed;
     };
     const maybe_res = try p.expr();
