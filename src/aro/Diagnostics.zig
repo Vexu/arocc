@@ -486,7 +486,7 @@ pub fn addWithLocation(
     if (copy.kind == .@"fatal error") return error.FatalError;
 }
 
-const FormatError = error{ TemplateNotFound, TypeNotHandled } || std.Io.Writer.Error;
+const FormatError = error{TemplateNotFound} || std.Io.Writer.Error;
 
 fn formatArgsSafe(w: *std.Io.Writer, fmt: []const u8, args: anytype) FormatError!void {
     var i: usize = 0;
@@ -497,7 +497,7 @@ fn formatArgsSafe(w: *std.Io.Writer, fmt: []const u8, args: anytype) FormatError
             else => switch (@typeInfo(@TypeOf(arg))) {
                 .int, .comptime_int => try Diagnostics.formatInt(w, fmt[i..], arg),
                 .pointer => try Diagnostics.formatString(w, fmt[i..], arg),
-                else => return error.TypeNotHandled,
+                else => comptime unreachable,
             },
         };
     }
@@ -507,7 +507,6 @@ fn formatArgsSafe(w: *std.Io.Writer, fmt: []const u8, args: anytype) FormatError
 pub fn formatArgs(w: *std.Io.Writer, fmt: []const u8, args: anytype) std.Io.Writer.Error!void {
     formatArgsSafe(w, fmt, args) catch |err| switch (err) {
         error.TemplateNotFound => return w.writeAll("Message template not found (this is a bug in arocc)"),
-        error.TypeNotHandled => return w.writeAll("Argument type cannot be formatted (this is a bug in arocc)"),
         else => |e| return e,
     };
 }
