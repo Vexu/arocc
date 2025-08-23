@@ -240,7 +240,7 @@ fn generateSystemDefines(comp: *Compilation, w: *std.Io.Writer) !void {
     const ptr_width = comp.target.ptrBitWidth();
     const is_gnu = comp.langopts.standard.isGNU();
 
-    const gnuc_version = comp.langopts.gnuc_version orelse comp.langopts.emulate.defaultGccVersion();
+    const gnuc_version = comp.langopts.gnuc_version orelse comp.langopts.emulate.defaultGccVersion() orelse 0;
     if (gnuc_version > 0) {
         try w.print("#define __GNUC__ {d}\n", .{gnuc_version / 10_000});
         try w.print("#define __GNUC_MINOR__ {d}\n", .{gnuc_version / 100 % 100});

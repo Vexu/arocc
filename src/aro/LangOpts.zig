@@ -8,11 +8,11 @@ pub const Compiler = enum {
     gcc,
     msvc,
 
-    pub fn defaultGccVersion(self: Compiler) u32 {
+    pub fn defaultGccVersion(self: Compiler) ?u32 {
         return switch (self) {
             .clang => 4 * 10_000 + 2 * 100 + 1,
             .gcc => 7 * 10_000 + 1 * 100 + 0,
-            .msvc => 0,
+            .msvc => null,
         };
     }
 };
