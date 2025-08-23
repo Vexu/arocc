@@ -789,14 +789,13 @@ pub fn parseArgs(
             d.comp.target.os.tag = .freestanding;
         }
     }
-    const gnuc_version_string = gnuc_version orelse d.comp.langopts.emulate.defaultGccVersionString();
-    const version = GCCVersion.parse(gnuc_version_string);
-    if (version.major == -1) {
-        if (gnuc_version) |unwrapped| {
+    if (gnuc_version) |unwrapped| {
+        const version = GCCVersion.parse(unwrapped);
+        if (version.major == -1) {
             return d.fatal("invalid value '{s}' in '-fgnuc-version={s}'", .{ unwrapped, unwrapped });
         }
+        d.comp.langopts.gnuc_version = version.toUnsigned();
     }
-    d.comp.langopts.gnuc_version = version.toUnsigned();
     const pic_level, const is_pie = try d.getPICMode(pic_arg);
     d.comp.code_gen_options.pic_level = pic_level;
     d.comp.code_gen_options.is_pie = is_pie;

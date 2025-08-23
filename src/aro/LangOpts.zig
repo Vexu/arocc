@@ -8,43 +8,12 @@ pub const Compiler = enum {
     gcc,
     msvc,
 
-    /// Report ourselves as this GCC version if not explicitly specified by the user via `-fgnuc-version`
-    pub fn defaultGccVersionString(self: Compiler) []const u8 {
-        return switch (self) {
-            .clang => "4.2.1",
-            .gcc => "7.1",
-            .msvc => "0",
-        };
-    }
-
     pub fn defaultGccVersion(self: Compiler) u32 {
         return switch (self) {
             .clang => 4 * 10_000 + 2 * 100 + 1,
             .gcc => 7 * 10_000 + 1 * 100 + 0,
             .msvc => 0,
         };
-    }
-
-    test defaultGccVersionString {
-        const S = struct {
-            fn doTheTest(compiler: Compiler) !void {
-                const string = compiler.defaultGccVersionString();
-                var it = std.mem.splitScalar(u8, string, '.');
-                var mul: u32 = 10_000;
-                var sum: u32 = 0;
-                while (it.next()) |part| {
-                    const val = try std.fmt.parseInt(u32, part, 10);
-                    sum += mul * val;
-                    mul /= 100;
-                }
-                if (sum != compiler.defaultGccVersion()) {
-                    return error.TestFailed;
-                }
-            }
-        };
-        try S.doTheTest(Compiler.clang);
-        try S.doTheTest(Compiler.gcc);
-        try S.doTheTest(Compiler.msvc);
     }
 };
 
