@@ -276,7 +276,7 @@ pub fn parseArgs(
     var i: usize = 1;
     var comment_arg: []const u8 = "";
     var hosted: ?bool = null;
-    var gnuc_version: []const u8 = "4.2.1"; // default value set by clang
+    var gnuc_version: ?[]const u8 = null;
     var pic_arg: []const u8 = "";
     var declspec_attrs: ?bool = null;
     var ms_extensions: ?bool = null;
@@ -789,11 +789,13 @@ pub fn parseArgs(
             d.comp.target.os.tag = .freestanding;
         }
     }
-    const version = GCCVersion.parse(gnuc_version);
-    if (version.major == -1) {
-        return d.fatal("invalid value '{0s}' in '-fgnuc-version={0s}'", .{gnuc_version});
+    if (gnuc_version) |unwrapped| {
+        const version = GCCVersion.parse(unwrapped);
+        if (version.major == -1) {
+            return d.fatal("invalid value '{s}' in '-fgnuc-version={s}'", .{ unwrapped, unwrapped });
+        }
+        d.comp.langopts.gnuc_version = version.toUnsigned();
     }
-    d.comp.langopts.gnuc_version = version.toUnsigned();
     const pic_level, const is_pie = try d.getPICMode(pic_arg);
     d.comp.code_gen_options.pic_level = pic_level;
     d.comp.code_gen_options.is_pie = is_pie;
@@ -1039,7 +1041,7 @@ fn getRandomFilename(d: *Driver, buf: *[std.fs.max_name_bytes]u8, extension: []c
 
     const fmt_template = "/tmp/{s}{s}";
     const fmt_args = .{
-        random_name,
+        @as([]const u8, &random_name),
         extension,
     };
     return std.fmt.bufPrint(buf, fmt_template, fmt_args) catch return d.fatal("Filename too long for filesystem: " ++ fmt_template, fmt_args);
