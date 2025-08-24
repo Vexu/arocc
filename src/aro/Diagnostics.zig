@@ -486,9 +486,7 @@ pub fn addWithLocation(
     if (copy.kind == .@"fatal error") return error.FatalError;
 }
 
-const FormatError = error{TemplateNotFound} || std.Io.Writer.Error;
-
-fn formatArgsSafe(w: *std.Io.Writer, fmt: []const u8, args: anytype) FormatError!void {
+pub fn formatArgs(w: *std.Io.Writer, fmt: []const u8, args: anytype) std.Io.Writer.Error!void {
     var i: usize = 0;
     inline for (std.meta.fields(@TypeOf(args))) |arg_info| {
         const arg = @field(args, arg_info.name);
@@ -504,28 +502,28 @@ fn formatArgsSafe(w: *std.Io.Writer, fmt: []const u8, args: anytype) FormatError
     try w.writeAll(fmt[i..]);
 }
 
-pub fn formatArgs(w: *std.Io.Writer, fmt: []const u8, args: anytype) std.Io.Writer.Error!void {
-    formatArgsSafe(w, fmt, args) catch |err| switch (err) {
-        error.TemplateNotFound => return w.writeAll("Message template not found (this is a bug in arocc)"),
-        else => |e| return e,
+pub fn templateIndex(w: *std.Io.Writer, fmt: []const u8, template: []const u8) std.Io.Writer.Error!usize {
+    const i = std.mem.indexOf(u8, fmt, template) orelse {
+        if (@import("builtin").mode == .Debug) {
+            std.debug.panic("template `{s}` not found in format string `{s}`", .{ template, fmt });
+        }
+        try w.print("template `{s}` not found in format string `{s}` (this is a bug in arocc)", .{ template, fmt });
+        return 0;
     };
+    try w.writeAll(fmt[0..i]);
+    return i + template.len;
 }
 
-pub fn formatString(w: *std.Io.Writer, fmt: []const u8, str: []const u8) FormatError!usize {
-    const template = "{s}";
-    const i = std.mem.indexOf(u8, fmt, template) orelse return error.TemplateNotFound;
-
-    try w.writeAll(fmt[0..i]);
+pub fn formatString(w: *std.Io.Writer, fmt: []const u8, str: []const u8) std.Io.Writer.Error!usize {
+    const i = templateIndex(w, fmt, "{s}");
     try w.writeAll(str);
-    return i + template.len;
+    return i;
 }
 
-pub fn formatInt(w: *std.Io.Writer, fmt: []const u8, int: anytype) FormatError!usize {
-    const template = "{d}";
-    const i = std.mem.indexOf(u8, fmt, template) orelse return error.TemplateNotFound;
-    try w.writeAll(fmt[0..i]);
+pub fn formatInt(w: *std.Io.Writer, fmt: []const u8, int: anytype) std.Io.Writer.Error!usize {
+    const i = templateIndex(w, fmt, "{d}");
     try w.printInt(int, 10, .lower, .{});
-    return i + template.len;
+    return i;
 }
 
 fn addMessage(d: *Diagnostics, msg: Message) Compilation.Error!void {
