@@ -330,6 +330,8 @@ fn generateSystemDefines(comp: *Compilation, w: *std.Io.Writer) !void {
         => try define(w, "__APPLE__"),
         .wasi => try define(w, "__wasi__"),
         .emscripten => try define(w, "__EMSCRIPTEN__"),
+        .@"3ds" => try define(w, "__3DS__"),
+        .vita => try define(w, "__vita__"),
         else => {},
     }
 
