@@ -194,6 +194,7 @@ pub const Option = enum {
     @"microsoft-anon-tag",
     @"out-of-scope-function",
     @"date-time",
+    @"attribute-todo",
 
     /// GNU extensions
     pub const gnu = [_]Option{
