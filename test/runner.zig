@@ -23,7 +23,6 @@ fn addCommandLineArgs(comp: *aro.Compilation, file: aro.Source, macro_buf: *std.
     var line_markers: aro.Preprocessor.Linemarkers = .none;
     var system_defines: aro.Compilation.SystemDefinesMode = .include_system_defines;
     var dump_mode: aro.Preprocessor.DumpMode = .result_only;
-    comp.langopts.gnuc_version = 40201; // Set to clang default value since we do not call parseArgs if there are no args
     if (std.mem.startsWith(u8, file.buf, "//aro-args")) {
         var test_args: std.ArrayList([]const u8) = .empty;
         defer test_args.deinit(comp.gpa);
