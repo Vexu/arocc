@@ -197,6 +197,9 @@ pub fn main() !void {
     const cases_frameworks_dir = try std.fs.path.join(arena, &.{ args[1], "frameworks" });
     try initial_comp.framework_dirs.append(gpa, cases_frameworks_dir);
 
+    const cases_iquote_dir = try std.fs.path.join(arena, &.{ args[1], "include", "iquote" });
+    try initial_comp.iquote_include_dirs.append(gpa, cases_iquote_dir);
+
     try initial_comp.addDefaultPragmaHandlers();
     try initial_comp.addBuiltinIncludeDir(test_dir, null);
 
@@ -224,6 +227,7 @@ pub fn main() !void {
         defer {
             // preserve some values
             comp.include_dirs = .{};
+            comp.iquote_include_dirs = .{};
             comp.system_include_dirs = .{};
             comp.after_include_dirs = .{};
             comp.framework_dirs = .{};
