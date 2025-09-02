@@ -132,6 +132,8 @@ sources: std.StringArrayHashMapUnmanaged(Source) = .empty,
 /// Allocated into `gpa`, but keys are externally managed.
 include_dirs: std.ArrayList([]const u8) = .empty,
 /// Allocated into `gpa`, but keys are externally managed.
+iquote_include_dirs: std.ArrayList([]const u8) = .empty,
+/// Allocated into `gpa`, but keys are externally managed.
 system_include_dirs: std.ArrayList([]const u8) = .empty,
 /// Allocated into `gpa`, but keys are externally managed.
 after_include_dirs: std.ArrayList([]const u8) = .empty,
@@ -192,6 +194,7 @@ pub fn deinit(comp: *Compilation) void {
     }
     comp.sources.deinit(gpa);
     comp.include_dirs.deinit(gpa);
+    comp.iquote_include_dirs.deinit(gpa);
     comp.system_include_dirs.deinit(gpa);
     comp.after_include_dirs.deinit(gpa);
     comp.framework_dirs.deinit(gpa);
@@ -1618,7 +1621,7 @@ pub fn hasInclude(
     which: WhichInclude,
     opt_dep_file: ?*DepFile,
 ) Compilation.Error!bool {
-    if (try FindInclude.run(comp, filename, switch (which) {
+    if (try FindInclude.run(comp, filename, include_type, switch (which) {
         .next => .{ .only_search_after_dir = comp.getSource(includer_token_source).path },
         .first => switch (include_type) {
             .quotes => .{ .allow_same_dir = comp.getSource(includer_token_source).path },
@@ -1650,6 +1653,7 @@ const FindInclude = struct {
     fn run(
         comp: *Compilation,
         include_path: []const u8,
+        include_type: IncludeType,
         search_strat: union(enum) {
             allow_same_dir: []const u8,
             only_search,
@@ -1684,7 +1688,12 @@ const FindInclude = struct {
                 find.wait_for = std.fs.path.dirname(other_file);
             },
         }
-
+        switch (include_type) {
+            .quotes => for (comp.iquote_include_dirs.items) |dir| {
+                if (try find.checkIncludeDir(dir, .user)) |res| return res;
+            },
+            .angle_brackets => {},
+        }
         for (comp.include_dirs.items) |dir| {
             if (try find.checkIncludeDir(dir, .user)) |res| return res;
         }
@@ -1897,7 +1906,7 @@ pub fn findInclude(
     /// include vs include_next
     which: WhichInclude,
 ) Compilation.Error!?Source {
-    const found = try FindInclude.run(comp, filename, switch (which) {
+    const found = try FindInclude.run(comp, filename, include_type, switch (which) {
         .next => .{ .only_search_after_dir = comp.getSource(includer_token.source).path },
         .first => switch (include_type) {
             .quotes => .{ .allow_same_dir = comp.getSource(includer_token.source).path },
