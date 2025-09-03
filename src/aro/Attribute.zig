@@ -345,6 +345,7 @@ fn diagnoseField(
 
 pub fn diagnose(attr: Tag, arguments: *Arguments, arg_idx: u32, res: Parser.Result, arg_start: TokenIndex, node: Tree.Node, p: *Parser) !bool {
     switch (attr) {
+        .nonnull => return false,
         inline else => |tag| {
             const decl = @typeInfo(attributes).@"struct".decls[@intFromEnum(tag)];
             const max_arg_count = comptime maxArgCount(tag);
@@ -532,10 +533,7 @@ const attributes = struct {
     pub const @"noinline" = struct {};
     pub const noipa = struct {};
     // TODO: arbitrary number of arguments
-    //    const nonnull = struct {
-    //    //            arg_index: []const u32,
-    //        };
-    //    };
+    pub const nonnull = struct {};
     pub const nonstring = struct {};
     pub const noplt = struct {};
     pub const @"noreturn" = struct {};
@@ -797,8 +795,15 @@ fn ignoredAttrErr(p: *Parser, tok: TokenIndex, attr: Attribute.Tag, context: []c
     try p.err(tok, .ignored_attribute, .{ @tagName(attr), context });
 }
 
-pub const applyParameterAttributes = applyVariableAttributes;
+pub fn applyParameterAttributes(p: *Parser, qt: QualType, attr_buf_start: usize, diagnostic: ?Parser.Diagnostic) !QualType {
+    return applyVariableOrParameterAttributes(p, qt, attr_buf_start, diagnostic, .parameter);
+}
+
 pub fn applyVariableAttributes(p: *Parser, qt: QualType, attr_buf_start: usize, diagnostic: ?Parser.Diagnostic) !QualType {
+    return applyVariableOrParameterAttributes(p, qt, attr_buf_start, diagnostic, .variable);
+}
+
+fn applyVariableOrParameterAttributes(p: *Parser, qt: QualType, attr_buf_start: usize, diagnostic: ?Parser.Diagnostic, context: enum { parameter, variable }) !QualType {
     const gpa = p.comp.gpa;
     const attrs = p.attr_buf.items(.attr)[attr_buf_start..];
     const toks = p.attr_buf.items(.tok)[attr_buf_start..];
@@ -826,6 +831,12 @@ pub fn applyVariableAttributes(p: *Parser, qt: QualType, attr_buf_start: usize, 
         },
         .vector_size => try attr.applyVectorSize(p, tok, &base_qt),
         .aligned => try attr.applyAligned(p, base_qt, diagnostic),
+        .nonnull => {
+            switch (context) {
+                .parameter => try p.err(tok, .attribute_todo, .{ "nonnull", "parameters" }),
+                .variable => try p.err(tok, .nonnull_not_applicable, .{}),
+            }
+        },
         .nonstring => {
             if (base_qt.get(p.comp, .array)) |array_ty| {
                 if (array_ty.elem.get(p.comp, .int)) |int_ty| switch (int_ty) {
@@ -1096,7 +1107,7 @@ pub fn applyFunctionAttributes(p: *Parser, qt: QualType, attr_buf_start: usize) 
         .no_stack_protector,
         .noclone,
         .noipa,
-        // .nonnull,
+        .nonnull,
         .noplt,
         // .optimize,
         .patchable_function_entry,

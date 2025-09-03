@@ -2304,6 +2304,7 @@ pub const overflow_result_requires_ptr: Diagnostic = .{
 pub const attribute_todo: Diagnostic = .{
     .fmt = "TODO: implement '{s}' attribute for {s}",
     .kind = .warning,
+    .opt = .@"attribute-todo",
 };
 
 pub const invalid_type_underlying_enum: Diagnostic = .{
@@ -2414,4 +2415,10 @@ pub const const_var_assignment: Diagnostic = .{
 pub const declared_const_here: Diagnostic = .{
     .fmt = "variable '{s}' declared const here",
     .kind = .note,
+};
+
+pub const nonnull_not_applicable: Diagnostic = .{
+    .fmt = "'nonnull' attribute only applies to functions, methods, and parameters",
+    .kind = .warning,
+    .opt = .@"ignored-attributes",
 };
