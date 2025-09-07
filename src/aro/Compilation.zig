@@ -450,10 +450,13 @@ fn generateSystemDefines(comp: *Compilation, w: *std.Io.Writer) !void {
                 .{ .f16c, "__F16C__" },
                 .{ .gfni, "__GFNI__" },
                 .{ .evex512, "__EVEX512__" },
-                .{ .avx10_1_256, "__AVX10_1__" },
-                .{ .avx10_1_512, "__AVX10_1_512__" },
-                .{ .avx10_2_256, "__AVX10_2__" },
-                .{ .avx10_2_512, "__AVX10_2_512__" },
+
+                .{ .avx10_1, "__AVX10_1__" },
+                .{ .avx10_1, "__AVX10_1_512__" },
+
+                .{ .avx10_2, "__AVX10_2__" },
+                .{ .avx10_2, "__AVX10_2_512__" },
+
                 .{ .avx512cd, "__AVX512CD__" },
                 .{ .avx512vpopcntdq, "__AVX512VPOPCNTDQ__" },
                 .{ .avx512vnni, "__AVX512VNNI__" },
@@ -954,7 +957,7 @@ fn generateSystemDefines(comp: *Compilation, w: *std.Io.Writer) !void {
 pub fn generateBuiltinMacros(comp: *Compilation, system_defines_mode: SystemDefinesMode) AddSourceError!Source {
     try comp.type_store.initNamedTypes(comp);
 
-    var allocating: std.io.Writer.Allocating = try .initCapacity(comp.gpa, 2 << 13);
+    var allocating: std.Io.Writer.Allocating = try .initCapacity(comp.gpa, 2 << 13);
     defer allocating.deinit();
 
     comp.writeBuiltinMacros(system_defines_mode, &allocating.writer) catch |err| switch (err) {

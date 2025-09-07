@@ -64,7 +64,7 @@ fn make(step: *Step, options: std.Build.Step.MakeOptions) !void {
     // non-backwards-compatible way.
     man.hash.add(@as(u32, 0xDCC14144));
 
-    const contents = try b.build_root.handle.readFileAlloc(arena, self.path, std.math.maxInt(u32));
+    const contents = try b.build_root.handle.readFileAlloc(self.path, arena, .unlimited);
     man.hash.addBytes(contents);
 
     const out_name = b.fmt("{s}.zig", .{std.fs.path.stem(self.path)});

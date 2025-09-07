@@ -157,7 +157,7 @@ pub fn main() !void {
     defer test_cases.deinit(gpa);
 
     for (cases.items) |path| {
-        const source = try std.fs.cwd().readFileAlloc(arena, path, std.math.maxInt(u32));
+        const source = try std.fs.cwd().readFileAlloc(path, arena, .unlimited);
         try parseTargetsFromCode(gpa, &test_cases, path, source);
     }
 

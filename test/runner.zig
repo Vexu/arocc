@@ -317,7 +317,7 @@ pub fn main() !void {
                 const expanded_path = try std.fs.path.join(gpa, &.{ args[1], "expanded", std.fs.path.basename(path) });
                 defer gpa.free(expanded_path);
 
-                break :blk std.fs.cwd().readFileAlloc(gpa, expanded_path, std.math.maxInt(u32)) catch |err| {
+                break :blk std.fs.cwd().readFileAlloc(expanded_path, gpa, .unlimited) catch |err| {
                     fail_count += 1;
                     std.debug.print("could not open expanded file '{s}': {s}\n", .{ path, @errorName(err) });
                     continue;
@@ -370,7 +370,7 @@ pub fn main() !void {
 
         const ast_path = try std.fs.path.join(gpa, &.{ args[1], "ast", std.fs.path.basename(path) });
         defer gpa.free(ast_path);
-        const maybe_ast = std.fs.cwd().readFileAlloc(gpa, ast_path, std.math.maxInt(u32)) catch null;
+        const maybe_ast = std.fs.cwd().readFileAlloc(ast_path, gpa, .unlimited) catch null;
         if (maybe_ast) |expected_ast| {
             defer gpa.free(expected_ast);
             var actual_ast: std.Io.Writer.Allocating = .init(gpa);
