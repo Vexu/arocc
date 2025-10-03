@@ -195,6 +195,7 @@ pub const Option = enum {
     @"out-of-scope-function",
     @"date-time",
     @"variadic-macro-arguments-omitted",
+    @"pragma-once-outside-header",
 
     /// GNU extensions
     pub const gnu = [_]Option{
