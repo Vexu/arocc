@@ -197,7 +197,7 @@ fn runTestCases(allocator: std.mem.Allocator, test_dir: []const u8, wg: *std.Thr
     const mem = allocator.alloc(u8, MAX_MEM_PER_TEST) catch |err| {
         std.log.err("{s}", .{@errorName(err)});
         if (@errorReturnTrace()) |trace| {
-            std.debug.dumpStackTrace(trace.*);
+            std.debug.dumpStackTrace(trace);
         }
         stats.recordResult(.fail);
         return;
@@ -212,7 +212,7 @@ fn runTestCases(allocator: std.mem.Allocator, test_dir: []const u8, wg: *std.Thr
         singleRun(fib.allocator(), test_dir, case, stats) catch |err| {
             std.log.err("{s}", .{@errorName(err)});
             if (@errorReturnTrace()) |trace| {
-                std.debug.dumpStackTrace(trace.*);
+                std.debug.dumpStackTrace(trace);
             }
             stats.recordResult(.fail);
         };
