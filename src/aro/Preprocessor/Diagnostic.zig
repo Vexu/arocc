@@ -456,3 +456,9 @@ pub const no_argument_variadic_macro: Diagnostic = .{
     .kind = .off,
     .extension = true,
 };
+
+pub const pragma_once_in_main_file: Diagnostic = .{
+    .fmt = "#pragma once in main file",
+    .kind = .warning,
+    .opt = .@"pragma-once-outside-header",
+};
