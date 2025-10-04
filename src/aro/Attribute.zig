@@ -714,6 +714,8 @@ const attributes = struct {
     pub const thiscall = struct {};
     pub const sysv_abi = struct {};
     pub const ms_abi = struct {};
+    // TODO cannot be combined with weak or selectany
+    pub const internal_linkage = struct {};
 };
 
 pub const Tag = std.meta.DeclEnum(attributes);
@@ -809,7 +811,7 @@ pub fn applyVariableAttributes(p: *Parser, qt: QualType, attr_buf_start: usize, 
     for (attrs, toks) |attr, tok| switch (attr.tag) {
         // zig fmt: off
         .alias, .may_alias, .deprecated, .unavailable, .unused, .warn_if_not_aligned, .weak, .used,
-        .noinit, .retain, .persistent, .section, .mode, .asm_label, .nullability, .unaligned,
+        .noinit, .retain, .persistent, .section, .mode, .asm_label, .nullability, .unaligned, .selectany, .internal_linkage,
          => try p.attr_application_buf.append(gpa, attr),
         // zig fmt: on
         .common => if (nocommon) {
@@ -924,7 +926,7 @@ pub fn applyFunctionAttributes(p: *Parser, qt: QualType, attr_buf_start: usize) 
         .noreturn, .unused, .used, .warning, .deprecated, .unavailable, .weak, .pure, .leaf,
         .@"const", .warn_unused_result, .section, .returns_nonnull, .returns_twice, .@"error",
         .externally_visible, .retain, .flatten, .gnu_inline, .alias, .asm_label, .nodiscard,
-        .reproducible, .unsequenced, .nothrow, .nullability, .unaligned,
+        .reproducible, .unsequenced, .nothrow, .nullability, .unaligned, .internal_linkage,
          => try p.attr_application_buf.append(gpa, attr),
         // zig fmt: on
         .hot => if (cold) {

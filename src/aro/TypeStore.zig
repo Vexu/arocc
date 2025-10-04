@@ -1143,6 +1143,13 @@ pub const QualType = packed struct(u32) {
         return max_requested;
     }
 
+    pub fn linkage(qt: QualType, comp: *const Compilation) std.builtin.GlobalLinkage {
+        if (qt.hasAttribute(comp, .internal_linkage)) return .internal;
+        if (qt.hasAttribute(comp, .weak)) return .weak;
+        if (qt.hasAttribute(comp, .selectany)) return .link_once;
+        return .strong;
+    }
+
     pub fn enumIsPacked(qt: QualType, comp: *const Compilation) bool {
         std.debug.assert(qt.is(comp, .@"enum"));
         return comp.langopts.short_enums or target_util.packAllEnums(comp.target) or qt.hasAttribute(comp, .@"packed");

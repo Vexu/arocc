@@ -26,6 +26,11 @@ noinline
     .gnu = true
     .declspec = true
 
+selectany
+    .tag = .selectany
+    .gnu = true
+    .declspec = true
+
 # c23 only
 nodiscard
     .tag = .nodiscard
@@ -408,6 +413,9 @@ ms_abi
     .tag = .ms_abi
     .gnu = true
 
+internal_linkage
+    .tag = .internal_linkage
+    .gnu = true
 
 # declspec only
 align
@@ -460,10 +468,6 @@ restrict
 
 safebuffers
     .tag = .safebuffers
-    .declspec = true
-
-selectany
-    .tag = .selectany
     .declspec = true
 
 spectre
