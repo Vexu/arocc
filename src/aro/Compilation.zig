@@ -1787,14 +1787,12 @@ const FindInclude = struct {
         const sfa = stack_fallback.get();
         const header_path = try std.fmt.allocPrint(sfa, format, args);
         defer sfa.free(header_path);
-
-        if (find.comp.langopts.ms_extensions) {
-            std.mem.replaceScalar(u8, header_path, '\\', '/');
-        }
+        find.comp.normalizePath(header_path);
         const source = comp.addSourceFromPathExtra(header_path, kind) catch |err| switch (err) {
             error.OutOfMemory => |e| return e,
             else => return null,
         };
+
         return .{
             .source = source.id,
             .kind = kind,
@@ -1848,6 +1846,12 @@ fn getFileContents(comp: *Compilation, file: std.fs.File, limit: std.Io.Limit) !
     return allocating.toOwnedSlice();
 }
 
+fn normalizePath(comp: *Compilation, path: []u8) void {
+    if (comp.langopts.ms_extensions and @import("builtin").target.os.tag != .windows) {
+        std.mem.replaceScalar(u8, path, std.fs.path.sep_windows, std.fs.path.sep_posix);
+    }
+}
+
 pub fn findEmbed(
     comp: *Compilation,
     filename: []const u8,
@@ -1876,9 +1880,7 @@ pub fn findEmbed(
             const dir = std.fs.path.dirname(comp.getSource(includer_token_source).path) orelse ".";
             const path = try std.fs.path.join(sf_allocator, &.{ dir, filename });
             defer sf_allocator.free(path);
-            if (comp.langopts.ms_extensions) {
-                std.mem.replaceScalar(u8, path, '\\', '/');
-            }
+            comp.normalizePath(path);
             if (comp.getPathContents(path, limit)) |some| {
                 errdefer comp.gpa.free(some);
                 if (opt_dep_file) |dep_file| try dep_file.addDependencyDupe(comp.gpa, comp.arena, filename);
@@ -1893,9 +1895,7 @@ pub fn findEmbed(
     for (comp.embed_dirs.items) |embed_dir| {
         const path = try std.fs.path.join(sf_allocator, &.{ embed_dir, filename });
         defer sf_allocator.free(path);
-        if (comp.langopts.ms_extensions) {
-            std.mem.replaceScalar(u8, path, '\\', '/');
-        }
+        comp.normalizePath(path);
         if (comp.getPathContents(path, limit)) |some| {
             errdefer comp.gpa.free(some);
             if (opt_dep_file) |dep_file| try dep_file.addDependencyDupe(comp.gpa, comp.arena, filename);
