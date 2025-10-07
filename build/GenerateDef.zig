@@ -458,7 +458,7 @@ fn generate(self: *GenerateDef, input: []const u8) ![]const u8 {
 
 fn writeData(writer: *std.Io.Writer, values: []const Value) !void {
     try writer.writeAll("pub const data = blk: {\n");
-    try writer.print("    @setEvalBranchQuota({d});\n", .{values.len * 7});
+    try writer.print("    @setEvalBranchQuota({d});\n", .{values.len * 9});
     try writer.writeAll("    break :blk [_]@This(){\n");
     for (values) |value| {
         try writer.print("        .{{ .tag = .{f}, .properties = .{{", .{std.zig.fmtId(value.name)});
