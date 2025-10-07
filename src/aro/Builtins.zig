@@ -164,6 +164,10 @@ fn createType(desc: TypeDescription, it: *TypeDescription.TypeIterator, comp: *C
             // Todo: scalable vector
             return .invalid;
         },
+        .Q => {
+            // Todo: target builtin type
+            return .invalid;
+        },
         .E => {
             // Todo: ext_vector (OpenCL vector)
             return .invalid;
