@@ -263,6 +263,10 @@ fn generateSystemDefines(comp: *Compilation, w: *std.Io.Writer) !void {
     };
     try w.print("#define __ARO_EMULATE__ {s}\n", .{emulated});
 
+    if (comp.langopts.emulate == .clang) {
+        try w.writeAll("#define __building_module(x) 0\n");
+    }
+
     if (comp.code_gen_options.optimization_level.hasAnyOptimizations()) {
         try define(w, "__OPTIMIZE__");
     }
