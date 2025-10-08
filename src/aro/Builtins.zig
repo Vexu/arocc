@@ -103,10 +103,7 @@ fn createType(desc: TypeDescription, it: *TypeDescription.TypeIterator, comp: *C
         },
         .h => builder.combine(.fp16, 0) catch unreachable,
         .x => builder.combine(.float16, 0) catch unreachable,
-        .y => {
-            // Todo: __bf16
-            return .invalid;
-        },
+        .y => builder.combine(.bf16, 0) catch unreachable,
         .f => builder.combine(.float, 0) catch unreachable,
         .d => {
             if (builder.type == .long_long) {
