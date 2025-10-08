@@ -4,9 +4,10 @@ const Properties = @This();
 
 param_str: []const u8,
 language: Language = .all_languages,
-attributes: Attributes = Attributes{},
+attributes: Attributes = .{},
 header: Header = .none,
 target_set: TargetSet = TargetSet.initOne(.basic),
+features: ?[]const u8 = null,
 
 /// Header which must be included for a builtin to be available
 pub const Header = enum {
@@ -41,6 +42,14 @@ pub const Header = enum {
     complex,
     /// Blocks.h
     blocks,
+    /// intrin.h
+    intrin,
+    /// immintrin.h
+    immintrin,
+    /// xmmintrin.h
+    xmmintrin,
+    /// emmintrin.h
+    emmintrin,
 };
 
 /// Languages in which a builtin is available
