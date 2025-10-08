@@ -64,7 +64,7 @@ const IfContext = struct {
 };
 
 pub const Macro = struct {
-    const BuiltinKind = union(enum) {
+    const Builtin = union(enum) {
         const Object = enum {
             file,
             line,
@@ -97,25 +97,25 @@ pub const Macro = struct {
         const func_tokens: []const RawToken = &[1]RawToken{.{ .id = .macro_param_builtin_func, .source = .generated }};
         const obj_tokens: []const RawToken = &[1]RawToken{.{ .id = .macro_builtin_obj, .source = .generated }};
 
-        fn isFunc(kind: BuiltinKind) bool {
+        fn isFunc(kind: Builtin) bool {
             return switch (kind) {
                 .func => true,
                 .obj => false,
             };
         }
 
-        fn isVarArgs(_: BuiltinKind) bool {
+        fn isVarArgs(_: Builtin) bool {
             return false;
         }
 
-        fn params(kind: BuiltinKind) []const []const u8 {
+        fn params(kind: Builtin) []const []const u8 {
             return switch (kind) {
                 .obj => &.{},
                 .func => params_placeholder,
             };
         }
 
-        fn tokens(kind: BuiltinKind) []const RawToken {
+        fn tokens(kind: Builtin) []const RawToken {
             return switch (kind) {
                 .obj => obj_tokens,
                 .func => func_tokens,
@@ -136,7 +136,7 @@ pub const Macro = struct {
     is_func: bool,
 
     /// null for user-defined macros
-    builtin_kind: ?BuiltinKind = null,
+    builtin_kind: ?Builtin = null,
 
     /// Location of macro in the source
     loc: Source.Location,
@@ -262,7 +262,7 @@ pub fn initDefault(comp: *Compilation) !Preprocessor {
     return pp;
 }
 
-fn addBuiltinMacro(pp: *Preprocessor, name: []const u8, builtin_kind: Macro.BuiltinKind) !void {
+fn addBuiltinMacro(pp: *Preprocessor, name: []const u8, builtin_kind: Macro.Builtin) !void {
     try pp.defines.putNoClobber(pp.comp.gpa, name, .{
         .params = builtin_kind.params(),
         .tokens = builtin_kind.tokens(),
@@ -1281,7 +1281,7 @@ fn expandObjMacro(pp: *Preprocessor, simple_macro: *const Macro) Error!ExpandBuf
                     const timestamp = switch (pp.source_epoch) {
                         .system, .provided => |ts| ts,
                     };
-                    try pp.writeDateTimeStamp(.fromBuiltinKind(builtin_kind), timestamp);
+                    try pp.writeDateTimeStamp(.fromBuiltin(builtin_kind), timestamp);
                     buf.appendAssumeCapacity(try pp.makeGeneratedToken(start, .string_literal, tok));
                 },
                 .timestamp => |builtin_kind| {
@@ -1292,7 +1292,7 @@ fn expandObjMacro(pp: *Preprocessor, simple_macro: *const Macro) Error!ExpandBuf
                         .system => try pp.mTime(pp.expansion_source_loc.id),
                     };
 
-                    try pp.writeDateTimeStamp(.fromBuiltinKind(builtin_kind), timestamp);
+                    try pp.writeDateTimeStamp(.fromBuiltin(builtin_kind), timestamp);
                     buf.appendAssumeCapacity(try pp.makeGeneratedToken(start, .string_literal, tok));
                 },
             },
@@ -1308,7 +1308,7 @@ const DateTimeStampKind = enum {
     time,
     timestamp,
 
-    fn fromBuiltinKind(builtin_kind: Macro.BuiltinKind.Object) DateTimeStampKind {
+    fn fromBuiltin(builtin_kind: Macro.Builtin.Object) DateTimeStampKind {
         return switch (builtin_kind) {
             .date => .date,
             .time => .time,
@@ -1603,7 +1603,7 @@ fn reconstructIncludeString(pp: *Preprocessor, param_toks: []const TokenWithExpa
     }
 }
 
-fn handleBuiltinMacro(pp: *Preprocessor, builtin: Macro.BuiltinKind.Func, param_toks: []const TokenWithExpansionLocs, src_loc: Source.Location) Error!bool {
+fn handleBuiltinMacro(pp: *Preprocessor, builtin: Macro.Builtin.Func, param_toks: []const TokenWithExpansionLocs, src_loc: Source.Location) Error!bool {
     switch (builtin) {
         .has_attribute,
         .has_declspec_attribute,
