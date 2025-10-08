@@ -263,6 +263,11 @@ fn generateSystemDefines(comp: *Compilation, w: *std.Io.Writer) !void {
     };
     try w.print("#define __ARO_EMULATE__ {s}\n", .{emulated});
 
+    if (comp.langopts.emulate == .msvc) {
+        try w.writeAll("#define _MSC_VER 1933\n");
+        try w.writeAll("#define _MSC_FULL_VER 193300000\n");
+    }
+
     if (comp.code_gen_options.optimization_level.hasAnyOptimizations()) {
         try define(w, "__OPTIMIZE__");
     }
