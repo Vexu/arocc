@@ -8244,7 +8244,8 @@ fn unExpr(p: *Parser) Error!?Result {
 
             var operand = try p.expect(castExpr);
             try operand.lvalConversion(p, tok);
-            if (!operand.qt.isInt(p.comp) and !operand.qt.isFloat(p.comp))
+            const scalar_qt = if (operand.qt.get(p.comp, .vector)) |vec| vec.elem else operand.qt;
+            if (!scalar_qt.isInt(p.comp) and !scalar_qt.isFloat(p.comp))
                 try p.err(tok, .invalid_argument_un, .{operand.qt});
 
             try operand.usualUnaryConversion(p, tok);
@@ -8256,7 +8257,8 @@ fn unExpr(p: *Parser) Error!?Result {
 
             var operand = try p.expect(castExpr);
             try operand.lvalConversion(p, tok);
-            if (!operand.qt.isInt(p.comp) and !operand.qt.isFloat(p.comp))
+            const scalar_qt = if (operand.qt.get(p.comp, .vector)) |vec| vec.elem else operand.qt;
+            if (!scalar_qt.isInt(p.comp) and !scalar_qt.isFloat(p.comp))
                 try p.err(tok, .invalid_argument_un, .{operand.qt});
 
             try operand.usualUnaryConversion(p, tok);
@@ -8330,7 +8332,9 @@ fn unExpr(p: *Parser) Error!?Result {
             var operand = try p.expect(castExpr);
             try operand.lvalConversion(p, tok);
             try operand.usualUnaryConversion(p, tok);
-            const scalar_kind = operand.qt.scalarKind(p.comp);
+
+            const scalar_qt = if (operand.qt.get(p.comp, .vector)) |vec| vec.elem else operand.qt;
+            const scalar_kind = scalar_qt.scalarKind(p.comp);
             if (!scalar_kind.isReal()) {
                 try p.err(tok, .complex_conj, .{operand.qt});
                 if (operand.val.is(.complex, p.comp)) {
