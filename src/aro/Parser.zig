@@ -5718,6 +5718,50 @@ const CallExpr = union(enum) {
             .__builtin_mul_overflow,
             => return p.checkArithOverflowArg(builtin_tok, first_after, param_tok, arg, arg_idx),
 
+            .__builtin_elementwise_abs,
+            => return p.checkElementwiseArg(param_tok, arg, arg_idx, .sint_float),
+            .__builtin_elementwise_bitreverse,
+            .__builtin_elementwise_add_sat,
+            .__builtin_elementwise_sub_sat,
+            .__builtin_elementwise_popcount,
+            => return p.checkElementwiseArg(param_tok, arg, arg_idx, .int),
+            .__builtin_elementwise_canonicalize,
+            .__builtin_elementwise_ceil,
+            .__builtin_elementwise_cos,
+            .__builtin_elementwise_exp,
+            .__builtin_elementwise_exp2,
+            .__builtin_elementwise_floor,
+            .__builtin_elementwise_log,
+            .__builtin_elementwise_log10,
+            .__builtin_elementwise_log2,
+            .__builtin_elementwise_nearbyint,
+            .__builtin_elementwise_rint,
+            .__builtin_elementwise_round,
+            .__builtin_elementwise_roundeven,
+            .__builtin_elementwise_sin,
+            .__builtin_elementwise_sqrt,
+            .__builtin_elementwise_trunc,
+            .__builtin_elementwise_copysign,
+            .__builtin_elementwise_pow,
+            .__builtin_elementwise_fma,
+            => return p.checkElementwiseArg(param_tok, arg, arg_idx, .float),
+            .__builtin_elementwise_max,
+            .__builtin_elementwise_min,
+            => return p.checkElementwiseArg(param_tok, arg, arg_idx, .both),
+
+            .__builtin_reduce_add,
+            .__builtin_reduce_mul,
+            .__builtin_reduce_and,
+            .__builtin_reduce_or,
+            .__builtin_reduce_xor,
+            => return p.checkElementwiseArg(param_tok, arg, arg_idx, .int),
+            .__builtin_reduce_max,
+            .__builtin_reduce_min,
+            => return p.checkElementwiseArg(param_tok, arg, arg_idx, .both),
+
+            .__builtin_nondeterministic_value => return p.checkElementwiseArg(param_tok, arg, arg_idx, .both),
+            .__builtin_nontemporal_load => return p.checkNonTemporalArg(param_tok, arg, arg_idx, .load),
+            .__builtin_nontemporal_store => return p.checkNonTemporalArg(param_tok, arg, arg_idx, .store),
             else => {},
         }
     }
@@ -5737,11 +5781,46 @@ const CallExpr = union(enum) {
                 .__builtin_isinf,
                 .__builtin_isinf_sign,
                 .__builtin_isnan,
+                .__builtin_elementwise_abs,
+                .__builtin_elementwise_bitreverse,
+                .__builtin_elementwise_canonicalize,
+                .__builtin_elementwise_ceil,
+                .__builtin_elementwise_cos,
+                .__builtin_elementwise_exp,
+                .__builtin_elementwise_exp2,
+                .__builtin_elementwise_floor,
+                .__builtin_elementwise_log,
+                .__builtin_elementwise_log10,
+                .__builtin_elementwise_log2,
+                .__builtin_elementwise_nearbyint,
+                .__builtin_elementwise_rint,
+                .__builtin_elementwise_round,
+                .__builtin_elementwise_roundeven,
+                .__builtin_elementwise_sin,
+                .__builtin_elementwise_sqrt,
+                .__builtin_elementwise_trunc,
+                .__builtin_elementwise_popcount,
+                .__builtin_nontemporal_load,
+                .__builtin_nondeterministic_value,
+                .__builtin_reduce_add,
+                .__builtin_reduce_mul,
+                .__builtin_reduce_and,
+                .__builtin_reduce_or,
+                .__builtin_reduce_xor,
+                .__builtin_reduce_max,
+                .__builtin_reduce_min,
                 => 1,
 
                 .__builtin_complex,
                 .__c11_atomic_load,
                 .__c11_atomic_init,
+                .__builtin_elementwise_add_sat,
+                .__builtin_elementwise_copysign,
+                .__builtin_elementwise_max,
+                .__builtin_elementwise_min,
+                .__builtin_elementwise_pow,
+                .__builtin_elementwise_sub_sat,
+                .__builtin_nontemporal_store,
                 => 2,
 
                 .__c11_atomic_store,
@@ -5766,6 +5845,7 @@ const CallExpr = union(enum) {
                 .__builtin_add_overflow,
                 .__builtin_sub_overflow,
                 .__builtin_mul_overflow,
+                .__builtin_elementwise_fma,
                 => 3,
 
                 .__c11_atomic_compare_exchange_strong,
@@ -5845,6 +5925,52 @@ const CallExpr = union(enum) {
                 if (p.list_buf.items.len != 6) return .invalid; // wrong number of arguments
                 const third_param = p.list_buf.items[3];
                 return third_param.qt(&p.tree);
+            },
+
+            .__builtin_elementwise_abs,
+            .__builtin_elementwise_bitreverse,
+            .__builtin_elementwise_canonicalize,
+            .__builtin_elementwise_ceil,
+            .__builtin_elementwise_cos,
+            .__builtin_elementwise_exp,
+            .__builtin_elementwise_exp2,
+            .__builtin_elementwise_floor,
+            .__builtin_elementwise_log,
+            .__builtin_elementwise_log10,
+            .__builtin_elementwise_log2,
+            .__builtin_elementwise_nearbyint,
+            .__builtin_elementwise_rint,
+            .__builtin_elementwise_round,
+            .__builtin_elementwise_roundeven,
+            .__builtin_elementwise_sin,
+            .__builtin_elementwise_sqrt,
+            .__builtin_elementwise_trunc,
+            .__builtin_elementwise_add_sat,
+            .__builtin_elementwise_copysign,
+            .__builtin_elementwise_max,
+            .__builtin_elementwise_min,
+            .__builtin_elementwise_pow,
+            .__builtin_elementwise_sub_sat,
+            .__builtin_elementwise_fma,
+            .__builtin_elementwise_popcount,
+            .__builtin_nondeterministic_value,
+            => {
+                if (p.list_buf.items.len < 1) return .invalid; // not enough arguments; already an error
+                const last_param = p.list_buf.items[p.list_buf.items.len - 1];
+                return last_param.qt(&p.tree);
+            },
+            .__builtin_nontemporal_load,
+            .__builtin_reduce_add,
+            .__builtin_reduce_mul,
+            .__builtin_reduce_and,
+            .__builtin_reduce_or,
+            .__builtin_reduce_xor,
+            .__builtin_reduce_max,
+            .__builtin_reduce_min,
+            => {
+                if (p.list_buf.items.len < 1) return .invalid; // not enough arguments; already an error
+                const last_param = p.list_buf.items[p.list_buf.items.len - 1];
+                return last_param.qt(&p.tree).childType(p.comp);
             },
         };
     }
@@ -6959,12 +7085,12 @@ pub const Result = struct {
         assign,
         init,
         ret,
-        arg: TokenIndex,
+        arg: ?TokenIndex,
         test_coerce,
 
         fn note(c: CoerceContext, p: *Parser) !void {
             switch (c) {
-                .arg => |tok| try p.err(tok, .parameter_here, .{}),
+                .arg => |opt_tok| if (opt_tok) |tok| try p.err(tok, .parameter_here, .{}),
                 .test_coerce => unreachable,
                 else => {},
             }
@@ -7745,6 +7871,37 @@ fn castExpr(p: *Parser) Error!?Result {
         return operand;
     }
     return p.unExpr();
+}
+
+/// builtinBitCast : __builtin_bit_cast '(' typeName ',' assignExpr ')'
+fn builtinBitCast(p: *Parser, builtin_tok: TokenIndex) Error!Result {
+    const l_paren = try p.expectToken(.l_paren);
+
+    const res_qt = (try p.typeName()) orelse {
+        try p.err(p.tok_i, .expected_type, .{});
+        return error.ParsingFailed;
+    };
+
+    _ = try p.expectToken(.comma);
+
+    const operand_tok = p.tok_i;
+    var operand = try p.expect(assignExpr);
+    try operand.lvalConversion(p, operand_tok);
+
+    try p.expectClosing(l_paren, .r_paren);
+
+    return .{
+        .qt = res_qt,
+        .node = try p.addNode(.{
+            .cast = .{
+                .l_paren = builtin_tok,
+                .qt = res_qt,
+                .kind = .bitcast,
+                .operand = operand.node,
+                .implicit = false,
+            },
+        }),
+    };
 }
 
 /// shufflevector : __builtin_shufflevector '(' assignExpr ',' assignExpr (',' integerConstExpr)* ')'
@@ -8909,6 +9066,72 @@ fn checkComplexArg(p: *Parser, builtin_tok: TokenIndex, first_after: TokenIndex,
     }
 }
 
+fn checkElementwiseArg(
+    p: *Parser,
+    param_tok: TokenIndex,
+    arg: *Result,
+    idx: u32,
+    kind: enum { sint_float, float, int, both },
+) !void {
+    if (idx == 0) {
+        const scarlar_qt = if (arg.qt.get(p.comp, .vector)) |vec| vec.elem else arg.qt;
+        const sk = scarlar_qt.scalarKind(p.comp);
+        switch (kind) {
+            .float => if (!sk.isFloat() or !sk.isReal()) {
+                try p.err(param_tok, .elementwise_type, .{ " or a floating point type", arg.qt });
+            },
+            .int => if (!sk.isInt() or !sk.isReal()) {
+                try p.err(param_tok, .elementwise_type, .{ " or an integer point type", arg.qt });
+            },
+            .sint_float => if (!((sk.isInt() and scarlar_qt.signedness(p.comp) == .signed) or sk.isFloat()) or !sk.isReal()) {
+                try p.err(param_tok, .elementwise_type, .{ ", a signed integer or a floating point type", arg.qt });
+            },
+            .both => if (!(sk.isInt() or sk.isFloat()) or !sk.isReal()) {
+                try p.err(param_tok, .elementwise_type, .{ ", an integer or a floating point type", arg.qt });
+            },
+        }
+    } else {
+        const prev_idx = p.list_buf.items[p.list_buf.items.len - 1];
+        const prev_qt = prev_idx.qt(&p.tree);
+        arg.coerceExtra(p, prev_qt, param_tok, .{ .arg = null }) catch |er| switch (er) {
+            error.CoercionFailed => {
+                try p.err(param_tok, .argument_types_differ, .{ prev_qt, arg.qt });
+            },
+            else => |e| return e,
+        };
+    }
+}
+
+fn checkNonTemporalArg(
+    p: *Parser,
+    param_tok: TokenIndex,
+    arg: *Result,
+    idx: u32,
+    kind: enum { store, load },
+) !void {
+    if (kind == .store and idx == 0) return;
+    const base_qt = if (arg.qt.get(p.comp, .pointer)) |ptr|
+        ptr.child
+    else
+        return p.err(param_tok, .nontemporal_address_pointer, .{arg.qt});
+
+    const scarlar_qt = if (base_qt.get(p.comp, .vector)) |vec| vec.elem else base_qt;
+    const sk = scarlar_qt.scalarKind(p.comp);
+    if (!(sk.isInt() or sk.isFloat()) or !sk.isReal() or sk.isPointer()) {
+        try p.err(param_tok, .nontemporal_address_type, .{arg.qt});
+    }
+
+    if (kind == .store) {
+        const prev_idx = p.list_buf.items[p.list_buf.items.len - 1];
+        var prev_arg: Result = .{
+            .node = prev_idx,
+            .qt = prev_idx.qt(&p.tree),
+        };
+        try prev_arg.coerce(p, base_qt, prev_idx.tok(&p.tree), .{ .arg = null });
+        p.list_buf.items[p.list_buf.items.len - 1] = prev_arg.node;
+    }
+}
+
 fn callExpr(p: *Parser, lhs: Result) Error!Result {
     const gpa = p.comp.gpa;
     const l_paren = p.tok_i;
@@ -9179,6 +9402,7 @@ fn primaryExpr(p: *Parser) Error!?Result {
                     .__builtin_types_compatible_p => return try p.typesCompatible(name_tok),
                     .__builtin_convertvector => return try p.convertvector(name_tok),
                     .__builtin_shufflevector => return try p.shufflevector(name_tok),
+                    .__builtin_bit_cast => return try p.builtinBitCast(name_tok),
                     else => {},
                 }
 

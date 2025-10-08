@@ -35,6 +35,9 @@ __builtin_shufflevector
     .param_str = "v."
     .attributes = .{ .@"const" = true, .custom_typecheck = true }
 
+__builtin_bit_cast
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
 
 _Block_object_assign
     .param_str = "vv*vC*iC"
@@ -2364,6 +2367,10 @@ __builtin_elementwise_sub_sat
     .attributes = .{ .@"const" = true, .custom_typecheck = true }
 
 __builtin_elementwise_trunc
+    .param_str = "v."
+    .attributes = .{ .@"const" = true, .custom_typecheck = true }
+
+__builtin_elementwise_popcount
     .param_str = "v."
     .attributes = .{ .@"const" = true, .custom_typecheck = true }
 

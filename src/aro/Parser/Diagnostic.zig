@@ -2184,6 +2184,21 @@ pub const not_floating_type: Diagnostic = .{
     .kind = .@"error",
 };
 
+pub const elementwise_type: Diagnostic = .{
+    .fmt = "argument must be a vector{s} (was '{qt}')",
+    .kind = .@"error",
+};
+
+pub const nontemporal_address_pointer: Diagnostic = .{
+    .fmt = "address argument to nontemporal builtin must be a pointer ('{qt}' invalid)",
+    .kind = .@"error",
+};
+
+pub const nontemporal_address_type: Diagnostic = .{
+    .fmt = "address argument to nontemporal builtin must be a pointer to integer, float, pointer, or a vector of such types ('{qt}' invalid)",
+    .kind = .@"error",
+};
+
 pub const argument_types_differ: Diagnostic = .{
     .fmt = "arguments are of different types ({qt} vs {qt})",
     .kind = .@"error",
