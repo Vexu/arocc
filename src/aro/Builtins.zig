@@ -152,7 +152,7 @@ fn createType(desc: TypeDescription, it: *TypeDescription.TypeIterator, comp: *C
         },
         .V => |element_count| {
             std.debug.assert(desc.suffix.len == 0);
-            const child_desc = it.next().?;
+            const child_desc = it.nextNoSuffix().?;
             const elem_qt = try createType(child_desc, undefined, comp);
             const vector_qt = try comp.type_store.put(comp.gpa, .{ .vector = .{
                 .elem = elem_qt,

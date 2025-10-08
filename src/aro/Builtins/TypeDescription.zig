@@ -150,6 +150,15 @@ pub const TypeIterator = struct {
     /// The returned value is invalidated when `.next()` is called again or the TypeIterator goes out
     // of scope.
     pub fn next(self: *TypeIterator) ?TypeDescription {
+        return self.nextExtra(true);
+    }
+
+    /// Same as `next` but doesn't allow suffixes like `*`, used for vector child types.
+    pub fn nextNoSuffix(self: *TypeIterator) ?TypeDescription {
+        return self.nextExtra(false);
+    }
+
+    fn nextExtra(self: *TypeIterator, allow_suffix: bool) ?TypeDescription {
         var it = ComponentIterator.init(self.param_str[self.idx..]);
         defer self.idx += it.idx;
 
@@ -168,6 +177,7 @@ pub const TypeIterator = struct {
                     maybe_spec = spec;
                 },
                 .suffix => |suffix| {
+                    if (!allow_suffix) break;
                     std.debug.assert(maybe_spec != null);
                     self.suffix[suffix_count] = suffix;
                     suffix_count += 1;
@@ -176,7 +186,7 @@ pub const TypeIterator = struct {
             _ = it.next();
         }
         if (maybe_spec) |spec| {
-            return TypeDescription{
+            return .{
                 .prefix = self.prefix[0..prefix_count],
                 .spec = spec,
                 .suffix = self.suffix[0..suffix_count],
