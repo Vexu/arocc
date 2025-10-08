@@ -268,6 +268,9 @@ fn generateSystemDefines(comp: *Compilation, w: *std.Io.Writer) !void {
         try w.writeAll("#define _MSC_FULL_VER 193300000\n");
     }
 
+    // Defined for compatibility with clang.
+    try w.writeAll("#define __building_module(x) 0\n");
+
     if (comp.code_gen_options.optimization_level.hasAnyOptimizations()) {
         try define(w, "__OPTIMIZE__");
     }
