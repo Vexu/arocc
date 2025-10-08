@@ -56,6 +56,9 @@ int main(void) {
     vec_a a2 = {b};
     a = b;
     bitcast_vector(b);
+    +a;
+    -a;
+    ~a;
 }
 
 #define EXPECTED_ERRORS "vectors.c:2:40: error: invalid vector element type 'float *'" \

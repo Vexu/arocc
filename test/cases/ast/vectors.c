@@ -244,5 +244,21 @@ function: 'fn () int'
           decl_ref_expr: 'vec_b: vector(2, float)' lvalue
            name: b
 
+    implicit cast: (lval_to_rval) 'vec_a: vector(8, char)'
+      decl_ref_expr: 'vec_a: vector(8, char)' lvalue
+       name: a
+
+    negate_expr: 'vec_a: vector(8, char)'
+     operand:
+      implicit cast: (lval_to_rval) 'vec_a: vector(8, char)'
+        decl_ref_expr: 'vec_a: vector(8, char)' lvalue
+         name: a
+
+    bit_not_expr: 'vec_a: vector(8, char)'
+     operand:
+      implicit cast: (lval_to_rval) 'vec_a: vector(8, char)'
+        decl_ref_expr: 'vec_a: vector(8, char)' lvalue
+         name: a
+
     implicit return_stmt: 'int' (value: 0)
 
