@@ -184,7 +184,7 @@ pub const TypeIterator = struct {
             _ = it.next();
         }
         if (maybe_spec) |spec| {
-            return TypeDescription{
+            return .{
                 .prefix = self.prefix[0..prefix_count],
                 .spec = spec,
                 .suffix = self.suffix[0..suffix_count],
