@@ -64,6 +64,65 @@ const IfContext = struct {
 };
 
 pub const Macro = struct {
+    const Builtin = union(enum) {
+        const Object = enum {
+            file,
+            line,
+            counter,
+            date,
+            time,
+            timestamp,
+        };
+
+        const Func = enum {
+            has_attribute,
+            has_c_attribute,
+            has_declspec_attribute,
+            has_warning,
+            has_feature,
+            has_extension,
+            has_builtin,
+            has_include,
+            has_include_next,
+            has_embed,
+            is_identifier,
+            pragma_operator,
+            ms_identifier,
+            ms_pragma,
+        };
+        obj: Object,
+        func: Func,
+
+        const params_placeholder: []const []const u8 = &[_][]const u8{"X"};
+        const func_tokens: []const RawToken = &[1]RawToken{.{ .id = .macro_param_builtin_func, .source = .generated }};
+        const obj_tokens: []const RawToken = &[1]RawToken{.{ .id = .macro_builtin_obj, .source = .generated }};
+
+        fn isFunc(kind: Builtin) bool {
+            return switch (kind) {
+                .func => true,
+                .obj => false,
+            };
+        }
+
+        fn isVarArgs(_: Builtin) bool {
+            return false;
+        }
+
+        fn params(kind: Builtin) []const []const u8 {
+            return switch (kind) {
+                .obj => &.{},
+                .func => params_placeholder,
+            };
+        }
+
+        fn tokens(kind: Builtin) []const RawToken {
+            return switch (kind) {
+                .obj => obj_tokens,
+                .func => func_tokens,
+            };
+        }
+    };
+
     /// Parameters of the function type macro
     params: []const []const u8,
 
@@ -76,15 +135,15 @@ pub const Macro = struct {
     /// Is a function type macro
     is_func: bool,
 
-    /// Is a predefined macro
-    is_builtin: bool = false,
+    /// null for user-defined macros
+    builtin_kind: ?Builtin = null,
 
     /// Location of macro in the source
     loc: Source.Location,
 
     fn eql(a: Macro, b: Macro, pp: *Preprocessor) bool {
         if (a.tokens.len != b.tokens.len) return false;
-        if (a.is_builtin != b.is_builtin) return false;
+        if (!std.meta.eql(a.builtin_kind, b.builtin_kind)) return false;
         for (a.tokens, b.tokens) |a_tok, b_tok| if (!tokEql(pp, a_tok, b_tok)) return false;
 
         if (a.is_func and b.is_func) {
@@ -98,6 +157,10 @@ pub const Macro = struct {
 
     fn tokEql(pp: *Preprocessor, a: RawToken, b: RawToken) bool {
         return mem.eql(u8, pp.tokSlice(a), pp.tokSlice(b));
+    }
+
+    fn isBuiltin(m: *const Macro) bool {
+        return m.builtin_kind != null;
     }
 };
 
@@ -199,46 +262,42 @@ pub fn initDefault(comp: *Compilation) !Preprocessor {
     return pp;
 }
 
-// `param_tok_id` is comptime so that the generated `tokens` list is unique for every macro.
-fn addBuiltinMacro(pp: *Preprocessor, name: []const u8, is_func: bool, comptime param_tok_id: Token.Id) !void {
+fn addBuiltinMacro(pp: *Preprocessor, name: []const u8, builtin_kind: Macro.Builtin) !void {
     try pp.defines.putNoClobber(pp.comp.gpa, name, .{
-        .params = &[1][]const u8{"X"},
-        .tokens = &[1]RawToken{.{
-            .id = param_tok_id,
-            .source = .generated,
-        }},
-        .var_args = false,
-        .is_func = is_func,
+        .params = builtin_kind.params(),
+        .tokens = builtin_kind.tokens(),
+        .var_args = builtin_kind.isVarArgs(),
+        .is_func = builtin_kind.isFunc(),
         .loc = .{ .id = .generated },
-        .is_builtin = true,
+        .builtin_kind = builtin_kind,
     });
 }
 
 pub fn addBuiltinMacros(pp: *Preprocessor) !void {
-    try pp.addBuiltinMacro("__has_attribute", true, .macro_param_has_attribute);
-    try pp.addBuiltinMacro("__has_c_attribute", true, .macro_param_has_c_attribute);
-    try pp.addBuiltinMacro("__has_declspec_attribute", true, .macro_param_has_declspec_attribute);
-    try pp.addBuiltinMacro("__has_warning", true, .macro_param_has_warning);
-    try pp.addBuiltinMacro("__has_feature", true, .macro_param_has_feature);
-    try pp.addBuiltinMacro("__has_extension", true, .macro_param_has_extension);
-    try pp.addBuiltinMacro("__has_builtin", true, .macro_param_has_builtin);
-    try pp.addBuiltinMacro("__has_include", true, .macro_param_has_include);
-    try pp.addBuiltinMacro("__has_include_next", true, .macro_param_has_include_next);
-    try pp.addBuiltinMacro("__has_embed", true, .macro_param_has_embed);
-    try pp.addBuiltinMacro("__is_identifier", true, .macro_param_is_identifier);
-    try pp.addBuiltinMacro("_Pragma", true, .macro_param_pragma_operator);
+    try pp.addBuiltinMacro("__has_attribute", .{ .func = .has_attribute });
+    try pp.addBuiltinMacro("__has_c_attribute", .{ .func = .has_c_attribute });
+    try pp.addBuiltinMacro("__has_declspec_attribute", .{ .func = .has_declspec_attribute });
+    try pp.addBuiltinMacro("__has_warning", .{ .func = .has_warning });
+    try pp.addBuiltinMacro("__has_feature", .{ .func = .has_feature });
+    try pp.addBuiltinMacro("__has_extension", .{ .func = .has_extension });
+    try pp.addBuiltinMacro("__has_builtin", .{ .func = .has_builtin });
+    try pp.addBuiltinMacro("__has_include", .{ .func = .has_include });
+    try pp.addBuiltinMacro("__has_include_next", .{ .func = .has_include_next });
+    try pp.addBuiltinMacro("__has_embed", .{ .func = .has_embed });
+    try pp.addBuiltinMacro("__is_identifier", .{ .func = .is_identifier });
+    try pp.addBuiltinMacro("_Pragma", .{ .func = .pragma_operator });
 
     if (pp.comp.langopts.ms_extensions) {
-        try pp.addBuiltinMacro("__identifier", true, .macro_param_ms_identifier);
-        try pp.addBuiltinMacro("__pragma", true, .macro_param_ms_pragma);
+        try pp.addBuiltinMacro("__identifier", .{ .func = .ms_identifier });
+        try pp.addBuiltinMacro("__pragma", .{ .func = .ms_pragma });
     }
 
-    try pp.addBuiltinMacro("__FILE__", false, .macro_file);
-    try pp.addBuiltinMacro("__LINE__", false, .macro_line);
-    try pp.addBuiltinMacro("__COUNTER__", false, .macro_counter);
-    try pp.addBuiltinMacro("__DATE__", false, .macro_date);
-    try pp.addBuiltinMacro("__TIME__", false, .macro_time);
-    try pp.addBuiltinMacro("__TIMESTAMP__", false, .macro_timestamp);
+    try pp.addBuiltinMacro("__FILE__", .{ .obj = .file });
+    try pp.addBuiltinMacro("__LINE__", .{ .obj = .line });
+    try pp.addBuiltinMacro("__COUNTER__", .{ .obj = .counter });
+    try pp.addBuiltinMacro("__DATE__", .{ .obj = .date });
+    try pp.addBuiltinMacro("__TIME__", .{ .obj = .time });
+    try pp.addBuiltinMacro("__TIMESTAMP__", .{ .obj = .timestamp });
 }
 
 pub fn deinit(pp: *Preprocessor) void {
@@ -1194,46 +1253,48 @@ fn expandObjMacro(pp: *Preprocessor, simple_macro: *const Macro) Error!ExpandBuf
                 try pp.pasteTokens(&buf, &.{rhs});
             },
             .whitespace => if (pp.preserve_whitespace) buf.appendAssumeCapacity(tok),
-            .macro_file => {
-                const start = pp.comp.generated_buf.items.len;
-                const source = pp.comp.getSource(pp.expansion_source_loc.id);
-                try pp.comp.generated_buf.print(gpa, "\"{f}\"\n", .{fmtEscapes(source.path)});
+            .macro_builtin_obj => switch (simple_macro.builtin_kind.?.obj) {
+                .file => {
+                    const start = pp.comp.generated_buf.items.len;
+                    const source = pp.comp.getSource(pp.expansion_source_loc.id);
+                    try pp.comp.generated_buf.print(gpa, "\"{f}\"\n", .{fmtEscapes(source.path)});
 
-                buf.appendAssumeCapacity(try pp.makeGeneratedToken(start, .string_literal, tok));
-            },
-            .macro_line => {
-                const start = pp.comp.generated_buf.items.len;
-                const source = pp.comp.getSource(pp.expansion_source_loc.id);
-                try pp.comp.generated_buf.print(gpa, "{d}\n", .{source.physicalLine(pp.expansion_source_loc)});
+                    buf.appendAssumeCapacity(try pp.makeGeneratedToken(start, .string_literal, tok));
+                },
+                .line => {
+                    const start = pp.comp.generated_buf.items.len;
+                    const source = pp.comp.getSource(pp.expansion_source_loc.id);
+                    try pp.comp.generated_buf.print(gpa, "{d}\n", .{source.physicalLine(pp.expansion_source_loc)});
 
-                buf.appendAssumeCapacity(try pp.makeGeneratedToken(start, .pp_num, tok));
-            },
-            .macro_counter => {
-                defer pp.counter += 1;
-                const start = pp.comp.generated_buf.items.len;
-                try pp.comp.generated_buf.print(gpa, "{d}\n", .{pp.counter});
+                    buf.appendAssumeCapacity(try pp.makeGeneratedToken(start, .pp_num, tok));
+                },
+                .counter => {
+                    defer pp.counter += 1;
+                    const start = pp.comp.generated_buf.items.len;
+                    try pp.comp.generated_buf.print(gpa, "{d}\n", .{pp.counter});
 
-                buf.appendAssumeCapacity(try pp.makeGeneratedToken(start, .pp_num, tok));
-            },
-            .macro_date, .macro_time => {
-                try pp.err(pp.expansion_source_loc, .date_time, .{});
-                const start = pp.comp.generated_buf.items.len;
-                const timestamp = switch (pp.source_epoch) {
-                    .system, .provided => |ts| ts,
-                };
-                try pp.writeDateTimeStamp(.fromTokId(raw.id), timestamp);
-                buf.appendAssumeCapacity(try pp.makeGeneratedToken(start, .string_literal, tok));
-            },
-            .macro_timestamp => {
-                try pp.err(pp.expansion_source_loc, .date_time, .{});
-                const start = pp.comp.generated_buf.items.len;
-                const timestamp = switch (pp.source_epoch) {
-                    .provided => |ts| ts,
-                    .system => try pp.mTime(pp.expansion_source_loc.id),
-                };
+                    buf.appendAssumeCapacity(try pp.makeGeneratedToken(start, .pp_num, tok));
+                },
+                .date, .time => |builtin_kind| {
+                    try pp.err(pp.expansion_source_loc, .date_time, .{});
+                    const start = pp.comp.generated_buf.items.len;
+                    const timestamp = switch (pp.source_epoch) {
+                        .system, .provided => |ts| ts,
+                    };
+                    try pp.writeDateTimeStamp(.fromBuiltin(builtin_kind), timestamp);
+                    buf.appendAssumeCapacity(try pp.makeGeneratedToken(start, .string_literal, tok));
+                },
+                .timestamp => |builtin_kind| {
+                    try pp.err(pp.expansion_source_loc, .date_time, .{});
+                    const start = pp.comp.generated_buf.items.len;
+                    const timestamp = switch (pp.source_epoch) {
+                        .provided => |ts| ts,
+                        .system => try pp.mTime(pp.expansion_source_loc.id),
+                    };
 
-                try pp.writeDateTimeStamp(.fromTokId(raw.id), timestamp);
-                buf.appendAssumeCapacity(try pp.makeGeneratedToken(start, .string_literal, tok));
+                    try pp.writeDateTimeStamp(.fromBuiltin(builtin_kind), timestamp);
+                    buf.appendAssumeCapacity(try pp.makeGeneratedToken(start, .string_literal, tok));
+                },
             },
             else => buf.appendAssumeCapacity(tok),
         }
@@ -1247,11 +1308,11 @@ const DateTimeStampKind = enum {
     time,
     timestamp,
 
-    fn fromTokId(tok_id: RawToken.Id) DateTimeStampKind {
-        return switch (tok_id) {
-            .macro_date => .date,
-            .macro_time => .time,
-            .macro_timestamp => .timestamp,
+    fn fromBuiltin(builtin_kind: Macro.Builtin.Object) DateTimeStampKind {
+        return switch (builtin_kind) {
+            .date => .date,
+            .time => .time,
+            .timestamp => .timestamp,
             else => unreachable,
         };
     }
@@ -1542,13 +1603,13 @@ fn reconstructIncludeString(pp: *Preprocessor, param_toks: []const TokenWithExpa
     }
 }
 
-fn handleBuiltinMacro(pp: *Preprocessor, builtin: RawToken.Id, param_toks: []const TokenWithExpansionLocs, src_loc: Source.Location) Error!bool {
+fn handleBuiltinMacro(pp: *Preprocessor, builtin: Macro.Builtin.Func, param_toks: []const TokenWithExpansionLocs, src_loc: Source.Location) Error!bool {
     switch (builtin) {
-        .macro_param_has_attribute,
-        .macro_param_has_declspec_attribute,
-        .macro_param_has_feature,
-        .macro_param_has_extension,
-        .macro_param_has_builtin,
+        .has_attribute,
+        .has_declspec_attribute,
+        .has_feature,
+        .has_extension,
+        .has_builtin,
         => {
             var invalid: ?TokenWithExpansionLocs = null;
             var identifier: ?TokenWithExpansionLocs = null;
@@ -1569,24 +1630,24 @@ fn handleBuiltinMacro(pp: *Preprocessor, builtin: RawToken.Id, param_toks: []con
 
             const ident_str = pp.expandedSlice(identifier.?);
             return switch (builtin) {
-                .macro_param_has_attribute => Attribute.fromString(.gnu, null, ident_str) != null,
-                .macro_param_has_declspec_attribute => {
+                .has_attribute => Attribute.fromString(.gnu, null, ident_str) != null,
+                .has_declspec_attribute => {
                     return if (pp.comp.langopts.declspec_attrs)
                         Attribute.fromString(.declspec, null, ident_str) != null
                     else
                         false;
                 },
-                .macro_param_has_feature => features.hasFeature(pp.comp, ident_str),
+                .has_feature => features.hasFeature(pp.comp, ident_str),
                 // If -pedantic-errors is given __has_extension is equivalent to __has_feature
-                .macro_param_has_extension => if (pp.comp.diagnostics.state.extensions == .@"error")
+                .has_extension => if (pp.comp.diagnostics.state.extensions == .@"error")
                     features.hasFeature(pp.comp, ident_str)
                 else
                     features.hasExtension(pp.comp, ident_str),
-                .macro_param_has_builtin => pp.comp.hasBuiltin(ident_str),
+                .has_builtin => pp.comp.hasBuiltin(ident_str),
                 else => unreachable,
             };
         },
-        .macro_param_has_warning => {
+        .has_warning => {
             const actual_param = pp.pasteStringsUnsafe(param_toks) catch |er| switch (er) {
                 error.ExpectedStringLiteral => {
                     try pp.err(param_toks[0], .expected_str_literal_in, .{"__has_warning"});
@@ -1601,7 +1662,7 @@ fn handleBuiltinMacro(pp: *Preprocessor, builtin: RawToken.Id, param_toks: []con
             const warning_name = actual_param[2..];
             return Diagnostics.warningExists(warning_name);
         },
-        .macro_param_is_identifier => {
+        .is_identifier => {
             var invalid: ?TokenWithExpansionLocs = null;
             var identifier: ?TokenWithExpansionLocs = null;
             for (param_toks) |tok| switch (tok.id) {
@@ -1620,7 +1681,7 @@ fn handleBuiltinMacro(pp: *Preprocessor, builtin: RawToken.Id, param_toks: []con
             const id = identifier.?.id;
             return id == .identifier or id == .extended_identifier;
         },
-        .macro_param_has_include, .macro_param_has_include_next => {
+        .has_include, .has_include_next => {
             const include_str = (try pp.reconstructIncludeString(param_toks, null, param_toks[0])) orelse return false;
             const include_type: Compilation.IncludeType = switch (include_str[0]) {
                 '"' => .quotes,
@@ -1628,8 +1689,8 @@ fn handleBuiltinMacro(pp: *Preprocessor, builtin: RawToken.Id, param_toks: []con
                 else => unreachable,
             };
             const filename = include_str[1 .. include_str.len - 1];
-            if (builtin == .macro_param_has_include or pp.include_depth == 0) {
-                if (builtin == .macro_param_has_include_next) {
+            if (builtin == .has_include or pp.include_depth == 0) {
+                if (builtin == .has_include_next) {
                     try pp.err(src_loc, .include_next_outside_header, .{});
                 }
                 return pp.comp.hasInclude(filename, src_loc.id, include_type, .first, pp.dep_file);
@@ -1755,266 +1816,271 @@ fn expandFuncMacro(
 
                 try buf.append(gpa, try pp.makeGeneratedToken(start, .string_literal, tokFromRaw(raw)));
             },
-            .macro_param_has_attribute,
-            .macro_param_has_declspec_attribute,
-            .macro_param_has_warning,
-            .macro_param_has_feature,
-            .macro_param_has_extension,
-            .macro_param_has_builtin,
-            .macro_param_has_include,
-            .macro_param_has_include_next,
-            .macro_param_is_identifier,
-            => {
-                const arg = expanded_args.items[0];
-                const result = if (arg.len == 0) blk: {
-                    try pp.err(macro_tok, .expected_arguments, .{ 1, 0 });
-                    break :blk false;
-                } else try pp.handleBuiltinMacro(raw.id, arg, macro_tok.loc);
-                const start = pp.comp.generated_buf.items.len;
+            .macro_param_builtin_func => switch (func_macro.builtin_kind.?.func) {
+                .has_attribute,
+                .has_declspec_attribute,
+                .has_warning,
+                .has_feature,
+                .has_extension,
+                .has_builtin,
+                .has_include,
+                .has_include_next,
+                .is_identifier,
+                => |kind| {
+                    const arg = expanded_args.items[0];
+                    const result = if (arg.len == 0) blk: {
+                        try pp.err(macro_tok, .expected_arguments, .{ 1, 0 });
+                        break :blk false;
+                    } else try pp.handleBuiltinMacro(kind, arg, macro_tok.loc);
+                    const start = pp.comp.generated_buf.items.len;
 
-                try pp.comp.generated_buf.print(gpa, "{}\n", .{@intFromBool(result)});
-                try buf.append(gpa, try pp.makeGeneratedToken(start, .pp_num, tokFromRaw(raw)));
-            },
-            .macro_param_has_c_attribute => {
-                const arg = expanded_args.items[0];
-                const not_found = "0\n";
-                const result = if (arg.len == 0) blk: {
-                    try pp.err(macro_tok, .expected_arguments, .{ 1, 0 });
-                    break :blk not_found;
-                } else res: {
-                    var invalid: ?TokenWithExpansionLocs = null;
-                    var vendor_ident: ?TokenWithExpansionLocs = null;
-                    var colon_colon: ?TokenWithExpansionLocs = null;
-                    var attr_ident: ?TokenWithExpansionLocs = null;
-                    for (arg) |tok| {
-                        if (tok.id == .macro_ws) continue;
-                        if (tok.id == .comment) continue;
-                        if (tok.id == .colon_colon) {
-                            if (colon_colon != null or attr_ident == null) {
+                    try pp.comp.generated_buf.print(gpa, "{}\n", .{@intFromBool(result)});
+                    try buf.append(gpa, try pp.makeGeneratedToken(start, .pp_num, tokFromRaw(raw)));
+                },
+
+                .has_c_attribute => {
+                    const arg = expanded_args.items[0];
+                    const not_found = "0\n";
+                    const result = if (arg.len == 0) blk: {
+                        try pp.err(macro_tok, .expected_arguments, .{ 1, 0 });
+                        break :blk not_found;
+                    } else res: {
+                        var invalid: ?TokenWithExpansionLocs = null;
+                        var vendor_ident: ?TokenWithExpansionLocs = null;
+                        var colon_colon: ?TokenWithExpansionLocs = null;
+                        var attr_ident: ?TokenWithExpansionLocs = null;
+                        for (arg) |tok| {
+                            if (tok.id == .macro_ws) continue;
+                            if (tok.id == .comment) continue;
+                            if (tok.id == .colon_colon) {
+                                if (colon_colon != null or attr_ident == null) {
+                                    invalid = tok;
+                                    break;
+                                }
+                                vendor_ident = attr_ident;
+                                attr_ident = null;
+                                colon_colon = tok;
+                                continue;
+                            }
+                            if (!tok.id.isMacroIdentifier()) {
                                 invalid = tok;
                                 break;
                             }
-                            vendor_ident = attr_ident;
-                            attr_ident = null;
-                            colon_colon = tok;
-                            continue;
-                        }
-                        if (!tok.id.isMacroIdentifier()) {
-                            invalid = tok;
-                            break;
-                        }
-                        if (attr_ident) |_| {
-                            invalid = tok;
-                            break;
-                        } else attr_ident = tok;
-                    }
-                    if (vendor_ident != null and attr_ident == null) {
-                        invalid = vendor_ident;
-                    } else if (attr_ident == null and invalid == null) {
-                        invalid = .{ .id = .eof, .loc = macro_tok.loc };
-                    }
-                    if (invalid) |some| {
-                        try pp.err(some, .feature_check_requires_identifier, .{});
-                        break :res not_found;
-                    }
-                    if (vendor_ident) |some| {
-                        const vendor_str = pp.expandedSlice(some);
-                        const attr_str = pp.expandedSlice(attr_ident.?);
-                        const exists = Attribute.fromString(.gnu, vendor_str, attr_str) != null;
-
-                        const start = pp.comp.generated_buf.items.len;
-                        try pp.comp.generated_buf.appendSlice(gpa, if (exists) "1\n" else "0\n");
-                        try buf.append(gpa, try pp.makeGeneratedToken(start, .pp_num, tokFromRaw(raw)));
-                        continue;
-                    }
-                    if (!pp.comp.langopts.standard.atLeast(.c23)) break :res not_found;
-
-                    const attrs = std.StaticStringMap([]const u8).initComptime(.{
-                        .{ "deprecated", "201904L\n" },
-                        .{ "fallthrough", "201904L\n" },
-                        .{ "maybe_unused", "201904L\n" },
-                        .{ "nodiscard", "202003L\n" },
-                        .{ "noreturn", "202202L\n" },
-                        .{ "_Noreturn", "202202L\n" },
-                        .{ "unsequenced", "202207L\n" },
-                        .{ "reproducible", "202207L\n" },
-                    });
-
-                    const attr_str = Attribute.normalize(pp.expandedSlice(attr_ident.?));
-                    break :res attrs.get(attr_str) orelse not_found;
-                };
-                const start = pp.comp.generated_buf.items.len;
-                try pp.comp.generated_buf.appendSlice(gpa, result);
-                try buf.append(gpa, try pp.makeGeneratedToken(start, .pp_num, tokFromRaw(raw)));
-            },
-            .macro_param_has_embed => {
-                const arg = expanded_args.items[0];
-                const not_found = "0\n";
-                const result = if (arg.len == 0) blk: {
-                    try pp.err(macro_tok, .expected_arguments, .{ 1, 0 });
-                    break :blk not_found;
-                } else res: {
-                    var embed_args: []const TokenWithExpansionLocs = &.{};
-                    const include_str = (try pp.reconstructIncludeString(arg, &embed_args, arg[0])) orelse
-                        break :res not_found;
-
-                    var prev = tokFromRaw(raw);
-                    prev.id = .eof;
-                    var it: struct {
-                        i: u32 = 0,
-                        slice: []const TokenWithExpansionLocs,
-                        prev: TokenWithExpansionLocs,
-                        fn next(it: *@This()) TokenWithExpansionLocs {
-                            while (it.i < it.slice.len) switch (it.slice[it.i].id) {
-                                .macro_ws, .whitespace => it.i += 1,
-                                else => break,
-                            } else return it.prev;
-                            defer it.i += 1;
-                            it.prev = it.slice[it.i];
-                            it.prev.id = .eof;
-                            return it.slice[it.i];
-                        }
-                    } = .{ .slice = embed_args, .prev = prev };
-
-                    while (true) {
-                        const param_first = it.next();
-                        if (param_first.id == .eof) break;
-                        if (param_first.id != .identifier) {
-                            try pp.err(param_first, .malformed_embed_param, .{});
-                            continue;
-                        }
-
-                        const char_top = pp.char_buf.items.len;
-                        defer pp.char_buf.items.len = char_top;
-
-                        const maybe_colon = it.next();
-                        const param = switch (maybe_colon.id) {
-                            .colon_colon => blk: {
-                                // vendor::param
-                                const param = it.next();
-                                if (param.id != .identifier) {
-                                    try pp.err(param, .malformed_embed_param, .{});
-                                    continue;
-                                }
-                                const l_paren = it.next();
-                                if (l_paren.id != .l_paren) {
-                                    try pp.err(l_paren, .malformed_embed_param, .{});
-                                    continue;
-                                }
-                                break :blk "doesn't exist";
-                            },
-                            .l_paren => Attribute.normalize(pp.expandedSlice(param_first)),
-                            else => {
-                                try pp.err(maybe_colon, .malformed_embed_param, .{});
-                                continue;
-                            },
-                        };
-
-                        var arg_count: u32 = 0;
-                        var first_arg: TokenWithExpansionLocs = undefined;
-                        while (true) {
-                            const next = it.next();
-                            if (next.id == .eof) {
-                                try pp.err(param_first, .malformed_embed_limit, .{});
+                            if (attr_ident) |_| {
+                                invalid = tok;
                                 break;
-                            }
-                            if (next.id == .r_paren) break;
-                            arg_count += 1;
-                            if (arg_count == 1) first_arg = next;
+                            } else attr_ident = tok;
                         }
-
-                        if (std.mem.eql(u8, param, "limit")) {
-                            if (arg_count != 1) {
-                                try pp.err(param_first, .malformed_embed_limit, .{});
-                                continue;
-                            }
-                            if (first_arg.id != .pp_num) {
-                                try pp.err(param_first, .malformed_embed_limit, .{});
-                                continue;
-                            }
-                            _ = std.fmt.parseInt(u32, pp.expandedSlice(first_arg), 10) catch {
-                                break :res not_found;
-                            };
-                        } else if (!std.mem.eql(u8, param, "prefix") and !std.mem.eql(u8, param, "suffix") and
-                            !std.mem.eql(u8, param, "if_empty"))
-                        {
+                        if (vendor_ident != null and attr_ident == null) {
+                            invalid = vendor_ident;
+                        } else if (attr_ident == null and invalid == null) {
+                            invalid = .{ .id = .eof, .loc = macro_tok.loc };
+                        }
+                        if (invalid) |some| {
+                            try pp.err(some, .feature_check_requires_identifier, .{});
                             break :res not_found;
                         }
-                    }
+                        if (vendor_ident) |some| {
+                            const vendor_str = pp.expandedSlice(some);
+                            const attr_str = pp.expandedSlice(attr_ident.?);
+                            const exists = Attribute.fromString(.gnu, vendor_str, attr_str) != null;
 
-                    const include_type: Compilation.IncludeType = switch (include_str[0]) {
-                        '"' => .quotes,
-                        '<' => .angle_brackets,
-                        else => unreachable,
+                            const start = pp.comp.generated_buf.items.len;
+                            try pp.comp.generated_buf.appendSlice(gpa, if (exists) "1\n" else "0\n");
+                            try buf.append(gpa, try pp.makeGeneratedToken(start, .pp_num, tokFromRaw(raw)));
+                            continue;
+                        }
+                        if (!pp.comp.langopts.standard.atLeast(.c23)) break :res not_found;
+
+                        const attrs = std.StaticStringMap([]const u8).initComptime(.{
+                            .{ "deprecated", "201904L\n" },
+                            .{ "fallthrough", "201904L\n" },
+                            .{ "maybe_unused", "201904L\n" },
+                            .{ "nodiscard", "202003L\n" },
+                            .{ "noreturn", "202202L\n" },
+                            .{ "_Noreturn", "202202L\n" },
+                            .{ "unsequenced", "202207L\n" },
+                            .{ "reproducible", "202207L\n" },
+                        });
+
+                        const attr_str = Attribute.normalize(pp.expandedSlice(attr_ident.?));
+                        break :res attrs.get(attr_str) orelse not_found;
                     };
-                    const filename = include_str[1 .. include_str.len - 1];
-                    const contents = (try pp.comp.findEmbed(filename, arg[0].loc.id, include_type, .limited(1), pp.dep_file)) orelse
-                        break :res not_found;
+                    const start = pp.comp.generated_buf.items.len;
+                    try pp.comp.generated_buf.appendSlice(gpa, result);
+                    try buf.append(gpa, try pp.makeGeneratedToken(start, .pp_num, tokFromRaw(raw)));
+                },
 
-                    defer gpa.free(contents);
-                    break :res if (contents.len != 0) "1\n" else "2\n";
-                };
-                const start = pp.comp.generated_buf.items.len;
-                try pp.comp.generated_buf.appendSlice(gpa, result);
-                try buf.append(gpa, try pp.makeGeneratedToken(start, .pp_num, tokFromRaw(raw)));
-            },
-            .macro_param_pragma_operator => {
-                // Clang and GCC require exactly one token (so, no parentheses or string pasting)
-                // even though their error messages indicate otherwise. Ours is slightly more
-                // descriptive.
-                var invalid: ?TokenWithExpansionLocs = null;
-                var string: ?TokenWithExpansionLocs = null;
-                for (expanded_args.items[0]) |tok| {
-                    switch (tok.id) {
-                        .string_literal => {
-                            if (string) |_| {
+                .has_embed => {
+                    const arg = expanded_args.items[0];
+                    const not_found = "0\n";
+                    const result = if (arg.len == 0) blk: {
+                        try pp.err(macro_tok, .expected_arguments, .{ 1, 0 });
+                        break :blk not_found;
+                    } else res: {
+                        var embed_args: []const TokenWithExpansionLocs = &.{};
+                        const include_str = (try pp.reconstructIncludeString(arg, &embed_args, arg[0])) orelse
+                            break :res not_found;
+
+                        var prev = tokFromRaw(raw);
+                        prev.id = .eof;
+                        var it: struct {
+                            i: u32 = 0,
+                            slice: []const TokenWithExpansionLocs,
+                            prev: TokenWithExpansionLocs,
+                            fn next(it: *@This()) TokenWithExpansionLocs {
+                                while (it.i < it.slice.len) switch (it.slice[it.i].id) {
+                                    .macro_ws, .whitespace => it.i += 1,
+                                    else => break,
+                                } else return it.prev;
+                                defer it.i += 1;
+                                it.prev = it.slice[it.i];
+                                it.prev.id = .eof;
+                                return it.slice[it.i];
+                            }
+                        } = .{ .slice = embed_args, .prev = prev };
+
+                        while (true) {
+                            const param_first = it.next();
+                            if (param_first.id == .eof) break;
+                            if (param_first.id != .identifier) {
+                                try pp.err(param_first, .malformed_embed_param, .{});
+                                continue;
+                            }
+
+                            const char_top = pp.char_buf.items.len;
+                            defer pp.char_buf.items.len = char_top;
+
+                            const maybe_colon = it.next();
+                            const param = switch (maybe_colon.id) {
+                                .colon_colon => blk: {
+                                    // vendor::param
+                                    const param = it.next();
+                                    if (param.id != .identifier) {
+                                        try pp.err(param, .malformed_embed_param, .{});
+                                        continue;
+                                    }
+                                    const l_paren = it.next();
+                                    if (l_paren.id != .l_paren) {
+                                        try pp.err(l_paren, .malformed_embed_param, .{});
+                                        continue;
+                                    }
+                                    break :blk "doesn't exist";
+                                },
+                                .l_paren => Attribute.normalize(pp.expandedSlice(param_first)),
+                                else => {
+                                    try pp.err(maybe_colon, .malformed_embed_param, .{});
+                                    continue;
+                                },
+                            };
+
+                            var arg_count: u32 = 0;
+                            var first_arg: TokenWithExpansionLocs = undefined;
+                            while (true) {
+                                const next = it.next();
+                                if (next.id == .eof) {
+                                    try pp.err(param_first, .malformed_embed_limit, .{});
+                                    break;
+                                }
+                                if (next.id == .r_paren) break;
+                                arg_count += 1;
+                                if (arg_count == 1) first_arg = next;
+                            }
+
+                            if (std.mem.eql(u8, param, "limit")) {
+                                if (arg_count != 1) {
+                                    try pp.err(param_first, .malformed_embed_limit, .{});
+                                    continue;
+                                }
+                                if (first_arg.id != .pp_num) {
+                                    try pp.err(param_first, .malformed_embed_limit, .{});
+                                    continue;
+                                }
+                                _ = std.fmt.parseInt(u32, pp.expandedSlice(first_arg), 10) catch {
+                                    break :res not_found;
+                                };
+                            } else if (!std.mem.eql(u8, param, "prefix") and !std.mem.eql(u8, param, "suffix") and
+                                !std.mem.eql(u8, param, "if_empty"))
+                            {
+                                break :res not_found;
+                            }
+                        }
+
+                        const include_type: Compilation.IncludeType = switch (include_str[0]) {
+                            '"' => .quotes,
+                            '<' => .angle_brackets,
+                            else => unreachable,
+                        };
+                        const filename = include_str[1 .. include_str.len - 1];
+                        const contents = (try pp.comp.findEmbed(filename, arg[0].loc.id, include_type, .limited(1), pp.dep_file)) orelse
+                            break :res not_found;
+
+                        defer gpa.free(contents);
+                        break :res if (contents.len != 0) "1\n" else "2\n";
+                    };
+                    const start = pp.comp.generated_buf.items.len;
+                    try pp.comp.generated_buf.appendSlice(gpa, result);
+                    try buf.append(gpa, try pp.makeGeneratedToken(start, .pp_num, tokFromRaw(raw)));
+                },
+                .pragma_operator => {
+                    // Clang and GCC require exactly one token (so, no parentheses or string pasting)
+                    // even though their error messages indicate otherwise. Ours is slightly more
+                    // descriptive.
+                    var invalid: ?TokenWithExpansionLocs = null;
+                    var string: ?TokenWithExpansionLocs = null;
+                    for (expanded_args.items[0]) |tok| {
+                        switch (tok.id) {
+                            .string_literal => {
+                                if (string) |_| {
+                                    invalid = tok;
+                                    break;
+                                }
+                                string = tok;
+                            },
+                            .macro_ws => continue,
+                            .comment => continue,
+                            else => {
                                 invalid = tok;
                                 break;
-                            }
-                            string = tok;
-                        },
-                        .macro_ws => continue,
-                        .comment => continue,
-                        else => {
-                            invalid = tok;
-                            break;
-                        },
+                            },
+                        }
                     }
-                }
-                if (string == null and invalid == null) invalid = macro_tok;
-                if (invalid) |some|
-                    try pp.err(some, .pragma_operator_string_literal, .{})
-                else if (eval_ctx != .no_pragma)
-                    try pp.pragmaOperator(string.?, macro_tok.loc);
-            },
-            .macro_param_ms_identifier => blk: {
-                // Expect '__identifier' '(' macro-identifier ')'
-                var ident: ?TokenWithExpansionLocs = null;
-                for (expanded_args.items[0]) |tok| {
-                    switch (tok.id) {
-                        .macro_ws => continue,
-                        .comment => continue,
-                        else => {},
+                    if (string == null and invalid == null) invalid = macro_tok;
+                    if (invalid) |some|
+                        try pp.err(some, .pragma_operator_string_literal, .{})
+                    else if (eval_ctx != .no_pragma)
+                        try pp.pragmaOperator(string.?, macro_tok.loc);
+                },
+
+                .ms_identifier => blk: {
+                    // Expect '__identifier' '(' macro-identifier ')'
+                    var ident: ?TokenWithExpansionLocs = null;
+                    for (expanded_args.items[0]) |tok| {
+                        switch (tok.id) {
+                            .macro_ws => continue,
+                            .comment => continue,
+                            else => {},
+                        }
+                        if (ident) |_| {
+                            try pp.err(tok, .builtin_missing_r_paren, .{"identifier"});
+                            break :blk;
+                        } else if (tok.id.isMacroIdentifier()) {
+                            ident = tok;
+                        } else {
+                            try pp.err(tok, .cannot_convert_to_identifier, .{tok.id.symbol()});
+                            break :blk;
+                        }
                     }
-                    if (ident) |_| {
-                        try pp.err(tok, .builtin_missing_r_paren, .{"identifier"});
-                        break :blk;
-                    } else if (tok.id.isMacroIdentifier()) {
-                        ident = tok;
+                    if (ident) |*some| {
+                        some.id = .identifier;
+                        try buf.append(gpa, some.*);
                     } else {
-                        try pp.err(tok, .cannot_convert_to_identifier, .{tok.id.symbol()});
-                        break :blk;
+                        try pp.err(macro_tok, .expected_identifier, .{});
                     }
-                }
-                if (ident) |*some| {
-                    some.id = .identifier;
-                    try buf.append(gpa, some.*);
-                } else {
-                    try pp.err(macro_tok, .expected_identifier, .{});
-                }
-            },
-            .macro_param_ms_pragma => {
-                try pp.msPragmaOperator(macro_tok, expanded_args.items[0]);
+                },
+                .ms_pragma => {
+                    try pp.msPragmaOperator(macro_tok, expanded_args.items[0]);
+                },
             },
             .comma => {
                 if (tok_i + 2 < func_macro.tokens.len and func_macro.tokens[tok_i + 1].id == .hash_hash) {
@@ -2335,7 +2401,7 @@ fn expandMacroExhaustive(
                         &macro_scan_idx,
                         &moving_end_idx,
                         extend_buf,
-                        macro.is_builtin,
+                        macro.isBuiltin(),
                         &r_paren,
                     ) catch |er| switch (er) {
                         error.MissingLParen => {
@@ -2660,13 +2726,13 @@ fn defineMacro(pp: *Preprocessor, define_tok: RawToken, name_tok: TokenWithExpan
     if (gop.found_existing and !gop.value_ptr.eql(macro, pp)) {
         const loc = name_tok.loc;
         const prev_total = pp.diagnostics.total;
-        if (gop.value_ptr.is_builtin) {
+        if (gop.value_ptr.isBuiltin()) {
             try pp.err(loc, .builtin_macro_redefined, .{});
         } else {
             try pp.err(loc, .macro_redefined, .{name_str});
         }
 
-        if (!gop.value_ptr.is_builtin and pp.diagnostics.total != prev_total) {
+        if (!gop.value_ptr.isBuiltin() and pp.diagnostics.total != prev_total) {
             try pp.err(gop.value_ptr.loc, .previous_definition, .{});
         }
     }
@@ -3468,7 +3534,7 @@ fn prettyPrintMacro(pp: *Preprocessor, w: *std.Io.Writer, loc: Source.Location, 
 
 fn prettyPrintMacrosOnly(pp: *Preprocessor, w: *std.Io.Writer) !void {
     for (pp.defines.values()) |macro| {
-        if (macro.is_builtin) continue;
+        if (macro.isBuiltin()) continue;
 
         try w.writeAll("#define ");
         try pp.prettyPrintMacro(w, macro.loc, .name_and_body);
