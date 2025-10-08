@@ -5617,7 +5617,9 @@ fn returnStmt(p: *Parser) Error!?Node.Index {
 
     if (ret_expr) |*some| {
         if (ret_void) {
-            try p.err(e_tok, .void_func_returns_value, .{p.tokSlice(p.func.name)});
+            if (!some.qt.is(p.comp, .void)) {
+                try p.err(e_tok, .void_func_returns_value, .{p.tokSlice(p.func.name)});
+            }
         } else {
             try some.coerce(p, ret_qt, e_tok, .ret);
 
