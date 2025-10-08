@@ -5932,7 +5932,7 @@ pub const Result = struct {
         if (lhs.val.opt_ref == .null) {
             lhs.val = .zero;
         }
-        if (!lhs.qt.isInvalid()) {
+        if (!lhs.qt.isInvalid() and !lhs.qt.is(p.comp, .vector)) {
             lhs.qt = .int;
         }
         return lhs.bin(p, tag, rhs, tok_i);
@@ -6061,6 +6061,9 @@ pub const Result = struct {
         const a_vec = a.qt.is(p.comp, .vector);
         const b_vec = b.qt.is(p.comp, .vector);
         if (a_vec and b_vec) {
+            if (kind == .boolean_logic) {
+                return a.invalidBinTy(tok, b, p);
+            }
             if (a.qt.eql(b.qt, p.comp)) {
                 return a.shouldEval(b, p);
             }
