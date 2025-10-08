@@ -262,3 +262,62 @@ function: 'fn () int'
 
     implicit return_stmt: 'int' (value: 0)
 
+function: 'fn (a: vec_a: vector(8, char), b: vec_a: vector(8, char), c: vec_b: vector(2, float), d: vec_b: vector(2, float)) void'
+ name: compare
+ body:
+  compound_stmt
+    variable: 'vec_a: vector(8, char)'
+     name: ab1
+     init:
+      equal_expr: 'vec_a: vector(8, char)'
+       lhs:
+        implicit cast: (lval_to_rval) 'vec_a: vector(8, char)'
+          decl_ref_expr: 'vec_a: vector(8, char)' lvalue
+           name: a
+       rhs:
+        implicit cast: (lval_to_rval) 'vec_a: vector(8, char)'
+          decl_ref_expr: 'vec_a: vector(8, char)' lvalue
+           name: b
+
+    variable: 'vec_a: vector(8, char)'
+     name: ab2
+     init:
+      less_than_expr: 'vec_a: vector(8, char)'
+       lhs:
+        implicit cast: (lval_to_rval) 'vec_a: vector(8, char)'
+          decl_ref_expr: 'vec_a: vector(8, char)' lvalue
+           name: a
+       rhs:
+        implicit cast: (lval_to_rval) 'vec_a: vector(8, char)'
+          decl_ref_expr: 'vec_a: vector(8, char)' lvalue
+           name: b
+
+    variable: 'vec_a: vector(8, char)'
+     name: ab3
+     init:
+      not_equal_expr: 'vec_a: vector(8, char)'
+       lhs:
+        implicit cast: (lval_to_rval) 'vec_a: vector(8, char)'
+          decl_ref_expr: 'vec_a: vector(8, char)' lvalue
+           name: a
+       rhs:
+        implicit cast: (bitcast) 'vec_a: vector(8, char)'
+          implicit cast: (lval_to_rval) 'vec_b: vector(2, float)'
+            decl_ref_expr: 'vec_b: vector(2, float)' lvalue
+             name: c
+
+    variable: 'vector(2, int)'
+     name: ab4
+     init:
+      greater_than_equal_expr: 'vector(2, int)'
+       lhs:
+        implicit cast: (lval_to_rval) 'vec_b: vector(2, float)'
+          decl_ref_expr: 'vec_b: vector(2, float)' lvalue
+           name: c
+       rhs:
+        implicit cast: (lval_to_rval) 'vec_b: vector(2, float)'
+          decl_ref_expr: 'vec_b: vector(2, float)' lvalue
+           name: d
+
+    implicit return_stmt: 'void'
+

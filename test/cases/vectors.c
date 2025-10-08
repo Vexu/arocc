@@ -61,6 +61,13 @@ int main(void) {
     ~a;
 }
 
+void compare(vec_a a, vec_a b, vec_b c, vec_b d) {
+    __auto_type ab1 = a == b;
+    __auto_type ab2 = a < b;
+    __auto_type ab3 = a != c;
+    __auto_type ab4 = c >= d;
+}
+
 #define EXPECTED_ERRORS "vectors.c:2:40: error: invalid vector element type 'float *'" \
     "vectors.c:3:39: error: vector size not an integral multiple of component size" \
     "vectors.c:10:10: error: invalid conversion between vector type 'f2v' (vector of 2 'float' values) and integer type 'int' of different size" \
