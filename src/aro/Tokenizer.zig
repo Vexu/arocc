@@ -144,6 +144,11 @@ pub const Token = struct {
         hash,
         hash_hash,
 
+        /// Special token for handling expansion of parameters to builtin preprocessor functions
+        macro_param_builtin_func,
+        /// Special token for implementing builtin object macros
+        macro_builtin_obj,
+
         /// Special token to speed up preprocessing, `loc.end` will be an index to the param list.
         macro_param,
         /// Special token to signal that the argument must be replaced without expansion (e.g. in concatenation)
@@ -154,40 +159,6 @@ pub const Token = struct {
         stringify_va_args,
         /// Special macro whitespace, always equal to a single space
         macro_ws,
-        /// Special token for implementing __has_attribute
-        macro_param_has_attribute,
-        /// Special token for implementing __has_c_attribute
-        macro_param_has_c_attribute,
-        /// Special token for implementing __has_declspec_attribute
-        macro_param_has_declspec_attribute,
-        /// Special token for implementing __has_warning
-        macro_param_has_warning,
-        /// Special token for implementing __has_feature
-        macro_param_has_feature,
-        /// Special token for implementing __has_extension
-        macro_param_has_extension,
-        /// Special token for implementing __has_builtin
-        macro_param_has_builtin,
-        /// Special token for implementing __has_include
-        macro_param_has_include,
-        /// Special token for implementing __has_include_next
-        macro_param_has_include_next,
-        /// Special token for implementing __has_embed
-        macro_param_has_embed,
-        /// Special token for implementing __is_identifier
-        macro_param_is_identifier,
-        /// Special token for implementing __FILE__
-        macro_file,
-        /// Special token for implementing __LINE__
-        macro_line,
-        /// Special token for implementing __COUNTER__
-        macro_counter,
-        /// Special token for implementing _Pragma
-        macro_param_pragma_operator,
-        /// Special token for implementing __identifier (MS extension)
-        macro_param_ms_identifier,
-        /// Special token for implementing __pragma (MS extension)
-        macro_param_ms_pragma,
 
         /// Special identifier for implementing __func__
         macro_func,
@@ -195,12 +166,6 @@ pub const Token = struct {
         macro_function,
         /// Special identifier for implementing __PRETTY_FUNCTION__
         macro_pretty_func,
-        /// Special identifier for implementing __DATE__
-        macro_date,
-        /// Special identifier for implementing __TIME__
-        macro_time,
-        /// Special identifier for implementing __TIMESTAMP__
-        macro_timestamp,
 
         keyword_auto,
         keyword_auto_type,
@@ -408,9 +373,6 @@ pub const Token = struct {
                 .macro_func,
                 .macro_function,
                 .macro_pretty_func,
-                .macro_date,
-                .macro_time,
-                .macro_timestamp,
                 .keyword_auto,
                 .keyword_auto_type,
                 .keyword_break,
@@ -605,27 +567,9 @@ pub const Token = struct {
                 .macro_param_no_expand,
                 .stringify_param,
                 .stringify_va_args,
-                .macro_param_has_attribute,
-                .macro_param_has_c_attribute,
-                .macro_param_has_declspec_attribute,
-                .macro_param_has_warning,
-                .macro_param_has_feature,
-                .macro_param_has_extension,
-                .macro_param_has_builtin,
-                .macro_param_has_include,
-                .macro_param_has_include_next,
-                .macro_param_has_embed,
-                .macro_param_is_identifier,
-                .macro_file,
-                .macro_line,
-                .macro_counter,
-                .macro_time,
-                .macro_date,
-                .macro_timestamp,
-                .macro_param_pragma_operator,
-                .macro_param_ms_identifier,
-                .macro_param_ms_pragma,
                 .placemarker,
+                .macro_param_builtin_func,
+                .macro_builtin_obj,
                 => "",
                 .macro_ws => " ",
 
