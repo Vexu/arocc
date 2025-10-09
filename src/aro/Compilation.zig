@@ -1722,9 +1722,27 @@ const FindInclude = struct {
         }
         return null;
     }
+    fn pathMatches(a: []const u8, b: []const u8) bool {
+        if (@import("builtin").os.tag != .windows) {
+            return std.mem.eql(u8, a, b);
+        }
+
+        const separators = std.fs.path.sep_str_windows ++ std.fs.path.sep_str_posix;
+        var a_iter = std.mem.splitAny(u8, a, separators);
+        var b_iter = std.mem.splitAny(u8, b, separators);
+        var a_component = a_iter.next();
+        var b_component = b_iter.next();
+        while (a_component != null and b_component != null) : ({
+            a_component = a_iter.next();
+            b_component = b_iter.next();
+        }) {
+            if (!std.mem.eql(u8, a_component.?, b_component.?)) return false;
+        }
+        return a_component == null and b_component == null;
+    }
     fn checkIncludeDir(find: *FindInclude, include_dir: []const u8, kind: Source.Kind) Allocator.Error!?Result {
         if (find.wait_for) |wait_for| {
-            if (std.mem.eql(u8, include_dir, wait_for)) find.wait_for = null;
+            if (pathMatches(include_dir, wait_for)) find.wait_for = null;
             return null;
         }
         return find.check("{s}{c}{s}", .{
@@ -1737,7 +1755,7 @@ const FindInclude = struct {
         const path = find.comp.getSource(source_id).path;
         const dir = std.fs.path.dirname(path) orelse ".";
         if (find.wait_for) |wait_for| {
-            if (std.mem.eql(u8, dir, wait_for)) find.wait_for = null;
+            if (pathMatches(dir, wait_for)) find.wait_for = null;
             return null;
         }
         return find.check("{s}{c}{s}", .{
@@ -1752,7 +1770,7 @@ const FindInclude = struct {
                 // If this is a match, then `wait_for` looks like '.../Foo.framework/Headers'.
                 const wait_framework = std.fs.path.dirname(wait_for) orelse break :match;
                 const wait_framework_dir = std.fs.path.dirname(wait_framework) orelse break :match;
-                if (!std.mem.eql(u8, framework_dir, wait_framework_dir)) break :match;
+                if (!pathMatches(framework_dir, wait_framework_dir)) break :match;
                 find.wait_for = null;
             }
             return null;
