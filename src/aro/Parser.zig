@@ -8023,11 +8023,11 @@ fn offsetofMemberDesignator(
         .qt = base_qt,
     } });
 
-    var cur_offset: u64 = 0;
-    var lhs = try p.fieldAccessExtra(base_node, base_record_ty, base_field_name, false, access_tok, &cur_offset);
-
-    var total_offset: i64 = @intCast(cur_offset);
+    var fields_offset: u64 = 0;
+    var indexing_offset: i64 = 0;
     var runtime_offset = false;
+
+    var lhs = try p.fieldAccessExtra(base_node, base_record_ty, base_field_name, false, access_tok, &fields_offset);
     while (true) switch (p.tok_ids[p.tok_i]) {
         .period => {
             p.tok_i += 1;
@@ -8039,8 +8039,7 @@ fn offsetofMemberDesignator(
                 return error.ParsingFailed;
             };
             try p.validateFieldAccess(lhs_record_ty, lhs.qt, field_name_tok, field_name);
-            lhs = try p.fieldAccessExtra(lhs.node, lhs_record_ty, field_name, false, access_tok, &cur_offset);
-            total_offset += @intCast(cur_offset);
+            lhs = try p.fieldAccessExtra(lhs.node, lhs_record_ty, field_name, false, access_tok, &fields_offset);
         },
         .l_bracket => {
             const l_bracket_tok = p.tok_i;
@@ -8063,7 +8062,7 @@ fn offsetofMemberDesignator(
             }
 
             if (index.val.toInt(i64, p.comp)) |index_int| {
-                total_offset += @as(i64, @intCast(array_ty.elem.bitSizeof(p.comp))) * index_int;
+                indexing_offset += @as(i64, @intCast(array_ty.elem.bitSizeof(p.comp))) * index_int;
             } else {
                 runtime_offset = true;
             }
@@ -8079,6 +8078,7 @@ fn offsetofMemberDesignator(
         },
         else => break,
     };
+    const total_offset: i64 = indexing_offset + @as(i64, @intCast(fields_offset));
     return .{
         .qt = base_qt,
         .val = if (runtime_offset)
@@ -8807,7 +8807,7 @@ fn fieldAccessExtra(
     target_name: StringId,
     is_arrow: bool,
     access_tok: TokenIndex,
-    offset_bits: *u64,
+    offset_bits_acc: *u64,
 ) Error!Result {
     for (record_ty.fields, 0..) |field, field_index| {
         if (field.name_tok == 0) if (field.qt.getRecord(p.comp)) |field_record_ty| {
@@ -8824,12 +8824,12 @@ fn fieldAccessExtra(
             else
                 .{ .member_access_expr = access });
 
-            const ret = p.fieldAccessExtra(inner, field_record_ty, target_name, false, access_tok, offset_bits);
-            offset_bits.* = field.layout.offset_bits;
+            const ret = p.fieldAccessExtra(inner, field_record_ty, target_name, false, access_tok, offset_bits_acc);
+            offset_bits_acc.* += field.layout.offset_bits;
             return ret;
         };
         if (target_name == field.name) {
-            offset_bits.* = field.layout.offset_bits;
+            offset_bits_acc.* += field.layout.offset_bits;
 
             const access: Node.MemberAccess = .{
                 .access_tok = access_tok,
