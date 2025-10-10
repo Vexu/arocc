@@ -41,6 +41,14 @@ int f2(void) {
     return c->a;
 }
 
+void f3(void) {
+    (void)&((struct Foo *)(0x100000u))->a;
+    (void)&((struct Foo **)0x100000u)[0];
+    (void)&((struct Foo (*)[1])0x100000u)[0]->a;
+    (void)&((struct Foo **)(int)(_Complex int)1)[0];
+    (void)&((struct Foo **)(_Bool)1)[0];
+}
+
 #define EXPECTED_ERRORS "member expr.c:7:8: error: member reference base type 'int' is not a structure or union" \
     "member expr.c:10:8: error: member reference type 'struct Foo' is not a pointer; did you mean to use '.'?" \
     "member expr.c:13:8: error: member reference type 'struct Foo' is not a pointer; did you mean to use '.'?" \
