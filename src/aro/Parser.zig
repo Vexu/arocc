@@ -8093,9 +8093,8 @@ fn computeOffsetExtra(p: *Parser, node: Node.Index, offset_so_far: *Value) !Valu
     switch (node.get(&p.tree)) {
         .cast => |cast| {
             return switch (cast.kind) {
-                .array_to_pointer, .no_op, .bitcast => p.computeOffsetExtra(cast.operand, offset_so_far),
                 .lval_to_rval => .{},
-                else => unreachable,
+                else => p.computeOffsetExtra(cast.operand, offset_so_far),
             };
         },
         .paren_expr => |un| return p.computeOffsetExtra(un.operand, offset_so_far),
