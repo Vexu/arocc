@@ -192,6 +192,7 @@ pub fn build(b: *Build) !void {
     });
     exe.root_module.addImport("aro", aro_module);
     exe.root_module.addImport("assembly_backend", assembly_backend);
+    exe.root_module.addImport("build_options", aro_options_module);
 
     if (target.result.os.tag == .windows) {
         exe.root_module.linkSystemLibrary("advapi32", .{});
