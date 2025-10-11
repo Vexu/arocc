@@ -1,4 +1,5 @@
 const std = @import("std");
+const build_options = @import("build_options");
 const Allocator = mem.Allocator;
 const mem = std.mem;
 const process = std.process;
@@ -9,7 +10,14 @@ const Driver = aro.Driver;
 const Toolchain = aro.Toolchain;
 const assembly_backend = @import("assembly_backend");
 
-var debug_allocator: std.heap.DebugAllocator(.{}) = .{};
+var debug_allocator: std.heap.DebugAllocator(.{
+    .stack_trace_frames = if (build_options.debug_allocations and std.debug.sys_can_stack_trace) 10 else 0,
+    .resize_stack_traces = build_options.debug_allocations,
+    // A unique value so that when a default-constructed
+    // GeneralPurposeAllocator is incorrectly passed to testing allocator, or
+    // vice versa, panic occurs.
+    .canary = @truncate(0xc647026dc6875134),
+}) = .{};
 
 pub fn main() u8 {
     const gpa = if (@import("builtin").link_libc)
