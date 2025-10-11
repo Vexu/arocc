@@ -8,7 +8,7 @@ const Token = Tree.Token;
 const Node = Tree.Node;
 const AllocatorError = std.mem.Allocator.Error;
 
-var general_purpose_allocator = std.heap.GeneralPurposeAllocator(.{}){};
+var debug_allocator = std.heap.DebugAllocator(.{}){};
 
 const AddCommandLineArgsResult = struct {
     bool,
@@ -123,8 +123,8 @@ fn testAllAllocationFailures(cases: [][]const u8, test_dir: []const u8) !void {
 }
 
 pub fn main() !void {
-    const gpa = general_purpose_allocator.allocator();
-    defer if (general_purpose_allocator.deinit() == .leak) std.process.exit(1);
+    const gpa = debug_allocator.allocator();
+    defer if (debug_allocator.deinit() == .leak) std.process.exit(1);
 
     var arena_state: std.heap.ArenaAllocator = .init(gpa);
     defer arena_state.deinit();

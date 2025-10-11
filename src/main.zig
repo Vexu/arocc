@@ -9,15 +9,15 @@ const Driver = aro.Driver;
 const Toolchain = aro.Toolchain;
 const assembly_backend = @import("assembly_backend");
 
-var general_purpose_allocator = std.heap.GeneralPurposeAllocator(.{}){};
+var debug_allocator: std.heap.DebugAllocator(.{}) = .{};
 
 pub fn main() u8 {
     const gpa = if (@import("builtin").link_libc)
         std.heap.raw_c_allocator
     else
-        general_purpose_allocator.allocator();
+        debug_allocator.allocator();
     defer if (!@import("builtin").link_libc) {
-        _ = general_purpose_allocator.deinit();
+        _ = debug_allocator.deinit();
     };
 
     var arena_instance = std.heap.ArenaAllocator.init(gpa);
