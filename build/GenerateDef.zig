@@ -512,7 +512,7 @@ const DafsaBuilder = struct {
     }
 
     const Node = struct {
-        children: [256]?*Node = [_]?*Node{null} ** 256,
+        children: [256]?*Node = @splat(null),
         is_terminal: bool = false,
         number: usize = 0,
 

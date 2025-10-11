@@ -97,9 +97,9 @@ const ExpectedFailure = struct {
 const builtin = @import("builtin");
 
 pub fn main() !void {
-    var general_purpose_allocator = std.heap.GeneralPurposeAllocator(.{}){};
-    const gpa = general_purpose_allocator.allocator();
-    defer if (general_purpose_allocator.deinit() == .leak) std.process.exit(1);
+    var debug_allocator: std.heap.DebugAllocator(.{}) = .{};
+    const gpa = debug_allocator.allocator();
+    defer if (debug_allocator.deinit() == .leak) std.process.exit(1);
 
     const args = try std.process.argsAlloc(gpa);
     defer std.process.argsFree(gpa, args);

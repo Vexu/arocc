@@ -63,6 +63,7 @@ pub fn build(b: *Build) !void {
     const use_llvm = b.option(bool, "llvm", "Use LLVM backend to generate aro executable");
     const no_bin = b.option(bool, "no-bin", "skip emitting compiler binary") orelse false;
     const test_filter = b.option([]const []const u8, "test-filter", "Test filter for unit tests") orelse &.{};
+    const debug_allocations = b.option(bool, "debug-allocations", "Collect detailed debug info for all allocations (slow)") orelse false;
 
     const system_defaults = b.addOptions();
     system_defaults.addOption(bool, "enable_linker_build_id", enable_linker_build_id);
@@ -76,6 +77,7 @@ pub fn build(b: *Build) !void {
     aro_options.addOption(bool, "enable_tracy", tracy != null);
     aro_options.addOption(bool, "enable_tracy_callstack", tracy_callstack);
     aro_options.addOption(bool, "enable_tracy_allocation", tracy_allocation);
+    aro_options.addOption(bool, "debug_allocations", debug_allocations);
 
     const version_str = v: {
         const version_string = b.fmt("{d}.{d}.{d}", .{ aro_version.major, aro_version.minor, aro_version.patch });
@@ -190,6 +192,7 @@ pub fn build(b: *Build) !void {
     });
     exe.root_module.addImport("aro", aro_module);
     exe.root_module.addImport("assembly_backend", assembly_backend);
+    exe.root_module.addImport("build_options", aro_options_module);
 
     if (target.result.os.tag == .windows) {
         exe.root_module.linkSystemLibrary("advapi32", .{});
@@ -261,6 +264,7 @@ pub fn build(b: *Build) !void {
         const test_runner_options = b.addOptions();
         integration_tests.root_module.addOptions("build_options", test_runner_options);
         test_runner_options.addOption(bool, "test_all_allocation_failures", test_all_allocation_failures);
+        test_runner_options.addOption(bool, "debug_allocations", debug_allocations);
 
         const integration_test_runner = b.addRunArtifact(integration_tests);
         integration_test_runner.addArg(b.pathFromRoot("test/cases"));

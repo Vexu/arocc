@@ -8,7 +8,14 @@ const Token = Tree.Token;
 const Node = Tree.Node;
 const AllocatorError = std.mem.Allocator.Error;
 
-var general_purpose_allocator = std.heap.GeneralPurposeAllocator(.{}){};
+var debug_allocator: std.heap.DebugAllocator(.{
+    .stack_trace_frames = if (build_options.debug_allocations and std.debug.sys_can_stack_trace) 10 else 0,
+    .resize_stack_traces = build_options.debug_allocations,
+    // A unique value so that when a default-constructed
+    // GeneralPurposeAllocator is incorrectly passed to testing allocator, or
+    // vice versa, panic occurs.
+    .canary = @truncate(0xc647026dc6875134),
+}) = .{};
 
 const AddCommandLineArgsResult = struct {
     bool,
@@ -123,8 +130,8 @@ fn testAllAllocationFailures(cases: [][]const u8, test_dir: []const u8) !void {
 }
 
 pub fn main() !void {
-    const gpa = general_purpose_allocator.allocator();
-    defer if (general_purpose_allocator.deinit() == .leak) std.process.exit(1);
+    const gpa = debug_allocator.allocator();
+    defer if (debug_allocator.deinit() == .leak) std.process.exit(1);
 
     var arena_state: std.heap.ArenaAllocator = .init(gpa);
     defer arena_state.deinit();
