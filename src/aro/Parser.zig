@@ -8762,10 +8762,13 @@ fn compoundLiteral(p: *Parser, qt_opt: ?QualType, opt_l_paren: ?TokenIndex) Erro
     };
     var qt = d.qt;
 
+    var incomplete_array_ty = false;
     switch (qt.base(p.comp).type) {
         .func => try p.err(p.tok_i, .func_init, .{}),
         .array => |array_ty| if (array_ty.len == .variable) {
             try p.err(p.tok_i, .vla_init, .{});
+        } else {
+            incomplete_array_ty = array_ty.len == .incomplete;
         },
         else => if (qt.hasIncompleteSize(p.comp)) {
             try p.err(p.tok_i, .variable_incomplete_ty, .{qt});
@@ -8780,6 +8783,8 @@ fn compoundLiteral(p: *Parser, qt_opt: ?QualType, opt_l_paren: ?TokenIndex) Erro
     if (d.constexpr) |_| {
         // TODO error if not constexpr
     }
+
+    if (!incomplete_array_ty) init_list_expr.qt = qt;
 
     init_list_expr.node = try p.addNode(.{ .compound_literal_expr = .{
         .l_paren_tok = l_paren,
