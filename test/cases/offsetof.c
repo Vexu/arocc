@@ -22,6 +22,21 @@ void foo(void) {
 }
 _Static_assert(__builtin_offsetof(struct B, a[2]) == 8ul, "");
 
+struct Anon {
+    union {
+        int x;
+        struct {
+            int s1, s2;
+        };
+        struct {
+            int s3, s4;
+        } s;
+    };
+};
+_Static_assert(__builtin_offsetof(struct Anon, x) == __builtin_offsetof(struct Anon, s1), "");
+_Static_assert(__builtin_offsetof(struct Anon, s2) > __builtin_offsetof(struct Anon, s.s3), "");
+_Static_assert(__builtin_offsetof(struct Anon, s.s4) > __builtin_offsetof(struct Anon, s1), "");
+
 #define EXPECTED_ERRORS "offsetof.c:1:28: error: offsetof requires struct or union type, 'int' invalid" \
     "offsetof.c:3:28: error: offsetof of incomplete type 'struct A'" \
     "offsetof.c:7:38: error: no member named 'b' in 'struct A'" \
