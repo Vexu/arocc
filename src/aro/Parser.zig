@@ -8023,10 +8023,9 @@ fn offsetofMemberDesignator(
         .qt = base_qt,
     } });
 
-    var cur_offset: u64 = 0;
-    var lhs = try p.fieldAccessExtra(base_node, base_record_ty, base_field_name, false, access_tok, &cur_offset);
+    var lhs, const initial_offset = try p.fieldAccessExtra(base_node, base_record_ty, base_field_name, false, access_tok);
 
-    var total_offset: i64 = @intCast(cur_offset);
+    var total_offset: i64 = @intCast(initial_offset);
     var runtime_offset = false;
     while (true) switch (p.tok_ids[p.tok_i]) {
         .period => {
@@ -8039,8 +8038,8 @@ fn offsetofMemberDesignator(
                 return error.ParsingFailed;
             };
             try p.validateFieldAccess(lhs_record_ty, lhs.qt, field_name_tok, field_name);
-            lhs = try p.fieldAccessExtra(lhs.node, lhs_record_ty, field_name, false, access_tok, &cur_offset);
-            total_offset += @intCast(cur_offset);
+            lhs, const offset_bits = try p.fieldAccessExtra(lhs.node, lhs_record_ty, field_name, false, access_tok);
+            total_offset += @intCast(offset_bits);
         },
         .l_bracket => {
             const l_bracket_tok = p.tok_i;
@@ -8790,8 +8789,8 @@ fn fieldAccess(
 
     const field_name = try p.comp.internString(p.tokSlice(field_name_tok));
     try p.validateFieldAccess(record_ty, record_qt, field_name_tok, field_name);
-    var discard: u64 = 0;
-    return p.fieldAccessExtra(lhs.node, record_ty, field_name, is_arrow, access_tok, &discard);
+    const result, _ = try p.fieldAccessExtra(lhs.node, record_ty, field_name, is_arrow, access_tok);
+    return result;
 }
 
 fn validateFieldAccess(p: *Parser, record_ty: Type.Record, record_qt: QualType, field_name_tok: TokenIndex, field_name: StringId) Error!void {
@@ -8807,8 +8806,7 @@ fn fieldAccessExtra(
     target_name: StringId,
     is_arrow: bool,
     access_tok: TokenIndex,
-    offset_bits: *u64,
-) Error!Result {
+) Error!struct { Result, u64 } {
     for (record_ty.fields, 0..) |field, field_index| {
         if (field.name_tok == 0) if (field.qt.getRecord(p.comp)) |field_record_ty| {
             if (!field_record_ty.hasField(p.comp, target_name)) continue;
@@ -8824,23 +8822,21 @@ fn fieldAccessExtra(
             else
                 .{ .member_access_expr = access });
 
-            const ret = p.fieldAccessExtra(inner, field_record_ty, target_name, false, access_tok, offset_bits);
-            offset_bits.* = field.layout.offset_bits;
-            return ret;
+            const ret, const offset_bits = try p.fieldAccessExtra(inner, field_record_ty, target_name, false, access_tok);
+            return .{ ret, offset_bits + field.layout.offset_bits };
         };
         if (target_name == field.name) {
-            offset_bits.* = field.layout.offset_bits;
-
             const access: Node.MemberAccess = .{
                 .access_tok = access_tok,
                 .qt = field.qt,
                 .base = base,
                 .member_index = @intCast(field_index),
             };
-            return .{ .qt = field.qt, .node = try p.addNode(if (is_arrow)
+            const result_node = try p.addNode(if (is_arrow)
                 .{ .member_access_ptr_expr = access }
             else
-                .{ .member_access_expr = access }) };
+                .{ .member_access_expr = access });
+            return .{ .{ .qt = field.qt, .node = result_node }, field.layout.offset_bits };
         }
     }
     // We already checked that this container has a field by the name.
