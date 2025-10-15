@@ -201,6 +201,12 @@ pub fn main() !void {
     try initial_comp.include_dirs.append(gpa, cases_next_include_dir);
     try initial_comp.embed_dirs.append(gpa, cases_next_include_dir);
 
+    const cases_system_include_dir = try std.fs.path.join(arena, &.{ args[1], "include_system" });
+    try initial_comp.system_include_dirs.append(gpa, cases_system_include_dir);
+
+    const cases_system_next_include_dir = try std.fs.path.join(arena, &.{ args[1], "include_system", "next" });
+    try initial_comp.system_include_dirs.append(gpa, cases_system_next_include_dir);
+
     const cases_frameworks_dir = try std.fs.path.join(arena, &.{ args[1], "frameworks" });
     try initial_comp.framework_dirs.append(gpa, cases_frameworks_dir);
 
@@ -579,7 +585,7 @@ fn checkExpectedErrors(pp: *aro.Preprocessor, buf: *std.ArrayListUnmanaged(u8), 
         {
             var allocating: std.Io.Writer.Allocating = .fromArrayList(pp.comp.gpa, buf);
             defer buf.* = allocating.toArrayList();
-            std.debug.assert((try std.zig.string_literal.parseWrite(&allocating.writer, pp.tokSlice(macro.tokens[0]))) == .success);
+            std.debug.assert((try std.zig.string_literal.parseWrite(&allocating.writer, pp.tokSlice(str))) == .success);
         }
         try buf.append(pp.comp.gpa, '\n');
         const expected_error = buf.items[start..];
