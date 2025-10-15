@@ -56,6 +56,16 @@ int main(void) {
     vec_a a2 = {b};
     a = b;
     bitcast_vector(b);
+    +a;
+    -a;
+    ~a;
+}
+
+void compare(vec_a a, vec_a b, vec_b c, vec_b d) {
+    __auto_type ab1 = a == b;
+    __auto_type ab2 = a < b;
+    __auto_type ab3 = a != c;
+    __auto_type ab4 = c >= d;
 }
 
 #define EXPECTED_ERRORS "vectors.c:2:40: error: invalid vector element type 'float *'" \

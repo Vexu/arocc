@@ -47,6 +47,7 @@ fn createType(desc: TypeDescription, it: *TypeDescription.TypeIterator, comp: *C
     var parser: Parser = undefined;
     parser.comp = comp;
     var builder: TypeStore.Builder = .{ .parser = &parser, .error_on_invalid = true };
+    var actual_suffix = desc.suffix;
 
     var require_native_int32 = false;
     var require_native_int64 = false;
@@ -102,10 +103,7 @@ fn createType(desc: TypeDescription, it: *TypeDescription.TypeIterator, comp: *C
         },
         .h => builder.combine(.fp16, 0) catch unreachable,
         .x => builder.combine(.float16, 0) catch unreachable,
-        .y => {
-            // Todo: __bf16
-            return .invalid;
-        },
+        .y => builder.combine(.bf16, 0) catch unreachable,
         .f => builder.combine(.float, 0) catch unreachable,
         .d => {
             if (builder.type == .long_long) {
@@ -152,7 +150,9 @@ fn createType(desc: TypeDescription, it: *TypeDescription.TypeIterator, comp: *C
         },
         .V => |element_count| {
             std.debug.assert(desc.suffix.len == 0);
-            const child_desc = it.next().?;
+            var child_desc = it.next().?;
+            actual_suffix = child_desc.suffix;
+            child_desc.suffix = &.{};
             const elem_qt = try createType(child_desc, undefined, comp);
             const vector_qt = try comp.type_store.put(comp.gpa, .{ .vector = .{
                 .elem = elem_qt,
@@ -162,6 +162,10 @@ fn createType(desc: TypeDescription, it: *TypeDescription.TypeIterator, comp: *C
         },
         .q => {
             // Todo: scalable vector
+            return .invalid;
+        },
+        .Q => {
+            // Todo: target builtin type
             return .invalid;
         },
         .E => {
@@ -221,7 +225,7 @@ fn createType(desc: TypeDescription, it: *TypeDescription.TypeIterator, comp: *C
         },
         .@"!" => return .invalid,
     }
-    for (desc.suffix) |suffix| {
+    for (actual_suffix) |suffix| {
         switch (suffix) {
             .@"*" => |address_space| {
                 _ = address_space; // TODO: handle address space

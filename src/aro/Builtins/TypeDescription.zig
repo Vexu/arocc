@@ -123,6 +123,14 @@ pub const ComponentIterator = struct {
             'C' => return .{ .suffix = .C },
             'D' => return .{ .suffix = .D },
             'R' => return .{ .suffix = .R },
+            'Q' => {
+                defer self.idx += 1;
+                switch (self.str[self.idx]) {
+                    'a' => return .{ .spec = .{ .Q = .aarch64_svcount_t } },
+                    'b' => return .{ .spec = .{ .Q = .amdgpu_buffer_rsrc_t } },
+                    else => unreachable,
+                }
+            },
             else => unreachable,
         }
         return null;
@@ -176,7 +184,7 @@ pub const TypeIterator = struct {
             _ = it.next();
         }
         if (maybe_spec) |spec| {
-            return TypeDescription{
+            return .{
                 .prefix = self.prefix[0..prefix_count],
                 .spec = spec,
                 .suffix = self.suffix[0..suffix_count],
@@ -250,6 +258,11 @@ const Spec = union(enum) {
     V: u32,
     /// Scalable vector, followed by the number of elements and the base type.
     q: u32,
+    /// target builtin type, followed by a character to distinguish the builtin type
+    Q: enum {
+        aarch64_svcount_t,
+        amdgpu_buffer_rsrc_t,
+    },
     /// ext_vector, followed by the number of elements and the base type.
     E: u32,
     /// _Complex, followed by the base type.

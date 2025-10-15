@@ -383,6 +383,7 @@ pub fn builtinEnabled(target: std.Target, enabled_for: TargetSet) bool {
         switch (val) {
             .basic => return true,
             .x86_64 => if (target.cpu.arch == .x86_64) return true,
+            .x86 => if (target.cpu.arch.isX86()) return true,
             .aarch64 => if (target.cpu.arch == .aarch64) return true,
             .arm => if (target.cpu.arch == .arm) return true,
             .ppc => switch (target.cpu.arch) {

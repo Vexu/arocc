@@ -36,6 +36,8 @@ unsigned long qux(unsigned long x) {
     return ((union{unsigned long _x;}){x})._x;
 }
 
+_Static_assert(sizeof ((char [3]){"foo"}) == 3, "");
+
 #define EXPECTED_ERRORS \
     "compound literals.c:21:32: warning: array index 10 is past the end of the array [-Warray-bounds]" \
     "compound literals.c:30:5: error: address of register variable requested" \

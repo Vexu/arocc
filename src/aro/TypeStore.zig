@@ -92,6 +92,7 @@ const Index = enum(u29) {
     int_pointer = std.math.maxInt(u29) - 27,
     /// Special type used when combining declarators.
     declarator_combine = std.math.maxInt(u29) - 28,
+    float_bf16 = std.math.maxInt(u29) - 29,
     _,
 };
 
@@ -123,6 +124,7 @@ pub const QualType = packed struct(u32) {
     pub const ulong_long: QualType = .{ ._index = .int_ulong_long };
     pub const int128: QualType = .{ ._index = .int_int128 };
     pub const uint128: QualType = .{ ._index = .int_uint128 };
+    pub const bf16: QualType = .{ ._index = .float_bf16 };
     pub const fp16: QualType = .{ ._index = .float_fp16 };
     pub const float16: QualType = .{ ._index = .float_float16 };
     pub const float: QualType = .{ ._index = .float_float };
@@ -184,6 +186,7 @@ pub const QualType = packed struct(u32) {
             .int_ulong_long => return .{ .int = .ulong_long },
             .int_int128 => return .{ .int = .int128 },
             .int_uint128 => return .{ .int = .uint128 },
+            .float_bf16 => return .{ .float = .bf16 },
             .float_fp16 => return .{ .float = .fp16 },
             .float_float16 => return .{ .float = .float16 },
             .float_float => return .{ .float = .float },
@@ -608,7 +611,7 @@ pub const QualType = packed struct(u32) {
                 .float => comp.target.cTypeAlignment(.float),
                 .double => comp.target.cTypeAlignment(.double),
                 .long_double => comp.target.cTypeAlignment(.longdouble),
-                .fp16, .float16 => 2,
+                .bf16, .fp16, .float16 => 2,
                 .float128 => 16,
             },
             .bit_int => |bit_int| {
@@ -774,7 +777,7 @@ pub const QualType = packed struct(u32) {
     pub fn floatRank(qt: QualType, comp: *const Compilation) usize {
         return loop: switch (qt.base(comp).type) {
             .float => |float_ty| switch (float_ty) {
-                // TODO: bfloat16 => 0
+                .bf16 => 0,
                 .float16 => 1,
                 .fp16 => 2,
                 .float => 3,
@@ -1282,6 +1285,7 @@ pub const QualType = packed struct(u32) {
             },
             .bit_int => |bit_int| try w.print("{s} _BitInt({d})", .{ @tagName(bit_int.signedness), bit_int.bits }),
             .float => |float_ty| switch (float_ty) {
+                .bf16 => try w.writeAll("__bf16"),
                 .fp16 => try w.writeAll("__fp16"),
                 .float16 => try w.writeAll("_Float16"),
                 .float => try w.writeAll("float"),
@@ -1505,6 +1509,7 @@ pub const Type = union(enum) {
     };
 
     pub const Float = enum {
+        bf16,
         fp16,
         float16,
         float,
@@ -1514,6 +1519,7 @@ pub const Type = union(enum) {
 
         pub fn bits(float: Float, comp: *const Compilation) u16 {
             return switch (float) {
+                .bf16 => 16,
                 .fp16 => 16,
                 .float16 => 16,
                 .float => comp.target.cTypeBitSize(.float),
@@ -1754,6 +1760,7 @@ pub fn putExtra(ts: *TypeStore, gpa: std.mem.Allocator, ty: Type) !Index {
             .uint128 => return .int_uint128,
         },
         .float => |float| switch (float) {
+            .bf16 => return .float_bf16,
             .fp16 => return .float_fp16,
             .float16 => return .float_float16,
             .float => return .float_float,
@@ -2377,6 +2384,7 @@ pub const Builder = struct {
         complex_sbit_int: u64,
         complex_ubit_int: u64,
 
+        bf16,
         fp16,
         float16,
         float,
@@ -2460,6 +2468,7 @@ pub const Builder = struct {
                 .complex_sint128 => "_Complex signed __int128",
                 .complex_uint128 => "_Complex unsigned __int128",
 
+                .bf16 => "__bf16",
                 .fp16 => "__fp16",
                 .float16 => "_Float16",
                 .float => "float",
@@ -2591,6 +2600,7 @@ pub const Builder = struct {
                 break :blk if (complex) try qt.toComplex(b.parser.comp) else qt;
             },
 
+            .bf16 => .bf16,
             .fp16 => .fp16,
             .float16 => .float16,
             .float => .float,
@@ -3114,6 +3124,7 @@ pub const Builder = struct {
                 return .{ .bit_int = bit_int.bits };
             },
             .float => |float| switch (float) {
+                .bf16 => .bf16,
                 .fp16 => .fp16,
                 .float16 => .float16,
                 .float => .float,
@@ -3144,6 +3155,7 @@ pub const Builder = struct {
                 },
                 .float => |float| switch (float) {
                     .fp16 => unreachable,
+                    .bf16 => unreachable,
                     .float16 => .complex_float16,
                     .float => .complex_float,
                     .double => .complex_double,
