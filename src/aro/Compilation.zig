@@ -2025,6 +2025,47 @@ pub fn getSourceMTimeUncached(comp: *const Compilation, source_id: Source.Id) ?u
     }
 }
 
+pub fn isTargetArch(comp: *const Compilation, query: []const u8) bool {
+    _ = comp;
+    _ = query;
+    return true;
+}
+
+pub fn isTargetOs(comp: *const Compilation, os: []const u8) !bool {
+    var buf: [64]u8 = undefined;
+    var writer: std.Io.Writer = .fixed(&buf);
+    writer.print("native-{s}", .{os}) catch return false;
+    const written = writer.buffered();
+    for (written) |*c| {
+        c.* = std.ascii.toLower(c.*);
+    }
+
+    const opts: std.Target.Query.ParseOptions = .{
+        .arch_os_abi = written,
+        .cpu_features = null,
+        .diagnostics = null,
+    };
+    const query = std.Target.Query.parse(opts) catch return false;
+    const query_os_tag = query.os_tag orelse return false;
+    if (query_os_tag.isDarwin()) {
+        // clang treats all darwin OS's as equivalent
+        return comp.target.os.tag.isDarwin();
+    }
+    return query_os_tag == comp.target.os.tag;
+}
+
+pub fn isTargetVendor(comp: *const Compilation, query: []const u8) bool {
+    _ = comp;
+    _ = query;
+    return true;
+}
+
+pub fn isTargetEnvironment(comp: *const Compilation, query: []const u8) bool {
+    _ = comp;
+    _ = query;
+    return true;
+}
+
 pub const CharUnitSize = enum(u32) {
     @"1" = 1,
     @"2" = 2,
