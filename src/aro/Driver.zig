@@ -786,7 +786,7 @@ pub fn parseArgs(
             return d.fatal("unable to resolve target: {s}", .{errorDescription(e)});
         };
         if (d.raw_target_vendor) |vendor_str| {
-            d.comp.vendor = Compilation.Vendor.parse(vendor_str) orelse blk: {
+            d.comp.vendor = target_util.Vendor.parse(vendor_str) orelse blk: {
                 try d.warn("unknown vendor: {s}", .{vendor_str});
                 break :blk .unknown;
             };

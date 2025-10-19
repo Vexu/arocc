@@ -144,7 +144,7 @@ system_framework_dirs: std.ArrayList([]const u8) = .empty,
 /// Allocated into `gpa`, but keys are externally managed.
 embed_dirs: std.ArrayList([]const u8) = .empty,
 target: std.Target = @import("builtin").target,
-vendor: Vendor = .unknown,
+vendor: target_util.Vendor = .unknown,
 cmodel: std.builtin.CodeModel = .default,
 pragma_handlers: std.StringArrayHashMapUnmanaged(*Pragma) = .empty,
 langopts: LangOpts = .{},
@@ -2027,41 +2027,19 @@ pub fn getSourceMTimeUncached(comp: *const Compilation, source_id: Source.Id) ?u
 }
 
 pub fn isTargetArch(comp: *const Compilation, query: []const u8) bool {
-    const query_arch = std.meta.stringToEnum(std.Target.Cpu.Arch, query) orelse return false;
-    return query_arch == comp.target.cpu.arch;
+    return target_util.isArch(comp.target, query);
 }
 
-pub fn isTargetOs(comp: *const Compilation, os: []const u8) !bool {
-    var buf: [64]u8 = undefined;
-    var writer: std.Io.Writer = .fixed(&buf);
-    writer.print("native-{s}", .{os}) catch return false;
-    const written = writer.buffered();
-    for (written) |*c| {
-        c.* = std.ascii.toLower(c.*);
-    }
-
-    const opts: std.Target.Query.ParseOptions = .{
-        .arch_os_abi = written,
-        .cpu_features = null,
-        .diagnostics = null,
-    };
-    const query = std.Target.Query.parse(opts) catch return false;
-    const query_os_tag = query.os_tag orelse return false;
-    if (query_os_tag.isDarwin()) {
-        // clang treats all darwin OS's as equivalent
-        return comp.target.os.tag.isDarwin();
-    }
-    return query_os_tag == comp.target.os.tag;
+pub fn isTargetOs(comp: *const Compilation, query: []const u8) !bool {
+    return target_util.isOs(comp.target, query);
 }
 
 pub fn isTargetVendor(comp: *const Compilation, query: []const u8) bool {
-    const query_vendor = Vendor.parse(query) orelse return false;
-    return query_vendor == comp.vendor;
+    return target_util.isVendor(comp.vendor, query);
 }
 
 pub fn isTargetEnvironment(comp: *const Compilation, query: []const u8) bool {
-    const query_abi = std.meta.stringToEnum(std.Target.Abi, query) orelse return false;
-    return query_abi == comp.target.abi;
+    return target_util.isEnvironment(comp.target, query);
 }
 
 pub const CharUnitSize = enum(u32) {
@@ -2075,47 +2053,6 @@ pub const CharUnitSize = enum(u32) {
             .@"2" => u16,
             .@"4" => u32,
         };
-    }
-};
-
-pub const Vendor = enum {
-    apple,
-    pc,
-    scei,
-    sie,
-    freescale,
-    ibm,
-    imagination_technologies,
-    mips,
-    nvidia,
-    csr,
-    amd,
-    mesa,
-    suse,
-    open_embedded,
-    intel,
-    unknown,
-
-    const vendor_strings = std.StaticStringMap(Vendor).initComptime(.{
-        .{ "apple", .apple },
-        .{ "pc", .pc },
-        .{ "scei", .scei },
-        .{ "sie", .scei },
-        .{ "fsl", .freescale },
-        .{ "ibm", .ibm },
-        .{ "img", .imagination_technologies },
-        .{ "mti", .mips },
-        .{ "nvidia", .nvidia },
-        .{ "csr", .csr },
-        .{ "amd", .amd },
-        .{ "mesa", .mesa },
-        .{ "suse", .suse },
-        .{ "oe", .open_embedded },
-        .{ "intel", .intel },
-    });
-
-    pub fn parse(candidate: []const u8) ?Vendor {
-        return vendor_strings.get(candidate);
     }
 };
 
