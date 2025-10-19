@@ -2056,9 +2056,8 @@ pub fn isTargetOs(comp: *const Compilation, os: []const u8) !bool {
 }
 
 pub fn isTargetVendor(comp: *const Compilation, query: []const u8) bool {
-    _ = comp;
-    _ = query;
-    return true;
+    const query_vendor = Vendor.parse(query) orelse return false;
+    return query_vendor == comp.vendor;
 }
 
 pub fn isTargetEnvironment(comp: *const Compilation, query: []const u8) bool {
