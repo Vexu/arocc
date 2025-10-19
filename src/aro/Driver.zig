@@ -99,6 +99,8 @@ aro_name: []const u8 = "",
 
 /// Value of -target passed via CLI
 raw_target_triple: ?[]const u8 = null,
+/// Value of --vendor= passed via CLI
+raw_target_vendor: ?[]const u8 = null,
 
 /// Value of -mcpu passed via CLI
 raw_cpu: ?[]const u8 = null,
@@ -647,10 +649,7 @@ pub fn parseArgs(
                 d.raw_target_triple = triple;
                 emulate = null;
             } else if (option(arg, "--vendor=")) |vendor| {
-                d.comp.vendor = Compilation.Vendor.parse(vendor) orelse blk: {
-                    try d.warn("unrecognized vendor: '{s}'", .{vendor});
-                    break :blk .unknown;
-                };
+                d.raw_target_vendor = vendor;
             } else if (mem.eql(u8, arg, "--verbose-ast")) {
                 d.verbose_ast = true;
             } else if (mem.eql(u8, arg, "--verbose-pp")) {
@@ -786,6 +785,16 @@ pub fn parseArgs(
         d.comp.target = std.zig.system.resolveTargetQuery(query) catch |e| {
             return d.fatal("unable to resolve target: {s}", .{errorDescription(e)});
         };
+        if (d.raw_target_vendor) |vendor_str| {
+            d.comp.vendor = Compilation.Vendor.parse(vendor_str) orelse blk: {
+                try d.warn("unknown vendor: {s}", .{vendor_str});
+                break :blk .unknown;
+            };
+        } else if (d.raw_target_triple == null) {
+            if (d.comp.target.os.tag.isDarwin()) {
+                d.comp.vendor = .apple;
+            }
+        }
     }
     if (emulate != null or d.raw_target_triple != null) {
         d.comp.langopts.setEmulatedCompiler(emulate orelse target_util.systemCompiler(d.comp.target));
