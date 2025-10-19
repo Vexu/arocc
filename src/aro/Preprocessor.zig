@@ -93,6 +93,8 @@ pub const Macro = struct {
             is_target_vendor,
             is_target_os,
             is_target_environment,
+            is_target_variant_os,
+            is_target_variant_environment,
         };
         obj: Object,
         func: Func,
@@ -296,6 +298,8 @@ pub fn addBuiltinMacros(pp: *Preprocessor) !void {
         try pp.addBuiltinMacro("__is_target_vendor", .{ .func = .is_target_vendor });
         try pp.addBuiltinMacro("__is_target_os", .{ .func = .is_target_os });
         try pp.addBuiltinMacro("__is_target_environment", .{ .func = .is_target_environment });
+        try pp.addBuiltinMacro("__is_target_variant_os", .{ .func = .is_target_variant_os });
+        try pp.addBuiltinMacro("__is_target_variant_environment", .{ .func = .is_target_variant_environment });
     }
 
     if (pp.comp.langopts.ms_extensions) {
@@ -1625,6 +1629,8 @@ fn handleBuiltinMacro(pp: *Preprocessor, builtin: Macro.Builtin.Func, param_toks
         .is_target_os,
         .is_target_vendor,
         .is_target_environment,
+        .is_target_variant_os,
+        .is_target_variant_environment,
         => {
             var invalid: ?TokenWithExpansionLocs = null;
             var identifier: ?TokenWithExpansionLocs = null;
@@ -1663,6 +1669,8 @@ fn handleBuiltinMacro(pp: *Preprocessor, builtin: Macro.Builtin.Func, param_toks
                 .is_target_os => pp.comp.isTargetOs(ident_str),
                 .is_target_vendor => pp.comp.isTargetVendor(ident_str),
                 .is_target_environment => pp.comp.isTargetEnvironment(ident_str),
+                .is_target_variant_os => pp.comp.isTargetVariantOs(ident_str),
+                .is_target_variant_environment => pp.comp.isTargetVariantEnvironment(ident_str),
                 else => unreachable,
             };
         },
@@ -1849,9 +1857,17 @@ fn expandFuncMacro(
                 .is_target_os,
                 .is_target_vendor,
                 .is_target_environment,
+                .is_target_variant_os,
+                .is_target_variant_environment,
                 => |kind| {
                     const arg = switch (kind) {
-                        .is_target_arch, .is_target_os, .is_target_vendor, .is_target_environment => args.items[0],
+                        .is_target_arch,
+                        .is_target_os,
+                        .is_target_vendor,
+                        .is_target_environment,
+                        .is_target_variant_os,
+                        .is_target_variant_environment,
+                        => args.items[0],
                         else => expanded_args.items[0],
                     };
                     const result = if (arg.len == 0) blk: {
