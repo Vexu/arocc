@@ -780,9 +780,9 @@ pub fn fromString(kind: Kind, namespace: ?[]const u8, name: []const u8) ?Tag {
 
     const tag_and_opts = attribute_names.fromName(normalized) orelse return null;
     switch (actual_kind) {
-        inline else => |tag| {
-            if (@field(tag_and_opts.properties, @tagName(tag)))
-                return tag_and_opts.properties.tag;
+        inline else => |available_kind| {
+            if (@field(tag_and_opts, @tagName(available_kind)))
+                return tag_and_opts.tag;
         },
     }
     return null;

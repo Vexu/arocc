@@ -1,0 +1,2874 @@
+# Generated from clang/include/clang/Basic/BuiltinsNVPTX.td
+
+__bmma_m8n8k128_ld_a_b1
+    .param_str = "vi*iC*UiIi"
+    .features = "(sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__bmma_m8n8k128_ld_b_b1
+    .param_str = "vi*iC*UiIi"
+    .features = "(sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__bmma_m8n8k128_ld_c
+    .param_str = "vi*iC*UiIi"
+    .features = "(sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__bmma_m8n8k128_mma_and_popc_b1
+    .param_str = "vi*iC*iC*iC*Ii"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__bmma_m8n8k128_mma_xor_popc_b1
+    .param_str = "vi*iC*iC*iC*Ii"
+    .features = "(sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__bmma_m8n8k128_st_c_i32
+    .param_str = "vi*iC*UiIi"
+    .features = "(sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__builtin_ptx_get_image_channel_data_typei_
+    .param_str = "ii"
+
+__builtin_ptx_get_image_channel_orderi_
+    .param_str = "ii"
+
+__builtin_ptx_get_image_depthi_
+    .param_str = "ii"
+
+__builtin_ptx_get_image_heighti_
+    .param_str = "ii"
+
+__builtin_ptx_get_image_widthi_
+    .param_str = "ii"
+
+__builtin_ptx_read_image2Dff_
+    .param_str = "V4fiiff"
+
+__builtin_ptx_read_image2Dfi_
+    .param_str = "V4fiiii"
+
+__builtin_ptx_read_image2Dif_
+    .param_str = "V4iiiff"
+
+__builtin_ptx_read_image2Dii_
+    .param_str = "V4iiiii"
+
+__builtin_ptx_read_image3Dff_
+    .param_str = "V4fiiffff"
+
+__builtin_ptx_read_image3Dfi_
+    .param_str = "V4fiiiiii"
+
+__builtin_ptx_read_image3Dif_
+    .param_str = "V4iiiffff"
+
+__builtin_ptx_read_image3Dii_
+    .param_str = "V4iiiiiii"
+
+__builtin_ptx_write_image2Df_
+    .param_str = "viiiffff"
+
+__builtin_ptx_write_image2Di_
+    .param_str = "viiiiiii"
+
+__builtin_ptx_write_image2Dui_
+    .param_str = "viiiUiUiUiUi"
+
+__dmma_m8n8k4_ld_a
+    .param_str = "vd*dC*UiIi"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__dmma_m8n8k4_ld_b
+    .param_str = "vd*dC*UiIi"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__dmma_m8n8k4_ld_c
+    .param_str = "vd*dC*UiIi"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__dmma_m8n8k4_mma_f64
+    .param_str = "vd*dC*dC*dC*IiIi"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__dmma_m8n8k4_st_c_f64
+    .param_str = "vd*dC*UiIi"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__hmma_m8n32k16_ld_a
+    .param_str = "vi*iC*UiIi"
+    .features = "(sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx61|ptx62|ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__hmma_m8n32k16_ld_b
+    .param_str = "vi*iC*UiIi"
+    .features = "(sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx61|ptx62|ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__hmma_m8n32k16_ld_c_f16
+    .param_str = "vi*iC*UiIi"
+    .features = "(sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx61|ptx62|ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__hmma_m8n32k16_ld_c_f32
+    .param_str = "vf*fC*UiIi"
+    .features = "(sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx61|ptx62|ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__hmma_m8n32k16_mma_f16f16
+    .param_str = "vi*iC*iC*iC*IiIi"
+    .features = "(sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx61|ptx62|ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__hmma_m8n32k16_mma_f16f32
+    .param_str = "vi*iC*iC*fC*IiIi"
+    .features = "(sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx61|ptx62|ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__hmma_m8n32k16_mma_f32f16
+    .param_str = "vf*iC*iC*iC*IiIi"
+    .features = "(sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx61|ptx62|ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__hmma_m8n32k16_mma_f32f32
+    .param_str = "vf*iC*iC*fC*IiIi"
+    .features = "(sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx61|ptx62|ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__hmma_m8n32k16_st_c_f16
+    .param_str = "vi*iC*UiIi"
+    .features = "(sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx61|ptx62|ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__hmma_m8n32k16_st_c_f32
+    .param_str = "vf*fC*UiIi"
+    .features = "(sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx61|ptx62|ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__hmma_m16n16k16_ld_a
+    .param_str = "vi*iC*UiIi"
+    .features = "(sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx60|ptx61|ptx62|ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__hmma_m16n16k16_ld_b
+    .param_str = "vi*iC*UiIi"
+    .features = "(sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx60|ptx61|ptx62|ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__hmma_m16n16k16_ld_c_f16
+    .param_str = "vi*iC*UiIi"
+    .features = "(sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx60|ptx61|ptx62|ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__hmma_m16n16k16_ld_c_f32
+    .param_str = "vf*fC*UiIi"
+    .features = "(sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx60|ptx61|ptx62|ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__hmma_m16n16k16_mma_f16f16
+    .param_str = "vi*iC*iC*iC*IiIi"
+    .features = "(sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx60|ptx61|ptx62|ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__hmma_m16n16k16_mma_f16f32
+    .param_str = "vi*iC*iC*fC*IiIi"
+    .features = "(sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx60|ptx61|ptx62|ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__hmma_m16n16k16_mma_f32f16
+    .param_str = "vf*iC*iC*iC*IiIi"
+    .features = "(sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx60|ptx61|ptx62|ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__hmma_m16n16k16_mma_f32f32
+    .param_str = "vf*iC*iC*fC*IiIi"
+    .features = "(sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx60|ptx61|ptx62|ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__hmma_m16n16k16_st_c_f16
+    .param_str = "vi*iC*UiIi"
+    .features = "(sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx60|ptx61|ptx62|ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__hmma_m16n16k16_st_c_f32
+    .param_str = "vf*fC*UiIi"
+    .features = "(sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx60|ptx61|ptx62|ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__hmma_m32n8k16_ld_a
+    .param_str = "vi*iC*UiIi"
+    .features = "(sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx61|ptx62|ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__hmma_m32n8k16_ld_b
+    .param_str = "vi*iC*UiIi"
+    .features = "(sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx61|ptx62|ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__hmma_m32n8k16_ld_c_f16
+    .param_str = "vi*iC*UiIi"
+    .features = "(sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx61|ptx62|ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__hmma_m32n8k16_ld_c_f32
+    .param_str = "vf*fC*UiIi"
+    .features = "(sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx61|ptx62|ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__hmma_m32n8k16_mma_f16f16
+    .param_str = "vi*iC*iC*iC*IiIi"
+    .features = "(sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx61|ptx62|ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__hmma_m32n8k16_mma_f16f32
+    .param_str = "vi*iC*iC*fC*IiIi"
+    .features = "(sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx61|ptx62|ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__hmma_m32n8k16_mma_f32f16
+    .param_str = "vf*iC*iC*iC*IiIi"
+    .features = "(sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx61|ptx62|ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__hmma_m32n8k16_mma_f32f32
+    .param_str = "vf*iC*iC*fC*IiIi"
+    .features = "(sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx61|ptx62|ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__hmma_m32n8k16_st_c_f16
+    .param_str = "vi*iC*UiIi"
+    .features = "(sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx61|ptx62|ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__hmma_m32n8k16_st_c_f32
+    .param_str = "vf*fC*UiIi"
+    .features = "(sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx61|ptx62|ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__imma_m8n8k32_ld_a_s4
+    .param_str = "vi*iC*UiIi"
+    .features = "(sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__imma_m8n8k32_ld_a_u4
+    .param_str = "vi*iC*UiIi"
+    .features = "(sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__imma_m8n8k32_ld_b_s4
+    .param_str = "vi*iC*UiIi"
+    .features = "(sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__imma_m8n8k32_ld_b_u4
+    .param_str = "vi*iC*UiIi"
+    .features = "(sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__imma_m8n8k32_ld_c
+    .param_str = "vi*iC*UiIi"
+    .features = "(sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__imma_m8n8k32_mma_s4
+    .param_str = "vi*iC*iC*iC*IiIi"
+    .features = "(sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__imma_m8n8k32_mma_u4
+    .param_str = "vi*iC*iC*iC*IiIi"
+    .features = "(sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__imma_m8n8k32_st_c_i32
+    .param_str = "vi*iC*UiIi"
+    .features = "(sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__imma_m8n32k16_ld_a_s8
+    .param_str = "vi*iC*UiIi"
+    .features = "(sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__imma_m8n32k16_ld_a_u8
+    .param_str = "vi*iC*UiIi"
+    .features = "(sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__imma_m8n32k16_ld_b_s8
+    .param_str = "vi*iC*UiIi"
+    .features = "(sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__imma_m8n32k16_ld_b_u8
+    .param_str = "vi*iC*UiIi"
+    .features = "(sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__imma_m8n32k16_ld_c
+    .param_str = "vi*iC*UiIi"
+    .features = "(sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__imma_m8n32k16_mma_s8
+    .param_str = "vi*iC*iC*iC*IiIi"
+    .features = "(sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__imma_m8n32k16_mma_u8
+    .param_str = "vi*iC*iC*iC*IiIi"
+    .features = "(sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__imma_m8n32k16_st_c_i32
+    .param_str = "vi*iC*UiIi"
+    .features = "(sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__imma_m16n16k16_ld_a_s8
+    .param_str = "vi*iC*UiIi"
+    .features = "(sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__imma_m16n16k16_ld_a_u8
+    .param_str = "vi*iC*UiIi"
+    .features = "(sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__imma_m16n16k16_ld_b_s8
+    .param_str = "vi*iC*UiIi"
+    .features = "(sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__imma_m16n16k16_ld_b_u8
+    .param_str = "vi*iC*UiIi"
+    .features = "(sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__imma_m16n16k16_ld_c
+    .param_str = "vi*iC*UiIi"
+    .features = "(sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__imma_m16n16k16_mma_s8
+    .param_str = "vi*iC*iC*iC*IiIi"
+    .features = "(sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__imma_m16n16k16_mma_u8
+    .param_str = "vi*iC*iC*iC*IiIi"
+    .features = "(sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__imma_m16n16k16_st_c_i32
+    .param_str = "vi*iC*UiIi"
+    .features = "(sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__imma_m32n8k16_ld_a_s8
+    .param_str = "vi*iC*UiIi"
+    .features = "(sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__imma_m32n8k16_ld_a_u8
+    .param_str = "vi*iC*UiIi"
+    .features = "(sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__imma_m32n8k16_ld_b_s8
+    .param_str = "vi*iC*UiIi"
+    .features = "(sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__imma_m32n8k16_ld_b_u8
+    .param_str = "vi*iC*UiIi"
+    .features = "(sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__imma_m32n8k16_ld_c
+    .param_str = "vi*iC*UiIi"
+    .features = "(sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__imma_m32n8k16_mma_s8
+    .param_str = "vi*iC*iC*iC*IiIi"
+    .features = "(sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__imma_m32n8k16_mma_u8
+    .param_str = "vi*iC*iC*iC*IiIi"
+    .features = "(sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__imma_m32n8k16_st_c_i32
+    .param_str = "vi*iC*UiIi"
+    .features = "(sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__mma_bf16_m8n32k16_ld_a
+    .param_str = "vi*iC*UiIi"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__mma_bf16_m8n32k16_ld_b
+    .param_str = "vi*iC*UiIi"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__mma_bf16_m8n32k16_mma_f32
+    .param_str = "vf*iC*iC*fC*IiIi"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__mma_bf16_m16n16k16_ld_a
+    .param_str = "vi*iC*UiIi"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__mma_bf16_m16n16k16_ld_b
+    .param_str = "vi*iC*UiIi"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__mma_bf16_m16n16k16_mma_f32
+    .param_str = "vf*iC*iC*fC*IiIi"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__mma_bf16_m32n8k16_ld_a
+    .param_str = "vi*iC*UiIi"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__mma_bf16_m32n8k16_ld_b
+    .param_str = "vi*iC*UiIi"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__mma_bf16_m32n8k16_mma_f32
+    .param_str = "vf*iC*iC*fC*IiIi"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__mma_m16n16k8_st_c_f32
+    .param_str = "vf*fC*UiIi"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__mma_tf32_m16n16k8_ld_a
+    .param_str = "vi*iC*UiIi"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__mma_tf32_m16n16k8_ld_b
+    .param_str = "vi*iC*UiIi"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__mma_tf32_m16n16k8_ld_c
+    .param_str = "vf*fC*UiIi"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__mma_tf32_m16n16k8_mma_f32
+    .param_str = "vf*iC*iC*fC*IiIi"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_abs_bf16
+    .param_str = "yy"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_abs_bf16x2
+    .param_str = "V2yV2y"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_activemask
+    .param_str = "Ui"
+    .features = "ptx62|ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87"
+
+__nvvm_add_rm_d
+    .param_str = "ddd"
+
+__nvvm_add_rm_f
+    .param_str = "fff"
+
+__nvvm_add_rm_ftz_f
+    .param_str = "fff"
+
+__nvvm_add_rn_d
+    .param_str = "ddd"
+
+__nvvm_add_rn_f
+    .param_str = "fff"
+
+__nvvm_add_rn_ftz_f
+    .param_str = "fff"
+
+__nvvm_add_rp_d
+    .param_str = "ddd"
+
+__nvvm_add_rp_f
+    .param_str = "fff"
+
+__nvvm_add_rp_ftz_f
+    .param_str = "fff"
+
+__nvvm_add_rz_d
+    .param_str = "ddd"
+
+__nvvm_add_rz_f
+    .param_str = "fff"
+
+__nvvm_add_rz_ftz_f
+    .param_str = "fff"
+
+__nvvm_atom_add_gen_d
+    .param_str = "ddD*d"
+    .features = "sm_60|sm_61|sm_62|sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a"
+
+__nvvm_atom_add_gen_f
+    .param_str = "ffD*f"
+
+__nvvm_atom_add_gen_i
+    .param_str = "iiD*i"
+
+__nvvm_atom_add_gen_l
+    .param_str = "LiLiD*Li"
+
+__nvvm_atom_add_gen_ll
+    .param_str = "LLiLLiD*LLi"
+
+__nvvm_atom_and_gen_i
+    .param_str = "iiD*i"
+
+__nvvm_atom_and_gen_l
+    .param_str = "LiLiD*Li"
+
+__nvvm_atom_and_gen_ll
+    .param_str = "LLiLLiD*LLi"
+
+__nvvm_atom_cas_gen_i
+    .param_str = "iiD*ii"
+
+__nvvm_atom_cas_gen_l
+    .param_str = "LiLiD*LiLi"
+
+__nvvm_atom_cas_gen_ll
+    .param_str = "LLiLLiD*LLiLLi"
+
+__nvvm_atom_cas_gen_us
+    .param_str = "UsUsD*UsUs"
+    .features = "sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a"
+
+__nvvm_atom_cta_add_gen_d
+    .param_str = "ddD*d"
+    .features = "sm_60|sm_61|sm_62|sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a"
+
+__nvvm_atom_cta_add_gen_f
+    .param_str = "ffD*f"
+    .features = "sm_60|sm_61|sm_62|sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a"
+
+__nvvm_atom_cta_add_gen_i
+    .param_str = "iiD*i"
+    .features = "sm_60|sm_61|sm_62|sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a"
+
+__nvvm_atom_cta_add_gen_l
+    .param_str = "LiLiD*Li"
+    .features = "sm_60|sm_61|sm_62|sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a"
+
+__nvvm_atom_cta_add_gen_ll
+    .param_str = "LLiLLiD*LLi"
+    .features = "sm_60|sm_61|sm_62|sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a"
+
+__nvvm_atom_cta_and_gen_i
+    .param_str = "iiD*i"
+    .features = "sm_60|sm_61|sm_62|sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a"
+
+__nvvm_atom_cta_and_gen_l
+    .param_str = "LiLiD*Li"
+    .features = "sm_60|sm_61|sm_62|sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a"
+
+__nvvm_atom_cta_and_gen_ll
+    .param_str = "LLiLLiD*LLi"
+    .features = "sm_60|sm_61|sm_62|sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a"
+
+__nvvm_atom_cta_cas_gen_i
+    .param_str = "iiD*ii"
+    .features = "sm_60|sm_61|sm_62|sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a"
+
+__nvvm_atom_cta_cas_gen_l
+    .param_str = "LiLiD*LiLi"
+    .features = "sm_60|sm_61|sm_62|sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a"
+
+__nvvm_atom_cta_cas_gen_ll
+    .param_str = "LLiLLiD*LLiLLi"
+    .features = "sm_60|sm_61|sm_62|sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a"
+
+__nvvm_atom_cta_cas_gen_us
+    .param_str = "UsUsD*UsUs"
+    .features = "sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a"
+
+__nvvm_atom_cta_dec_gen_ui
+    .param_str = "UiUiD*Ui"
+    .features = "sm_60|sm_61|sm_62|sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a"
+
+__nvvm_atom_cta_inc_gen_ui
+    .param_str = "UiUiD*Ui"
+    .features = "sm_60|sm_61|sm_62|sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a"
+
+__nvvm_atom_cta_max_gen_i
+    .param_str = "iiD*i"
+    .features = "sm_60|sm_61|sm_62|sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a"
+
+__nvvm_atom_cta_max_gen_l
+    .param_str = "LiLiD*Li"
+    .features = "sm_60|sm_61|sm_62|sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a"
+
+__nvvm_atom_cta_max_gen_ll
+    .param_str = "LLiLLiD*LLi"
+    .features = "sm_60|sm_61|sm_62|sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a"
+
+__nvvm_atom_cta_max_gen_ui
+    .param_str = "UiUiD*Ui"
+    .features = "sm_60|sm_61|sm_62|sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a"
+
+__nvvm_atom_cta_max_gen_ul
+    .param_str = "ULiULiD*ULi"
+    .features = "sm_60|sm_61|sm_62|sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a"
+
+__nvvm_atom_cta_max_gen_ull
+    .param_str = "ULLiULLiD*ULLi"
+    .features = "sm_60|sm_61|sm_62|sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a"
+
+__nvvm_atom_cta_min_gen_i
+    .param_str = "iiD*i"
+    .features = "sm_60|sm_61|sm_62|sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a"
+
+__nvvm_atom_cta_min_gen_l
+    .param_str = "LiLiD*Li"
+    .features = "sm_60|sm_61|sm_62|sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a"
+
+__nvvm_atom_cta_min_gen_ll
+    .param_str = "LLiLLiD*LLi"
+    .features = "sm_60|sm_61|sm_62|sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a"
+
+__nvvm_atom_cta_min_gen_ui
+    .param_str = "UiUiD*Ui"
+    .features = "sm_60|sm_61|sm_62|sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a"
+
+__nvvm_atom_cta_min_gen_ul
+    .param_str = "ULiULiD*ULi"
+    .features = "sm_60|sm_61|sm_62|sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a"
+
+__nvvm_atom_cta_min_gen_ull
+    .param_str = "ULLiULLiD*ULLi"
+    .features = "sm_60|sm_61|sm_62|sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a"
+
+__nvvm_atom_cta_or_gen_i
+    .param_str = "iiD*i"
+    .features = "sm_60|sm_61|sm_62|sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a"
+
+__nvvm_atom_cta_or_gen_l
+    .param_str = "LiLiD*Li"
+    .features = "sm_60|sm_61|sm_62|sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a"
+
+__nvvm_atom_cta_or_gen_ll
+    .param_str = "LLiLLiD*LLi"
+    .features = "sm_60|sm_61|sm_62|sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a"
+
+__nvvm_atom_cta_xchg_gen_i
+    .param_str = "iiD*i"
+    .features = "sm_60|sm_61|sm_62|sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a"
+
+__nvvm_atom_cta_xchg_gen_l
+    .param_str = "LiLiD*Li"
+    .features = "sm_60|sm_61|sm_62|sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a"
+
+__nvvm_atom_cta_xchg_gen_ll
+    .param_str = "LLiLLiD*LLi"
+    .features = "sm_60|sm_61|sm_62|sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a"
+
+__nvvm_atom_cta_xor_gen_i
+    .param_str = "iiD*i"
+    .features = "sm_60|sm_61|sm_62|sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a"
+
+__nvvm_atom_cta_xor_gen_l
+    .param_str = "LiLiD*Li"
+    .features = "sm_60|sm_61|sm_62|sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a"
+
+__nvvm_atom_cta_xor_gen_ll
+    .param_str = "LLiLLiD*LLi"
+    .features = "sm_60|sm_61|sm_62|sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a"
+
+__nvvm_atom_dec_gen_ui
+    .param_str = "UiUiD*Ui"
+
+__nvvm_atom_inc_gen_ui
+    .param_str = "UiUiD*Ui"
+
+__nvvm_atom_max_gen_i
+    .param_str = "iiD*i"
+
+__nvvm_atom_max_gen_l
+    .param_str = "LiLiD*Li"
+
+__nvvm_atom_max_gen_ll
+    .param_str = "LLiLLiD*LLi"
+
+__nvvm_atom_max_gen_ui
+    .param_str = "UiUiD*Ui"
+
+__nvvm_atom_max_gen_ul
+    .param_str = "ULiULiD*ULi"
+
+__nvvm_atom_max_gen_ull
+    .param_str = "ULLiULLiD*ULLi"
+
+__nvvm_atom_min_gen_i
+    .param_str = "iiD*i"
+
+__nvvm_atom_min_gen_l
+    .param_str = "LiLiD*Li"
+
+__nvvm_atom_min_gen_ll
+    .param_str = "LLiLLiD*LLi"
+
+__nvvm_atom_min_gen_ui
+    .param_str = "UiUiD*Ui"
+
+__nvvm_atom_min_gen_ul
+    .param_str = "ULiULiD*ULi"
+
+__nvvm_atom_min_gen_ull
+    .param_str = "ULLiULLiD*ULLi"
+
+__nvvm_atom_or_gen_i
+    .param_str = "iiD*i"
+
+__nvvm_atom_or_gen_l
+    .param_str = "LiLiD*Li"
+
+__nvvm_atom_or_gen_ll
+    .param_str = "LLiLLiD*LLi"
+
+__nvvm_atom_sub_gen_i
+    .param_str = "iiD*i"
+
+__nvvm_atom_sub_gen_l
+    .param_str = "LiLiD*Li"
+
+__nvvm_atom_sub_gen_ll
+    .param_str = "LLiLLiD*LLi"
+
+__nvvm_atom_sys_add_gen_d
+    .param_str = "ddD*d"
+    .features = "sm_60|sm_61|sm_62|sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a"
+
+__nvvm_atom_sys_add_gen_f
+    .param_str = "ffD*f"
+    .features = "sm_60|sm_61|sm_62|sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a"
+
+__nvvm_atom_sys_add_gen_i
+    .param_str = "iiD*i"
+    .features = "sm_60|sm_61|sm_62|sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a"
+
+__nvvm_atom_sys_add_gen_l
+    .param_str = "LiLiD*Li"
+    .features = "sm_60|sm_61|sm_62|sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a"
+
+__nvvm_atom_sys_add_gen_ll
+    .param_str = "LLiLLiD*LLi"
+    .features = "sm_60|sm_61|sm_62|sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a"
+
+__nvvm_atom_sys_and_gen_i
+    .param_str = "iiD*i"
+    .features = "sm_60|sm_61|sm_62|sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a"
+
+__nvvm_atom_sys_and_gen_l
+    .param_str = "LiLiD*Li"
+    .features = "sm_60|sm_61|sm_62|sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a"
+
+__nvvm_atom_sys_and_gen_ll
+    .param_str = "LLiLLiD*LLi"
+    .features = "sm_60|sm_61|sm_62|sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a"
+
+__nvvm_atom_sys_cas_gen_i
+    .param_str = "iiD*ii"
+    .features = "sm_60|sm_61|sm_62|sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a"
+
+__nvvm_atom_sys_cas_gen_l
+    .param_str = "LiLiD*LiLi"
+    .features = "sm_60|sm_61|sm_62|sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a"
+
+__nvvm_atom_sys_cas_gen_ll
+    .param_str = "LLiLLiD*LLiLLi"
+    .features = "sm_60|sm_61|sm_62|sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a"
+
+__nvvm_atom_sys_cas_gen_us
+    .param_str = "UsUsD*UsUs"
+    .features = "sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a"
+
+__nvvm_atom_sys_dec_gen_ui
+    .param_str = "UiUiD*Ui"
+    .features = "sm_60|sm_61|sm_62|sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a"
+
+__nvvm_atom_sys_inc_gen_ui
+    .param_str = "UiUiD*Ui"
+    .features = "sm_60|sm_61|sm_62|sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a"
+
+__nvvm_atom_sys_max_gen_i
+    .param_str = "iiD*i"
+    .features = "sm_60|sm_61|sm_62|sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a"
+
+__nvvm_atom_sys_max_gen_l
+    .param_str = "LiLiD*Li"
+    .features = "sm_60|sm_61|sm_62|sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a"
+
+__nvvm_atom_sys_max_gen_ll
+    .param_str = "LLiLLiD*LLi"
+    .features = "sm_60|sm_61|sm_62|sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a"
+
+__nvvm_atom_sys_max_gen_ui
+    .param_str = "UiUiD*Ui"
+    .features = "sm_60|sm_61|sm_62|sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a"
+
+__nvvm_atom_sys_max_gen_ul
+    .param_str = "ULiULiD*ULi"
+    .features = "sm_60|sm_61|sm_62|sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a"
+
+__nvvm_atom_sys_max_gen_ull
+    .param_str = "ULLiULLiD*ULLi"
+    .features = "sm_60|sm_61|sm_62|sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a"
+
+__nvvm_atom_sys_min_gen_i
+    .param_str = "iiD*i"
+    .features = "sm_60|sm_61|sm_62|sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a"
+
+__nvvm_atom_sys_min_gen_l
+    .param_str = "LiLiD*Li"
+    .features = "sm_60|sm_61|sm_62|sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a"
+
+__nvvm_atom_sys_min_gen_ll
+    .param_str = "LLiLLiD*LLi"
+    .features = "sm_60|sm_61|sm_62|sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a"
+
+__nvvm_atom_sys_min_gen_ui
+    .param_str = "UiUiD*Ui"
+    .features = "sm_60|sm_61|sm_62|sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a"
+
+__nvvm_atom_sys_min_gen_ul
+    .param_str = "ULiULiD*ULi"
+    .features = "sm_60|sm_61|sm_62|sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a"
+
+__nvvm_atom_sys_min_gen_ull
+    .param_str = "ULLiULLiD*ULLi"
+    .features = "sm_60|sm_61|sm_62|sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a"
+
+__nvvm_atom_sys_or_gen_i
+    .param_str = "iiD*i"
+    .features = "sm_60|sm_61|sm_62|sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a"
+
+__nvvm_atom_sys_or_gen_l
+    .param_str = "LiLiD*Li"
+    .features = "sm_60|sm_61|sm_62|sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a"
+
+__nvvm_atom_sys_or_gen_ll
+    .param_str = "LLiLLiD*LLi"
+    .features = "sm_60|sm_61|sm_62|sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a"
+
+__nvvm_atom_sys_xchg_gen_i
+    .param_str = "iiD*i"
+    .features = "sm_60|sm_61|sm_62|sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a"
+
+__nvvm_atom_sys_xchg_gen_l
+    .param_str = "LiLiD*Li"
+    .features = "sm_60|sm_61|sm_62|sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a"
+
+__nvvm_atom_sys_xchg_gen_ll
+    .param_str = "LLiLLiD*LLi"
+    .features = "sm_60|sm_61|sm_62|sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a"
+
+__nvvm_atom_sys_xor_gen_i
+    .param_str = "iiD*i"
+    .features = "sm_60|sm_61|sm_62|sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a"
+
+__nvvm_atom_sys_xor_gen_l
+    .param_str = "LiLiD*Li"
+    .features = "sm_60|sm_61|sm_62|sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a"
+
+__nvvm_atom_sys_xor_gen_ll
+    .param_str = "LLiLLiD*LLi"
+    .features = "sm_60|sm_61|sm_62|sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a"
+
+__nvvm_atom_xchg_gen_i
+    .param_str = "iiD*i"
+
+__nvvm_atom_xchg_gen_l
+    .param_str = "LiLiD*Li"
+
+__nvvm_atom_xchg_gen_ll
+    .param_str = "LLiLLiD*LLi"
+
+__nvvm_atom_xor_gen_i
+    .param_str = "iiD*i"
+
+__nvvm_atom_xor_gen_l
+    .param_str = "LiLiD*Li"
+
+__nvvm_atom_xor_gen_ll
+    .param_str = "LLiLLiD*LLi"
+
+__nvvm_bar0_and
+    .param_str = "ii"
+
+__nvvm_bar0_or
+    .param_str = "ii"
+
+__nvvm_bar0_popc
+    .param_str = "ii"
+
+__nvvm_bar_sync
+    .param_str = "vi"
+
+__nvvm_bar_warp_sync
+    .param_str = "vUi"
+    .features = "ptx60|ptx61|ptx62|ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87"
+
+__nvvm_barrier_cluster_arrive
+    .param_str = "v"
+    .features = "(sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_barrier_cluster_arrive_relaxed
+    .param_str = "v"
+    .features = "(sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_barrier_cluster_wait
+    .param_str = "v"
+    .features = "(sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_barrier_sync
+    .param_str = "vUi"
+    .features = "ptx60|ptx61|ptx62|ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87"
+
+__nvvm_barrier_sync_cnt
+    .param_str = "vUiUi"
+    .features = "ptx60|ptx61|ptx62|ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87"
+
+__nvvm_bf16x2_to_ue8m0x2_rp
+    .param_str = "sV2y"
+    .features = "(sm_100a|sm_101a|sm_120a),(ptx86|ptx87)"
+
+__nvvm_bf16x2_to_ue8m0x2_rp_satfinite
+    .param_str = "sV2y"
+    .features = "(sm_100a|sm_101a|sm_120a),(ptx86|ptx87)"
+
+__nvvm_bf16x2_to_ue8m0x2_rz
+    .param_str = "sV2y"
+    .features = "(sm_100a|sm_101a|sm_120a),(ptx86|ptx87)"
+
+__nvvm_bf16x2_to_ue8m0x2_rz_satfinite
+    .param_str = "sV2y"
+    .features = "(sm_100a|sm_101a|sm_120a),(ptx86|ptx87)"
+
+__nvvm_ceil_d
+    .param_str = "dd"
+
+__nvvm_ceil_f
+    .param_str = "ff"
+
+__nvvm_ceil_ftz_f
+    .param_str = "ff"
+
+__nvvm_compiler_error
+    .param_str = "vcC*4"
+
+__nvvm_compiler_warn
+    .param_str = "vcC*4"
+
+__nvvm_cos_approx_f
+    .param_str = "ff"
+
+__nvvm_cos_approx_ftz_f
+    .param_str = "ff"
+
+__nvvm_cp_async_ca_shared_global_4
+    .param_str = "vv*3vC*1."
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_cp_async_ca_shared_global_8
+    .param_str = "vv*3vC*1."
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_cp_async_ca_shared_global_16
+    .param_str = "vv*3vC*1."
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_cp_async_cg_shared_global_16
+    .param_str = "vv*3vC*1."
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_cp_async_commit_group
+    .param_str = "v"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_cp_async_mbarrier_arrive
+    .param_str = "vWi*"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_cp_async_mbarrier_arrive_noinc
+    .param_str = "vWi*"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_cp_async_mbarrier_arrive_noinc_shared
+    .param_str = "vWi*3"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_cp_async_mbarrier_arrive_shared
+    .param_str = "vWi*3"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_cp_async_wait_all
+    .param_str = "v"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_cp_async_wait_group
+    .param_str = "vIi"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_d2f_rm
+    .param_str = "fd"
+
+__nvvm_d2f_rm_ftz
+    .param_str = "fd"
+
+__nvvm_d2f_rn
+    .param_str = "fd"
+
+__nvvm_d2f_rn_ftz
+    .param_str = "fd"
+
+__nvvm_d2f_rp
+    .param_str = "fd"
+
+__nvvm_d2f_rp_ftz
+    .param_str = "fd"
+
+__nvvm_d2f_rz
+    .param_str = "fd"
+
+__nvvm_d2f_rz_ftz
+    .param_str = "fd"
+
+__nvvm_d2i_hi
+    .param_str = "id"
+
+__nvvm_d2i_lo
+    .param_str = "id"
+
+__nvvm_d2i_rm
+    .param_str = "id"
+
+__nvvm_d2i_rn
+    .param_str = "id"
+
+__nvvm_d2i_rp
+    .param_str = "id"
+
+__nvvm_d2i_rz
+    .param_str = "id"
+
+__nvvm_d2ll_rm
+    .param_str = "LLid"
+
+__nvvm_d2ll_rn
+    .param_str = "LLid"
+
+__nvvm_d2ll_rp
+    .param_str = "LLid"
+
+__nvvm_d2ll_rz
+    .param_str = "LLid"
+
+__nvvm_d2ui_rm
+    .param_str = "Uid"
+
+__nvvm_d2ui_rn
+    .param_str = "Uid"
+
+__nvvm_d2ui_rp
+    .param_str = "Uid"
+
+__nvvm_d2ui_rz
+    .param_str = "Uid"
+
+__nvvm_d2ull_rm
+    .param_str = "ULLid"
+
+__nvvm_d2ull_rn
+    .param_str = "ULLid"
+
+__nvvm_d2ull_rp
+    .param_str = "ULLid"
+
+__nvvm_d2ull_rz
+    .param_str = "ULLid"
+
+__nvvm_div_approx_f
+    .param_str = "fff"
+
+__nvvm_div_approx_ftz_f
+    .param_str = "fff"
+
+__nvvm_div_rm_d
+    .param_str = "ddd"
+
+__nvvm_div_rm_f
+    .param_str = "fff"
+
+__nvvm_div_rm_ftz_f
+    .param_str = "fff"
+
+__nvvm_div_rn_d
+    .param_str = "ddd"
+
+__nvvm_div_rn_f
+    .param_str = "fff"
+
+__nvvm_div_rn_ftz_f
+    .param_str = "fff"
+
+__nvvm_div_rp_d
+    .param_str = "ddd"
+
+__nvvm_div_rp_f
+    .param_str = "fff"
+
+__nvvm_div_rp_ftz_f
+    .param_str = "fff"
+
+__nvvm_div_rz_d
+    .param_str = "ddd"
+
+__nvvm_div_rz_f
+    .param_str = "fff"
+
+__nvvm_div_rz_ftz_f
+    .param_str = "fff"
+
+__nvvm_e2m1x2_to_f16x2_rn
+    .param_str = "V2hs"
+    .features = "(sm_100a|sm_101a|sm_120a),(ptx86|ptx87)"
+
+__nvvm_e2m1x2_to_f16x2_rn_relu
+    .param_str = "V2hs"
+    .features = "(sm_100a|sm_101a|sm_120a),(ptx86|ptx87)"
+
+__nvvm_e2m3x2_to_f16x2_rn
+    .param_str = "V2hs"
+    .features = "(sm_100a|sm_101a|sm_120a),(ptx86|ptx87)"
+
+__nvvm_e2m3x2_to_f16x2_rn_relu
+    .param_str = "V2hs"
+    .features = "(sm_100a|sm_101a|sm_120a),(ptx86|ptx87)"
+
+__nvvm_e3m2x2_to_f16x2_rn
+    .param_str = "V2hs"
+    .features = "(sm_100a|sm_101a|sm_120a),(ptx86|ptx87)"
+
+__nvvm_e3m2x2_to_f16x2_rn_relu
+    .param_str = "V2hs"
+    .features = "(sm_100a|sm_101a|sm_120a),(ptx86|ptx87)"
+
+__nvvm_e4m3x2_to_f16x2_rn
+    .param_str = "V2hs"
+    .features = "(sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_e4m3x2_to_f16x2_rn_relu
+    .param_str = "V2hs"
+    .features = "(sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_e5m2x2_to_f16x2_rn
+    .param_str = "V2hs"
+    .features = "(sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_e5m2x2_to_f16x2_rn_relu
+    .param_str = "V2hs"
+    .features = "(sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_ex2_approx_d
+    .param_str = "dd"
+
+__nvvm_ex2_approx_f
+    .param_str = "ff"
+
+__nvvm_ex2_approx_f16
+    .param_str = "hh"
+    .features = "(sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_ex2_approx_f16x2
+    .param_str = "V2hV2h"
+    .features = "(sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_ex2_approx_ftz_f
+    .param_str = "ff"
+
+__nvvm_exit
+    .param_str = "v"
+
+__nvvm_f2bf16_rn
+    .param_str = "yf"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_f2bf16_rn_relu
+    .param_str = "yf"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_f2bf16_rz
+    .param_str = "yf"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_f2bf16_rz_relu
+    .param_str = "yf"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_f2h_rn
+    .param_str = "Usf"
+
+__nvvm_f2h_rn_ftz
+    .param_str = "Usf"
+
+__nvvm_f2i_rm
+    .param_str = "if"
+
+__nvvm_f2i_rm_ftz
+    .param_str = "if"
+
+__nvvm_f2i_rn
+    .param_str = "if"
+
+__nvvm_f2i_rn_ftz
+    .param_str = "if"
+
+__nvvm_f2i_rp
+    .param_str = "if"
+
+__nvvm_f2i_rp_ftz
+    .param_str = "if"
+
+__nvvm_f2i_rz
+    .param_str = "if"
+
+__nvvm_f2i_rz_ftz
+    .param_str = "if"
+
+__nvvm_f2ll_rm
+    .param_str = "LLif"
+
+__nvvm_f2ll_rm_ftz
+    .param_str = "LLif"
+
+__nvvm_f2ll_rn
+    .param_str = "LLif"
+
+__nvvm_f2ll_rn_ftz
+    .param_str = "LLif"
+
+__nvvm_f2ll_rp
+    .param_str = "LLif"
+
+__nvvm_f2ll_rp_ftz
+    .param_str = "LLif"
+
+__nvvm_f2ll_rz
+    .param_str = "LLif"
+
+__nvvm_f2ll_rz_ftz
+    .param_str = "LLif"
+
+__nvvm_f2tf32_rn
+    .param_str = "Zif"
+    .features = "(sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_f2tf32_rn_relu
+    .param_str = "Zif"
+    .features = "(sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_f2tf32_rn_relu_satfinite
+    .param_str = "Zif"
+    .features = "(sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx86|ptx87)"
+
+__nvvm_f2tf32_rn_satfinite
+    .param_str = "Zif"
+    .features = "(sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx86|ptx87)"
+
+__nvvm_f2tf32_rna
+    .param_str = "Zif"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_f2tf32_rna_satfinite
+    .param_str = "Zif"
+    .features = "(sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_f2tf32_rz
+    .param_str = "Zif"
+    .features = "(sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_f2tf32_rz_relu
+    .param_str = "Zif"
+    .features = "(sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_f2tf32_rz_relu_satfinite
+    .param_str = "Zif"
+    .features = "(sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx86|ptx87)"
+
+__nvvm_f2tf32_rz_satfinite
+    .param_str = "Zif"
+    .features = "(sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx86|ptx87)"
+
+__nvvm_f2ui_rm
+    .param_str = "Uif"
+
+__nvvm_f2ui_rm_ftz
+    .param_str = "Uif"
+
+__nvvm_f2ui_rn
+    .param_str = "Uif"
+
+__nvvm_f2ui_rn_ftz
+    .param_str = "Uif"
+
+__nvvm_f2ui_rp
+    .param_str = "Uif"
+
+__nvvm_f2ui_rp_ftz
+    .param_str = "Uif"
+
+__nvvm_f2ui_rz
+    .param_str = "Uif"
+
+__nvvm_f2ui_rz_ftz
+    .param_str = "Uif"
+
+__nvvm_f2ull_rm
+    .param_str = "ULLif"
+
+__nvvm_f2ull_rm_ftz
+    .param_str = "ULLif"
+
+__nvvm_f2ull_rn
+    .param_str = "ULLif"
+
+__nvvm_f2ull_rn_ftz
+    .param_str = "ULLif"
+
+__nvvm_f2ull_rp
+    .param_str = "ULLif"
+
+__nvvm_f2ull_rp_ftz
+    .param_str = "ULLif"
+
+__nvvm_f2ull_rz
+    .param_str = "ULLif"
+
+__nvvm_f2ull_rz_ftz
+    .param_str = "ULLif"
+
+__nvvm_f16x2_to_e4m3x2_rn
+    .param_str = "sV2h"
+    .features = "(sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_f16x2_to_e4m3x2_rn_relu
+    .param_str = "sV2h"
+    .features = "(sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_f16x2_to_e5m2x2_rn
+    .param_str = "sV2h"
+    .features = "(sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_f16x2_to_e5m2x2_rn_relu
+    .param_str = "sV2h"
+    .features = "(sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_fabs_d
+    .param_str = "dd"
+
+__nvvm_fabs_f
+    .param_str = "ff"
+
+__nvvm_fabs_f16
+    .param_str = "hh"
+    .features = "(sm_53|sm_60|sm_61|sm_62|sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_fabs_f16x2
+    .param_str = "V2hV2h"
+    .features = "(sm_53|sm_60|sm_61|sm_62|sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_fabs_ftz_f
+    .param_str = "ff"
+
+__nvvm_fabs_ftz_f16
+    .param_str = "hh"
+    .features = "(sm_53|sm_60|sm_61|sm_62|sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_fabs_ftz_f16x2
+    .param_str = "V2hV2h"
+    .features = "(sm_53|sm_60|sm_61|sm_62|sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_fence_sc_cluster
+    .param_str = "v"
+    .features = "(sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_ff2bf16x2_rn
+    .param_str = "V2yff"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_ff2bf16x2_rn_relu
+    .param_str = "V2yff"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_ff2bf16x2_rz
+    .param_str = "V2yff"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_ff2bf16x2_rz_relu
+    .param_str = "V2yff"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_ff2f16x2_rn
+    .param_str = "V2hff"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_ff2f16x2_rn_relu
+    .param_str = "V2hff"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_ff2f16x2_rz
+    .param_str = "V2hff"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_ff2f16x2_rz_relu
+    .param_str = "V2hff"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_ff_to_e2m1x2_rn_relu_satfinite
+    .param_str = "sff"
+    .features = "(sm_100a|sm_101a|sm_120a),(ptx86|ptx87)"
+
+__nvvm_ff_to_e2m1x2_rn_satfinite
+    .param_str = "sff"
+    .features = "(sm_100a|sm_101a|sm_120a),(ptx86|ptx87)"
+
+__nvvm_ff_to_e2m3x2_rn_relu_satfinite
+    .param_str = "sff"
+    .features = "(sm_100a|sm_101a|sm_120a),(ptx86|ptx87)"
+
+__nvvm_ff_to_e2m3x2_rn_satfinite
+    .param_str = "sff"
+    .features = "(sm_100a|sm_101a|sm_120a),(ptx86|ptx87)"
+
+__nvvm_ff_to_e3m2x2_rn_relu_satfinite
+    .param_str = "sff"
+    .features = "(sm_100a|sm_101a|sm_120a),(ptx86|ptx87)"
+
+__nvvm_ff_to_e3m2x2_rn_satfinite
+    .param_str = "sff"
+    .features = "(sm_100a|sm_101a|sm_120a),(ptx86|ptx87)"
+
+__nvvm_ff_to_e4m3x2_rn
+    .param_str = "sff"
+    .features = "(sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_ff_to_e4m3x2_rn_relu
+    .param_str = "sff"
+    .features = "(sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_ff_to_e5m2x2_rn
+    .param_str = "sff"
+    .features = "(sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_ff_to_e5m2x2_rn_relu
+    .param_str = "sff"
+    .features = "(sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_ff_to_ue8m0x2_rp
+    .param_str = "sff"
+    .features = "(sm_100a|sm_101a|sm_120a),(ptx86|ptx87)"
+
+__nvvm_ff_to_ue8m0x2_rp_satfinite
+    .param_str = "sff"
+    .features = "(sm_100a|sm_101a|sm_120a),(ptx86|ptx87)"
+
+__nvvm_ff_to_ue8m0x2_rz
+    .param_str = "sff"
+    .features = "(sm_100a|sm_101a|sm_120a),(ptx86|ptx87)"
+
+__nvvm_ff_to_ue8m0x2_rz_satfinite
+    .param_str = "sff"
+    .features = "(sm_100a|sm_101a|sm_120a),(ptx86|ptx87)"
+
+__nvvm_floor_d
+    .param_str = "dd"
+
+__nvvm_floor_f
+    .param_str = "ff"
+
+__nvvm_floor_ftz_f
+    .param_str = "ff"
+
+__nvvm_fma_rm_d
+    .param_str = "dddd"
+
+__nvvm_fma_rm_f
+    .param_str = "ffff"
+
+__nvvm_fma_rm_ftz_f
+    .param_str = "ffff"
+
+__nvvm_fma_rn_bf16
+    .param_str = "yyyy"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_fma_rn_bf16x2
+    .param_str = "V2yV2yV2yV2y"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_fma_rn_d
+    .param_str = "dddd"
+
+__nvvm_fma_rn_f
+    .param_str = "ffff"
+
+__nvvm_fma_rn_f16
+    .param_str = "hhhh"
+    .features = "(sm_53|sm_60|sm_61|sm_62|sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx42|ptx60|ptx61|ptx62|ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_fma_rn_f16x2
+    .param_str = "V2hV2hV2hV2h"
+    .features = "(sm_53|sm_60|sm_61|sm_62|sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx42|ptx60|ptx61|ptx62|ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_fma_rn_ftz_f
+    .param_str = "ffff"
+
+__nvvm_fma_rn_ftz_f16
+    .param_str = "hhhh"
+    .features = "(sm_53|sm_60|sm_61|sm_62|sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx42|ptx60|ptx61|ptx62|ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_fma_rn_ftz_f16x2
+    .param_str = "V2hV2hV2hV2h"
+    .features = "(sm_53|sm_60|sm_61|sm_62|sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx42|ptx60|ptx61|ptx62|ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_fma_rn_ftz_relu_f16
+    .param_str = "hhhh"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_fma_rn_ftz_relu_f16x2
+    .param_str = "V2hV2hV2hV2h"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_fma_rn_ftz_sat_f16
+    .param_str = "hhhh"
+    .features = "(sm_53|sm_60|sm_61|sm_62|sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx42|ptx60|ptx61|ptx62|ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_fma_rn_ftz_sat_f16x2
+    .param_str = "V2hV2hV2hV2h"
+    .features = "(sm_53|sm_60|sm_61|sm_62|sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx42|ptx60|ptx61|ptx62|ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_fma_rn_relu_bf16
+    .param_str = "yyyy"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_fma_rn_relu_bf16x2
+    .param_str = "V2yV2yV2yV2y"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_fma_rn_relu_f16
+    .param_str = "hhhh"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_fma_rn_relu_f16x2
+    .param_str = "V2hV2hV2hV2h"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_fma_rn_sat_f16
+    .param_str = "hhhh"
+    .features = "(sm_53|sm_60|sm_61|sm_62|sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx42|ptx60|ptx61|ptx62|ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_fma_rn_sat_f16x2
+    .param_str = "V2hV2hV2hV2h"
+    .features = "(sm_53|sm_60|sm_61|sm_62|sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx42|ptx60|ptx61|ptx62|ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_fma_rp_d
+    .param_str = "dddd"
+
+__nvvm_fma_rp_f
+    .param_str = "ffff"
+
+__nvvm_fma_rp_ftz_f
+    .param_str = "ffff"
+
+__nvvm_fma_rz_d
+    .param_str = "dddd"
+
+__nvvm_fma_rz_f
+    .param_str = "ffff"
+
+__nvvm_fma_rz_ftz_f
+    .param_str = "ffff"
+
+__nvvm_fmax_bf16
+    .param_str = "yyy"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_fmax_bf16x2
+    .param_str = "V2yV2yV2y"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_fmax_d
+    .param_str = "ddd"
+
+__nvvm_fmax_f
+    .param_str = "fff"
+
+__nvvm_fmax_f16
+    .param_str = "hhh"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_fmax_f16x2
+    .param_str = "V2hV2hV2h"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_fmax_ftz_bf16
+    .param_str = "yyy"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_fmax_ftz_bf16x2
+    .param_str = "V2yV2yV2y"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_fmax_ftz_f
+    .param_str = "fff"
+
+__nvvm_fmax_ftz_f16
+    .param_str = "hhh"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_fmax_ftz_f16x2
+    .param_str = "V2hV2hV2h"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_fmax_ftz_nan_bf16
+    .param_str = "yyy"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_fmax_ftz_nan_bf16x2
+    .param_str = "V2yV2yV2y"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_fmax_ftz_nan_f
+    .param_str = "fff"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_fmax_ftz_nan_f16
+    .param_str = "hhh"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_fmax_ftz_nan_f16x2
+    .param_str = "V2hV2hV2h"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_fmax_ftz_nan_xorsign_abs_f
+    .param_str = "fff"
+    .features = "(sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_fmax_ftz_nan_xorsign_abs_f16
+    .param_str = "hhh"
+    .features = "(sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_fmax_ftz_nan_xorsign_abs_f16x2
+    .param_str = "V2hV2hV2h"
+    .features = "(sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_fmax_ftz_xorsign_abs_f
+    .param_str = "fff"
+    .features = "(sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_fmax_ftz_xorsign_abs_f16
+    .param_str = "hhh"
+    .features = "(sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_fmax_ftz_xorsign_abs_f16x2
+    .param_str = "V2hV2hV2h"
+    .features = "(sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_fmax_nan_bf16
+    .param_str = "yyy"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_fmax_nan_bf16x2
+    .param_str = "V2yV2yV2y"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_fmax_nan_f
+    .param_str = "fff"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_fmax_nan_f16
+    .param_str = "hhh"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_fmax_nan_f16x2
+    .param_str = "V2hV2hV2h"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_fmax_nan_xorsign_abs_bf16
+    .param_str = "yyy"
+    .features = "(sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_fmax_nan_xorsign_abs_bf16x2
+    .param_str = "V2yV2yV2y"
+    .features = "(sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_fmax_nan_xorsign_abs_f
+    .param_str = "fff"
+    .features = "(sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_fmax_nan_xorsign_abs_f16
+    .param_str = "hhh"
+    .features = "(sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_fmax_nan_xorsign_abs_f16x2
+    .param_str = "V2hV2hV2h"
+    .features = "(sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_fmax_xorsign_abs_bf16
+    .param_str = "yyy"
+    .features = "(sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_fmax_xorsign_abs_bf16x2
+    .param_str = "V2yV2yV2y"
+    .features = "(sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_fmax_xorsign_abs_f
+    .param_str = "fff"
+    .features = "(sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_fmax_xorsign_abs_f16
+    .param_str = "hhh"
+    .features = "(sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_fmax_xorsign_abs_f16x2
+    .param_str = "V2hV2hV2h"
+    .features = "(sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_fmin_bf16
+    .param_str = "yyy"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_fmin_bf16x2
+    .param_str = "V2yV2yV2y"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_fmin_d
+    .param_str = "ddd"
+
+__nvvm_fmin_f
+    .param_str = "fff"
+
+__nvvm_fmin_f16
+    .param_str = "hhh"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_fmin_f16x2
+    .param_str = "V2hV2hV2h"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_fmin_ftz_bf16
+    .param_str = "yyy"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_fmin_ftz_bf16x2
+    .param_str = "V2yV2yV2y"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_fmin_ftz_f
+    .param_str = "fff"
+
+__nvvm_fmin_ftz_f16
+    .param_str = "hhh"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_fmin_ftz_f16x2
+    .param_str = "V2hV2hV2h"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_fmin_ftz_nan_bf16
+    .param_str = "yyy"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_fmin_ftz_nan_bf16x2
+    .param_str = "V2yV2yV2y"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_fmin_ftz_nan_f
+    .param_str = "fff"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_fmin_ftz_nan_f16
+    .param_str = "hhh"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_fmin_ftz_nan_f16x2
+    .param_str = "V2hV2hV2h"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_fmin_ftz_nan_xorsign_abs_f
+    .param_str = "fff"
+    .features = "(sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_fmin_ftz_nan_xorsign_abs_f16
+    .param_str = "hhh"
+    .features = "(sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_fmin_ftz_nan_xorsign_abs_f16x2
+    .param_str = "V2hV2hV2h"
+    .features = "(sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_fmin_ftz_xorsign_abs_f
+    .param_str = "fff"
+    .features = "(sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_fmin_ftz_xorsign_abs_f16
+    .param_str = "hhh"
+    .features = "(sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_fmin_ftz_xorsign_abs_f16x2
+    .param_str = "V2hV2hV2h"
+    .features = "(sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_fmin_nan_bf16
+    .param_str = "yyy"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_fmin_nan_bf16x2
+    .param_str = "V2yV2yV2y"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_fmin_nan_f
+    .param_str = "fff"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_fmin_nan_f16
+    .param_str = "hhh"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_fmin_nan_f16x2
+    .param_str = "V2hV2hV2h"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_fmin_nan_xorsign_abs_bf16
+    .param_str = "yyy"
+    .features = "(sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_fmin_nan_xorsign_abs_bf16x2
+    .param_str = "V2yV2yV2y"
+    .features = "(sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_fmin_nan_xorsign_abs_f
+    .param_str = "fff"
+    .features = "(sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_fmin_nan_xorsign_abs_f16
+    .param_str = "hhh"
+    .features = "(sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_fmin_nan_xorsign_abs_f16x2
+    .param_str = "V2hV2hV2h"
+    .features = "(sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_fmin_xorsign_abs_bf16
+    .param_str = "yyy"
+    .features = "(sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_fmin_xorsign_abs_bf16x2
+    .param_str = "V2yV2yV2y"
+    .features = "(sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_fmin_xorsign_abs_f
+    .param_str = "fff"
+    .features = "(sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_fmin_xorsign_abs_f16
+    .param_str = "hhh"
+    .features = "(sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_fmin_xorsign_abs_f16x2
+    .param_str = "V2hV2hV2h"
+    .features = "(sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_fns
+    .param_str = "UiUiUii"
+    .features = "ptx60|ptx61|ptx62|ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87"
+
+__nvvm_getctarank
+    .param_str = "iv*"
+    .features = "(sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_getctarank_shared_cluster
+    .param_str = "iv*3"
+    .features = "(sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_i2d_rm
+    .param_str = "di"
+
+__nvvm_i2d_rn
+    .param_str = "di"
+
+__nvvm_i2d_rp
+    .param_str = "di"
+
+__nvvm_i2d_rz
+    .param_str = "di"
+
+__nvvm_i2f_rm
+    .param_str = "fi"
+
+__nvvm_i2f_rn
+    .param_str = "fi"
+
+__nvvm_i2f_rp
+    .param_str = "fi"
+
+__nvvm_i2f_rz
+    .param_str = "fi"
+
+__nvvm_is_explicit_cluster
+    .param_str = "b"
+    .features = "(sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+    .attributes = .{ .@"const" = true }
+
+__nvvm_isspacep_const
+    .param_str = "bvC*"
+    .attributes = .{ .@"const" = true }
+
+__nvvm_isspacep_global
+    .param_str = "bvC*"
+    .attributes = .{ .@"const" = true }
+
+__nvvm_isspacep_local
+    .param_str = "bvC*"
+    .attributes = .{ .@"const" = true }
+
+__nvvm_isspacep_shared
+    .param_str = "bvC*"
+    .attributes = .{ .@"const" = true }
+
+__nvvm_isspacep_shared_cluster
+    .param_str = "bvC*"
+    .features = "(sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+    .attributes = .{ .@"const" = true }
+
+__nvvm_ldg_c
+    .param_str = "ccC*"
+
+__nvvm_ldg_c2
+    .param_str = "E2cE2cC*"
+
+__nvvm_ldg_c4
+    .param_str = "E4cE4cC*"
+
+__nvvm_ldg_d
+    .param_str = "ddC*"
+
+__nvvm_ldg_d2
+    .param_str = "E2dE2dC*"
+
+__nvvm_ldg_f
+    .param_str = "ffC*"
+
+__nvvm_ldg_f2
+    .param_str = "E2fE2fC*"
+
+__nvvm_ldg_f4
+    .param_str = "E4fE4fC*"
+
+__nvvm_ldg_h
+    .param_str = "hhC*"
+
+__nvvm_ldg_h2
+    .param_str = "E2hE2hC*"
+
+__nvvm_ldg_i
+    .param_str = "iiC*"
+
+__nvvm_ldg_i2
+    .param_str = "E2iE2iC*"
+
+__nvvm_ldg_i4
+    .param_str = "E4iE4iC*"
+
+__nvvm_ldg_l
+    .param_str = "LiLiC*"
+
+__nvvm_ldg_l2
+    .param_str = "E2LiE2LiC*"
+
+__nvvm_ldg_ll
+    .param_str = "LLiLLiC*"
+
+__nvvm_ldg_ll2
+    .param_str = "E2LLiE2LLiC*"
+
+__nvvm_ldg_s
+    .param_str = "ssC*"
+
+__nvvm_ldg_s2
+    .param_str = "E2sE2sC*"
+
+__nvvm_ldg_s4
+    .param_str = "E4sE4sC*"
+
+__nvvm_ldg_sc
+    .param_str = "ScScC*"
+
+__nvvm_ldg_sc2
+    .param_str = "E2ScE2ScC*"
+
+__nvvm_ldg_sc4
+    .param_str = "E4ScE4ScC*"
+
+__nvvm_ldg_uc
+    .param_str = "UcUcC*"
+
+__nvvm_ldg_uc2
+    .param_str = "E2UcE2UcC*"
+
+__nvvm_ldg_uc4
+    .param_str = "E4UcE4UcC*"
+
+__nvvm_ldg_ui
+    .param_str = "UiUiC*"
+
+__nvvm_ldg_ui2
+    .param_str = "E2UiE2UiC*"
+
+__nvvm_ldg_ui4
+    .param_str = "E4UiE4UiC*"
+
+__nvvm_ldg_ul
+    .param_str = "ULiULiC*"
+
+__nvvm_ldg_ul2
+    .param_str = "E2ULiE2ULiC*"
+
+__nvvm_ldg_ull
+    .param_str = "ULLiULLiC*"
+
+__nvvm_ldg_ull2
+    .param_str = "E2ULLiE2ULLiC*"
+
+__nvvm_ldg_us
+    .param_str = "UsUsC*"
+
+__nvvm_ldg_us2
+    .param_str = "E2UsE2UsC*"
+
+__nvvm_ldg_us4
+    .param_str = "E4UsE4UsC*"
+
+__nvvm_ldu_c
+    .param_str = "ccC*"
+
+__nvvm_ldu_c2
+    .param_str = "E2cE2cC*"
+
+__nvvm_ldu_c4
+    .param_str = "E4cE4cC*"
+
+__nvvm_ldu_d
+    .param_str = "ddC*"
+
+__nvvm_ldu_d2
+    .param_str = "E2dE2dC*"
+
+__nvvm_ldu_f
+    .param_str = "ffC*"
+
+__nvvm_ldu_f2
+    .param_str = "E2fE2fC*"
+
+__nvvm_ldu_f4
+    .param_str = "E4fE4fC*"
+
+__nvvm_ldu_h
+    .param_str = "hhC*"
+
+__nvvm_ldu_h2
+    .param_str = "E2hE2hC*"
+
+__nvvm_ldu_i
+    .param_str = "iiC*"
+
+__nvvm_ldu_i2
+    .param_str = "E2iE2iC*"
+
+__nvvm_ldu_i4
+    .param_str = "E4iE4iC*"
+
+__nvvm_ldu_l
+    .param_str = "LiLiC*"
+
+__nvvm_ldu_l2
+    .param_str = "E2LiE2LiC*"
+
+__nvvm_ldu_ll
+    .param_str = "LLiLLiC*"
+
+__nvvm_ldu_ll2
+    .param_str = "E2LLiE2LLiC*"
+
+__nvvm_ldu_s
+    .param_str = "ssC*"
+
+__nvvm_ldu_s2
+    .param_str = "E2sE2sC*"
+
+__nvvm_ldu_s4
+    .param_str = "E4sE4sC*"
+
+__nvvm_ldu_sc
+    .param_str = "ScScC*"
+
+__nvvm_ldu_sc2
+    .param_str = "E2ScE2ScC*"
+
+__nvvm_ldu_sc4
+    .param_str = "E4ScE4ScC*"
+
+__nvvm_ldu_uc
+    .param_str = "UcUcC*"
+
+__nvvm_ldu_uc2
+    .param_str = "E2UcE2UcC*"
+
+__nvvm_ldu_uc4
+    .param_str = "E4UcE4UcC*"
+
+__nvvm_ldu_ui
+    .param_str = "UiUiC*"
+
+__nvvm_ldu_ui2
+    .param_str = "E2UiE2UiC*"
+
+__nvvm_ldu_ui4
+    .param_str = "E4UiE4UiC*"
+
+__nvvm_ldu_ul
+    .param_str = "ULiULiC*"
+
+__nvvm_ldu_ul2
+    .param_str = "E2ULiE2ULiC*"
+
+__nvvm_ldu_ull
+    .param_str = "ULLiULLiC*"
+
+__nvvm_ldu_ull2
+    .param_str = "E2ULLiE2ULLiC*"
+
+__nvvm_ldu_us
+    .param_str = "UsUsC*"
+
+__nvvm_ldu_us2
+    .param_str = "E2UsE2UsC*"
+
+__nvvm_ldu_us4
+    .param_str = "E4UsE4UsC*"
+
+__nvvm_lg2_approx_d
+    .param_str = "dd"
+
+__nvvm_lg2_approx_f
+    .param_str = "ff"
+
+__nvvm_lg2_approx_ftz_f
+    .param_str = "ff"
+
+__nvvm_ll2d_rm
+    .param_str = "dLLi"
+
+__nvvm_ll2d_rn
+    .param_str = "dLLi"
+
+__nvvm_ll2d_rp
+    .param_str = "dLLi"
+
+__nvvm_ll2d_rz
+    .param_str = "dLLi"
+
+__nvvm_ll2f_rm
+    .param_str = "fLLi"
+
+__nvvm_ll2f_rn
+    .param_str = "fLLi"
+
+__nvvm_ll2f_rp
+    .param_str = "fLLi"
+
+__nvvm_ll2f_rz
+    .param_str = "fLLi"
+
+__nvvm_lohi_i2d
+    .param_str = "dii"
+
+__nvvm_mapa
+    .param_str = "v*v*i"
+    .features = "(sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_mapa_shared_cluster
+    .param_str = "v*3v*3i"
+    .features = "(sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_match_all_sync_i32p
+    .param_str = "UiUiUii*"
+    .features = "(sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx60|ptx61|ptx62|ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_match_all_sync_i64p
+    .param_str = "UiUiWii*"
+    .features = "(sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx60|ptx61|ptx62|ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_match_any_sync_i32
+    .param_str = "UiUiUi"
+    .features = "(sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx60|ptx61|ptx62|ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_match_any_sync_i64
+    .param_str = "UiUiWi"
+    .features = "(sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx60|ptx61|ptx62|ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_mbarrier_arrive
+    .param_str = "WiWi*"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_mbarrier_arrive_drop
+    .param_str = "WiWi*"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_mbarrier_arrive_drop_noComplete
+    .param_str = "WiWi*i"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_mbarrier_arrive_drop_noComplete_shared
+    .param_str = "WiWi*3i"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_mbarrier_arrive_drop_shared
+    .param_str = "WiWi*3"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_mbarrier_arrive_noComplete
+    .param_str = "WiWi*i"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_mbarrier_arrive_noComplete_shared
+    .param_str = "WiWi*3i"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_mbarrier_arrive_shared
+    .param_str = "WiWi*3"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_mbarrier_init
+    .param_str = "vWi*i"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_mbarrier_init_shared
+    .param_str = "vWi*3i"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_mbarrier_inval
+    .param_str = "vWi*"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_mbarrier_inval_shared
+    .param_str = "vWi*3"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_mbarrier_pending_count
+    .param_str = "iWi"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_mbarrier_test_wait
+    .param_str = "bWi*Wi"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_mbarrier_test_wait_shared
+    .param_str = "bWi*3Wi"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_membar_cta
+    .param_str = "v"
+
+__nvvm_membar_gl
+    .param_str = "v"
+
+__nvvm_membar_sys
+    .param_str = "v"
+
+__nvvm_memcpy
+    .param_str = "vUc*Uc*zi"
+
+__nvvm_memset
+    .param_str = "vUc*Uczi"
+
+__nvvm_mul24_i
+    .param_str = "iii"
+
+__nvvm_mul24_ui
+    .param_str = "UiUiUi"
+
+__nvvm_mul_rm_d
+    .param_str = "ddd"
+
+__nvvm_mul_rm_f
+    .param_str = "fff"
+
+__nvvm_mul_rm_ftz_f
+    .param_str = "fff"
+
+__nvvm_mul_rn_d
+    .param_str = "ddd"
+
+__nvvm_mul_rn_f
+    .param_str = "fff"
+
+__nvvm_mul_rn_ftz_f
+    .param_str = "fff"
+
+__nvvm_mul_rp_d
+    .param_str = "ddd"
+
+__nvvm_mul_rp_f
+    .param_str = "fff"
+
+__nvvm_mul_rp_ftz_f
+    .param_str = "fff"
+
+__nvvm_mul_rz_d
+    .param_str = "ddd"
+
+__nvvm_mul_rz_f
+    .param_str = "fff"
+
+__nvvm_mul_rz_ftz_f
+    .param_str = "fff"
+
+__nvvm_mulhi_i
+    .param_str = "iii"
+
+__nvvm_mulhi_ll
+    .param_str = "LLiLLiLLi"
+
+__nvvm_mulhi_ui
+    .param_str = "UiUiUi"
+
+__nvvm_mulhi_ull
+    .param_str = "ULLiULLiULLi"
+
+__nvvm_nanosleep
+    .param_str = "vUi"
+    .features = "(sm_70|sm_72|sm_75|sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_neg_bf16
+    .param_str = "yy"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_neg_bf16x2
+    .param_str = "V2yV2y"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_pm_event_mask
+    .param_str = "vIUs"
+
+__nvvm_prmt
+    .param_str = "UiUiUiUi"
+
+__nvvm_rcp_approx_ftz_d
+    .param_str = "dd"
+
+__nvvm_rcp_approx_ftz_f
+    .param_str = "ff"
+
+__nvvm_rcp_rm_d
+    .param_str = "dd"
+
+__nvvm_rcp_rm_f
+    .param_str = "ff"
+
+__nvvm_rcp_rm_ftz_f
+    .param_str = "ff"
+
+__nvvm_rcp_rn_d
+    .param_str = "dd"
+
+__nvvm_rcp_rn_f
+    .param_str = "ff"
+
+__nvvm_rcp_rn_ftz_f
+    .param_str = "ff"
+
+__nvvm_rcp_rp_d
+    .param_str = "dd"
+
+__nvvm_rcp_rp_f
+    .param_str = "ff"
+
+__nvvm_rcp_rp_ftz_f
+    .param_str = "ff"
+
+__nvvm_rcp_rz_d
+    .param_str = "dd"
+
+__nvvm_rcp_rz_f
+    .param_str = "ff"
+
+__nvvm_rcp_rz_ftz_f
+    .param_str = "ff"
+
+__nvvm_read_ptx_sreg_clock
+    .param_str = "i"
+
+__nvvm_read_ptx_sreg_clock64
+    .param_str = "LLi"
+
+__nvvm_read_ptx_sreg_cluster_ctaid_w
+    .param_str = "i"
+    .features = "(sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+    .attributes = .{ .@"const" = true }
+
+__nvvm_read_ptx_sreg_cluster_ctaid_x
+    .param_str = "i"
+    .features = "(sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+    .attributes = .{ .@"const" = true }
+
+__nvvm_read_ptx_sreg_cluster_ctaid_y
+    .param_str = "i"
+    .features = "(sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+    .attributes = .{ .@"const" = true }
+
+__nvvm_read_ptx_sreg_cluster_ctaid_z
+    .param_str = "i"
+    .features = "(sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+    .attributes = .{ .@"const" = true }
+
+__nvvm_read_ptx_sreg_cluster_ctarank
+    .param_str = "i"
+    .features = "(sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+    .attributes = .{ .@"const" = true }
+
+__nvvm_read_ptx_sreg_cluster_nctaid_w
+    .param_str = "i"
+    .features = "(sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+    .attributes = .{ .@"const" = true }
+
+__nvvm_read_ptx_sreg_cluster_nctaid_x
+    .param_str = "i"
+    .features = "(sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+    .attributes = .{ .@"const" = true }
+
+__nvvm_read_ptx_sreg_cluster_nctaid_y
+    .param_str = "i"
+    .features = "(sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+    .attributes = .{ .@"const" = true }
+
+__nvvm_read_ptx_sreg_cluster_nctaid_z
+    .param_str = "i"
+    .features = "(sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+    .attributes = .{ .@"const" = true }
+
+__nvvm_read_ptx_sreg_cluster_nctarank
+    .param_str = "i"
+    .features = "(sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+    .attributes = .{ .@"const" = true }
+
+__nvvm_read_ptx_sreg_clusterid_w
+    .param_str = "i"
+    .features = "(sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+    .attributes = .{ .@"const" = true }
+
+__nvvm_read_ptx_sreg_clusterid_x
+    .param_str = "i"
+    .features = "(sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+    .attributes = .{ .@"const" = true }
+
+__nvvm_read_ptx_sreg_clusterid_y
+    .param_str = "i"
+    .features = "(sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+    .attributes = .{ .@"const" = true }
+
+__nvvm_read_ptx_sreg_clusterid_z
+    .param_str = "i"
+    .features = "(sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+    .attributes = .{ .@"const" = true }
+
+__nvvm_read_ptx_sreg_ctaid_w
+    .param_str = "i"
+    .attributes = .{ .@"const" = true }
+
+__nvvm_read_ptx_sreg_ctaid_x
+    .param_str = "i"
+    .attributes = .{ .@"const" = true }
+
+__nvvm_read_ptx_sreg_ctaid_y
+    .param_str = "i"
+    .attributes = .{ .@"const" = true }
+
+__nvvm_read_ptx_sreg_ctaid_z
+    .param_str = "i"
+    .attributes = .{ .@"const" = true }
+
+__nvvm_read_ptx_sreg_globaltimer
+    .param_str = "LLi"
+
+__nvvm_read_ptx_sreg_gridid
+    .param_str = "i"
+    .attributes = .{ .@"const" = true }
+
+__nvvm_read_ptx_sreg_laneid
+    .param_str = "i"
+    .attributes = .{ .@"const" = true }
+
+__nvvm_read_ptx_sreg_lanemask_eq
+    .param_str = "i"
+    .attributes = .{ .@"const" = true }
+
+__nvvm_read_ptx_sreg_lanemask_ge
+    .param_str = "i"
+    .attributes = .{ .@"const" = true }
+
+__nvvm_read_ptx_sreg_lanemask_gt
+    .param_str = "i"
+    .attributes = .{ .@"const" = true }
+
+__nvvm_read_ptx_sreg_lanemask_le
+    .param_str = "i"
+    .attributes = .{ .@"const" = true }
+
+__nvvm_read_ptx_sreg_lanemask_lt
+    .param_str = "i"
+    .attributes = .{ .@"const" = true }
+
+__nvvm_read_ptx_sreg_nclusterid_w
+    .param_str = "i"
+    .features = "(sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+    .attributes = .{ .@"const" = true }
+
+__nvvm_read_ptx_sreg_nclusterid_x
+    .param_str = "i"
+    .features = "(sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+    .attributes = .{ .@"const" = true }
+
+__nvvm_read_ptx_sreg_nclusterid_y
+    .param_str = "i"
+    .features = "(sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+    .attributes = .{ .@"const" = true }
+
+__nvvm_read_ptx_sreg_nclusterid_z
+    .param_str = "i"
+    .features = "(sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+    .attributes = .{ .@"const" = true }
+
+__nvvm_read_ptx_sreg_nctaid_w
+    .param_str = "i"
+    .attributes = .{ .@"const" = true }
+
+__nvvm_read_ptx_sreg_nctaid_x
+    .param_str = "i"
+    .attributes = .{ .@"const" = true }
+
+__nvvm_read_ptx_sreg_nctaid_y
+    .param_str = "i"
+    .attributes = .{ .@"const" = true }
+
+__nvvm_read_ptx_sreg_nctaid_z
+    .param_str = "i"
+    .attributes = .{ .@"const" = true }
+
+__nvvm_read_ptx_sreg_nsmid
+    .param_str = "i"
+    .attributes = .{ .@"const" = true }
+
+__nvvm_read_ptx_sreg_ntid_w
+    .param_str = "i"
+    .attributes = .{ .@"const" = true }
+
+__nvvm_read_ptx_sreg_ntid_x
+    .param_str = "i"
+    .attributes = .{ .@"const" = true }
+
+__nvvm_read_ptx_sreg_ntid_y
+    .param_str = "i"
+    .attributes = .{ .@"const" = true }
+
+__nvvm_read_ptx_sreg_ntid_z
+    .param_str = "i"
+    .attributes = .{ .@"const" = true }
+
+__nvvm_read_ptx_sreg_nwarpid
+    .param_str = "i"
+    .attributes = .{ .@"const" = true }
+
+__nvvm_read_ptx_sreg_pm0
+    .param_str = "i"
+
+__nvvm_read_ptx_sreg_pm1
+    .param_str = "i"
+
+__nvvm_read_ptx_sreg_pm2
+    .param_str = "i"
+
+__nvvm_read_ptx_sreg_pm3
+    .param_str = "i"
+
+__nvvm_read_ptx_sreg_smid
+    .param_str = "i"
+    .attributes = .{ .@"const" = true }
+
+__nvvm_read_ptx_sreg_tid_w
+    .param_str = "i"
+    .attributes = .{ .@"const" = true }
+
+__nvvm_read_ptx_sreg_tid_x
+    .param_str = "i"
+    .attributes = .{ .@"const" = true }
+
+__nvvm_read_ptx_sreg_tid_y
+    .param_str = "i"
+    .attributes = .{ .@"const" = true }
+
+__nvvm_read_ptx_sreg_tid_z
+    .param_str = "i"
+    .attributes = .{ .@"const" = true }
+
+__nvvm_read_ptx_sreg_warpid
+    .param_str = "i"
+    .attributes = .{ .@"const" = true }
+
+__nvvm_read_ptx_sreg_warpsize
+    .param_str = "i"
+    .attributes = .{ .@"const" = true }
+
+__nvvm_redux_sync_add
+    .param_str = "iii"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_redux_sync_and
+    .param_str = "iii"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_redux_sync_fmax
+    .param_str = "ffi"
+    .features = "(sm_100a),(ptx86|ptx87)"
+
+__nvvm_redux_sync_fmax_NaN
+    .param_str = "ffi"
+    .features = "(sm_100a),(ptx86|ptx87)"
+
+__nvvm_redux_sync_fmax_abs
+    .param_str = "ffi"
+    .features = "(sm_100a),(ptx86|ptx87)"
+
+__nvvm_redux_sync_fmax_abs_NaN
+    .param_str = "ffi"
+    .features = "(sm_100a),(ptx86|ptx87)"
+
+__nvvm_redux_sync_fmin
+    .param_str = "ffi"
+    .features = "(sm_100a),(ptx86|ptx87)"
+
+__nvvm_redux_sync_fmin_NaN
+    .param_str = "ffi"
+    .features = "(sm_100a),(ptx86|ptx87)"
+
+__nvvm_redux_sync_fmin_abs
+    .param_str = "ffi"
+    .features = "(sm_100a),(ptx86|ptx87)"
+
+__nvvm_redux_sync_fmin_abs_NaN
+    .param_str = "ffi"
+    .features = "(sm_100a),(ptx86|ptx87)"
+
+__nvvm_redux_sync_max
+    .param_str = "iii"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_redux_sync_min
+    .param_str = "iii"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_redux_sync_or
+    .param_str = "iii"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_redux_sync_umax
+    .param_str = "UiUii"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_redux_sync_umin
+    .param_str = "UiUii"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_redux_sync_xor
+    .param_str = "iii"
+    .features = "(sm_80|sm_86|sm_87|sm_89|sm_90|sm_90a|sm_100|sm_100a|sm_101|sm_101a|sm_120|sm_120a),(ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87)"
+
+__nvvm_reflect
+    .param_str = "UicC*"
+
+__nvvm_round_d
+    .param_str = "dd"
+
+__nvvm_round_f
+    .param_str = "ff"
+
+__nvvm_round_ftz_f
+    .param_str = "ff"
+
+__nvvm_rsqrt_approx_d
+    .param_str = "dd"
+
+__nvvm_rsqrt_approx_f
+    .param_str = "ff"
+
+__nvvm_rsqrt_approx_ftz_f
+    .param_str = "ff"
+
+__nvvm_sad_i
+    .param_str = "iiii"
+
+__nvvm_sad_ui
+    .param_str = "UiUiUiUi"
+
+__nvvm_saturate_d
+    .param_str = "dd"
+
+__nvvm_saturate_f
+    .param_str = "ff"
+
+__nvvm_saturate_ftz_f
+    .param_str = "ff"
+
+__nvvm_shfl_bfly_f32
+    .param_str = "ffii"
+
+__nvvm_shfl_bfly_i32
+    .param_str = "iiii"
+
+__nvvm_shfl_down_f32
+    .param_str = "ffii"
+
+__nvvm_shfl_down_i32
+    .param_str = "iiii"
+
+__nvvm_shfl_idx_f32
+    .param_str = "ffii"
+
+__nvvm_shfl_idx_i32
+    .param_str = "iiii"
+
+__nvvm_shfl_sync_bfly_f32
+    .param_str = "fUifii"
+    .features = "ptx60|ptx61|ptx62|ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87"
+
+__nvvm_shfl_sync_bfly_i32
+    .param_str = "iUiiii"
+    .features = "ptx60|ptx61|ptx62|ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87"
+
+__nvvm_shfl_sync_down_f32
+    .param_str = "fUifii"
+    .features = "ptx60|ptx61|ptx62|ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87"
+
+__nvvm_shfl_sync_down_i32
+    .param_str = "iUiiii"
+    .features = "ptx60|ptx61|ptx62|ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87"
+
+__nvvm_shfl_sync_idx_f32
+    .param_str = "fUifii"
+    .features = "ptx60|ptx61|ptx62|ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87"
+
+__nvvm_shfl_sync_idx_i32
+    .param_str = "iUiiii"
+    .features = "ptx60|ptx61|ptx62|ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87"
+
+__nvvm_shfl_sync_up_f32
+    .param_str = "fUifii"
+    .features = "ptx60|ptx61|ptx62|ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87"
+
+__nvvm_shfl_sync_up_i32
+    .param_str = "iUiiii"
+    .features = "ptx60|ptx61|ptx62|ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87"
+
+__nvvm_shfl_up_f32
+    .param_str = "ffii"
+
+__nvvm_shfl_up_i32
+    .param_str = "iiii"
+
+__nvvm_sin_approx_f
+    .param_str = "ff"
+
+__nvvm_sin_approx_ftz_f
+    .param_str = "ff"
+
+__nvvm_sqrt_approx_f
+    .param_str = "ff"
+
+__nvvm_sqrt_approx_ftz_f
+    .param_str = "ff"
+
+__nvvm_sqrt_rm_d
+    .param_str = "dd"
+
+__nvvm_sqrt_rm_f
+    .param_str = "ff"
+
+__nvvm_sqrt_rm_ftz_f
+    .param_str = "ff"
+
+__nvvm_sqrt_rn_d
+    .param_str = "dd"
+
+__nvvm_sqrt_rn_f
+    .param_str = "ff"
+
+__nvvm_sqrt_rn_ftz_f
+    .param_str = "ff"
+
+__nvvm_sqrt_rp_d
+    .param_str = "dd"
+
+__nvvm_sqrt_rp_f
+    .param_str = "ff"
+
+__nvvm_sqrt_rp_ftz_f
+    .param_str = "ff"
+
+__nvvm_sqrt_rz_d
+    .param_str = "dd"
+
+__nvvm_sqrt_rz_f
+    .param_str = "ff"
+
+__nvvm_sqrt_rz_ftz_f
+    .param_str = "ff"
+
+__nvvm_trunc_d
+    .param_str = "dd"
+
+__nvvm_trunc_f
+    .param_str = "ff"
+
+__nvvm_trunc_ftz_f
+    .param_str = "ff"
+
+__nvvm_ue8m0x2_to_bf16x2
+    .param_str = "V2ys"
+    .features = "(sm_100a|sm_101a|sm_120a),(ptx86|ptx87)"
+
+__nvvm_ui2d_rm
+    .param_str = "dUi"
+
+__nvvm_ui2d_rn
+    .param_str = "dUi"
+
+__nvvm_ui2d_rp
+    .param_str = "dUi"
+
+__nvvm_ui2d_rz
+    .param_str = "dUi"
+
+__nvvm_ui2f_rm
+    .param_str = "fUi"
+
+__nvvm_ui2f_rn
+    .param_str = "fUi"
+
+__nvvm_ui2f_rp
+    .param_str = "fUi"
+
+__nvvm_ui2f_rz
+    .param_str = "fUi"
+
+__nvvm_ull2d_rm
+    .param_str = "dULLi"
+
+__nvvm_ull2d_rn
+    .param_str = "dULLi"
+
+__nvvm_ull2d_rp
+    .param_str = "dULLi"
+
+__nvvm_ull2d_rz
+    .param_str = "dULLi"
+
+__nvvm_ull2f_rm
+    .param_str = "fULLi"
+
+__nvvm_ull2f_rn
+    .param_str = "fULLi"
+
+__nvvm_ull2f_rp
+    .param_str = "fULLi"
+
+__nvvm_ull2f_rz
+    .param_str = "fULLi"
+
+__nvvm_vote_all
+    .param_str = "bb"
+
+__nvvm_vote_all_sync
+    .param_str = "bUib"
+    .features = "ptx60|ptx61|ptx62|ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87"
+
+__nvvm_vote_any
+    .param_str = "bb"
+
+__nvvm_vote_any_sync
+    .param_str = "bUib"
+    .features = "ptx60|ptx61|ptx62|ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87"
+
+__nvvm_vote_ballot
+    .param_str = "Uib"
+
+__nvvm_vote_ballot_sync
+    .param_str = "UiUib"
+    .features = "ptx60|ptx61|ptx62|ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87"
+
+__nvvm_vote_uni
+    .param_str = "bb"
+
+__nvvm_vote_uni_sync
+    .param_str = "bUib"
+    .features = "ptx60|ptx61|ptx62|ptx63|ptx64|ptx65|ptx70|ptx71|ptx72|ptx73|ptx74|ptx75|ptx76|ptx77|ptx78|ptx80|ptx81|ptx82|ptx83|ptx84|ptx85|ptx86|ptx87"
+
+__syncthreads
+    .param_str = "v"

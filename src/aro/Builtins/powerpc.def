@@ -1,0 +1,2221 @@
+# Generated from clang/include/clang/Basic/BuiltinsPPC.def
+
+__builtin_addf128_round_to_odd
+    .param_str = "LLdLLdLLd"
+    .features = "float128"
+
+__builtin_addg6s
+    .param_str = "UiUiUi"
+    .features = "isa_v206_instructions"
+
+__builtin_altivec_dss
+    .param_str = "vUIi"
+    .features = "altivec"
+
+__builtin_altivec_dssall
+    .param_str = "v"
+    .features = "altivec"
+
+__builtin_altivec_dst
+    .param_str = "vvC*iUIi"
+    .features = "altivec"
+
+__builtin_altivec_dstst
+    .param_str = "vvC*iUIi"
+    .features = "altivec"
+
+__builtin_altivec_dststt
+    .param_str = "vvC*iUIi"
+    .features = "altivec"
+
+__builtin_altivec_dstt
+    .param_str = "vvC*iUIi"
+    .features = "altivec"
+
+__builtin_altivec_lvebx
+    .param_str = "V16cLivC*"
+    .features = "altivec"
+
+__builtin_altivec_lvehx
+    .param_str = "V8sLivC*"
+    .features = "altivec"
+
+__builtin_altivec_lvewx
+    .param_str = "V4iLivC*"
+    .features = "altivec"
+
+__builtin_altivec_lvsl
+    .param_str = "V16cUcvC*"
+    .features = "altivec"
+
+__builtin_altivec_lvsr
+    .param_str = "V16cUcvC*"
+    .features = "altivec"
+
+__builtin_altivec_lvx
+    .param_str = "V4iLivC*"
+    .features = "altivec"
+
+__builtin_altivec_lvxl
+    .param_str = "V4iLivC*"
+    .features = "altivec"
+
+__builtin_altivec_mfvscr
+    .param_str = "V8Us"
+    .features = "altivec"
+
+__builtin_altivec_mtvscr
+    .param_str = "vV4i"
+    .features = "altivec"
+
+__builtin_altivec_mtvsrbm
+    .param_str = "V16UcULLi"
+    .features = "power10_vector"
+
+__builtin_altivec_mtvsrdm
+    .param_str = "V2ULLiULLi"
+    .features = "power10_vector"
+
+__builtin_altivec_mtvsrhm
+    .param_str = "V8UsULLi"
+    .features = "power10_vector"
+
+__builtin_altivec_mtvsrqm
+    .param_str = "V1ULLLiULLi"
+    .features = "power10_vector"
+
+__builtin_altivec_mtvsrwm
+    .param_str = "V4UiULLi"
+    .features = "power10_vector"
+
+__builtin_altivec_stvebx
+    .param_str = "vV16cLiv*"
+    .features = "altivec"
+
+__builtin_altivec_stvehx
+    .param_str = "vV8sLiv*"
+    .features = "altivec"
+
+__builtin_altivec_stvewx
+    .param_str = "vV4iLiv*"
+    .features = "altivec"
+
+__builtin_altivec_stvx
+    .param_str = "vV4iLiv*"
+    .features = "altivec"
+
+__builtin_altivec_stvxl
+    .param_str = "vV4iLiv*"
+    .features = "altivec"
+
+__builtin_altivec_vabsduh
+    .param_str = "V8UsV8UsV8Us"
+    .features = "power9_vector"
+
+__builtin_altivec_vabsduw
+    .param_str = "V4UiV4UiV4Ui"
+    .features = "power9_vector"
+
+__builtin_altivec_vaddcuw
+    .param_str = "V4UiV4UiV4Ui"
+    .features = "altivec"
+
+__builtin_altivec_vaddsbs
+    .param_str = "V16ScV16ScV16Sc"
+    .features = "altivec"
+
+__builtin_altivec_vaddshs
+    .param_str = "V8SsV8SsV8Ss"
+    .features = "altivec"
+
+__builtin_altivec_vaddsws
+    .param_str = "V4SiV4SiV4Si"
+    .features = "altivec"
+
+__builtin_altivec_vaddubs
+    .param_str = "V16UcV16UcV16Uc"
+    .features = "altivec"
+
+__builtin_altivec_vadduhs
+    .param_str = "V8UsV8UsV8Us"
+    .features = "altivec"
+
+__builtin_altivec_vadduws
+    .param_str = "V4UiV4UiV4Ui"
+    .features = "altivec"
+
+__builtin_altivec_vavgsb
+    .param_str = "V16ScV16ScV16Sc"
+    .features = "altivec"
+
+__builtin_altivec_vavgsh
+    .param_str = "V8SsV8SsV8Ss"
+    .features = "altivec"
+
+__builtin_altivec_vavgsw
+    .param_str = "V4SiV4SiV4Si"
+    .features = "altivec"
+
+__builtin_altivec_vavgub
+    .param_str = "V16UcV16UcV16Uc"
+    .features = "altivec"
+
+__builtin_altivec_vavguh
+    .param_str = "V8UsV8UsV8Us"
+    .features = "altivec"
+
+__builtin_altivec_vavguw
+    .param_str = "V4UiV4UiV4Ui"
+    .features = "altivec"
+
+__builtin_altivec_vcfsx
+    .param_str = "V4fV4SiIi"
+    .features = "altivec"
+
+__builtin_altivec_vcfux
+    .param_str = "V4fV4UiIi"
+    .features = "altivec"
+
+__builtin_altivec_vclrlb
+    .param_str = "V16UcV16UcUi"
+    .features = "power10_vector"
+
+__builtin_altivec_vclrrb
+    .param_str = "V16UcV16UcUi"
+    .features = "power10_vector"
+
+__builtin_altivec_vclzb
+    .param_str = "V16UcV16Uc"
+    .features = "power8_vector"
+
+__builtin_altivec_vclzd
+    .param_str = "V2ULLiV2ULLi"
+    .features = "power8_vector"
+
+__builtin_altivec_vclzh
+    .param_str = "V8UsV8Us"
+    .features = "power8_vector"
+
+__builtin_altivec_vclzlsbb
+    .param_str = "SiV16Uc"
+    .features = "power9_vector"
+
+__builtin_altivec_vclzw
+    .param_str = "V4UiV4Ui"
+    .features = "power8_vector"
+
+__builtin_altivec_vcmpbfp
+    .param_str = "V4iV4fV4f"
+    .features = "altivec"
+
+__builtin_altivec_vcmpbfp_p
+    .param_str = "iiV4fV4f"
+    .features = "altivec"
+
+__builtin_altivec_vcmpeqfp
+    .param_str = "V4iV4fV4f"
+    .features = "altivec"
+
+__builtin_altivec_vcmpeqfp_p
+    .param_str = "iiV4fV4f"
+    .features = "altivec"
+
+__builtin_altivec_vcmpequb
+    .param_str = "V16cV16cV16c"
+    .features = "altivec"
+
+__builtin_altivec_vcmpequb_p
+    .param_str = "iiV16cV16c"
+    .features = "altivec"
+
+__builtin_altivec_vcmpequd_p
+    .param_str = "iiV2LLiV2LLi"
+    .features = "vsx"
+
+__builtin_altivec_vcmpequh
+    .param_str = "V8sV8sV8s"
+    .features = "altivec"
+
+__builtin_altivec_vcmpequh_p
+    .param_str = "iiV8sV8s"
+    .features = "altivec"
+
+__builtin_altivec_vcmpequq_p
+    .param_str = "iiV1ULLLiV1LLLi"
+    .features = "altivec"
+
+__builtin_altivec_vcmpequw
+    .param_str = "V4iV4iV4i"
+    .features = "altivec"
+
+__builtin_altivec_vcmpequw_p
+    .param_str = "iiV4iV4i"
+    .features = "altivec"
+
+__builtin_altivec_vcmpgefp
+    .param_str = "V4iV4fV4f"
+    .features = "altivec"
+
+__builtin_altivec_vcmpgefp_p
+    .param_str = "iiV4fV4f"
+    .features = "altivec"
+
+__builtin_altivec_vcmpgtfp
+    .param_str = "V4iV4fV4f"
+    .features = "altivec"
+
+__builtin_altivec_vcmpgtfp_p
+    .param_str = "iiV4fV4f"
+    .features = "altivec"
+
+__builtin_altivec_vcmpgtsb
+    .param_str = "V16cV16ScV16Sc"
+    .features = "altivec"
+
+__builtin_altivec_vcmpgtsb_p
+    .param_str = "iiV16ScV16Sc"
+    .features = "altivec"
+
+__builtin_altivec_vcmpgtsd_p
+    .param_str = "iiV2LLiV2LLi"
+    .features = "vsx"
+
+__builtin_altivec_vcmpgtsh
+    .param_str = "V8sV8SsV8Ss"
+    .features = "altivec"
+
+__builtin_altivec_vcmpgtsh_p
+    .param_str = "iiV8SsV8Ss"
+    .features = "altivec"
+
+__builtin_altivec_vcmpgtsw
+    .param_str = "V4iV4SiV4Si"
+    .features = "altivec"
+
+__builtin_altivec_vcmpgtsw_p
+    .param_str = "iiV4SiV4Si"
+    .features = "altivec"
+
+__builtin_altivec_vcmpgtub
+    .param_str = "V16cV16UcV16Uc"
+    .features = "altivec"
+
+__builtin_altivec_vcmpgtub_p
+    .param_str = "iiV16UcV16Uc"
+    .features = "altivec"
+
+__builtin_altivec_vcmpgtud_p
+    .param_str = "iiV2ULLiV2ULLi"
+    .features = "vsx"
+
+__builtin_altivec_vcmpgtuh
+    .param_str = "V8sV8UsV8Us"
+    .features = "altivec"
+
+__builtin_altivec_vcmpgtuh_p
+    .param_str = "iiV8UsV8Us"
+    .features = "altivec"
+
+__builtin_altivec_vcmpgtuw
+    .param_str = "V4iV4UiV4Ui"
+    .features = "altivec"
+
+__builtin_altivec_vcmpgtuw_p
+    .param_str = "iiV4UiV4Ui"
+    .features = "altivec"
+
+__builtin_altivec_vcmpneb
+    .param_str = "V16cV16cV16c"
+    .features = "power9_vector"
+
+__builtin_altivec_vcmpneb_p
+    .param_str = "iiV16cV16c"
+    .features = "power9_vector"
+
+__builtin_altivec_vcmpned_p
+    .param_str = "iiV2LLiV2LLi"
+    .features = "vsx"
+
+__builtin_altivec_vcmpneh
+    .param_str = "V8sV8sV8s"
+    .features = "power9_vector"
+
+__builtin_altivec_vcmpneh_p
+    .param_str = "iiV8sV8s"
+    .features = "power9_vector"
+
+__builtin_altivec_vcmpnew
+    .param_str = "V4iV4iV4i"
+    .features = "power9_vector"
+
+__builtin_altivec_vcmpnew_p
+    .param_str = "iiV4iV4i"
+    .features = "power9_vector"
+
+__builtin_altivec_vcmpnezb
+    .param_str = "V16cV16cV16c"
+    .features = "power9_vector"
+
+__builtin_altivec_vcmpnezh
+    .param_str = "V8sV8sV8s"
+    .features = "power9_vector"
+
+__builtin_altivec_vcmpnezw
+    .param_str = "V4iV4iV4i"
+    .features = "power9_vector"
+
+__builtin_altivec_vcntmbb
+    .param_str = "ULLiV16UcUi"
+    .features = "power10_vector"
+
+__builtin_altivec_vcntmbd
+    .param_str = "ULLiV2ULLiUi"
+    .features = "power10_vector"
+
+__builtin_altivec_vcntmbh
+    .param_str = "ULLiV8UsUi"
+    .features = "power10_vector"
+
+__builtin_altivec_vcntmbw
+    .param_str = "ULLiV4UiUi"
+    .features = "power10_vector"
+
+__builtin_altivec_vctsxs
+    .param_str = "V4SiV4fIi"
+    .features = "altivec"
+
+__builtin_altivec_vctuxs
+    .param_str = "V4UiV4fIi"
+    .features = "altivec"
+
+__builtin_altivec_vctzb
+    .param_str = "V16UcV16Uc"
+    .features = "power9_vector"
+
+__builtin_altivec_vctzd
+    .param_str = "V2ULLiV2ULLi"
+    .features = "power9_vector"
+
+__builtin_altivec_vctzh
+    .param_str = "V8UsV8Us"
+    .features = "power9_vector"
+
+__builtin_altivec_vctzlsbb
+    .param_str = "SiV16Uc"
+    .features = "power9_vector"
+
+__builtin_altivec_vctzw
+    .param_str = "V4UiV4Ui"
+    .features = "power9_vector"
+
+__builtin_altivec_vdivesw
+    .param_str = "V4SiV4SiV4Si"
+    .features = "power10_vector"
+
+__builtin_altivec_vdiveuw
+    .param_str = "V4UiV4UiV4Ui"
+    .features = "power10_vector"
+
+__builtin_altivec_vexpandbm
+    .param_str = "V16UcV16Uc"
+    .features = "power10_vector"
+
+__builtin_altivec_vexpandhm
+    .param_str = "V8UsV8Us"
+    .features = "power10_vector"
+
+__builtin_altivec_vexpandwm
+    .param_str = "V4UiV4Ui"
+    .features = "power10_vector"
+
+__builtin_altivec_vexptefp
+    .param_str = "V4fV4f"
+    .features = "altivec"
+
+__builtin_altivec_vextractbm
+    .param_str = "UiV16Uc"
+    .features = "power10_vector"
+
+__builtin_altivec_vextractdm
+    .param_str = "UiV2ULLi"
+    .features = "power10_vector"
+
+__builtin_altivec_vextracthm
+    .param_str = "UiV8Us"
+    .features = "power10_vector"
+
+__builtin_altivec_vextractqm
+    .param_str = "UiV1ULLLi"
+    .features = "power10_vector"
+
+__builtin_altivec_vextractwm
+    .param_str = "UiV4Ui"
+    .features = "power10_vector"
+
+__builtin_altivec_vextsb2d
+    .param_str = "V2SLLiV16Sc"
+    .features = "power9_vector"
+
+__builtin_altivec_vextsb2w
+    .param_str = "V4SiV16Sc"
+    .features = "power9_vector"
+
+__builtin_altivec_vextsh2d
+    .param_str = "V2SLLiV8Ss"
+    .features = "power9_vector"
+
+__builtin_altivec_vextsh2w
+    .param_str = "V4SiV8Ss"
+    .features = "power9_vector"
+
+__builtin_altivec_vextsw2d
+    .param_str = "V2SLLiV4Si"
+    .features = "power9_vector"
+
+__builtin_altivec_vgbbd
+    .param_str = "V16UcV16Uc"
+    .features = "power8_vector"
+
+__builtin_altivec_vgnb
+    .param_str = "ULLiV1ULLLiIi"
+    .features = "power10_vector"
+
+__builtin_altivec_vinshlx
+    .param_str = "V8UsV8UsUiUi"
+    .features = "power10_vector"
+
+__builtin_altivec_vinshrx
+    .param_str = "V8UsV8UsUiUi"
+    .features = "power10_vector"
+
+__builtin_altivec_vinsw
+    .param_str = "V16UcV16UcUiIi"
+    .features = "power10_vector"
+
+__builtin_altivec_vinswlx
+    .param_str = "V4UiV4UiUiUi"
+    .features = "power10_vector"
+
+__builtin_altivec_vinswrx
+    .param_str = "V4UiV4UiUiUi"
+    .features = "power10_vector"
+
+__builtin_altivec_vlogefp
+    .param_str = "V4fV4f"
+    .features = "altivec"
+
+__builtin_altivec_vmaddfp
+    .param_str = "V4fV4fV4fV4f"
+    .features = "altivec"
+
+__builtin_altivec_vmaxfp
+    .param_str = "V4fV4fV4f"
+    .features = "altivec"
+
+__builtin_altivec_vmaxsb
+    .param_str = "V16ScV16ScV16Sc"
+    .features = "altivec"
+
+__builtin_altivec_vmaxsd
+    .param_str = "V2LLiV2LLiV2LLi"
+    .features = "power8_vector"
+
+__builtin_altivec_vmaxsh
+    .param_str = "V8SsV8SsV8Ss"
+    .features = "altivec"
+
+__builtin_altivec_vmaxsw
+    .param_str = "V4SiV4SiV4Si"
+    .features = "altivec"
+
+__builtin_altivec_vmaxub
+    .param_str = "V16UcV16UcV16Uc"
+    .features = "altivec"
+
+__builtin_altivec_vmaxuh
+    .param_str = "V8UsV8UsV8Us"
+    .features = "altivec"
+
+__builtin_altivec_vmaxuw
+    .param_str = "V4UiV4UiV4Ui"
+    .features = "altivec"
+
+__builtin_altivec_vmhaddshs
+    .param_str = "V8sV8sV8sV8s"
+    .features = "altivec"
+
+__builtin_altivec_vmhraddshs
+    .param_str = "V8sV8sV8sV8s"
+    .features = "altivec"
+
+__builtin_altivec_vminfp
+    .param_str = "V4fV4fV4f"
+    .features = "altivec"
+
+__builtin_altivec_vminsb
+    .param_str = "V16ScV16ScV16Sc"
+    .features = "altivec"
+
+__builtin_altivec_vminsd
+    .param_str = "V2LLiV2LLiV2LLi"
+    .features = "power8_vector"
+
+__builtin_altivec_vminsh
+    .param_str = "V8SsV8SsV8Ss"
+    .features = "altivec"
+
+__builtin_altivec_vminsw
+    .param_str = "V4SiV4SiV4Si"
+    .features = "altivec"
+
+__builtin_altivec_vminub
+    .param_str = "V16UcV16UcV16Uc"
+    .features = "altivec"
+
+__builtin_altivec_vminuh
+    .param_str = "V8UsV8UsV8Us"
+    .features = "altivec"
+
+__builtin_altivec_vminuw
+    .param_str = "V4UiV4UiV4Ui"
+    .features = "altivec"
+
+__builtin_altivec_vmsummbm
+    .param_str = "V4SiV16ScV16UcV4Si"
+    .features = "altivec"
+
+__builtin_altivec_vmsumshm
+    .param_str = "V4SiV8SsV8SsV4Si"
+    .features = "altivec"
+
+__builtin_altivec_vmsumshs
+    .param_str = "V4SiV8SsV8SsV4Si"
+    .features = "altivec"
+
+__builtin_altivec_vmsumubm
+    .param_str = "V4UiV16UcV16UcV4Ui"
+    .features = "altivec"
+
+__builtin_altivec_vmsumuhm
+    .param_str = "V4UiV8UsV8UsV4Ui"
+    .features = "altivec"
+
+__builtin_altivec_vmsumuhs
+    .param_str = "V4UiV8UsV8UsV4Ui"
+    .features = "altivec"
+
+__builtin_altivec_vmulesb
+    .param_str = "V8SsV16ScV16Sc"
+    .features = "altivec"
+
+__builtin_altivec_vmulesh
+    .param_str = "V4SiV8SsV8Ss"
+    .features = "altivec"
+
+__builtin_altivec_vmulesw
+    .param_str = "V2SLLiV4SiV4Si"
+    .features = "power8_vector"
+
+__builtin_altivec_vmuleub
+    .param_str = "V8UsV16UcV16Uc"
+    .features = "altivec"
+
+__builtin_altivec_vmuleuh
+    .param_str = "V4UiV8UsV8Us"
+    .features = "altivec"
+
+__builtin_altivec_vmuleuw
+    .param_str = "V2ULLiV4UiV4Ui"
+    .features = "power8_vector"
+
+__builtin_altivec_vmulhsw
+    .param_str = "V4SiV4SiV4Si"
+    .features = "power10_vector"
+
+__builtin_altivec_vmulhuw
+    .param_str = "V4UiV4UiV4Ui"
+    .features = "power10_vector"
+
+__builtin_altivec_vmulosb
+    .param_str = "V8SsV16ScV16Sc"
+    .features = "altivec"
+
+__builtin_altivec_vmulosh
+    .param_str = "V4SiV8SsV8Ss"
+    .features = "altivec"
+
+__builtin_altivec_vmulosw
+    .param_str = "V2SLLiV4SiV4Si"
+    .features = "power8_vector"
+
+__builtin_altivec_vmuloub
+    .param_str = "V8UsV16UcV16Uc"
+    .features = "altivec"
+
+__builtin_altivec_vmulouh
+    .param_str = "V4UiV8UsV8Us"
+    .features = "altivec"
+
+__builtin_altivec_vmulouw
+    .param_str = "V2ULLiV4UiV4Ui"
+    .features = "power8_vector"
+
+__builtin_altivec_vnmsubfp
+    .param_str = "V4fV4fV4fV4f"
+    .features = "altivec"
+
+__builtin_altivec_vperm_4si
+    .param_str = "V4iV4iV4iV16Uc"
+    .features = "altivec"
+
+__builtin_altivec_vpkpx
+    .param_str = "V8sV4UiV4Ui"
+    .features = "altivec"
+
+__builtin_altivec_vpkshss
+    .param_str = "V16ScV8SsV8Ss"
+    .features = "altivec"
+
+__builtin_altivec_vpkshus
+    .param_str = "V16UcV8SsV8Ss"
+    .features = "altivec"
+
+__builtin_altivec_vpkswss
+    .param_str = "V8SsV4SiV4Si"
+    .features = "altivec"
+
+__builtin_altivec_vpkswus
+    .param_str = "V8UsV4SiV4Si"
+    .features = "altivec"
+
+__builtin_altivec_vpkuhus
+    .param_str = "V16UcV8UsV8Us"
+    .features = "altivec"
+
+__builtin_altivec_vpkuwus
+    .param_str = "V8UsV4UiV4Ui"
+    .features = "altivec"
+
+__builtin_altivec_vprtybd
+    .param_str = "V2ULLiV2ULLi"
+    .features = "power9_vector"
+
+__builtin_altivec_vprtybq
+    .param_str = "V1ULLLiV1ULLLi"
+    .features = "power9_vector"
+
+__builtin_altivec_vprtybw
+    .param_str = "V4UiV4Ui"
+    .features = "power9_vector"
+
+__builtin_altivec_vrefp
+    .param_str = "V4fV4f"
+    .features = "altivec"
+
+__builtin_altivec_vrfim
+    .param_str = "V4fV4f"
+    .features = "altivec"
+
+__builtin_altivec_vrfin
+    .param_str = "V4fV4f"
+    .features = "altivec"
+
+__builtin_altivec_vrfip
+    .param_str = "V4fV4f"
+    .features = "altivec"
+
+__builtin_altivec_vrfiz
+    .param_str = "V4fV4f"
+    .features = "altivec"
+
+__builtin_altivec_vrlb
+    .param_str = "V16cV16cV16Uc"
+    .features = "altivec"
+
+__builtin_altivec_vrld
+    .param_str = "V2LLiV2LLiV2ULLi"
+    .features = "power8_vector"
+
+__builtin_altivec_vrlh
+    .param_str = "V8sV8sV8Us"
+    .features = "altivec"
+
+__builtin_altivec_vrlw
+    .param_str = "V4iV4iV4Ui"
+    .features = "altivec"
+
+__builtin_altivec_vrlwnm
+    .param_str = "V4UiV4UiV4Ui"
+    .features = "power9_vector"
+
+__builtin_altivec_vrsqrtefp
+    .param_str = "V4fV4f"
+    .features = "altivec"
+
+__builtin_altivec_vsel_4si
+    .param_str = "V4iV4iV4iV4Ui"
+    .features = "altivec"
+
+__builtin_altivec_vsl
+    .param_str = "V4iV4iV4i"
+    .features = "altivec"
+
+__builtin_altivec_vslo
+    .param_str = "V4iV4iV4i"
+    .features = "altivec"
+
+__builtin_altivec_vslv
+    .param_str = "V16UcV16UcV16Uc"
+    .features = "power9_vector"
+
+__builtin_altivec_vsr
+    .param_str = "V4iV4iV4i"
+    .features = "altivec"
+
+__builtin_altivec_vsrab
+    .param_str = "V16cV16cV16Uc"
+    .features = "altivec"
+
+__builtin_altivec_vsrah
+    .param_str = "V8sV8sV8Us"
+    .features = "altivec"
+
+__builtin_altivec_vsraw
+    .param_str = "V4iV4iV4Ui"
+    .features = "altivec"
+
+__builtin_altivec_vsro
+    .param_str = "V4iV4iV4i"
+    .features = "altivec"
+
+__builtin_altivec_vsrv
+    .param_str = "V16UcV16UcV16Uc"
+    .features = "power9_vector"
+
+__builtin_altivec_vstribl
+    .param_str = "V16UcV16Uc"
+    .features = "power10_vector"
+
+__builtin_altivec_vstribl_p
+    .param_str = "iiV16Uc"
+    .features = "power10_vector"
+
+__builtin_altivec_vstribr
+    .param_str = "V16UcV16Uc"
+    .features = "power10_vector"
+
+__builtin_altivec_vstribr_p
+    .param_str = "iiV16Uc"
+    .features = "power10_vector"
+
+__builtin_altivec_vstrihl
+    .param_str = "V8sV8s"
+    .features = "power10_vector"
+
+__builtin_altivec_vstrihl_p
+    .param_str = "iiV8s"
+    .features = "power10_vector"
+
+__builtin_altivec_vstrihr
+    .param_str = "V8sV8s"
+    .features = "power10_vector"
+
+__builtin_altivec_vstrihr_p
+    .param_str = "iiV8s"
+    .features = "power10_vector"
+
+__builtin_altivec_vsubcuw
+    .param_str = "V4UiV4UiV4Ui"
+    .features = "altivec"
+
+__builtin_altivec_vsubsbs
+    .param_str = "V16ScV16ScV16Sc"
+    .features = "altivec"
+
+__builtin_altivec_vsubshs
+    .param_str = "V8SsV8SsV8Ss"
+    .features = "altivec"
+
+__builtin_altivec_vsubsws
+    .param_str = "V4SiV4SiV4Si"
+    .features = "altivec"
+
+__builtin_altivec_vsububs
+    .param_str = "V16UcV16UcV16Uc"
+    .features = "altivec"
+
+__builtin_altivec_vsubuhs
+    .param_str = "V8UsV8UsV8Us"
+    .features = "altivec"
+
+__builtin_altivec_vsubuws
+    .param_str = "V4UiV4UiV4Ui"
+    .features = "altivec"
+
+__builtin_altivec_vsum2sws
+    .param_str = "V4SiV4SiV4Si"
+    .features = "altivec"
+
+__builtin_altivec_vsum4sbs
+    .param_str = "V4SiV16ScV4Si"
+    .features = "altivec"
+
+__builtin_altivec_vsum4shs
+    .param_str = "V4SiV8SsV4Si"
+    .features = "altivec"
+
+__builtin_altivec_vsum4ubs
+    .param_str = "V4UiV16UcV4Ui"
+    .features = "altivec"
+
+__builtin_altivec_vsumsws
+    .param_str = "V4SiV4SiV4Si"
+    .features = "altivec"
+
+__builtin_altivec_vupkhpx
+    .param_str = "V4UiV8s"
+    .features = "altivec"
+
+__builtin_altivec_vupkhsb
+    .param_str = "V8sV16c"
+    .features = "altivec"
+
+__builtin_altivec_vupkhsh
+    .param_str = "V4iV8s"
+    .features = "altivec"
+
+__builtin_altivec_vupkhsw
+    .param_str = "V2LLiV4i"
+    .features = "power8_vector"
+
+__builtin_altivec_vupklpx
+    .param_str = "V4UiV8s"
+    .features = "altivec"
+
+__builtin_altivec_vupklsb
+    .param_str = "V8sV16c"
+    .features = "altivec"
+
+__builtin_altivec_vupklsh
+    .param_str = "V4iV8s"
+    .features = "altivec"
+
+__builtin_altivec_vupklsw
+    .param_str = "V2LLiV4i"
+    .features = "power8_vector"
+
+__builtin_bpermd
+    .param_str = "SLLiSLLiSLLi"
+    .features = "bpermd"
+
+__builtin_cbcdtd
+    .param_str = "UiUi"
+    .features = "isa_v206_instructions"
+
+__builtin_cdtbcd
+    .param_str = "UiUi"
+    .features = "isa_v206_instructions"
+
+__builtin_cfuged
+    .param_str = "ULLiULLiULLi"
+    .features = "isa_v31_instructions"
+
+__builtin_cntlzdm
+    .param_str = "ULLiULLiULLi"
+    .features = "isa_v31_instructions"
+
+__builtin_cnttzdm
+    .param_str = "ULLiULLiULLi"
+    .features = "isa_v31_instructions"
+
+__builtin_darn
+    .param_str = "LLi"
+    .features = "isa_v30_instructions"
+
+__builtin_darn_32
+    .param_str = "i"
+    .features = "isa_v30_instructions"
+
+__builtin_darn_raw
+    .param_str = "LLi"
+    .features = "isa_v30_instructions"
+
+__builtin_dcbf
+    .param_str = "vvC*"
+
+__builtin_divde
+    .param_str = "SLLiSLLiSLLi"
+    .features = "extdiv"
+
+__builtin_divdeu
+    .param_str = "ULLiULLiULLi"
+    .features = "extdiv"
+
+__builtin_divf128_round_to_odd
+    .param_str = "LLdLLdLLd"
+    .features = "float128"
+
+__builtin_divwe
+    .param_str = "SiSiSi"
+    .features = "extdiv"
+
+__builtin_divweu
+    .param_str = "UiUiUi"
+    .features = "extdiv"
+
+__builtin_fmaf128_round_to_odd
+    .param_str = "LLdLLdLLdLLd"
+    .features = "float128"
+
+__builtin_get_texasr
+    .param_str = "LUi"
+    .attributes = .{ .@"const" = true }
+    .features = "htm"
+
+__builtin_get_texasru
+    .param_str = "LUi"
+    .attributes = .{ .@"const" = true }
+    .features = "htm"
+
+__builtin_get_tfhar
+    .param_str = "LUi"
+    .attributes = .{ .@"const" = true }
+    .features = "htm"
+
+__builtin_get_tfiar
+    .param_str = "LUi"
+    .attributes = .{ .@"const" = true }
+    .features = "htm"
+
+__builtin_mma_assemble_acc
+    .param_str = "i."
+    .attributes = .{ .custom_typecheck = true }
+    .features = "mma,paired_vector_memops"
+
+__builtin_mma_assemble_pair
+    .param_str = "i."
+    .attributes = .{ .custom_typecheck = true }
+    .features = "paired_vector_memops"
+
+__builtin_mma_build_acc
+    .param_str = "i."
+    .attributes = .{ .custom_typecheck = true }
+    .features = "mma"
+
+__builtin_mma_disassemble_acc
+    .param_str = "i."
+    .attributes = .{ .custom_typecheck = true }
+    .features = "mma,paired_vector_memops"
+
+__builtin_mma_disassemble_pair
+    .param_str = "i."
+    .attributes = .{ .custom_typecheck = true }
+    .features = "paired_vector_memops"
+
+__builtin_mma_dmxvi8gerx4
+    .param_str = "i."
+    .attributes = .{ .custom_typecheck = true }
+    .features = "mma,paired_vector_memops"
+
+__builtin_mma_dmxvi8gerx4pp
+    .param_str = "i."
+    .attributes = .{ .custom_typecheck = true }
+    .features = "mma,paired_vector_memops"
+
+__builtin_mma_dmxvi8gerx4spp
+    .param_str = "i."
+    .attributes = .{ .custom_typecheck = true }
+    .features = "mma,paired_vector_memops"
+
+__builtin_mma_lxvp
+    .param_str = "i."
+    .attributes = .{ .custom_typecheck = true }
+    .features = "paired_vector_memops"
+
+__builtin_mma_pmdmxvi8gerx4
+    .param_str = "i."
+    .attributes = .{ .custom_typecheck = true }
+    .features = "mma,paired_vector_memops"
+
+__builtin_mma_pmdmxvi8gerx4pp
+    .param_str = "i."
+    .attributes = .{ .custom_typecheck = true }
+    .features = "mma,paired_vector_memops"
+
+__builtin_mma_pmdmxvi8gerx4spp
+    .param_str = "i."
+    .attributes = .{ .custom_typecheck = true }
+    .features = "mma,paired_vector_memops"
+
+__builtin_mma_pmxvbf16ger2
+    .param_str = "i."
+    .attributes = .{ .custom_typecheck = true }
+    .features = "mma,paired_vector_memops"
+
+__builtin_mma_pmxvf16ger2
+    .param_str = "i."
+    .attributes = .{ .custom_typecheck = true }
+    .features = "mma,paired_vector_memops"
+
+__builtin_mma_pmxvf32ger
+    .param_str = "i."
+    .attributes = .{ .custom_typecheck = true }
+    .features = "mma,paired_vector_memops"
+
+__builtin_mma_pmxvf64ger
+    .param_str = "i."
+    .attributes = .{ .custom_typecheck = true }
+    .features = "mma,paired_vector_memops"
+
+__builtin_mma_pmxvi16ger2
+    .param_str = "i."
+    .attributes = .{ .custom_typecheck = true }
+    .features = "mma,paired_vector_memops"
+
+__builtin_mma_pmxvi16ger2pp
+    .param_str = "i."
+    .attributes = .{ .custom_typecheck = true }
+    .features = "mma,paired_vector_memops"
+
+__builtin_mma_pmxvi16ger2s
+    .param_str = "i."
+    .attributes = .{ .custom_typecheck = true }
+    .features = "mma,paired_vector_memops"
+
+__builtin_mma_pmxvi16ger2spp
+    .param_str = "i."
+    .attributes = .{ .custom_typecheck = true }
+    .features = "mma,paired_vector_memops"
+
+__builtin_mma_pmxvi4ger8
+    .param_str = "i."
+    .attributes = .{ .custom_typecheck = true }
+    .features = "mma,paired_vector_memops"
+
+__builtin_mma_pmxvi4ger8pp
+    .param_str = "i."
+    .attributes = .{ .custom_typecheck = true }
+    .features = "mma,paired_vector_memops"
+
+__builtin_mma_pmxvi8ger4
+    .param_str = "i."
+    .attributes = .{ .custom_typecheck = true }
+    .features = "mma,paired_vector_memops"
+
+__builtin_mma_pmxvi8ger4pp
+    .param_str = "i."
+    .attributes = .{ .custom_typecheck = true }
+    .features = "mma,paired_vector_memops"
+
+__builtin_mma_pmxvi8ger4spp
+    .param_str = "i."
+    .attributes = .{ .custom_typecheck = true }
+    .features = "mma,paired_vector_memops"
+
+__builtin_mma_stxvp
+    .param_str = "i."
+    .attributes = .{ .custom_typecheck = true }
+    .features = "paired_vector_memops"
+
+__builtin_mma_xvbf16ger2
+    .param_str = "i."
+    .attributes = .{ .custom_typecheck = true }
+    .features = "mma,paired_vector_memops"
+
+__builtin_mma_xvf16ger2
+    .param_str = "i."
+    .attributes = .{ .custom_typecheck = true }
+    .features = "mma,paired_vector_memops"
+
+__builtin_mma_xvf32ger
+    .param_str = "i."
+    .attributes = .{ .custom_typecheck = true }
+    .features = "mma,paired_vector_memops"
+
+__builtin_mma_xvf64ger
+    .param_str = "i."
+    .attributes = .{ .custom_typecheck = true }
+    .features = "mma,paired_vector_memops"
+
+__builtin_mma_xvi16ger2
+    .param_str = "i."
+    .attributes = .{ .custom_typecheck = true }
+    .features = "mma,paired_vector_memops"
+
+__builtin_mma_xvi16ger2pp
+    .param_str = "i."
+    .attributes = .{ .custom_typecheck = true }
+    .features = "mma,paired_vector_memops"
+
+__builtin_mma_xvi16ger2s
+    .param_str = "i."
+    .attributes = .{ .custom_typecheck = true }
+    .features = "mma,paired_vector_memops"
+
+__builtin_mma_xvi16ger2spp
+    .param_str = "i."
+    .attributes = .{ .custom_typecheck = true }
+    .features = "mma,paired_vector_memops"
+
+__builtin_mma_xvi4ger8
+    .param_str = "i."
+    .attributes = .{ .custom_typecheck = true }
+    .features = "mma,paired_vector_memops"
+
+__builtin_mma_xvi4ger8pp
+    .param_str = "i."
+    .attributes = .{ .custom_typecheck = true }
+    .features = "mma,paired_vector_memops"
+
+__builtin_mma_xvi8ger4
+    .param_str = "i."
+    .attributes = .{ .custom_typecheck = true }
+    .features = "mma,paired_vector_memops"
+
+__builtin_mma_xvi8ger4pp
+    .param_str = "i."
+    .attributes = .{ .custom_typecheck = true }
+    .features = "mma,paired_vector_memops"
+
+__builtin_mma_xvi8ger4spp
+    .param_str = "i."
+    .attributes = .{ .custom_typecheck = true }
+    .features = "mma,paired_vector_memops"
+
+__builtin_mma_xxmfacc
+    .param_str = "i."
+    .attributes = .{ .custom_typecheck = true }
+    .features = "mma,paired_vector_memops"
+
+__builtin_mma_xxmtacc
+    .param_str = "i."
+    .attributes = .{ .custom_typecheck = true }
+    .features = "mma,paired_vector_memops"
+
+__builtin_mma_xxsetaccz
+    .param_str = "i."
+    .attributes = .{ .custom_typecheck = true }
+    .features = "mma,paired_vector_memops"
+
+__builtin_mulf128_round_to_odd
+    .param_str = "LLdLLdLLd"
+    .features = "float128"
+
+__builtin_pack_longdouble
+    .param_str = "Lddd"
+
+__builtin_pack_vector_int128
+    .param_str = "V1LLLiULLiULLi"
+    .features = "vsx"
+
+__builtin_pdepd
+    .param_str = "ULLiULLiULLi"
+    .features = "isa_v31_instructions"
+
+__builtin_pextd
+    .param_str = "ULLiULLiULLi"
+    .features = "isa_v31_instructions"
+
+__builtin_ppc_addex
+    .param_str = "LLiLLiLLiCIi"
+    .features = "isa_v30_instructions"
+
+__builtin_ppc_addg6s
+    .param_str = "LLiLLiLLi"
+    .features = "isa_v206_instructions"
+
+__builtin_ppc_alignx
+    .param_str = "vIivC*"
+    .attributes = .{ .@"const" = true }
+
+__builtin_ppc_cbcdtd
+    .param_str = "LLiLLi"
+    .features = "isa_v206_instructions"
+
+__builtin_ppc_cdtbcd
+    .param_str = "LLiLLi"
+    .features = "isa_v206_instructions"
+
+__builtin_ppc_cmpb
+    .param_str = "LLiLLiLLi"
+
+__builtin_ppc_cmpeqb
+    .param_str = "LLiLLiLLi"
+    .features = "isa_v30_instructions"
+
+__builtin_ppc_cmprb
+    .param_str = "iCIiii"
+    .features = "isa_v30_instructions"
+
+__builtin_ppc_compare_and_swap
+    .param_str = "iiD*i*i"
+
+__builtin_ppc_compare_and_swaplp
+    .param_str = "iLiD*Li*Li"
+
+__builtin_ppc_compare_exp_eq
+    .param_str = "idd"
+    .features = "isa_v30_instructions,vsx"
+
+__builtin_ppc_compare_exp_gt
+    .param_str = "idd"
+    .features = "isa_v30_instructions,vsx"
+
+__builtin_ppc_compare_exp_lt
+    .param_str = "idd"
+    .features = "isa_v30_instructions,vsx"
+
+__builtin_ppc_compare_exp_uo
+    .param_str = "idd"
+    .features = "isa_v30_instructions,vsx"
+
+__builtin_ppc_dcbfl
+    .param_str = "vvC*"
+
+__builtin_ppc_dcbflp
+    .param_str = "vvC*"
+
+__builtin_ppc_dcbst
+    .param_str = "vvC*"
+
+__builtin_ppc_dcbt
+    .param_str = "vv*"
+
+__builtin_ppc_dcbtst
+    .param_str = "vv*"
+
+__builtin_ppc_dcbtstt
+    .param_str = "vv*"
+
+__builtin_ppc_dcbtt
+    .param_str = "vv*"
+
+__builtin_ppc_dcbz
+    .param_str = "vv*"
+
+__builtin_ppc_eieio
+    .param_str = "v"
+
+__builtin_ppc_extract_exp
+    .param_str = "Uid"
+    .features = "power9_vector"
+
+__builtin_ppc_extract_sig
+    .param_str = "ULLid"
+    .features = "power9_vector"
+
+__builtin_ppc_fcfid
+    .param_str = "dd"
+
+__builtin_ppc_fcfud
+    .param_str = "dd"
+
+__builtin_ppc_fctid
+    .param_str = "dd"
+
+__builtin_ppc_fctidz
+    .param_str = "dd"
+
+__builtin_ppc_fctiw
+    .param_str = "dd"
+
+__builtin_ppc_fctiwz
+    .param_str = "dd"
+
+__builtin_ppc_fctudz
+    .param_str = "dd"
+
+__builtin_ppc_fctuwz
+    .param_str = "dd"
+
+__builtin_ppc_fence
+    .param_str = "v"
+
+__builtin_ppc_fetch_and_add
+    .param_str = "iiD*i"
+
+__builtin_ppc_fetch_and_addlp
+    .param_str = "LiLiD*Li"
+
+__builtin_ppc_fetch_and_and
+    .param_str = "UiUiD*Ui"
+
+__builtin_ppc_fetch_and_andlp
+    .param_str = "ULiULiD*ULi"
+
+__builtin_ppc_fetch_and_or
+    .param_str = "UiUiD*Ui"
+
+__builtin_ppc_fetch_and_orlp
+    .param_str = "ULiULiD*ULi"
+
+__builtin_ppc_fetch_and_swap
+    .param_str = "UiUiD*Ui"
+
+__builtin_ppc_fetch_and_swaplp
+    .param_str = "ULiULiD*ULi"
+
+__builtin_ppc_fmsub
+    .param_str = "dddd"
+
+__builtin_ppc_fmsubs
+    .param_str = "ffff"
+
+__builtin_ppc_fnabs
+    .param_str = "dd"
+
+__builtin_ppc_fnabss
+    .param_str = "ff"
+
+__builtin_ppc_fnmadd
+    .param_str = "dddd"
+
+__builtin_ppc_fnmadds
+    .param_str = "ffff"
+
+__builtin_ppc_fnmsub
+    .param_str = "dddd"
+
+__builtin_ppc_fnmsubs
+    .param_str = "ffff"
+
+__builtin_ppc_fre
+    .param_str = "dd"
+
+__builtin_ppc_fres
+    .param_str = "ff"
+
+__builtin_ppc_fric
+    .param_str = "dd"
+
+__builtin_ppc_frim
+    .param_str = "dd"
+
+__builtin_ppc_frims
+    .param_str = "ff"
+
+__builtin_ppc_frin
+    .param_str = "dd"
+
+__builtin_ppc_frins
+    .param_str = "ff"
+
+__builtin_ppc_frip
+    .param_str = "dd"
+
+__builtin_ppc_frips
+    .param_str = "ff"
+
+__builtin_ppc_friz
+    .param_str = "dd"
+
+__builtin_ppc_frizs
+    .param_str = "ff"
+
+__builtin_ppc_frsqrte
+    .param_str = "dd"
+
+__builtin_ppc_frsqrtes
+    .param_str = "ff"
+
+__builtin_ppc_fsel
+    .param_str = "dddd"
+
+__builtin_ppc_fsels
+    .param_str = "ffff"
+
+__builtin_ppc_fsqrt
+    .param_str = "dd"
+
+__builtin_ppc_fsqrts
+    .param_str = "ff"
+
+__builtin_ppc_get_timebase
+    .param_str = "ULLi"
+
+__builtin_ppc_icbt
+    .param_str = "vv*"
+    .features = "isa_v207_instructions"
+
+__builtin_ppc_insert_exp
+    .param_str = "ddULLi"
+    .features = "power9_vector"
+
+__builtin_ppc_iospace_eieio
+    .param_str = "v"
+
+__builtin_ppc_iospace_lwsync
+    .param_str = "v"
+
+__builtin_ppc_iospace_sync
+    .param_str = "v"
+
+__builtin_ppc_isync
+    .param_str = "v"
+
+__builtin_ppc_lbarx
+    .param_str = "ccD*"
+    .features = "isa_v207_instructions"
+
+__builtin_ppc_ldarx
+    .param_str = "LiLiD*"
+
+__builtin_ppc_lharx
+    .param_str = "ssD*"
+    .features = "isa_v207_instructions"
+
+__builtin_ppc_load2r
+    .param_str = "UsUs*"
+
+__builtin_ppc_load4r
+    .param_str = "UiUi*"
+
+__builtin_ppc_load8r
+    .param_str = "ULLiULLi*"
+    .features = "isa_v206_instructions"
+
+__builtin_ppc_lwarx
+    .param_str = "iiD*"
+
+__builtin_ppc_lwsync
+    .param_str = "v"
+
+__builtin_ppc_maddhd
+    .param_str = "LLiLLiLLiLLi"
+    .features = "isa_v30_instructions"
+
+__builtin_ppc_maddld
+    .param_str = "LLiLLiLLiLLi"
+    .features = "isa_v30_instructions"
+
+__builtin_ppc_maxfe
+    .param_str = "LdLdLdLd."
+    .attributes = .{ .custom_typecheck = true }
+
+__builtin_ppc_maxfl
+    .param_str = "dddd."
+    .attributes = .{ .custom_typecheck = true }
+
+__builtin_ppc_maxfs
+    .param_str = "ffff."
+    .attributes = .{ .custom_typecheck = true }
+
+__builtin_ppc_mffs
+    .param_str = "d"
+
+__builtin_ppc_mffsl
+    .param_str = "d"
+    .features = "isa_v30_instructions"
+
+__builtin_ppc_mfmsr
+    .param_str = "Ui"
+
+__builtin_ppc_mfspr
+    .param_str = "ULiIi"
+
+__builtin_ppc_mftbu
+    .param_str = "Ui"
+
+__builtin_ppc_minfe
+    .param_str = "LdLdLdLd."
+    .attributes = .{ .custom_typecheck = true }
+
+__builtin_ppc_minfl
+    .param_str = "dddd."
+    .attributes = .{ .custom_typecheck = true }
+
+__builtin_ppc_minfs
+    .param_str = "ffff."
+    .attributes = .{ .custom_typecheck = true }
+
+__builtin_ppc_mtfsb0
+    .param_str = "vUIi"
+
+__builtin_ppc_mtfsb1
+    .param_str = "vUIi"
+
+__builtin_ppc_mtfsf
+    .param_str = "vUIiUi"
+
+__builtin_ppc_mtfsfi
+    .param_str = "vUIiUIi"
+
+__builtin_ppc_mtmsr
+    .param_str = "vUi"
+
+__builtin_ppc_mtspr
+    .param_str = "vIiULi"
+
+__builtin_ppc_mulhd
+    .param_str = "LLiLiLi"
+
+__builtin_ppc_mulhdu
+    .param_str = "ULLiULiULi"
+
+__builtin_ppc_mulhw
+    .param_str = "iii"
+
+__builtin_ppc_mulhwu
+    .param_str = "UiUiUi"
+
+__builtin_ppc_national2packed
+    .param_str = "V16UcV16UcUc"
+    .attributes = .{ .custom_typecheck = true }
+    .features = "power9_vector"
+
+__builtin_ppc_packed2national
+    .param_str = "V16UcV16Uc"
+    .features = "power9_vector"
+
+__builtin_ppc_packed2zoned
+    .param_str = "V16UcV16UcUc"
+    .attributes = .{ .custom_typecheck = true }
+    .features = "power9_vector"
+
+__builtin_ppc_popcntb
+    .param_str = "ULiULi"
+
+__builtin_ppc_poppar4
+    .param_str = "iUi"
+
+__builtin_ppc_poppar8
+    .param_str = "iULLi"
+
+__builtin_ppc_rdlam
+    .param_str = "UWiUWiUWiUWIi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_ppc_recipdivd
+    .param_str = "V2dV2dV2d"
+
+__builtin_ppc_recipdivf
+    .param_str = "V4fV4fV4f"
+
+__builtin_ppc_rldimi
+    .param_str = "ULLiULLiULLiIUiIULLi"
+
+__builtin_ppc_rlwimi
+    .param_str = "UiUiUiIUiIUi"
+
+__builtin_ppc_rlwnm
+    .param_str = "UiUiUiIUi"
+
+__builtin_ppc_rsqrtd
+    .param_str = "V2dV2d"
+
+__builtin_ppc_rsqrtf
+    .param_str = "V4fV4f"
+
+__builtin_ppc_set_fpscr_rn
+    .param_str = "di"
+
+__builtin_ppc_setb
+    .param_str = "LLiLLiLLi"
+    .features = "isa_v30_instructions"
+
+__builtin_ppc_stbcx
+    .param_str = "icD*i"
+    .features = "isa_v207_instructions"
+
+__builtin_ppc_stdcx
+    .param_str = "iLiD*Li"
+
+__builtin_ppc_stfiw
+    .param_str = "viC*d"
+
+__builtin_ppc_sthcx
+    .param_str = "isD*s"
+    .features = "isa_v207_instructions"
+
+__builtin_ppc_store2r
+    .param_str = "vUiUs*"
+
+__builtin_ppc_store4r
+    .param_str = "vUiUi*"
+
+__builtin_ppc_store8r
+    .param_str = "vULLiULLi*"
+    .features = "isa_v206_instructions"
+
+__builtin_ppc_stwcx
+    .param_str = "iiD*i"
+
+__builtin_ppc_swdiv
+    .param_str = "ddd"
+
+__builtin_ppc_swdiv_nochk
+    .param_str = "ddd"
+
+__builtin_ppc_swdivs
+    .param_str = "fff"
+
+__builtin_ppc_swdivs_nochk
+    .param_str = "fff"
+
+__builtin_ppc_sync
+    .param_str = "v"
+
+__builtin_ppc_tdw
+    .param_str = "vLLiLLiIUi"
+
+__builtin_ppc_test_data_class
+    .param_str = "idIi"
+    .attributes = .{ .custom_typecheck = true }
+    .features = "isa_v30_instructions,vsx"
+
+__builtin_ppc_trap
+    .param_str = "vi"
+
+__builtin_ppc_trapd
+    .param_str = "vLi"
+
+__builtin_ppc_tw
+    .param_str = "viiIUi"
+
+__builtin_ppc_zoned2packed
+    .param_str = "V16UcV16UcUc"
+    .attributes = .{ .custom_typecheck = true }
+    .features = "power9_vector"
+
+__builtin_readflm
+    .param_str = "d"
+
+__builtin_set_texasr
+    .param_str = "vLUi"
+    .attributes = .{ .@"const" = true }
+    .features = "htm"
+
+__builtin_set_texasru
+    .param_str = "vLUi"
+    .attributes = .{ .@"const" = true }
+    .features = "htm"
+
+__builtin_set_tfhar
+    .param_str = "vLUi"
+    .attributes = .{ .@"const" = true }
+    .features = "htm"
+
+__builtin_set_tfiar
+    .param_str = "vLUi"
+    .attributes = .{ .@"const" = true }
+    .features = "htm"
+
+__builtin_setflm
+    .param_str = "dd"
+
+__builtin_setrnd
+    .param_str = "di"
+
+__builtin_sqrtf128_round_to_odd
+    .param_str = "LLdLLd"
+    .features = "float128"
+
+__builtin_subf128_round_to_odd
+    .param_str = "LLdLLdLLd"
+    .features = "float128"
+
+__builtin_tabort
+    .param_str = "UiUi"
+    .features = "htm"
+
+__builtin_tabortdc
+    .param_str = "UiUiUiUi"
+    .features = "htm"
+
+__builtin_tabortdci
+    .param_str = "UiUiUii"
+    .features = "htm"
+
+__builtin_tabortwc
+    .param_str = "UiUiUiUi"
+    .features = "htm"
+
+__builtin_tabortwci
+    .param_str = "UiUiUii"
+    .features = "htm"
+
+__builtin_tbegin
+    .param_str = "UiUIi"
+    .features = "htm"
+
+__builtin_tcheck
+    .param_str = "Ui"
+    .features = "htm"
+
+__builtin_tend
+    .param_str = "UiUIi"
+    .features = "htm"
+
+__builtin_tendall
+    .param_str = "Ui"
+    .features = "htm"
+
+__builtin_trechkpt
+    .param_str = "Ui"
+    .features = "htm"
+
+__builtin_treclaim
+    .param_str = "UiUi"
+    .features = "htm"
+
+__builtin_tresume
+    .param_str = "Ui"
+    .features = "htm"
+
+__builtin_truncf128_round_to_odd
+    .param_str = "dLLd"
+    .features = "float128"
+
+__builtin_tsr
+    .param_str = "UiUi"
+    .features = "htm"
+
+__builtin_tsuspend
+    .param_str = "Ui"
+    .features = "htm"
+
+__builtin_ttest
+    .param_str = "LUi"
+    .features = "htm"
+
+__builtin_unpack_longdouble
+    .param_str = "dLdIi"
+
+__builtin_unpack_vector_int128
+    .param_str = "ULLiV1LLLii"
+    .features = "vsx"
+
+__builtin_vsx_assemble_pair
+    .param_str = "i."
+    .attributes = .{ .custom_typecheck = true }
+    .features = "paired_vector_memops"
+
+__builtin_vsx_build_pair
+    .param_str = "i."
+    .attributes = .{ .custom_typecheck = true }
+    .features = "paired_vector_memops"
+
+__builtin_vsx_disassemble_pair
+    .param_str = "i."
+    .attributes = .{ .custom_typecheck = true }
+    .features = "paired_vector_memops"
+
+__builtin_vsx_extractuword
+    .param_str = "V2ULLiV16UcIi"
+    .features = "vsx"
+
+__builtin_vsx_insertword
+    .param_str = "V16UcV4UiV16UcIi"
+    .features = "vsx"
+
+__builtin_vsx_ldrmb
+    .param_str = "V16UcCc*Ii"
+    .features = "isa_v207_instructions"
+
+__builtin_vsx_lxvd2x
+    .param_str = "V2dLivC*"
+    .features = "vsx"
+
+__builtin_vsx_lxvd2x_be
+    .param_str = "V2dSLLivC*"
+    .features = "vsx"
+
+__builtin_vsx_lxvl
+    .param_str = "V4ivC*ULLi"
+    .features = "power9_vector"
+
+__builtin_vsx_lxvll
+    .param_str = "V4ivC*ULLi"
+    .features = "power9_vector"
+
+__builtin_vsx_lxvp
+    .param_str = "i."
+    .attributes = .{ .custom_typecheck = true }
+    .features = "paired_vector_memops"
+
+__builtin_vsx_lxvw4x
+    .param_str = "V4iLivC*"
+    .features = "vsx"
+
+__builtin_vsx_lxvw4x_be
+    .param_str = "V4iSLLivC*"
+    .features = "vsx"
+
+__builtin_vsx_scalar_extract_expq
+    .param_str = "ULLiLLd"
+    .features = "float128"
+
+__builtin_vsx_scalar_insert_exp_qp
+    .param_str = "LLdLLdULLi"
+    .features = "float128"
+
+__builtin_vsx_strmb
+    .param_str = "vCc*IiV16Uc"
+    .features = "isa_v207_instructions"
+
+__builtin_vsx_stxvd2x
+    .param_str = "vV2dLiv*"
+    .features = "vsx"
+
+__builtin_vsx_stxvd2x_be
+    .param_str = "vV2dSLLivC*"
+    .features = "vsx"
+
+__builtin_vsx_stxvl
+    .param_str = "vV4iv*ULLi"
+    .features = "power9_vector"
+
+__builtin_vsx_stxvll
+    .param_str = "vV4iv*ULLi"
+    .features = "power9_vector"
+
+__builtin_vsx_stxvp
+    .param_str = "i."
+    .attributes = .{ .custom_typecheck = true }
+    .features = "paired_vector_memops"
+
+__builtin_vsx_stxvw4x
+    .param_str = "vV4iLiv*"
+    .features = "vsx"
+
+__builtin_vsx_stxvw4x_be
+    .param_str = "vV4iSLLivC*"
+    .features = "vsx"
+
+__builtin_vsx_xsmaxdp
+    .param_str = "ddd"
+    .features = "vsx"
+
+__builtin_vsx_xsmindp
+    .param_str = "ddd"
+    .features = "vsx"
+
+__builtin_vsx_xvabsdp
+    .param_str = "V2dV2d"
+    .features = "vsx"
+
+__builtin_vsx_xvabssp
+    .param_str = "V4fV4f"
+    .features = "vsx"
+
+__builtin_vsx_xvcmpeqdp
+    .param_str = "V2ULLiV2dV2d"
+    .features = "vsx"
+
+__builtin_vsx_xvcmpeqdp_p
+    .param_str = "iiV2dV2d"
+    .features = "vsx"
+
+__builtin_vsx_xvcmpeqsp
+    .param_str = "V4UiV4fV4f"
+    .features = "vsx"
+
+__builtin_vsx_xvcmpeqsp_p
+    .param_str = "iiV4fV4f"
+    .features = "vsx"
+
+__builtin_vsx_xvcmpgedp
+    .param_str = "V2ULLiV2dV2d"
+    .features = "vsx"
+
+__builtin_vsx_xvcmpgedp_p
+    .param_str = "iiV2dV2d"
+    .features = "vsx"
+
+__builtin_vsx_xvcmpgesp
+    .param_str = "V4UiV4fV4f"
+    .features = "vsx"
+
+__builtin_vsx_xvcmpgesp_p
+    .param_str = "iiV4fV4f"
+    .features = "vsx"
+
+__builtin_vsx_xvcmpgtdp
+    .param_str = "V2ULLiV2dV2d"
+    .features = "vsx"
+
+__builtin_vsx_xvcmpgtdp_p
+    .param_str = "iiV2dV2d"
+    .features = "vsx"
+
+__builtin_vsx_xvcmpgtsp
+    .param_str = "V4UiV4fV4f"
+    .features = "vsx"
+
+__builtin_vsx_xvcmpgtsp_p
+    .param_str = "iiV4fV4f"
+    .features = "vsx"
+
+__builtin_vsx_xvcpsgndp
+    .param_str = "V2dV2dV2d"
+    .features = "vsx"
+
+__builtin_vsx_xvcpsgnsp
+    .param_str = "V4fV4fV4f"
+    .features = "vsx"
+
+__builtin_vsx_xvcvbf16spn
+    .param_str = "V16UcV16Uc"
+    .features = "power10_vector"
+
+__builtin_vsx_xvcvdpsp
+    .param_str = "V4fV2d"
+    .features = "vsx"
+
+__builtin_vsx_xvcvdpsxws
+    .param_str = "V4SiV2d"
+    .features = "vsx"
+
+__builtin_vsx_xvcvdpuxws
+    .param_str = "V4UiV2d"
+    .features = "vsx"
+
+__builtin_vsx_xvcvhpsp
+    .param_str = "V4fV8Us"
+    .features = "power9_vector"
+
+__builtin_vsx_xvcvspbf16
+    .param_str = "V16UcV16Uc"
+    .features = "power10_vector"
+
+__builtin_vsx_xvcvspdp
+    .param_str = "V2dV4f"
+    .features = "vsx"
+
+__builtin_vsx_xvcvsphp
+    .param_str = "V4fV4f"
+    .features = "power9_vector"
+
+__builtin_vsx_xvcvspsxds
+    .param_str = "V2SLLiV4f"
+    .features = "vsx"
+
+__builtin_vsx_xvcvspuxds
+    .param_str = "V2ULLiV4f"
+    .features = "vsx"
+
+__builtin_vsx_xvcvsxdsp
+    .param_str = "V4fV2SLLi"
+    .features = "vsx"
+
+__builtin_vsx_xvcvsxwdp
+    .param_str = "V2dV4Si"
+    .features = "vsx"
+
+__builtin_vsx_xvcvuxdsp
+    .param_str = "V4fV2ULLi"
+    .features = "vsx"
+
+__builtin_vsx_xvcvuxwdp
+    .param_str = "V2dV4Ui"
+    .features = "vsx"
+
+__builtin_vsx_xvdivdp
+    .param_str = "V2dV2dV2d"
+    .features = "vsx"
+
+__builtin_vsx_xvdivsp
+    .param_str = "V4fV4fV4f"
+    .features = "vsx"
+
+__builtin_vsx_xviexpdp
+    .param_str = "V2dV2ULLiV2ULLi"
+    .features = "power9_vector"
+
+__builtin_vsx_xviexpsp
+    .param_str = "V4fV4UiV4Ui"
+    .features = "power9_vector"
+
+__builtin_vsx_xvmaddadp
+    .param_str = "V2dV2dV2dV2d"
+    .features = "vsx"
+
+__builtin_vsx_xvmaddasp
+    .param_str = "V4fV4fV4fV4f"
+    .features = "vsx"
+
+__builtin_vsx_xvmaxdp
+    .param_str = "V2dV2dV2d"
+    .features = "vsx"
+
+__builtin_vsx_xvmaxsp
+    .param_str = "V4fV4fV4f"
+    .features = "vsx"
+
+__builtin_vsx_xvmindp
+    .param_str = "V2dV2dV2d"
+    .features = "vsx"
+
+__builtin_vsx_xvminsp
+    .param_str = "V4fV4fV4f"
+    .features = "vsx"
+
+__builtin_vsx_xvmsubadp
+    .param_str = "V2dV2dV2dV2d"
+    .features = "vsx"
+
+__builtin_vsx_xvmsubasp
+    .param_str = "V4fV4fV4fV4f"
+    .features = "vsx"
+
+__builtin_vsx_xvmuldp
+    .param_str = "V2dV2dV2d"
+    .features = "vsx"
+
+__builtin_vsx_xvmulsp
+    .param_str = "V4fV4fV4f"
+    .features = "vsx"
+
+__builtin_vsx_xvnmaddadp
+    .param_str = "V2dV2dV2dV2d"
+    .features = "vsx"
+
+__builtin_vsx_xvnmaddasp
+    .param_str = "V4fV4fV4fV4f"
+    .features = "vsx"
+
+__builtin_vsx_xvnmsubadp
+    .param_str = "V2dV2dV2dV2d"
+    .features = "vsx"
+
+__builtin_vsx_xvnmsubasp
+    .param_str = "V4fV4fV4fV4f"
+    .features = "vsx"
+
+__builtin_vsx_xvrdpi
+    .param_str = "V2dV2d"
+    .features = "vsx"
+
+__builtin_vsx_xvrdpic
+    .param_str = "V2dV2d"
+    .features = "vsx"
+
+__builtin_vsx_xvrdpim
+    .param_str = "V2dV2d"
+    .features = "vsx"
+
+__builtin_vsx_xvrdpip
+    .param_str = "V2dV2d"
+    .features = "vsx"
+
+__builtin_vsx_xvrdpiz
+    .param_str = "V2dV2d"
+    .features = "vsx"
+
+__builtin_vsx_xvredp
+    .param_str = "V2dV2d"
+    .features = "vsx"
+
+__builtin_vsx_xvresp
+    .param_str = "V4fV4f"
+    .features = "vsx"
+
+__builtin_vsx_xvrspi
+    .param_str = "V4fV4f"
+    .features = "vsx"
+
+__builtin_vsx_xvrspic
+    .param_str = "V4fV4f"
+    .features = "vsx"
+
+__builtin_vsx_xvrspim
+    .param_str = "V4fV4f"
+    .features = "vsx"
+
+__builtin_vsx_xvrspip
+    .param_str = "V4fV4f"
+    .features = "vsx"
+
+__builtin_vsx_xvrspiz
+    .param_str = "V4fV4f"
+    .features = "vsx"
+
+__builtin_vsx_xvrsqrtedp
+    .param_str = "V2dV2d"
+    .features = "vsx"
+
+__builtin_vsx_xvrsqrtesp
+    .param_str = "V4fV4f"
+    .features = "vsx"
+
+__builtin_vsx_xvsqrtdp
+    .param_str = "V2dV2d"
+    .features = "vsx"
+
+__builtin_vsx_xvsqrtsp
+    .param_str = "V4fV4f"
+    .features = "vsx"
+
+__builtin_vsx_xvtdivdp
+    .param_str = "iV2dV2d"
+    .features = "vsx"
+
+__builtin_vsx_xvtdivsp
+    .param_str = "iV4fV4f"
+    .features = "vsx"
+
+__builtin_vsx_xvtlsbb
+    .param_str = "iV16UcUi"
+    .features = "power10_vector"
+
+__builtin_vsx_xvtsqrtdp
+    .param_str = "iV2d"
+    .features = "vsx"
+
+__builtin_vsx_xvtsqrtsp
+    .param_str = "iV4f"
+    .features = "vsx"
+
+__builtin_vsx_xvtstdcdp
+    .param_str = "V2ULLiV2dIi"
+    .features = "power9_vector"
+
+__builtin_vsx_xvtstdcsp
+    .param_str = "V4UiV4fIi"
+    .features = "power9_vector"
+
+__builtin_vsx_xvxexpdp
+    .param_str = "V2ULLiV2d"
+    .features = "power9_vector"
+
+__builtin_vsx_xvxexpsp
+    .param_str = "V4UiV4f"
+    .features = "power9_vector"
+
+__builtin_vsx_xvxsigdp
+    .param_str = "V2ULLiV2d"
+    .features = "power9_vector"
+
+__builtin_vsx_xvxsigsp
+    .param_str = "V4UiV4f"
+    .features = "power9_vector"
+
+__builtin_vsx_xxgenpcvbm
+    .param_str = "V16UcV16Uci"
+    .features = "power10_vector"
+
+__builtin_vsx_xxgenpcvdm
+    .param_str = "V2ULLiV2ULLii"
+    .features = "power10_vector"
+
+__builtin_vsx_xxgenpcvhm
+    .param_str = "V8UsV8Usi"
+    .features = "power10_vector"
+
+__builtin_vsx_xxgenpcvwm
+    .param_str = "V4UiV4Uii"
+    .features = "power10_vector"
+
+__builtin_vsx_xxleqv
+    .param_str = "V4UiV4UiV4Ui"
+    .features = "power8_vector"
+
+__builtin_vsx_xxpermdi
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+    .features = "vsx"
+
+__builtin_vsx_xxsldwi
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+    .features = "vsx"

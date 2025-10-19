@@ -1,0 +1,17 @@
+# Generated from clang/include/clang/Basic/BuiltinsBPF.td
+
+__builtin_btf_type_id
+    .param_str = "LUi."
+    .attributes = .{ .custom_typecheck = true }
+
+__builtin_preserve_enum_value
+    .param_str = "Li."
+    .attributes = .{ .custom_typecheck = true }
+
+__builtin_preserve_field_info
+    .param_str = "Ui."
+    .attributes = .{ .custom_typecheck = true }
+
+__builtin_preserve_type_info
+    .param_str = "LUi."
+    .attributes = .{ .custom_typecheck = true }

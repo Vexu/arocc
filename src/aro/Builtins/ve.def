@@ -1,0 +1,3790 @@
+# Generated from clang/include/clang/Basic/BuiltinsVE.def
+
+__builtin_ve_vl_andm_MMM
+    .param_str = "V512bV512bV512b"
+
+__builtin_ve_vl_andm_mmm
+    .param_str = "V256bV256bV256b"
+
+__builtin_ve_vl_eqvm_MMM
+    .param_str = "V512bV512bV512b"
+
+__builtin_ve_vl_eqvm_mmm
+    .param_str = "V256bV256bV256b"
+
+__builtin_ve_vl_extract_vm512l
+    .param_str = "V256bV512b"
+
+__builtin_ve_vl_extract_vm512u
+    .param_str = "V256bV512b"
+
+__builtin_ve_vl_fencec_s
+    .param_str = "vUi"
+
+__builtin_ve_vl_fencei
+    .param_str = "v"
+
+__builtin_ve_vl_fencem_s
+    .param_str = "vUi"
+
+__builtin_ve_vl_fidcr_sss
+    .param_str = "LUiLUiUi"
+
+__builtin_ve_vl_insert_vm512l
+    .param_str = "V512bV512bV256b"
+
+__builtin_ve_vl_insert_vm512u
+    .param_str = "V512bV512bV256b"
+
+__builtin_ve_vl_lcr_sss
+    .param_str = "LUiLUiLUi"
+
+__builtin_ve_vl_lsv_vvss
+    .param_str = "V256dV256dUiLUi"
+
+__builtin_ve_vl_lvm_MMss
+    .param_str = "V512bV512bLUiLUi"
+
+__builtin_ve_vl_lvm_mmss
+    .param_str = "V256bV256bLUiLUi"
+
+__builtin_ve_vl_lvsd_svs
+    .param_str = "dV256dUi"
+
+__builtin_ve_vl_lvsl_svs
+    .param_str = "LUiV256dUi"
+
+__builtin_ve_vl_lvss_svs
+    .param_str = "fV256dUi"
+
+__builtin_ve_vl_lzvm_sml
+    .param_str = "LUiV256bUi"
+
+__builtin_ve_vl_negm_MM
+    .param_str = "V512bV512b"
+
+__builtin_ve_vl_negm_mm
+    .param_str = "V256bV256b"
+
+__builtin_ve_vl_nndm_MMM
+    .param_str = "V512bV512bV512b"
+
+__builtin_ve_vl_nndm_mmm
+    .param_str = "V256bV256bV256b"
+
+__builtin_ve_vl_orm_MMM
+    .param_str = "V512bV512bV512b"
+
+__builtin_ve_vl_orm_mmm
+    .param_str = "V256bV256bV256b"
+
+__builtin_ve_vl_pack_f32a
+    .param_str = "ULifC*"
+
+__builtin_ve_vl_pack_f32p
+    .param_str = "ULifC*fC*"
+
+__builtin_ve_vl_pcvm_sml
+    .param_str = "LUiV256bUi"
+
+__builtin_ve_vl_pfchv_ssl
+    .param_str = "vLivC*Ui"
+
+__builtin_ve_vl_pfchvnc_ssl
+    .param_str = "vLivC*Ui"
+
+__builtin_ve_vl_pvadds_vsvMvl
+    .param_str = "V256dLUiV256dV512bV256dUi"
+
+__builtin_ve_vl_pvadds_vsvl
+    .param_str = "V256dLUiV256dUi"
+
+__builtin_ve_vl_pvadds_vsvvl
+    .param_str = "V256dLUiV256dV256dUi"
+
+__builtin_ve_vl_pvadds_vvvMvl
+    .param_str = "V256dV256dV256dV512bV256dUi"
+
+__builtin_ve_vl_pvadds_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_pvadds_vvvvl
+    .param_str = "V256dV256dV256dV256dUi"
+
+__builtin_ve_vl_pvaddu_vsvMvl
+    .param_str = "V256dLUiV256dV512bV256dUi"
+
+__builtin_ve_vl_pvaddu_vsvl
+    .param_str = "V256dLUiV256dUi"
+
+__builtin_ve_vl_pvaddu_vsvvl
+    .param_str = "V256dLUiV256dV256dUi"
+
+__builtin_ve_vl_pvaddu_vvvMvl
+    .param_str = "V256dV256dV256dV512bV256dUi"
+
+__builtin_ve_vl_pvaddu_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_pvaddu_vvvvl
+    .param_str = "V256dV256dV256dV256dUi"
+
+__builtin_ve_vl_pvand_vsvMvl
+    .param_str = "V256dLUiV256dV512bV256dUi"
+
+__builtin_ve_vl_pvand_vsvl
+    .param_str = "V256dLUiV256dUi"
+
+__builtin_ve_vl_pvand_vsvvl
+    .param_str = "V256dLUiV256dV256dUi"
+
+__builtin_ve_vl_pvand_vvvMvl
+    .param_str = "V256dV256dV256dV512bV256dUi"
+
+__builtin_ve_vl_pvand_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_pvand_vvvvl
+    .param_str = "V256dV256dV256dV256dUi"
+
+__builtin_ve_vl_pvbrd_vsMvl
+    .param_str = "V256dLUiV512bV256dUi"
+
+__builtin_ve_vl_pvbrd_vsl
+    .param_str = "V256dLUiUi"
+
+__builtin_ve_vl_pvbrd_vsvl
+    .param_str = "V256dLUiV256dUi"
+
+__builtin_ve_vl_pvbrv_vvMvl
+    .param_str = "V256dV256dV512bV256dUi"
+
+__builtin_ve_vl_pvbrv_vvl
+    .param_str = "V256dV256dUi"
+
+__builtin_ve_vl_pvbrv_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_pvbrvlo_vvl
+    .param_str = "V256dV256dUi"
+
+__builtin_ve_vl_pvbrvlo_vvmvl
+    .param_str = "V256dV256dV256bV256dUi"
+
+__builtin_ve_vl_pvbrvlo_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_pvbrvup_vvl
+    .param_str = "V256dV256dUi"
+
+__builtin_ve_vl_pvbrvup_vvmvl
+    .param_str = "V256dV256dV256bV256dUi"
+
+__builtin_ve_vl_pvbrvup_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_pvcmps_vsvMvl
+    .param_str = "V256dLUiV256dV512bV256dUi"
+
+__builtin_ve_vl_pvcmps_vsvl
+    .param_str = "V256dLUiV256dUi"
+
+__builtin_ve_vl_pvcmps_vsvvl
+    .param_str = "V256dLUiV256dV256dUi"
+
+__builtin_ve_vl_pvcmps_vvvMvl
+    .param_str = "V256dV256dV256dV512bV256dUi"
+
+__builtin_ve_vl_pvcmps_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_pvcmps_vvvvl
+    .param_str = "V256dV256dV256dV256dUi"
+
+__builtin_ve_vl_pvcmpu_vsvMvl
+    .param_str = "V256dLUiV256dV512bV256dUi"
+
+__builtin_ve_vl_pvcmpu_vsvl
+    .param_str = "V256dLUiV256dUi"
+
+__builtin_ve_vl_pvcmpu_vsvvl
+    .param_str = "V256dLUiV256dV256dUi"
+
+__builtin_ve_vl_pvcmpu_vvvMvl
+    .param_str = "V256dV256dV256dV512bV256dUi"
+
+__builtin_ve_vl_pvcmpu_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_pvcmpu_vvvvl
+    .param_str = "V256dV256dV256dV256dUi"
+
+__builtin_ve_vl_pvcvtsw_vvl
+    .param_str = "V256dV256dUi"
+
+__builtin_ve_vl_pvcvtsw_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_pvcvtws_vvMvl
+    .param_str = "V256dV256dV512bV256dUi"
+
+__builtin_ve_vl_pvcvtws_vvl
+    .param_str = "V256dV256dUi"
+
+__builtin_ve_vl_pvcvtws_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_pvcvtwsrz_vvMvl
+    .param_str = "V256dV256dV512bV256dUi"
+
+__builtin_ve_vl_pvcvtwsrz_vvl
+    .param_str = "V256dV256dUi"
+
+__builtin_ve_vl_pvcvtwsrz_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_pveqv_vsvMvl
+    .param_str = "V256dLUiV256dV512bV256dUi"
+
+__builtin_ve_vl_pveqv_vsvl
+    .param_str = "V256dLUiV256dUi"
+
+__builtin_ve_vl_pveqv_vsvvl
+    .param_str = "V256dLUiV256dV256dUi"
+
+__builtin_ve_vl_pveqv_vvvMvl
+    .param_str = "V256dV256dV256dV512bV256dUi"
+
+__builtin_ve_vl_pveqv_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_pveqv_vvvvl
+    .param_str = "V256dV256dV256dV256dUi"
+
+__builtin_ve_vl_pvfadd_vsvMvl
+    .param_str = "V256dLUiV256dV512bV256dUi"
+
+__builtin_ve_vl_pvfadd_vsvl
+    .param_str = "V256dLUiV256dUi"
+
+__builtin_ve_vl_pvfadd_vsvvl
+    .param_str = "V256dLUiV256dV256dUi"
+
+__builtin_ve_vl_pvfadd_vvvMvl
+    .param_str = "V256dV256dV256dV512bV256dUi"
+
+__builtin_ve_vl_pvfadd_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_pvfadd_vvvvl
+    .param_str = "V256dV256dV256dV256dUi"
+
+__builtin_ve_vl_pvfcmp_vsvMvl
+    .param_str = "V256dLUiV256dV512bV256dUi"
+
+__builtin_ve_vl_pvfcmp_vsvl
+    .param_str = "V256dLUiV256dUi"
+
+__builtin_ve_vl_pvfcmp_vsvvl
+    .param_str = "V256dLUiV256dV256dUi"
+
+__builtin_ve_vl_pvfcmp_vvvMvl
+    .param_str = "V256dV256dV256dV512bV256dUi"
+
+__builtin_ve_vl_pvfcmp_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_pvfcmp_vvvvl
+    .param_str = "V256dV256dV256dV256dUi"
+
+__builtin_ve_vl_pvfmad_vsvvMvl
+    .param_str = "V256dLUiV256dV256dV512bV256dUi"
+
+__builtin_ve_vl_pvfmad_vsvvl
+    .param_str = "V256dLUiV256dV256dUi"
+
+__builtin_ve_vl_pvfmad_vsvvvl
+    .param_str = "V256dLUiV256dV256dV256dUi"
+
+__builtin_ve_vl_pvfmad_vvsvMvl
+    .param_str = "V256dV256dLUiV256dV512bV256dUi"
+
+__builtin_ve_vl_pvfmad_vvsvl
+    .param_str = "V256dV256dLUiV256dUi"
+
+__builtin_ve_vl_pvfmad_vvsvvl
+    .param_str = "V256dV256dLUiV256dV256dUi"
+
+__builtin_ve_vl_pvfmad_vvvvMvl
+    .param_str = "V256dV256dV256dV256dV512bV256dUi"
+
+__builtin_ve_vl_pvfmad_vvvvl
+    .param_str = "V256dV256dV256dV256dUi"
+
+__builtin_ve_vl_pvfmad_vvvvvl
+    .param_str = "V256dV256dV256dV256dV256dUi"
+
+__builtin_ve_vl_pvfmax_vsvMvl
+    .param_str = "V256dLUiV256dV512bV256dUi"
+
+__builtin_ve_vl_pvfmax_vsvl
+    .param_str = "V256dLUiV256dUi"
+
+__builtin_ve_vl_pvfmax_vsvvl
+    .param_str = "V256dLUiV256dV256dUi"
+
+__builtin_ve_vl_pvfmax_vvvMvl
+    .param_str = "V256dV256dV256dV512bV256dUi"
+
+__builtin_ve_vl_pvfmax_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_pvfmax_vvvvl
+    .param_str = "V256dV256dV256dV256dUi"
+
+__builtin_ve_vl_pvfmin_vsvMvl
+    .param_str = "V256dLUiV256dV512bV256dUi"
+
+__builtin_ve_vl_pvfmin_vsvl
+    .param_str = "V256dLUiV256dUi"
+
+__builtin_ve_vl_pvfmin_vsvvl
+    .param_str = "V256dLUiV256dV256dUi"
+
+__builtin_ve_vl_pvfmin_vvvMvl
+    .param_str = "V256dV256dV256dV512bV256dUi"
+
+__builtin_ve_vl_pvfmin_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_pvfmin_vvvvl
+    .param_str = "V256dV256dV256dV256dUi"
+
+__builtin_ve_vl_pvfmkaf_Ml
+    .param_str = "V512bUi"
+
+__builtin_ve_vl_pvfmkat_Ml
+    .param_str = "V512bUi"
+
+__builtin_ve_vl_pvfmkseq_MvMl
+    .param_str = "V512bV256dV512bUi"
+
+__builtin_ve_vl_pvfmkseq_Mvl
+    .param_str = "V512bV256dUi"
+
+__builtin_ve_vl_pvfmkseqnan_MvMl
+    .param_str = "V512bV256dV512bUi"
+
+__builtin_ve_vl_pvfmkseqnan_Mvl
+    .param_str = "V512bV256dUi"
+
+__builtin_ve_vl_pvfmksge_MvMl
+    .param_str = "V512bV256dV512bUi"
+
+__builtin_ve_vl_pvfmksge_Mvl
+    .param_str = "V512bV256dUi"
+
+__builtin_ve_vl_pvfmksgenan_MvMl
+    .param_str = "V512bV256dV512bUi"
+
+__builtin_ve_vl_pvfmksgenan_Mvl
+    .param_str = "V512bV256dUi"
+
+__builtin_ve_vl_pvfmksgt_MvMl
+    .param_str = "V512bV256dV512bUi"
+
+__builtin_ve_vl_pvfmksgt_Mvl
+    .param_str = "V512bV256dUi"
+
+__builtin_ve_vl_pvfmksgtnan_MvMl
+    .param_str = "V512bV256dV512bUi"
+
+__builtin_ve_vl_pvfmksgtnan_Mvl
+    .param_str = "V512bV256dUi"
+
+__builtin_ve_vl_pvfmksle_MvMl
+    .param_str = "V512bV256dV512bUi"
+
+__builtin_ve_vl_pvfmksle_Mvl
+    .param_str = "V512bV256dUi"
+
+__builtin_ve_vl_pvfmkslenan_MvMl
+    .param_str = "V512bV256dV512bUi"
+
+__builtin_ve_vl_pvfmkslenan_Mvl
+    .param_str = "V512bV256dUi"
+
+__builtin_ve_vl_pvfmksloeq_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_pvfmksloeq_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_pvfmksloeqnan_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_pvfmksloeqnan_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_pvfmksloge_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_pvfmksloge_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_pvfmkslogenan_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_pvfmkslogenan_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_pvfmkslogt_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_pvfmkslogt_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_pvfmkslogtnan_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_pvfmkslogtnan_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_pvfmkslole_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_pvfmkslole_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_pvfmkslolenan_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_pvfmkslolenan_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_pvfmkslolt_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_pvfmkslolt_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_pvfmksloltnan_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_pvfmksloltnan_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_pvfmkslonan_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_pvfmkslonan_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_pvfmkslone_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_pvfmkslone_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_pvfmkslonenan_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_pvfmkslonenan_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_pvfmkslonum_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_pvfmkslonum_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_pvfmkslt_MvMl
+    .param_str = "V512bV256dV512bUi"
+
+__builtin_ve_vl_pvfmkslt_Mvl
+    .param_str = "V512bV256dUi"
+
+__builtin_ve_vl_pvfmksltnan_MvMl
+    .param_str = "V512bV256dV512bUi"
+
+__builtin_ve_vl_pvfmksltnan_Mvl
+    .param_str = "V512bV256dUi"
+
+__builtin_ve_vl_pvfmksnan_MvMl
+    .param_str = "V512bV256dV512bUi"
+
+__builtin_ve_vl_pvfmksnan_Mvl
+    .param_str = "V512bV256dUi"
+
+__builtin_ve_vl_pvfmksne_MvMl
+    .param_str = "V512bV256dV512bUi"
+
+__builtin_ve_vl_pvfmksne_Mvl
+    .param_str = "V512bV256dUi"
+
+__builtin_ve_vl_pvfmksnenan_MvMl
+    .param_str = "V512bV256dV512bUi"
+
+__builtin_ve_vl_pvfmksnenan_Mvl
+    .param_str = "V512bV256dUi"
+
+__builtin_ve_vl_pvfmksnum_MvMl
+    .param_str = "V512bV256dV512bUi"
+
+__builtin_ve_vl_pvfmksnum_Mvl
+    .param_str = "V512bV256dUi"
+
+__builtin_ve_vl_pvfmksupeq_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_pvfmksupeq_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_pvfmksupeqnan_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_pvfmksupeqnan_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_pvfmksupge_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_pvfmksupge_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_pvfmksupgenan_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_pvfmksupgenan_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_pvfmksupgt_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_pvfmksupgt_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_pvfmksupgtnan_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_pvfmksupgtnan_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_pvfmksuple_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_pvfmksuple_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_pvfmksuplenan_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_pvfmksuplenan_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_pvfmksuplt_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_pvfmksuplt_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_pvfmksupltnan_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_pvfmksupltnan_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_pvfmksupnan_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_pvfmksupnan_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_pvfmksupne_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_pvfmksupne_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_pvfmksupnenan_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_pvfmksupnenan_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_pvfmksupnum_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_pvfmksupnum_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_pvfmkweq_MvMl
+    .param_str = "V512bV256dV512bUi"
+
+__builtin_ve_vl_pvfmkweq_Mvl
+    .param_str = "V512bV256dUi"
+
+__builtin_ve_vl_pvfmkweqnan_MvMl
+    .param_str = "V512bV256dV512bUi"
+
+__builtin_ve_vl_pvfmkweqnan_Mvl
+    .param_str = "V512bV256dUi"
+
+__builtin_ve_vl_pvfmkwge_MvMl
+    .param_str = "V512bV256dV512bUi"
+
+__builtin_ve_vl_pvfmkwge_Mvl
+    .param_str = "V512bV256dUi"
+
+__builtin_ve_vl_pvfmkwgenan_MvMl
+    .param_str = "V512bV256dV512bUi"
+
+__builtin_ve_vl_pvfmkwgenan_Mvl
+    .param_str = "V512bV256dUi"
+
+__builtin_ve_vl_pvfmkwgt_MvMl
+    .param_str = "V512bV256dV512bUi"
+
+__builtin_ve_vl_pvfmkwgt_Mvl
+    .param_str = "V512bV256dUi"
+
+__builtin_ve_vl_pvfmkwgtnan_MvMl
+    .param_str = "V512bV256dV512bUi"
+
+__builtin_ve_vl_pvfmkwgtnan_Mvl
+    .param_str = "V512bV256dUi"
+
+__builtin_ve_vl_pvfmkwle_MvMl
+    .param_str = "V512bV256dV512bUi"
+
+__builtin_ve_vl_pvfmkwle_Mvl
+    .param_str = "V512bV256dUi"
+
+__builtin_ve_vl_pvfmkwlenan_MvMl
+    .param_str = "V512bV256dV512bUi"
+
+__builtin_ve_vl_pvfmkwlenan_Mvl
+    .param_str = "V512bV256dUi"
+
+__builtin_ve_vl_pvfmkwloeq_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_pvfmkwloeq_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_pvfmkwloeqnan_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_pvfmkwloeqnan_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_pvfmkwloge_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_pvfmkwloge_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_pvfmkwlogenan_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_pvfmkwlogenan_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_pvfmkwlogt_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_pvfmkwlogt_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_pvfmkwlogtnan_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_pvfmkwlogtnan_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_pvfmkwlole_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_pvfmkwlole_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_pvfmkwlolenan_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_pvfmkwlolenan_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_pvfmkwlolt_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_pvfmkwlolt_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_pvfmkwloltnan_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_pvfmkwloltnan_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_pvfmkwlonan_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_pvfmkwlonan_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_pvfmkwlone_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_pvfmkwlone_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_pvfmkwlonenan_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_pvfmkwlonenan_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_pvfmkwlonum_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_pvfmkwlonum_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_pvfmkwlt_MvMl
+    .param_str = "V512bV256dV512bUi"
+
+__builtin_ve_vl_pvfmkwlt_Mvl
+    .param_str = "V512bV256dUi"
+
+__builtin_ve_vl_pvfmkwltnan_MvMl
+    .param_str = "V512bV256dV512bUi"
+
+__builtin_ve_vl_pvfmkwltnan_Mvl
+    .param_str = "V512bV256dUi"
+
+__builtin_ve_vl_pvfmkwnan_MvMl
+    .param_str = "V512bV256dV512bUi"
+
+__builtin_ve_vl_pvfmkwnan_Mvl
+    .param_str = "V512bV256dUi"
+
+__builtin_ve_vl_pvfmkwne_MvMl
+    .param_str = "V512bV256dV512bUi"
+
+__builtin_ve_vl_pvfmkwne_Mvl
+    .param_str = "V512bV256dUi"
+
+__builtin_ve_vl_pvfmkwnenan_MvMl
+    .param_str = "V512bV256dV512bUi"
+
+__builtin_ve_vl_pvfmkwnenan_Mvl
+    .param_str = "V512bV256dUi"
+
+__builtin_ve_vl_pvfmkwnum_MvMl
+    .param_str = "V512bV256dV512bUi"
+
+__builtin_ve_vl_pvfmkwnum_Mvl
+    .param_str = "V512bV256dUi"
+
+__builtin_ve_vl_pvfmkwupeq_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_pvfmkwupeq_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_pvfmkwupeqnan_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_pvfmkwupeqnan_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_pvfmkwupge_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_pvfmkwupge_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_pvfmkwupgenan_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_pvfmkwupgenan_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_pvfmkwupgt_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_pvfmkwupgt_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_pvfmkwupgtnan_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_pvfmkwupgtnan_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_pvfmkwuple_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_pvfmkwuple_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_pvfmkwuplenan_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_pvfmkwuplenan_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_pvfmkwuplt_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_pvfmkwuplt_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_pvfmkwupltnan_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_pvfmkwupltnan_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_pvfmkwupnan_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_pvfmkwupnan_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_pvfmkwupne_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_pvfmkwupne_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_pvfmkwupnenan_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_pvfmkwupnenan_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_pvfmkwupnum_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_pvfmkwupnum_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_pvfmsb_vsvvMvl
+    .param_str = "V256dLUiV256dV256dV512bV256dUi"
+
+__builtin_ve_vl_pvfmsb_vsvvl
+    .param_str = "V256dLUiV256dV256dUi"
+
+__builtin_ve_vl_pvfmsb_vsvvvl
+    .param_str = "V256dLUiV256dV256dV256dUi"
+
+__builtin_ve_vl_pvfmsb_vvsvMvl
+    .param_str = "V256dV256dLUiV256dV512bV256dUi"
+
+__builtin_ve_vl_pvfmsb_vvsvl
+    .param_str = "V256dV256dLUiV256dUi"
+
+__builtin_ve_vl_pvfmsb_vvsvvl
+    .param_str = "V256dV256dLUiV256dV256dUi"
+
+__builtin_ve_vl_pvfmsb_vvvvMvl
+    .param_str = "V256dV256dV256dV256dV512bV256dUi"
+
+__builtin_ve_vl_pvfmsb_vvvvl
+    .param_str = "V256dV256dV256dV256dUi"
+
+__builtin_ve_vl_pvfmsb_vvvvvl
+    .param_str = "V256dV256dV256dV256dV256dUi"
+
+__builtin_ve_vl_pvfmul_vsvMvl
+    .param_str = "V256dLUiV256dV512bV256dUi"
+
+__builtin_ve_vl_pvfmul_vsvl
+    .param_str = "V256dLUiV256dUi"
+
+__builtin_ve_vl_pvfmul_vsvvl
+    .param_str = "V256dLUiV256dV256dUi"
+
+__builtin_ve_vl_pvfmul_vvvMvl
+    .param_str = "V256dV256dV256dV512bV256dUi"
+
+__builtin_ve_vl_pvfmul_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_pvfmul_vvvvl
+    .param_str = "V256dV256dV256dV256dUi"
+
+__builtin_ve_vl_pvfnmad_vsvvMvl
+    .param_str = "V256dLUiV256dV256dV512bV256dUi"
+
+__builtin_ve_vl_pvfnmad_vsvvl
+    .param_str = "V256dLUiV256dV256dUi"
+
+__builtin_ve_vl_pvfnmad_vsvvvl
+    .param_str = "V256dLUiV256dV256dV256dUi"
+
+__builtin_ve_vl_pvfnmad_vvsvMvl
+    .param_str = "V256dV256dLUiV256dV512bV256dUi"
+
+__builtin_ve_vl_pvfnmad_vvsvl
+    .param_str = "V256dV256dLUiV256dUi"
+
+__builtin_ve_vl_pvfnmad_vvsvvl
+    .param_str = "V256dV256dLUiV256dV256dUi"
+
+__builtin_ve_vl_pvfnmad_vvvvMvl
+    .param_str = "V256dV256dV256dV256dV512bV256dUi"
+
+__builtin_ve_vl_pvfnmad_vvvvl
+    .param_str = "V256dV256dV256dV256dUi"
+
+__builtin_ve_vl_pvfnmad_vvvvvl
+    .param_str = "V256dV256dV256dV256dV256dUi"
+
+__builtin_ve_vl_pvfnmsb_vsvvMvl
+    .param_str = "V256dLUiV256dV256dV512bV256dUi"
+
+__builtin_ve_vl_pvfnmsb_vsvvl
+    .param_str = "V256dLUiV256dV256dUi"
+
+__builtin_ve_vl_pvfnmsb_vsvvvl
+    .param_str = "V256dLUiV256dV256dV256dUi"
+
+__builtin_ve_vl_pvfnmsb_vvsvMvl
+    .param_str = "V256dV256dLUiV256dV512bV256dUi"
+
+__builtin_ve_vl_pvfnmsb_vvsvl
+    .param_str = "V256dV256dLUiV256dUi"
+
+__builtin_ve_vl_pvfnmsb_vvsvvl
+    .param_str = "V256dV256dLUiV256dV256dUi"
+
+__builtin_ve_vl_pvfnmsb_vvvvMvl
+    .param_str = "V256dV256dV256dV256dV512bV256dUi"
+
+__builtin_ve_vl_pvfnmsb_vvvvl
+    .param_str = "V256dV256dV256dV256dUi"
+
+__builtin_ve_vl_pvfnmsb_vvvvvl
+    .param_str = "V256dV256dV256dV256dV256dUi"
+
+__builtin_ve_vl_pvfsub_vsvMvl
+    .param_str = "V256dLUiV256dV512bV256dUi"
+
+__builtin_ve_vl_pvfsub_vsvl
+    .param_str = "V256dLUiV256dUi"
+
+__builtin_ve_vl_pvfsub_vsvvl
+    .param_str = "V256dLUiV256dV256dUi"
+
+__builtin_ve_vl_pvfsub_vvvMvl
+    .param_str = "V256dV256dV256dV512bV256dUi"
+
+__builtin_ve_vl_pvfsub_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_pvfsub_vvvvl
+    .param_str = "V256dV256dV256dV256dUi"
+
+__builtin_ve_vl_pvldz_vvMvl
+    .param_str = "V256dV256dV512bV256dUi"
+
+__builtin_ve_vl_pvldz_vvl
+    .param_str = "V256dV256dUi"
+
+__builtin_ve_vl_pvldz_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_pvldzlo_vvl
+    .param_str = "V256dV256dUi"
+
+__builtin_ve_vl_pvldzlo_vvmvl
+    .param_str = "V256dV256dV256bV256dUi"
+
+__builtin_ve_vl_pvldzlo_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_pvldzup_vvl
+    .param_str = "V256dV256dUi"
+
+__builtin_ve_vl_pvldzup_vvmvl
+    .param_str = "V256dV256dV256bV256dUi"
+
+__builtin_ve_vl_pvldzup_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_pvmaxs_vsvMvl
+    .param_str = "V256dLUiV256dV512bV256dUi"
+
+__builtin_ve_vl_pvmaxs_vsvl
+    .param_str = "V256dLUiV256dUi"
+
+__builtin_ve_vl_pvmaxs_vsvvl
+    .param_str = "V256dLUiV256dV256dUi"
+
+__builtin_ve_vl_pvmaxs_vvvMvl
+    .param_str = "V256dV256dV256dV512bV256dUi"
+
+__builtin_ve_vl_pvmaxs_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_pvmaxs_vvvvl
+    .param_str = "V256dV256dV256dV256dUi"
+
+__builtin_ve_vl_pvmins_vsvMvl
+    .param_str = "V256dLUiV256dV512bV256dUi"
+
+__builtin_ve_vl_pvmins_vsvl
+    .param_str = "V256dLUiV256dUi"
+
+__builtin_ve_vl_pvmins_vsvvl
+    .param_str = "V256dLUiV256dV256dUi"
+
+__builtin_ve_vl_pvmins_vvvMvl
+    .param_str = "V256dV256dV256dV512bV256dUi"
+
+__builtin_ve_vl_pvmins_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_pvmins_vvvvl
+    .param_str = "V256dV256dV256dV256dUi"
+
+__builtin_ve_vl_pvor_vsvMvl
+    .param_str = "V256dLUiV256dV512bV256dUi"
+
+__builtin_ve_vl_pvor_vsvl
+    .param_str = "V256dLUiV256dUi"
+
+__builtin_ve_vl_pvor_vsvvl
+    .param_str = "V256dLUiV256dV256dUi"
+
+__builtin_ve_vl_pvor_vvvMvl
+    .param_str = "V256dV256dV256dV512bV256dUi"
+
+__builtin_ve_vl_pvor_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_pvor_vvvvl
+    .param_str = "V256dV256dV256dV256dUi"
+
+__builtin_ve_vl_pvpcnt_vvMvl
+    .param_str = "V256dV256dV512bV256dUi"
+
+__builtin_ve_vl_pvpcnt_vvl
+    .param_str = "V256dV256dUi"
+
+__builtin_ve_vl_pvpcnt_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_pvpcntlo_vvl
+    .param_str = "V256dV256dUi"
+
+__builtin_ve_vl_pvpcntlo_vvmvl
+    .param_str = "V256dV256dV256bV256dUi"
+
+__builtin_ve_vl_pvpcntlo_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_pvpcntup_vvl
+    .param_str = "V256dV256dUi"
+
+__builtin_ve_vl_pvpcntup_vvmvl
+    .param_str = "V256dV256dV256bV256dUi"
+
+__builtin_ve_vl_pvpcntup_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_pvrcp_vvl
+    .param_str = "V256dV256dUi"
+
+__builtin_ve_vl_pvrcp_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_pvrsqrt_vvl
+    .param_str = "V256dV256dUi"
+
+__builtin_ve_vl_pvrsqrt_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_pvrsqrtnex_vvl
+    .param_str = "V256dV256dUi"
+
+__builtin_ve_vl_pvrsqrtnex_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_pvseq_vl
+    .param_str = "V256dUi"
+
+__builtin_ve_vl_pvseq_vvl
+    .param_str = "V256dV256dUi"
+
+__builtin_ve_vl_pvseqlo_vl
+    .param_str = "V256dUi"
+
+__builtin_ve_vl_pvseqlo_vvl
+    .param_str = "V256dV256dUi"
+
+__builtin_ve_vl_pvsequp_vl
+    .param_str = "V256dUi"
+
+__builtin_ve_vl_pvsequp_vvl
+    .param_str = "V256dV256dUi"
+
+__builtin_ve_vl_pvsla_vvsMvl
+    .param_str = "V256dV256dLUiV512bV256dUi"
+
+__builtin_ve_vl_pvsla_vvsl
+    .param_str = "V256dV256dLUiUi"
+
+__builtin_ve_vl_pvsla_vvsvl
+    .param_str = "V256dV256dLUiV256dUi"
+
+__builtin_ve_vl_pvsla_vvvMvl
+    .param_str = "V256dV256dV256dV512bV256dUi"
+
+__builtin_ve_vl_pvsla_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_pvsla_vvvvl
+    .param_str = "V256dV256dV256dV256dUi"
+
+__builtin_ve_vl_pvsll_vvsMvl
+    .param_str = "V256dV256dLUiV512bV256dUi"
+
+__builtin_ve_vl_pvsll_vvsl
+    .param_str = "V256dV256dLUiUi"
+
+__builtin_ve_vl_pvsll_vvsvl
+    .param_str = "V256dV256dLUiV256dUi"
+
+__builtin_ve_vl_pvsll_vvvMvl
+    .param_str = "V256dV256dV256dV512bV256dUi"
+
+__builtin_ve_vl_pvsll_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_pvsll_vvvvl
+    .param_str = "V256dV256dV256dV256dUi"
+
+__builtin_ve_vl_pvsra_vvsMvl
+    .param_str = "V256dV256dLUiV512bV256dUi"
+
+__builtin_ve_vl_pvsra_vvsl
+    .param_str = "V256dV256dLUiUi"
+
+__builtin_ve_vl_pvsra_vvsvl
+    .param_str = "V256dV256dLUiV256dUi"
+
+__builtin_ve_vl_pvsra_vvvMvl
+    .param_str = "V256dV256dV256dV512bV256dUi"
+
+__builtin_ve_vl_pvsra_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_pvsra_vvvvl
+    .param_str = "V256dV256dV256dV256dUi"
+
+__builtin_ve_vl_pvsrl_vvsMvl
+    .param_str = "V256dV256dLUiV512bV256dUi"
+
+__builtin_ve_vl_pvsrl_vvsl
+    .param_str = "V256dV256dLUiUi"
+
+__builtin_ve_vl_pvsrl_vvsvl
+    .param_str = "V256dV256dLUiV256dUi"
+
+__builtin_ve_vl_pvsrl_vvvMvl
+    .param_str = "V256dV256dV256dV512bV256dUi"
+
+__builtin_ve_vl_pvsrl_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_pvsrl_vvvvl
+    .param_str = "V256dV256dV256dV256dUi"
+
+__builtin_ve_vl_pvsubs_vsvMvl
+    .param_str = "V256dLUiV256dV512bV256dUi"
+
+__builtin_ve_vl_pvsubs_vsvl
+    .param_str = "V256dLUiV256dUi"
+
+__builtin_ve_vl_pvsubs_vsvvl
+    .param_str = "V256dLUiV256dV256dUi"
+
+__builtin_ve_vl_pvsubs_vvvMvl
+    .param_str = "V256dV256dV256dV512bV256dUi"
+
+__builtin_ve_vl_pvsubs_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_pvsubs_vvvvl
+    .param_str = "V256dV256dV256dV256dUi"
+
+__builtin_ve_vl_pvsubu_vsvMvl
+    .param_str = "V256dLUiV256dV512bV256dUi"
+
+__builtin_ve_vl_pvsubu_vsvl
+    .param_str = "V256dLUiV256dUi"
+
+__builtin_ve_vl_pvsubu_vsvvl
+    .param_str = "V256dLUiV256dV256dUi"
+
+__builtin_ve_vl_pvsubu_vvvMvl
+    .param_str = "V256dV256dV256dV512bV256dUi"
+
+__builtin_ve_vl_pvsubu_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_pvsubu_vvvvl
+    .param_str = "V256dV256dV256dV256dUi"
+
+__builtin_ve_vl_pvxor_vsvMvl
+    .param_str = "V256dLUiV256dV512bV256dUi"
+
+__builtin_ve_vl_pvxor_vsvl
+    .param_str = "V256dLUiV256dUi"
+
+__builtin_ve_vl_pvxor_vsvvl
+    .param_str = "V256dLUiV256dV256dUi"
+
+__builtin_ve_vl_pvxor_vvvMvl
+    .param_str = "V256dV256dV256dV512bV256dUi"
+
+__builtin_ve_vl_pvxor_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_pvxor_vvvvl
+    .param_str = "V256dV256dV256dV256dUi"
+
+__builtin_ve_vl_scr_sss
+    .param_str = "vLUiLUiLUi"
+
+__builtin_ve_vl_svm_sMs
+    .param_str = "LUiV512bLUi"
+
+__builtin_ve_vl_svm_sms
+    .param_str = "LUiV256bLUi"
+
+__builtin_ve_vl_svob
+    .param_str = "v"
+
+__builtin_ve_vl_tovm_sml
+    .param_str = "LUiV256bUi"
+
+__builtin_ve_vl_tscr_ssss
+    .param_str = "LUiLUiLUiLUi"
+
+__builtin_ve_vl_vaddsl_vsvl
+    .param_str = "V256dLiV256dUi"
+
+__builtin_ve_vl_vaddsl_vsvmvl
+    .param_str = "V256dLiV256dV256bV256dUi"
+
+__builtin_ve_vl_vaddsl_vsvvl
+    .param_str = "V256dLiV256dV256dUi"
+
+__builtin_ve_vl_vaddsl_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vaddsl_vvvmvl
+    .param_str = "V256dV256dV256dV256bV256dUi"
+
+__builtin_ve_vl_vaddsl_vvvvl
+    .param_str = "V256dV256dV256dV256dUi"
+
+__builtin_ve_vl_vaddswsx_vsvl
+    .param_str = "V256diV256dUi"
+
+__builtin_ve_vl_vaddswsx_vsvmvl
+    .param_str = "V256diV256dV256bV256dUi"
+
+__builtin_ve_vl_vaddswsx_vsvvl
+    .param_str = "V256diV256dV256dUi"
+
+__builtin_ve_vl_vaddswsx_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vaddswsx_vvvmvl
+    .param_str = "V256dV256dV256dV256bV256dUi"
+
+__builtin_ve_vl_vaddswsx_vvvvl
+    .param_str = "V256dV256dV256dV256dUi"
+
+__builtin_ve_vl_vaddswzx_vsvl
+    .param_str = "V256diV256dUi"
+
+__builtin_ve_vl_vaddswzx_vsvmvl
+    .param_str = "V256diV256dV256bV256dUi"
+
+__builtin_ve_vl_vaddswzx_vsvvl
+    .param_str = "V256diV256dV256dUi"
+
+__builtin_ve_vl_vaddswzx_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vaddswzx_vvvmvl
+    .param_str = "V256dV256dV256dV256bV256dUi"
+
+__builtin_ve_vl_vaddswzx_vvvvl
+    .param_str = "V256dV256dV256dV256dUi"
+
+__builtin_ve_vl_vaddul_vsvl
+    .param_str = "V256dLUiV256dUi"
+
+__builtin_ve_vl_vaddul_vsvmvl
+    .param_str = "V256dLUiV256dV256bV256dUi"
+
+__builtin_ve_vl_vaddul_vsvvl
+    .param_str = "V256dLUiV256dV256dUi"
+
+__builtin_ve_vl_vaddul_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vaddul_vvvmvl
+    .param_str = "V256dV256dV256dV256bV256dUi"
+
+__builtin_ve_vl_vaddul_vvvvl
+    .param_str = "V256dV256dV256dV256dUi"
+
+__builtin_ve_vl_vadduw_vsvl
+    .param_str = "V256dUiV256dUi"
+
+__builtin_ve_vl_vadduw_vsvmvl
+    .param_str = "V256dUiV256dV256bV256dUi"
+
+__builtin_ve_vl_vadduw_vsvvl
+    .param_str = "V256dUiV256dV256dUi"
+
+__builtin_ve_vl_vadduw_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vadduw_vvvmvl
+    .param_str = "V256dV256dV256dV256bV256dUi"
+
+__builtin_ve_vl_vadduw_vvvvl
+    .param_str = "V256dV256dV256dV256dUi"
+
+__builtin_ve_vl_vand_vsvl
+    .param_str = "V256dLUiV256dUi"
+
+__builtin_ve_vl_vand_vsvmvl
+    .param_str = "V256dLUiV256dV256bV256dUi"
+
+__builtin_ve_vl_vand_vsvvl
+    .param_str = "V256dLUiV256dV256dUi"
+
+__builtin_ve_vl_vand_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vand_vvvmvl
+    .param_str = "V256dV256dV256dV256bV256dUi"
+
+__builtin_ve_vl_vand_vvvvl
+    .param_str = "V256dV256dV256dV256dUi"
+
+__builtin_ve_vl_vbrdd_vsl
+    .param_str = "V256ddUi"
+
+__builtin_ve_vl_vbrdd_vsmvl
+    .param_str = "V256ddV256bV256dUi"
+
+__builtin_ve_vl_vbrdd_vsvl
+    .param_str = "V256ddV256dUi"
+
+__builtin_ve_vl_vbrdl_vsl
+    .param_str = "V256dLiUi"
+
+__builtin_ve_vl_vbrdl_vsmvl
+    .param_str = "V256dLiV256bV256dUi"
+
+__builtin_ve_vl_vbrdl_vsvl
+    .param_str = "V256dLiV256dUi"
+
+__builtin_ve_vl_vbrds_vsl
+    .param_str = "V256dfUi"
+
+__builtin_ve_vl_vbrds_vsmvl
+    .param_str = "V256dfV256bV256dUi"
+
+__builtin_ve_vl_vbrds_vsvl
+    .param_str = "V256dfV256dUi"
+
+__builtin_ve_vl_vbrdw_vsl
+    .param_str = "V256diUi"
+
+__builtin_ve_vl_vbrdw_vsmvl
+    .param_str = "V256diV256bV256dUi"
+
+__builtin_ve_vl_vbrdw_vsvl
+    .param_str = "V256diV256dUi"
+
+__builtin_ve_vl_vbrv_vvl
+    .param_str = "V256dV256dUi"
+
+__builtin_ve_vl_vbrv_vvmvl
+    .param_str = "V256dV256dV256bV256dUi"
+
+__builtin_ve_vl_vbrv_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vcmpsl_vsvl
+    .param_str = "V256dLiV256dUi"
+
+__builtin_ve_vl_vcmpsl_vsvmvl
+    .param_str = "V256dLiV256dV256bV256dUi"
+
+__builtin_ve_vl_vcmpsl_vsvvl
+    .param_str = "V256dLiV256dV256dUi"
+
+__builtin_ve_vl_vcmpsl_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vcmpsl_vvvmvl
+    .param_str = "V256dV256dV256dV256bV256dUi"
+
+__builtin_ve_vl_vcmpsl_vvvvl
+    .param_str = "V256dV256dV256dV256dUi"
+
+__builtin_ve_vl_vcmpswsx_vsvl
+    .param_str = "V256diV256dUi"
+
+__builtin_ve_vl_vcmpswsx_vsvmvl
+    .param_str = "V256diV256dV256bV256dUi"
+
+__builtin_ve_vl_vcmpswsx_vsvvl
+    .param_str = "V256diV256dV256dUi"
+
+__builtin_ve_vl_vcmpswsx_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vcmpswsx_vvvmvl
+    .param_str = "V256dV256dV256dV256bV256dUi"
+
+__builtin_ve_vl_vcmpswsx_vvvvl
+    .param_str = "V256dV256dV256dV256dUi"
+
+__builtin_ve_vl_vcmpswzx_vsvl
+    .param_str = "V256diV256dUi"
+
+__builtin_ve_vl_vcmpswzx_vsvmvl
+    .param_str = "V256diV256dV256bV256dUi"
+
+__builtin_ve_vl_vcmpswzx_vsvvl
+    .param_str = "V256diV256dV256dUi"
+
+__builtin_ve_vl_vcmpswzx_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vcmpswzx_vvvmvl
+    .param_str = "V256dV256dV256dV256bV256dUi"
+
+__builtin_ve_vl_vcmpswzx_vvvvl
+    .param_str = "V256dV256dV256dV256dUi"
+
+__builtin_ve_vl_vcmpul_vsvl
+    .param_str = "V256dLUiV256dUi"
+
+__builtin_ve_vl_vcmpul_vsvmvl
+    .param_str = "V256dLUiV256dV256bV256dUi"
+
+__builtin_ve_vl_vcmpul_vsvvl
+    .param_str = "V256dLUiV256dV256dUi"
+
+__builtin_ve_vl_vcmpul_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vcmpul_vvvmvl
+    .param_str = "V256dV256dV256dV256bV256dUi"
+
+__builtin_ve_vl_vcmpul_vvvvl
+    .param_str = "V256dV256dV256dV256dUi"
+
+__builtin_ve_vl_vcmpuw_vsvl
+    .param_str = "V256dUiV256dUi"
+
+__builtin_ve_vl_vcmpuw_vsvmvl
+    .param_str = "V256dUiV256dV256bV256dUi"
+
+__builtin_ve_vl_vcmpuw_vsvvl
+    .param_str = "V256dUiV256dV256dUi"
+
+__builtin_ve_vl_vcmpuw_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vcmpuw_vvvmvl
+    .param_str = "V256dV256dV256dV256bV256dUi"
+
+__builtin_ve_vl_vcmpuw_vvvvl
+    .param_str = "V256dV256dV256dV256dUi"
+
+__builtin_ve_vl_vcp_vvmvl
+    .param_str = "V256dV256dV256bV256dUi"
+
+__builtin_ve_vl_vcvtdl_vvl
+    .param_str = "V256dV256dUi"
+
+__builtin_ve_vl_vcvtdl_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vcvtds_vvl
+    .param_str = "V256dV256dUi"
+
+__builtin_ve_vl_vcvtds_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vcvtdw_vvl
+    .param_str = "V256dV256dUi"
+
+__builtin_ve_vl_vcvtdw_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vcvtld_vvl
+    .param_str = "V256dV256dUi"
+
+__builtin_ve_vl_vcvtld_vvmvl
+    .param_str = "V256dV256dV256bV256dUi"
+
+__builtin_ve_vl_vcvtld_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vcvtldrz_vvl
+    .param_str = "V256dV256dUi"
+
+__builtin_ve_vl_vcvtldrz_vvmvl
+    .param_str = "V256dV256dV256bV256dUi"
+
+__builtin_ve_vl_vcvtldrz_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vcvtsd_vvl
+    .param_str = "V256dV256dUi"
+
+__builtin_ve_vl_vcvtsd_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vcvtsw_vvl
+    .param_str = "V256dV256dUi"
+
+__builtin_ve_vl_vcvtsw_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vcvtwdsx_vvl
+    .param_str = "V256dV256dUi"
+
+__builtin_ve_vl_vcvtwdsx_vvmvl
+    .param_str = "V256dV256dV256bV256dUi"
+
+__builtin_ve_vl_vcvtwdsx_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vcvtwdsxrz_vvl
+    .param_str = "V256dV256dUi"
+
+__builtin_ve_vl_vcvtwdsxrz_vvmvl
+    .param_str = "V256dV256dV256bV256dUi"
+
+__builtin_ve_vl_vcvtwdsxrz_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vcvtwdzx_vvl
+    .param_str = "V256dV256dUi"
+
+__builtin_ve_vl_vcvtwdzx_vvmvl
+    .param_str = "V256dV256dV256bV256dUi"
+
+__builtin_ve_vl_vcvtwdzx_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vcvtwdzxrz_vvl
+    .param_str = "V256dV256dUi"
+
+__builtin_ve_vl_vcvtwdzxrz_vvmvl
+    .param_str = "V256dV256dV256bV256dUi"
+
+__builtin_ve_vl_vcvtwdzxrz_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vcvtwssx_vvl
+    .param_str = "V256dV256dUi"
+
+__builtin_ve_vl_vcvtwssx_vvmvl
+    .param_str = "V256dV256dV256bV256dUi"
+
+__builtin_ve_vl_vcvtwssx_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vcvtwssxrz_vvl
+    .param_str = "V256dV256dUi"
+
+__builtin_ve_vl_vcvtwssxrz_vvmvl
+    .param_str = "V256dV256dV256bV256dUi"
+
+__builtin_ve_vl_vcvtwssxrz_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vcvtwszx_vvl
+    .param_str = "V256dV256dUi"
+
+__builtin_ve_vl_vcvtwszx_vvmvl
+    .param_str = "V256dV256dV256bV256dUi"
+
+__builtin_ve_vl_vcvtwszx_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vcvtwszxrz_vvl
+    .param_str = "V256dV256dUi"
+
+__builtin_ve_vl_vcvtwszxrz_vvmvl
+    .param_str = "V256dV256dV256bV256dUi"
+
+__builtin_ve_vl_vcvtwszxrz_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vdivsl_vsvl
+    .param_str = "V256dLiV256dUi"
+
+__builtin_ve_vl_vdivsl_vsvmvl
+    .param_str = "V256dLiV256dV256bV256dUi"
+
+__builtin_ve_vl_vdivsl_vsvvl
+    .param_str = "V256dLiV256dV256dUi"
+
+__builtin_ve_vl_vdivsl_vvsl
+    .param_str = "V256dV256dLiUi"
+
+__builtin_ve_vl_vdivsl_vvsmvl
+    .param_str = "V256dV256dLiV256bV256dUi"
+
+__builtin_ve_vl_vdivsl_vvsvl
+    .param_str = "V256dV256dLiV256dUi"
+
+__builtin_ve_vl_vdivsl_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vdivsl_vvvmvl
+    .param_str = "V256dV256dV256dV256bV256dUi"
+
+__builtin_ve_vl_vdivsl_vvvvl
+    .param_str = "V256dV256dV256dV256dUi"
+
+__builtin_ve_vl_vdivswsx_vsvl
+    .param_str = "V256diV256dUi"
+
+__builtin_ve_vl_vdivswsx_vsvmvl
+    .param_str = "V256diV256dV256bV256dUi"
+
+__builtin_ve_vl_vdivswsx_vsvvl
+    .param_str = "V256diV256dV256dUi"
+
+__builtin_ve_vl_vdivswsx_vvsl
+    .param_str = "V256dV256diUi"
+
+__builtin_ve_vl_vdivswsx_vvsmvl
+    .param_str = "V256dV256diV256bV256dUi"
+
+__builtin_ve_vl_vdivswsx_vvsvl
+    .param_str = "V256dV256diV256dUi"
+
+__builtin_ve_vl_vdivswsx_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vdivswsx_vvvmvl
+    .param_str = "V256dV256dV256dV256bV256dUi"
+
+__builtin_ve_vl_vdivswsx_vvvvl
+    .param_str = "V256dV256dV256dV256dUi"
+
+__builtin_ve_vl_vdivswzx_vsvl
+    .param_str = "V256diV256dUi"
+
+__builtin_ve_vl_vdivswzx_vsvmvl
+    .param_str = "V256diV256dV256bV256dUi"
+
+__builtin_ve_vl_vdivswzx_vsvvl
+    .param_str = "V256diV256dV256dUi"
+
+__builtin_ve_vl_vdivswzx_vvsl
+    .param_str = "V256dV256diUi"
+
+__builtin_ve_vl_vdivswzx_vvsmvl
+    .param_str = "V256dV256diV256bV256dUi"
+
+__builtin_ve_vl_vdivswzx_vvsvl
+    .param_str = "V256dV256diV256dUi"
+
+__builtin_ve_vl_vdivswzx_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vdivswzx_vvvmvl
+    .param_str = "V256dV256dV256dV256bV256dUi"
+
+__builtin_ve_vl_vdivswzx_vvvvl
+    .param_str = "V256dV256dV256dV256dUi"
+
+__builtin_ve_vl_vdivul_vsvl
+    .param_str = "V256dLUiV256dUi"
+
+__builtin_ve_vl_vdivul_vsvmvl
+    .param_str = "V256dLUiV256dV256bV256dUi"
+
+__builtin_ve_vl_vdivul_vsvvl
+    .param_str = "V256dLUiV256dV256dUi"
+
+__builtin_ve_vl_vdivul_vvsl
+    .param_str = "V256dV256dLUiUi"
+
+__builtin_ve_vl_vdivul_vvsmvl
+    .param_str = "V256dV256dLUiV256bV256dUi"
+
+__builtin_ve_vl_vdivul_vvsvl
+    .param_str = "V256dV256dLUiV256dUi"
+
+__builtin_ve_vl_vdivul_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vdivul_vvvmvl
+    .param_str = "V256dV256dV256dV256bV256dUi"
+
+__builtin_ve_vl_vdivul_vvvvl
+    .param_str = "V256dV256dV256dV256dUi"
+
+__builtin_ve_vl_vdivuw_vsvl
+    .param_str = "V256dUiV256dUi"
+
+__builtin_ve_vl_vdivuw_vsvmvl
+    .param_str = "V256dUiV256dV256bV256dUi"
+
+__builtin_ve_vl_vdivuw_vsvvl
+    .param_str = "V256dUiV256dV256dUi"
+
+__builtin_ve_vl_vdivuw_vvsl
+    .param_str = "V256dV256dUiUi"
+
+__builtin_ve_vl_vdivuw_vvsmvl
+    .param_str = "V256dV256dUiV256bV256dUi"
+
+__builtin_ve_vl_vdivuw_vvsvl
+    .param_str = "V256dV256dUiV256dUi"
+
+__builtin_ve_vl_vdivuw_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vdivuw_vvvmvl
+    .param_str = "V256dV256dV256dV256bV256dUi"
+
+__builtin_ve_vl_vdivuw_vvvvl
+    .param_str = "V256dV256dV256dV256dUi"
+
+__builtin_ve_vl_veqv_vsvl
+    .param_str = "V256dLUiV256dUi"
+
+__builtin_ve_vl_veqv_vsvmvl
+    .param_str = "V256dLUiV256dV256bV256dUi"
+
+__builtin_ve_vl_veqv_vsvvl
+    .param_str = "V256dLUiV256dV256dUi"
+
+__builtin_ve_vl_veqv_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_veqv_vvvmvl
+    .param_str = "V256dV256dV256dV256bV256dUi"
+
+__builtin_ve_vl_veqv_vvvvl
+    .param_str = "V256dV256dV256dV256dUi"
+
+__builtin_ve_vl_vex_vvmvl
+    .param_str = "V256dV256dV256bV256dUi"
+
+__builtin_ve_vl_vfaddd_vsvl
+    .param_str = "V256ddV256dUi"
+
+__builtin_ve_vl_vfaddd_vsvmvl
+    .param_str = "V256ddV256dV256bV256dUi"
+
+__builtin_ve_vl_vfaddd_vsvvl
+    .param_str = "V256ddV256dV256dUi"
+
+__builtin_ve_vl_vfaddd_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vfaddd_vvvmvl
+    .param_str = "V256dV256dV256dV256bV256dUi"
+
+__builtin_ve_vl_vfaddd_vvvvl
+    .param_str = "V256dV256dV256dV256dUi"
+
+__builtin_ve_vl_vfadds_vsvl
+    .param_str = "V256dfV256dUi"
+
+__builtin_ve_vl_vfadds_vsvmvl
+    .param_str = "V256dfV256dV256bV256dUi"
+
+__builtin_ve_vl_vfadds_vsvvl
+    .param_str = "V256dfV256dV256dUi"
+
+__builtin_ve_vl_vfadds_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vfadds_vvvmvl
+    .param_str = "V256dV256dV256dV256bV256dUi"
+
+__builtin_ve_vl_vfadds_vvvvl
+    .param_str = "V256dV256dV256dV256dUi"
+
+__builtin_ve_vl_vfcmpd_vsvl
+    .param_str = "V256ddV256dUi"
+
+__builtin_ve_vl_vfcmpd_vsvmvl
+    .param_str = "V256ddV256dV256bV256dUi"
+
+__builtin_ve_vl_vfcmpd_vsvvl
+    .param_str = "V256ddV256dV256dUi"
+
+__builtin_ve_vl_vfcmpd_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vfcmpd_vvvmvl
+    .param_str = "V256dV256dV256dV256bV256dUi"
+
+__builtin_ve_vl_vfcmpd_vvvvl
+    .param_str = "V256dV256dV256dV256dUi"
+
+__builtin_ve_vl_vfcmps_vsvl
+    .param_str = "V256dfV256dUi"
+
+__builtin_ve_vl_vfcmps_vsvmvl
+    .param_str = "V256dfV256dV256bV256dUi"
+
+__builtin_ve_vl_vfcmps_vsvvl
+    .param_str = "V256dfV256dV256dUi"
+
+__builtin_ve_vl_vfcmps_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vfcmps_vvvmvl
+    .param_str = "V256dV256dV256dV256bV256dUi"
+
+__builtin_ve_vl_vfcmps_vvvvl
+    .param_str = "V256dV256dV256dV256dUi"
+
+__builtin_ve_vl_vfdivd_vsvl
+    .param_str = "V256ddV256dUi"
+
+__builtin_ve_vl_vfdivd_vsvmvl
+    .param_str = "V256ddV256dV256bV256dUi"
+
+__builtin_ve_vl_vfdivd_vsvvl
+    .param_str = "V256ddV256dV256dUi"
+
+__builtin_ve_vl_vfdivd_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vfdivd_vvvmvl
+    .param_str = "V256dV256dV256dV256bV256dUi"
+
+__builtin_ve_vl_vfdivd_vvvvl
+    .param_str = "V256dV256dV256dV256dUi"
+
+__builtin_ve_vl_vfdivs_vsvl
+    .param_str = "V256dfV256dUi"
+
+__builtin_ve_vl_vfdivs_vsvmvl
+    .param_str = "V256dfV256dV256bV256dUi"
+
+__builtin_ve_vl_vfdivs_vsvvl
+    .param_str = "V256dfV256dV256dUi"
+
+__builtin_ve_vl_vfdivs_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vfdivs_vvvmvl
+    .param_str = "V256dV256dV256dV256bV256dUi"
+
+__builtin_ve_vl_vfdivs_vvvvl
+    .param_str = "V256dV256dV256dV256dUi"
+
+__builtin_ve_vl_vfmadd_vsvvl
+    .param_str = "V256ddV256dV256dUi"
+
+__builtin_ve_vl_vfmadd_vsvvmvl
+    .param_str = "V256ddV256dV256dV256bV256dUi"
+
+__builtin_ve_vl_vfmadd_vsvvvl
+    .param_str = "V256ddV256dV256dV256dUi"
+
+__builtin_ve_vl_vfmadd_vvsvl
+    .param_str = "V256dV256ddV256dUi"
+
+__builtin_ve_vl_vfmadd_vvsvmvl
+    .param_str = "V256dV256ddV256dV256bV256dUi"
+
+__builtin_ve_vl_vfmadd_vvsvvl
+    .param_str = "V256dV256ddV256dV256dUi"
+
+__builtin_ve_vl_vfmadd_vvvvl
+    .param_str = "V256dV256dV256dV256dUi"
+
+__builtin_ve_vl_vfmadd_vvvvmvl
+    .param_str = "V256dV256dV256dV256dV256bV256dUi"
+
+__builtin_ve_vl_vfmadd_vvvvvl
+    .param_str = "V256dV256dV256dV256dV256dUi"
+
+__builtin_ve_vl_vfmads_vsvvl
+    .param_str = "V256dfV256dV256dUi"
+
+__builtin_ve_vl_vfmads_vsvvmvl
+    .param_str = "V256dfV256dV256dV256bV256dUi"
+
+__builtin_ve_vl_vfmads_vsvvvl
+    .param_str = "V256dfV256dV256dV256dUi"
+
+__builtin_ve_vl_vfmads_vvsvl
+    .param_str = "V256dV256dfV256dUi"
+
+__builtin_ve_vl_vfmads_vvsvmvl
+    .param_str = "V256dV256dfV256dV256bV256dUi"
+
+__builtin_ve_vl_vfmads_vvsvvl
+    .param_str = "V256dV256dfV256dV256dUi"
+
+__builtin_ve_vl_vfmads_vvvvl
+    .param_str = "V256dV256dV256dV256dUi"
+
+__builtin_ve_vl_vfmads_vvvvmvl
+    .param_str = "V256dV256dV256dV256dV256bV256dUi"
+
+__builtin_ve_vl_vfmads_vvvvvl
+    .param_str = "V256dV256dV256dV256dV256dUi"
+
+__builtin_ve_vl_vfmaxd_vsvl
+    .param_str = "V256ddV256dUi"
+
+__builtin_ve_vl_vfmaxd_vsvmvl
+    .param_str = "V256ddV256dV256bV256dUi"
+
+__builtin_ve_vl_vfmaxd_vsvvl
+    .param_str = "V256ddV256dV256dUi"
+
+__builtin_ve_vl_vfmaxd_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vfmaxd_vvvmvl
+    .param_str = "V256dV256dV256dV256bV256dUi"
+
+__builtin_ve_vl_vfmaxd_vvvvl
+    .param_str = "V256dV256dV256dV256dUi"
+
+__builtin_ve_vl_vfmaxs_vsvl
+    .param_str = "V256dfV256dUi"
+
+__builtin_ve_vl_vfmaxs_vsvmvl
+    .param_str = "V256dfV256dV256bV256dUi"
+
+__builtin_ve_vl_vfmaxs_vsvvl
+    .param_str = "V256dfV256dV256dUi"
+
+__builtin_ve_vl_vfmaxs_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vfmaxs_vvvmvl
+    .param_str = "V256dV256dV256dV256bV256dUi"
+
+__builtin_ve_vl_vfmaxs_vvvvl
+    .param_str = "V256dV256dV256dV256dUi"
+
+__builtin_ve_vl_vfmind_vsvl
+    .param_str = "V256ddV256dUi"
+
+__builtin_ve_vl_vfmind_vsvmvl
+    .param_str = "V256ddV256dV256bV256dUi"
+
+__builtin_ve_vl_vfmind_vsvvl
+    .param_str = "V256ddV256dV256dUi"
+
+__builtin_ve_vl_vfmind_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vfmind_vvvmvl
+    .param_str = "V256dV256dV256dV256bV256dUi"
+
+__builtin_ve_vl_vfmind_vvvvl
+    .param_str = "V256dV256dV256dV256dUi"
+
+__builtin_ve_vl_vfmins_vsvl
+    .param_str = "V256dfV256dUi"
+
+__builtin_ve_vl_vfmins_vsvmvl
+    .param_str = "V256dfV256dV256bV256dUi"
+
+__builtin_ve_vl_vfmins_vsvvl
+    .param_str = "V256dfV256dV256dUi"
+
+__builtin_ve_vl_vfmins_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vfmins_vvvmvl
+    .param_str = "V256dV256dV256dV256bV256dUi"
+
+__builtin_ve_vl_vfmins_vvvvl
+    .param_str = "V256dV256dV256dV256dUi"
+
+__builtin_ve_vl_vfmkdeq_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_vfmkdeq_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_vfmkdeqnan_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_vfmkdeqnan_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_vfmkdge_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_vfmkdge_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_vfmkdgenan_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_vfmkdgenan_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_vfmkdgt_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_vfmkdgt_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_vfmkdgtnan_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_vfmkdgtnan_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_vfmkdle_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_vfmkdle_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_vfmkdlenan_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_vfmkdlenan_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_vfmkdlt_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_vfmkdlt_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_vfmkdltnan_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_vfmkdltnan_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_vfmkdnan_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_vfmkdnan_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_vfmkdne_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_vfmkdne_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_vfmkdnenan_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_vfmkdnenan_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_vfmkdnum_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_vfmkdnum_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_vfmklaf_ml
+    .param_str = "V256bUi"
+
+__builtin_ve_vl_vfmklat_ml
+    .param_str = "V256bUi"
+
+__builtin_ve_vl_vfmkleq_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_vfmkleq_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_vfmkleqnan_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_vfmkleqnan_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_vfmklge_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_vfmklge_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_vfmklgenan_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_vfmklgenan_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_vfmklgt_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_vfmklgt_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_vfmklgtnan_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_vfmklgtnan_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_vfmklle_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_vfmklle_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_vfmkllenan_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_vfmkllenan_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_vfmkllt_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_vfmkllt_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_vfmklltnan_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_vfmklltnan_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_vfmklnan_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_vfmklnan_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_vfmklne_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_vfmklne_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_vfmklnenan_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_vfmklnenan_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_vfmklnum_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_vfmklnum_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_vfmkseq_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_vfmkseq_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_vfmkseqnan_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_vfmkseqnan_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_vfmksge_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_vfmksge_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_vfmksgenan_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_vfmksgenan_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_vfmksgt_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_vfmksgt_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_vfmksgtnan_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_vfmksgtnan_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_vfmksle_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_vfmksle_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_vfmkslenan_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_vfmkslenan_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_vfmkslt_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_vfmkslt_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_vfmksltnan_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_vfmksltnan_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_vfmksnan_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_vfmksnan_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_vfmksne_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_vfmksne_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_vfmksnenan_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_vfmksnenan_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_vfmksnum_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_vfmksnum_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_vfmkweq_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_vfmkweq_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_vfmkweqnan_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_vfmkweqnan_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_vfmkwge_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_vfmkwge_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_vfmkwgenan_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_vfmkwgenan_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_vfmkwgt_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_vfmkwgt_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_vfmkwgtnan_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_vfmkwgtnan_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_vfmkwle_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_vfmkwle_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_vfmkwlenan_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_vfmkwlenan_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_vfmkwlt_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_vfmkwlt_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_vfmkwltnan_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_vfmkwltnan_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_vfmkwnan_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_vfmkwnan_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_vfmkwne_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_vfmkwne_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_vfmkwnenan_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_vfmkwnenan_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_vfmkwnum_mvl
+    .param_str = "V256bV256dUi"
+
+__builtin_ve_vl_vfmkwnum_mvml
+    .param_str = "V256bV256dV256bUi"
+
+__builtin_ve_vl_vfmsbd_vsvvl
+    .param_str = "V256ddV256dV256dUi"
+
+__builtin_ve_vl_vfmsbd_vsvvmvl
+    .param_str = "V256ddV256dV256dV256bV256dUi"
+
+__builtin_ve_vl_vfmsbd_vsvvvl
+    .param_str = "V256ddV256dV256dV256dUi"
+
+__builtin_ve_vl_vfmsbd_vvsvl
+    .param_str = "V256dV256ddV256dUi"
+
+__builtin_ve_vl_vfmsbd_vvsvmvl
+    .param_str = "V256dV256ddV256dV256bV256dUi"
+
+__builtin_ve_vl_vfmsbd_vvsvvl
+    .param_str = "V256dV256ddV256dV256dUi"
+
+__builtin_ve_vl_vfmsbd_vvvvl
+    .param_str = "V256dV256dV256dV256dUi"
+
+__builtin_ve_vl_vfmsbd_vvvvmvl
+    .param_str = "V256dV256dV256dV256dV256bV256dUi"
+
+__builtin_ve_vl_vfmsbd_vvvvvl
+    .param_str = "V256dV256dV256dV256dV256dUi"
+
+__builtin_ve_vl_vfmsbs_vsvvl
+    .param_str = "V256dfV256dV256dUi"
+
+__builtin_ve_vl_vfmsbs_vsvvmvl
+    .param_str = "V256dfV256dV256dV256bV256dUi"
+
+__builtin_ve_vl_vfmsbs_vsvvvl
+    .param_str = "V256dfV256dV256dV256dUi"
+
+__builtin_ve_vl_vfmsbs_vvsvl
+    .param_str = "V256dV256dfV256dUi"
+
+__builtin_ve_vl_vfmsbs_vvsvmvl
+    .param_str = "V256dV256dfV256dV256bV256dUi"
+
+__builtin_ve_vl_vfmsbs_vvsvvl
+    .param_str = "V256dV256dfV256dV256dUi"
+
+__builtin_ve_vl_vfmsbs_vvvvl
+    .param_str = "V256dV256dV256dV256dUi"
+
+__builtin_ve_vl_vfmsbs_vvvvmvl
+    .param_str = "V256dV256dV256dV256dV256bV256dUi"
+
+__builtin_ve_vl_vfmsbs_vvvvvl
+    .param_str = "V256dV256dV256dV256dV256dUi"
+
+__builtin_ve_vl_vfmuld_vsvl
+    .param_str = "V256ddV256dUi"
+
+__builtin_ve_vl_vfmuld_vsvmvl
+    .param_str = "V256ddV256dV256bV256dUi"
+
+__builtin_ve_vl_vfmuld_vsvvl
+    .param_str = "V256ddV256dV256dUi"
+
+__builtin_ve_vl_vfmuld_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vfmuld_vvvmvl
+    .param_str = "V256dV256dV256dV256bV256dUi"
+
+__builtin_ve_vl_vfmuld_vvvvl
+    .param_str = "V256dV256dV256dV256dUi"
+
+__builtin_ve_vl_vfmuls_vsvl
+    .param_str = "V256dfV256dUi"
+
+__builtin_ve_vl_vfmuls_vsvmvl
+    .param_str = "V256dfV256dV256bV256dUi"
+
+__builtin_ve_vl_vfmuls_vsvvl
+    .param_str = "V256dfV256dV256dUi"
+
+__builtin_ve_vl_vfmuls_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vfmuls_vvvmvl
+    .param_str = "V256dV256dV256dV256bV256dUi"
+
+__builtin_ve_vl_vfmuls_vvvvl
+    .param_str = "V256dV256dV256dV256dUi"
+
+__builtin_ve_vl_vfnmadd_vsvvl
+    .param_str = "V256ddV256dV256dUi"
+
+__builtin_ve_vl_vfnmadd_vsvvmvl
+    .param_str = "V256ddV256dV256dV256bV256dUi"
+
+__builtin_ve_vl_vfnmadd_vsvvvl
+    .param_str = "V256ddV256dV256dV256dUi"
+
+__builtin_ve_vl_vfnmadd_vvsvl
+    .param_str = "V256dV256ddV256dUi"
+
+__builtin_ve_vl_vfnmadd_vvsvmvl
+    .param_str = "V256dV256ddV256dV256bV256dUi"
+
+__builtin_ve_vl_vfnmadd_vvsvvl
+    .param_str = "V256dV256ddV256dV256dUi"
+
+__builtin_ve_vl_vfnmadd_vvvvl
+    .param_str = "V256dV256dV256dV256dUi"
+
+__builtin_ve_vl_vfnmadd_vvvvmvl
+    .param_str = "V256dV256dV256dV256dV256bV256dUi"
+
+__builtin_ve_vl_vfnmadd_vvvvvl
+    .param_str = "V256dV256dV256dV256dV256dUi"
+
+__builtin_ve_vl_vfnmads_vsvvl
+    .param_str = "V256dfV256dV256dUi"
+
+__builtin_ve_vl_vfnmads_vsvvmvl
+    .param_str = "V256dfV256dV256dV256bV256dUi"
+
+__builtin_ve_vl_vfnmads_vsvvvl
+    .param_str = "V256dfV256dV256dV256dUi"
+
+__builtin_ve_vl_vfnmads_vvsvl
+    .param_str = "V256dV256dfV256dUi"
+
+__builtin_ve_vl_vfnmads_vvsvmvl
+    .param_str = "V256dV256dfV256dV256bV256dUi"
+
+__builtin_ve_vl_vfnmads_vvsvvl
+    .param_str = "V256dV256dfV256dV256dUi"
+
+__builtin_ve_vl_vfnmads_vvvvl
+    .param_str = "V256dV256dV256dV256dUi"
+
+__builtin_ve_vl_vfnmads_vvvvmvl
+    .param_str = "V256dV256dV256dV256dV256bV256dUi"
+
+__builtin_ve_vl_vfnmads_vvvvvl
+    .param_str = "V256dV256dV256dV256dV256dUi"
+
+__builtin_ve_vl_vfnmsbd_vsvvl
+    .param_str = "V256ddV256dV256dUi"
+
+__builtin_ve_vl_vfnmsbd_vsvvmvl
+    .param_str = "V256ddV256dV256dV256bV256dUi"
+
+__builtin_ve_vl_vfnmsbd_vsvvvl
+    .param_str = "V256ddV256dV256dV256dUi"
+
+__builtin_ve_vl_vfnmsbd_vvsvl
+    .param_str = "V256dV256ddV256dUi"
+
+__builtin_ve_vl_vfnmsbd_vvsvmvl
+    .param_str = "V256dV256ddV256dV256bV256dUi"
+
+__builtin_ve_vl_vfnmsbd_vvsvvl
+    .param_str = "V256dV256ddV256dV256dUi"
+
+__builtin_ve_vl_vfnmsbd_vvvvl
+    .param_str = "V256dV256dV256dV256dUi"
+
+__builtin_ve_vl_vfnmsbd_vvvvmvl
+    .param_str = "V256dV256dV256dV256dV256bV256dUi"
+
+__builtin_ve_vl_vfnmsbd_vvvvvl
+    .param_str = "V256dV256dV256dV256dV256dUi"
+
+__builtin_ve_vl_vfnmsbs_vsvvl
+    .param_str = "V256dfV256dV256dUi"
+
+__builtin_ve_vl_vfnmsbs_vsvvmvl
+    .param_str = "V256dfV256dV256dV256bV256dUi"
+
+__builtin_ve_vl_vfnmsbs_vsvvvl
+    .param_str = "V256dfV256dV256dV256dUi"
+
+__builtin_ve_vl_vfnmsbs_vvsvl
+    .param_str = "V256dV256dfV256dUi"
+
+__builtin_ve_vl_vfnmsbs_vvsvmvl
+    .param_str = "V256dV256dfV256dV256bV256dUi"
+
+__builtin_ve_vl_vfnmsbs_vvsvvl
+    .param_str = "V256dV256dfV256dV256dUi"
+
+__builtin_ve_vl_vfnmsbs_vvvvl
+    .param_str = "V256dV256dV256dV256dUi"
+
+__builtin_ve_vl_vfnmsbs_vvvvmvl
+    .param_str = "V256dV256dV256dV256dV256bV256dUi"
+
+__builtin_ve_vl_vfnmsbs_vvvvvl
+    .param_str = "V256dV256dV256dV256dV256dUi"
+
+__builtin_ve_vl_vfrmaxdfst_vvl
+    .param_str = "V256dV256dUi"
+
+__builtin_ve_vl_vfrmaxdfst_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vfrmaxdlst_vvl
+    .param_str = "V256dV256dUi"
+
+__builtin_ve_vl_vfrmaxdlst_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vfrmaxsfst_vvl
+    .param_str = "V256dV256dUi"
+
+__builtin_ve_vl_vfrmaxsfst_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vfrmaxslst_vvl
+    .param_str = "V256dV256dUi"
+
+__builtin_ve_vl_vfrmaxslst_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vfrmindfst_vvl
+    .param_str = "V256dV256dUi"
+
+__builtin_ve_vl_vfrmindfst_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vfrmindlst_vvl
+    .param_str = "V256dV256dUi"
+
+__builtin_ve_vl_vfrmindlst_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vfrminsfst_vvl
+    .param_str = "V256dV256dUi"
+
+__builtin_ve_vl_vfrminsfst_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vfrminslst_vvl
+    .param_str = "V256dV256dUi"
+
+__builtin_ve_vl_vfrminslst_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vfsqrtd_vvl
+    .param_str = "V256dV256dUi"
+
+__builtin_ve_vl_vfsqrtd_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vfsqrts_vvl
+    .param_str = "V256dV256dUi"
+
+__builtin_ve_vl_vfsqrts_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vfsubd_vsvl
+    .param_str = "V256ddV256dUi"
+
+__builtin_ve_vl_vfsubd_vsvmvl
+    .param_str = "V256ddV256dV256bV256dUi"
+
+__builtin_ve_vl_vfsubd_vsvvl
+    .param_str = "V256ddV256dV256dUi"
+
+__builtin_ve_vl_vfsubd_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vfsubd_vvvmvl
+    .param_str = "V256dV256dV256dV256bV256dUi"
+
+__builtin_ve_vl_vfsubd_vvvvl
+    .param_str = "V256dV256dV256dV256dUi"
+
+__builtin_ve_vl_vfsubs_vsvl
+    .param_str = "V256dfV256dUi"
+
+__builtin_ve_vl_vfsubs_vsvmvl
+    .param_str = "V256dfV256dV256bV256dUi"
+
+__builtin_ve_vl_vfsubs_vsvvl
+    .param_str = "V256dfV256dV256dUi"
+
+__builtin_ve_vl_vfsubs_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vfsubs_vvvmvl
+    .param_str = "V256dV256dV256dV256bV256dUi"
+
+__builtin_ve_vl_vfsubs_vvvvl
+    .param_str = "V256dV256dV256dV256dUi"
+
+__builtin_ve_vl_vfsumd_vvl
+    .param_str = "V256dV256dUi"
+
+__builtin_ve_vl_vfsumd_vvml
+    .param_str = "V256dV256dV256bUi"
+
+__builtin_ve_vl_vfsums_vvl
+    .param_str = "V256dV256dUi"
+
+__builtin_ve_vl_vfsums_vvml
+    .param_str = "V256dV256dV256bUi"
+
+__builtin_ve_vl_vgt_vvssl
+    .param_str = "V256dV256dLUiLUiUi"
+
+__builtin_ve_vl_vgt_vvssml
+    .param_str = "V256dV256dLUiLUiV256bUi"
+
+__builtin_ve_vl_vgt_vvssmvl
+    .param_str = "V256dV256dLUiLUiV256bV256dUi"
+
+__builtin_ve_vl_vgt_vvssvl
+    .param_str = "V256dV256dLUiLUiV256dUi"
+
+__builtin_ve_vl_vgtlsx_vvssl
+    .param_str = "V256dV256dLUiLUiUi"
+
+__builtin_ve_vl_vgtlsx_vvssml
+    .param_str = "V256dV256dLUiLUiV256bUi"
+
+__builtin_ve_vl_vgtlsx_vvssmvl
+    .param_str = "V256dV256dLUiLUiV256bV256dUi"
+
+__builtin_ve_vl_vgtlsx_vvssvl
+    .param_str = "V256dV256dLUiLUiV256dUi"
+
+__builtin_ve_vl_vgtlsxnc_vvssl
+    .param_str = "V256dV256dLUiLUiUi"
+
+__builtin_ve_vl_vgtlsxnc_vvssml
+    .param_str = "V256dV256dLUiLUiV256bUi"
+
+__builtin_ve_vl_vgtlsxnc_vvssmvl
+    .param_str = "V256dV256dLUiLUiV256bV256dUi"
+
+__builtin_ve_vl_vgtlsxnc_vvssvl
+    .param_str = "V256dV256dLUiLUiV256dUi"
+
+__builtin_ve_vl_vgtlzx_vvssl
+    .param_str = "V256dV256dLUiLUiUi"
+
+__builtin_ve_vl_vgtlzx_vvssml
+    .param_str = "V256dV256dLUiLUiV256bUi"
+
+__builtin_ve_vl_vgtlzx_vvssmvl
+    .param_str = "V256dV256dLUiLUiV256bV256dUi"
+
+__builtin_ve_vl_vgtlzx_vvssvl
+    .param_str = "V256dV256dLUiLUiV256dUi"
+
+__builtin_ve_vl_vgtlzxnc_vvssl
+    .param_str = "V256dV256dLUiLUiUi"
+
+__builtin_ve_vl_vgtlzxnc_vvssml
+    .param_str = "V256dV256dLUiLUiV256bUi"
+
+__builtin_ve_vl_vgtlzxnc_vvssmvl
+    .param_str = "V256dV256dLUiLUiV256bV256dUi"
+
+__builtin_ve_vl_vgtlzxnc_vvssvl
+    .param_str = "V256dV256dLUiLUiV256dUi"
+
+__builtin_ve_vl_vgtnc_vvssl
+    .param_str = "V256dV256dLUiLUiUi"
+
+__builtin_ve_vl_vgtnc_vvssml
+    .param_str = "V256dV256dLUiLUiV256bUi"
+
+__builtin_ve_vl_vgtnc_vvssmvl
+    .param_str = "V256dV256dLUiLUiV256bV256dUi"
+
+__builtin_ve_vl_vgtnc_vvssvl
+    .param_str = "V256dV256dLUiLUiV256dUi"
+
+__builtin_ve_vl_vgtu_vvssl
+    .param_str = "V256dV256dLUiLUiUi"
+
+__builtin_ve_vl_vgtu_vvssml
+    .param_str = "V256dV256dLUiLUiV256bUi"
+
+__builtin_ve_vl_vgtu_vvssmvl
+    .param_str = "V256dV256dLUiLUiV256bV256dUi"
+
+__builtin_ve_vl_vgtu_vvssvl
+    .param_str = "V256dV256dLUiLUiV256dUi"
+
+__builtin_ve_vl_vgtunc_vvssl
+    .param_str = "V256dV256dLUiLUiUi"
+
+__builtin_ve_vl_vgtunc_vvssml
+    .param_str = "V256dV256dLUiLUiV256bUi"
+
+__builtin_ve_vl_vgtunc_vvssmvl
+    .param_str = "V256dV256dLUiLUiV256bV256dUi"
+
+__builtin_ve_vl_vgtunc_vvssvl
+    .param_str = "V256dV256dLUiLUiV256dUi"
+
+__builtin_ve_vl_vld2d_vssl
+    .param_str = "V256dLUivC*Ui"
+
+__builtin_ve_vl_vld2d_vssvl
+    .param_str = "V256dLUivC*V256dUi"
+
+__builtin_ve_vl_vld2dnc_vssl
+    .param_str = "V256dLUivC*Ui"
+
+__builtin_ve_vl_vld2dnc_vssvl
+    .param_str = "V256dLUivC*V256dUi"
+
+__builtin_ve_vl_vld_vssl
+    .param_str = "V256dLUivC*Ui"
+
+__builtin_ve_vl_vld_vssvl
+    .param_str = "V256dLUivC*V256dUi"
+
+__builtin_ve_vl_vldl2dsx_vssl
+    .param_str = "V256dLUivC*Ui"
+
+__builtin_ve_vl_vldl2dsx_vssvl
+    .param_str = "V256dLUivC*V256dUi"
+
+__builtin_ve_vl_vldl2dsxnc_vssl
+    .param_str = "V256dLUivC*Ui"
+
+__builtin_ve_vl_vldl2dsxnc_vssvl
+    .param_str = "V256dLUivC*V256dUi"
+
+__builtin_ve_vl_vldl2dzx_vssl
+    .param_str = "V256dLUivC*Ui"
+
+__builtin_ve_vl_vldl2dzx_vssvl
+    .param_str = "V256dLUivC*V256dUi"
+
+__builtin_ve_vl_vldl2dzxnc_vssl
+    .param_str = "V256dLUivC*Ui"
+
+__builtin_ve_vl_vldl2dzxnc_vssvl
+    .param_str = "V256dLUivC*V256dUi"
+
+__builtin_ve_vl_vldlsx_vssl
+    .param_str = "V256dLUivC*Ui"
+
+__builtin_ve_vl_vldlsx_vssvl
+    .param_str = "V256dLUivC*V256dUi"
+
+__builtin_ve_vl_vldlsxnc_vssl
+    .param_str = "V256dLUivC*Ui"
+
+__builtin_ve_vl_vldlsxnc_vssvl
+    .param_str = "V256dLUivC*V256dUi"
+
+__builtin_ve_vl_vldlzx_vssl
+    .param_str = "V256dLUivC*Ui"
+
+__builtin_ve_vl_vldlzx_vssvl
+    .param_str = "V256dLUivC*V256dUi"
+
+__builtin_ve_vl_vldlzxnc_vssl
+    .param_str = "V256dLUivC*Ui"
+
+__builtin_ve_vl_vldlzxnc_vssvl
+    .param_str = "V256dLUivC*V256dUi"
+
+__builtin_ve_vl_vldnc_vssl
+    .param_str = "V256dLUivC*Ui"
+
+__builtin_ve_vl_vldnc_vssvl
+    .param_str = "V256dLUivC*V256dUi"
+
+__builtin_ve_vl_vldu2d_vssl
+    .param_str = "V256dLUivC*Ui"
+
+__builtin_ve_vl_vldu2d_vssvl
+    .param_str = "V256dLUivC*V256dUi"
+
+__builtin_ve_vl_vldu2dnc_vssl
+    .param_str = "V256dLUivC*Ui"
+
+__builtin_ve_vl_vldu2dnc_vssvl
+    .param_str = "V256dLUivC*V256dUi"
+
+__builtin_ve_vl_vldu_vssl
+    .param_str = "V256dLUivC*Ui"
+
+__builtin_ve_vl_vldu_vssvl
+    .param_str = "V256dLUivC*V256dUi"
+
+__builtin_ve_vl_vldunc_vssl
+    .param_str = "V256dLUivC*Ui"
+
+__builtin_ve_vl_vldunc_vssvl
+    .param_str = "V256dLUivC*V256dUi"
+
+__builtin_ve_vl_vldz_vvl
+    .param_str = "V256dV256dUi"
+
+__builtin_ve_vl_vldz_vvmvl
+    .param_str = "V256dV256dV256bV256dUi"
+
+__builtin_ve_vl_vldz_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vmaxsl_vsvl
+    .param_str = "V256dLiV256dUi"
+
+__builtin_ve_vl_vmaxsl_vsvmvl
+    .param_str = "V256dLiV256dV256bV256dUi"
+
+__builtin_ve_vl_vmaxsl_vsvvl
+    .param_str = "V256dLiV256dV256dUi"
+
+__builtin_ve_vl_vmaxsl_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vmaxsl_vvvmvl
+    .param_str = "V256dV256dV256dV256bV256dUi"
+
+__builtin_ve_vl_vmaxsl_vvvvl
+    .param_str = "V256dV256dV256dV256dUi"
+
+__builtin_ve_vl_vmaxswsx_vsvl
+    .param_str = "V256diV256dUi"
+
+__builtin_ve_vl_vmaxswsx_vsvmvl
+    .param_str = "V256diV256dV256bV256dUi"
+
+__builtin_ve_vl_vmaxswsx_vsvvl
+    .param_str = "V256diV256dV256dUi"
+
+__builtin_ve_vl_vmaxswsx_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vmaxswsx_vvvmvl
+    .param_str = "V256dV256dV256dV256bV256dUi"
+
+__builtin_ve_vl_vmaxswsx_vvvvl
+    .param_str = "V256dV256dV256dV256dUi"
+
+__builtin_ve_vl_vmaxswzx_vsvl
+    .param_str = "V256diV256dUi"
+
+__builtin_ve_vl_vmaxswzx_vsvmvl
+    .param_str = "V256diV256dV256bV256dUi"
+
+__builtin_ve_vl_vmaxswzx_vsvvl
+    .param_str = "V256diV256dV256dUi"
+
+__builtin_ve_vl_vmaxswzx_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vmaxswzx_vvvmvl
+    .param_str = "V256dV256dV256dV256bV256dUi"
+
+__builtin_ve_vl_vmaxswzx_vvvvl
+    .param_str = "V256dV256dV256dV256dUi"
+
+__builtin_ve_vl_vminsl_vsvl
+    .param_str = "V256dLiV256dUi"
+
+__builtin_ve_vl_vminsl_vsvmvl
+    .param_str = "V256dLiV256dV256bV256dUi"
+
+__builtin_ve_vl_vminsl_vsvvl
+    .param_str = "V256dLiV256dV256dUi"
+
+__builtin_ve_vl_vminsl_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vminsl_vvvmvl
+    .param_str = "V256dV256dV256dV256bV256dUi"
+
+__builtin_ve_vl_vminsl_vvvvl
+    .param_str = "V256dV256dV256dV256dUi"
+
+__builtin_ve_vl_vminswsx_vsvl
+    .param_str = "V256diV256dUi"
+
+__builtin_ve_vl_vminswsx_vsvmvl
+    .param_str = "V256diV256dV256bV256dUi"
+
+__builtin_ve_vl_vminswsx_vsvvl
+    .param_str = "V256diV256dV256dUi"
+
+__builtin_ve_vl_vminswsx_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vminswsx_vvvmvl
+    .param_str = "V256dV256dV256dV256bV256dUi"
+
+__builtin_ve_vl_vminswsx_vvvvl
+    .param_str = "V256dV256dV256dV256dUi"
+
+__builtin_ve_vl_vminswzx_vsvl
+    .param_str = "V256diV256dUi"
+
+__builtin_ve_vl_vminswzx_vsvmvl
+    .param_str = "V256diV256dV256bV256dUi"
+
+__builtin_ve_vl_vminswzx_vsvvl
+    .param_str = "V256diV256dV256dUi"
+
+__builtin_ve_vl_vminswzx_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vminswzx_vvvmvl
+    .param_str = "V256dV256dV256dV256bV256dUi"
+
+__builtin_ve_vl_vminswzx_vvvvl
+    .param_str = "V256dV256dV256dV256dUi"
+
+__builtin_ve_vl_vmrg_vsvml
+    .param_str = "V256dLUiV256dV256bUi"
+
+__builtin_ve_vl_vmrg_vsvmvl
+    .param_str = "V256dLUiV256dV256bV256dUi"
+
+__builtin_ve_vl_vmrg_vvvml
+    .param_str = "V256dV256dV256dV256bUi"
+
+__builtin_ve_vl_vmrg_vvvmvl
+    .param_str = "V256dV256dV256dV256bV256dUi"
+
+__builtin_ve_vl_vmrgw_vsvMl
+    .param_str = "V256dUiV256dV512bUi"
+
+__builtin_ve_vl_vmrgw_vsvMvl
+    .param_str = "V256dUiV256dV512bV256dUi"
+
+__builtin_ve_vl_vmrgw_vvvMl
+    .param_str = "V256dV256dV256dV512bUi"
+
+__builtin_ve_vl_vmrgw_vvvMvl
+    .param_str = "V256dV256dV256dV512bV256dUi"
+
+__builtin_ve_vl_vmulsl_vsvl
+    .param_str = "V256dLiV256dUi"
+
+__builtin_ve_vl_vmulsl_vsvmvl
+    .param_str = "V256dLiV256dV256bV256dUi"
+
+__builtin_ve_vl_vmulsl_vsvvl
+    .param_str = "V256dLiV256dV256dUi"
+
+__builtin_ve_vl_vmulsl_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vmulsl_vvvmvl
+    .param_str = "V256dV256dV256dV256bV256dUi"
+
+__builtin_ve_vl_vmulsl_vvvvl
+    .param_str = "V256dV256dV256dV256dUi"
+
+__builtin_ve_vl_vmulslw_vsvl
+    .param_str = "V256diV256dUi"
+
+__builtin_ve_vl_vmulslw_vsvvl
+    .param_str = "V256diV256dV256dUi"
+
+__builtin_ve_vl_vmulslw_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vmulslw_vvvvl
+    .param_str = "V256dV256dV256dV256dUi"
+
+__builtin_ve_vl_vmulswsx_vsvl
+    .param_str = "V256diV256dUi"
+
+__builtin_ve_vl_vmulswsx_vsvmvl
+    .param_str = "V256diV256dV256bV256dUi"
+
+__builtin_ve_vl_vmulswsx_vsvvl
+    .param_str = "V256diV256dV256dUi"
+
+__builtin_ve_vl_vmulswsx_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vmulswsx_vvvmvl
+    .param_str = "V256dV256dV256dV256bV256dUi"
+
+__builtin_ve_vl_vmulswsx_vvvvl
+    .param_str = "V256dV256dV256dV256dUi"
+
+__builtin_ve_vl_vmulswzx_vsvl
+    .param_str = "V256diV256dUi"
+
+__builtin_ve_vl_vmulswzx_vsvmvl
+    .param_str = "V256diV256dV256bV256dUi"
+
+__builtin_ve_vl_vmulswzx_vsvvl
+    .param_str = "V256diV256dV256dUi"
+
+__builtin_ve_vl_vmulswzx_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vmulswzx_vvvmvl
+    .param_str = "V256dV256dV256dV256bV256dUi"
+
+__builtin_ve_vl_vmulswzx_vvvvl
+    .param_str = "V256dV256dV256dV256dUi"
+
+__builtin_ve_vl_vmulul_vsvl
+    .param_str = "V256dLUiV256dUi"
+
+__builtin_ve_vl_vmulul_vsvmvl
+    .param_str = "V256dLUiV256dV256bV256dUi"
+
+__builtin_ve_vl_vmulul_vsvvl
+    .param_str = "V256dLUiV256dV256dUi"
+
+__builtin_ve_vl_vmulul_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vmulul_vvvmvl
+    .param_str = "V256dV256dV256dV256bV256dUi"
+
+__builtin_ve_vl_vmulul_vvvvl
+    .param_str = "V256dV256dV256dV256dUi"
+
+__builtin_ve_vl_vmuluw_vsvl
+    .param_str = "V256dUiV256dUi"
+
+__builtin_ve_vl_vmuluw_vsvmvl
+    .param_str = "V256dUiV256dV256bV256dUi"
+
+__builtin_ve_vl_vmuluw_vsvvl
+    .param_str = "V256dUiV256dV256dUi"
+
+__builtin_ve_vl_vmuluw_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vmuluw_vvvmvl
+    .param_str = "V256dV256dV256dV256bV256dUi"
+
+__builtin_ve_vl_vmuluw_vvvvl
+    .param_str = "V256dV256dV256dV256dUi"
+
+__builtin_ve_vl_vmv_vsvl
+    .param_str = "V256dUiV256dUi"
+
+__builtin_ve_vl_vmv_vsvmvl
+    .param_str = "V256dUiV256dV256bV256dUi"
+
+__builtin_ve_vl_vmv_vsvvl
+    .param_str = "V256dUiV256dV256dUi"
+
+__builtin_ve_vl_vor_vsvl
+    .param_str = "V256dLUiV256dUi"
+
+__builtin_ve_vl_vor_vsvmvl
+    .param_str = "V256dLUiV256dV256bV256dUi"
+
+__builtin_ve_vl_vor_vsvvl
+    .param_str = "V256dLUiV256dV256dUi"
+
+__builtin_ve_vl_vor_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vor_vvvmvl
+    .param_str = "V256dV256dV256dV256bV256dUi"
+
+__builtin_ve_vl_vor_vvvvl
+    .param_str = "V256dV256dV256dV256dUi"
+
+__builtin_ve_vl_vpcnt_vvl
+    .param_str = "V256dV256dUi"
+
+__builtin_ve_vl_vpcnt_vvmvl
+    .param_str = "V256dV256dV256bV256dUi"
+
+__builtin_ve_vl_vpcnt_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vrand_vvl
+    .param_str = "V256dV256dUi"
+
+__builtin_ve_vl_vrand_vvml
+    .param_str = "V256dV256dV256bUi"
+
+__builtin_ve_vl_vrcpd_vvl
+    .param_str = "V256dV256dUi"
+
+__builtin_ve_vl_vrcpd_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vrcps_vvl
+    .param_str = "V256dV256dUi"
+
+__builtin_ve_vl_vrcps_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vrmaxslfst_vvl
+    .param_str = "V256dV256dUi"
+
+__builtin_ve_vl_vrmaxslfst_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vrmaxsllst_vvl
+    .param_str = "V256dV256dUi"
+
+__builtin_ve_vl_vrmaxsllst_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vrmaxswfstsx_vvl
+    .param_str = "V256dV256dUi"
+
+__builtin_ve_vl_vrmaxswfstsx_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vrmaxswfstzx_vvl
+    .param_str = "V256dV256dUi"
+
+__builtin_ve_vl_vrmaxswfstzx_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vrmaxswlstsx_vvl
+    .param_str = "V256dV256dUi"
+
+__builtin_ve_vl_vrmaxswlstsx_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vrmaxswlstzx_vvl
+    .param_str = "V256dV256dUi"
+
+__builtin_ve_vl_vrmaxswlstzx_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vrminslfst_vvl
+    .param_str = "V256dV256dUi"
+
+__builtin_ve_vl_vrminslfst_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vrminsllst_vvl
+    .param_str = "V256dV256dUi"
+
+__builtin_ve_vl_vrminsllst_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vrminswfstsx_vvl
+    .param_str = "V256dV256dUi"
+
+__builtin_ve_vl_vrminswfstsx_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vrminswfstzx_vvl
+    .param_str = "V256dV256dUi"
+
+__builtin_ve_vl_vrminswfstzx_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vrminswlstsx_vvl
+    .param_str = "V256dV256dUi"
+
+__builtin_ve_vl_vrminswlstsx_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vrminswlstzx_vvl
+    .param_str = "V256dV256dUi"
+
+__builtin_ve_vl_vrminswlstzx_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vror_vvl
+    .param_str = "V256dV256dUi"
+
+__builtin_ve_vl_vror_vvml
+    .param_str = "V256dV256dV256bUi"
+
+__builtin_ve_vl_vrsqrtd_vvl
+    .param_str = "V256dV256dUi"
+
+__builtin_ve_vl_vrsqrtd_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vrsqrtdnex_vvl
+    .param_str = "V256dV256dUi"
+
+__builtin_ve_vl_vrsqrtdnex_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vrsqrts_vvl
+    .param_str = "V256dV256dUi"
+
+__builtin_ve_vl_vrsqrts_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vrsqrtsnex_vvl
+    .param_str = "V256dV256dUi"
+
+__builtin_ve_vl_vrsqrtsnex_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vrxor_vvl
+    .param_str = "V256dV256dUi"
+
+__builtin_ve_vl_vrxor_vvml
+    .param_str = "V256dV256dV256bUi"
+
+__builtin_ve_vl_vsc_vvssl
+    .param_str = "vV256dV256dLUiLUiUi"
+
+__builtin_ve_vl_vsc_vvssml
+    .param_str = "vV256dV256dLUiLUiV256bUi"
+
+__builtin_ve_vl_vscl_vvssl
+    .param_str = "vV256dV256dLUiLUiUi"
+
+__builtin_ve_vl_vscl_vvssml
+    .param_str = "vV256dV256dLUiLUiV256bUi"
+
+__builtin_ve_vl_vsclnc_vvssl
+    .param_str = "vV256dV256dLUiLUiUi"
+
+__builtin_ve_vl_vsclnc_vvssml
+    .param_str = "vV256dV256dLUiLUiV256bUi"
+
+__builtin_ve_vl_vsclncot_vvssl
+    .param_str = "vV256dV256dLUiLUiUi"
+
+__builtin_ve_vl_vsclncot_vvssml
+    .param_str = "vV256dV256dLUiLUiV256bUi"
+
+__builtin_ve_vl_vsclot_vvssl
+    .param_str = "vV256dV256dLUiLUiUi"
+
+__builtin_ve_vl_vsclot_vvssml
+    .param_str = "vV256dV256dLUiLUiV256bUi"
+
+__builtin_ve_vl_vscnc_vvssl
+    .param_str = "vV256dV256dLUiLUiUi"
+
+__builtin_ve_vl_vscnc_vvssml
+    .param_str = "vV256dV256dLUiLUiV256bUi"
+
+__builtin_ve_vl_vscncot_vvssl
+    .param_str = "vV256dV256dLUiLUiUi"
+
+__builtin_ve_vl_vscncot_vvssml
+    .param_str = "vV256dV256dLUiLUiV256bUi"
+
+__builtin_ve_vl_vscot_vvssl
+    .param_str = "vV256dV256dLUiLUiUi"
+
+__builtin_ve_vl_vscot_vvssml
+    .param_str = "vV256dV256dLUiLUiV256bUi"
+
+__builtin_ve_vl_vscu_vvssl
+    .param_str = "vV256dV256dLUiLUiUi"
+
+__builtin_ve_vl_vscu_vvssml
+    .param_str = "vV256dV256dLUiLUiV256bUi"
+
+__builtin_ve_vl_vscunc_vvssl
+    .param_str = "vV256dV256dLUiLUiUi"
+
+__builtin_ve_vl_vscunc_vvssml
+    .param_str = "vV256dV256dLUiLUiV256bUi"
+
+__builtin_ve_vl_vscuncot_vvssl
+    .param_str = "vV256dV256dLUiLUiUi"
+
+__builtin_ve_vl_vscuncot_vvssml
+    .param_str = "vV256dV256dLUiLUiV256bUi"
+
+__builtin_ve_vl_vscuot_vvssl
+    .param_str = "vV256dV256dLUiLUiUi"
+
+__builtin_ve_vl_vscuot_vvssml
+    .param_str = "vV256dV256dLUiLUiV256bUi"
+
+__builtin_ve_vl_vseq_vl
+    .param_str = "V256dUi"
+
+__builtin_ve_vl_vseq_vvl
+    .param_str = "V256dV256dUi"
+
+__builtin_ve_vl_vsfa_vvssl
+    .param_str = "V256dV256dLUiLUiUi"
+
+__builtin_ve_vl_vsfa_vvssmvl
+    .param_str = "V256dV256dLUiLUiV256bV256dUi"
+
+__builtin_ve_vl_vsfa_vvssvl
+    .param_str = "V256dV256dLUiLUiV256dUi"
+
+__builtin_ve_vl_vshf_vvvsl
+    .param_str = "V256dV256dV256dLUiUi"
+
+__builtin_ve_vl_vshf_vvvsvl
+    .param_str = "V256dV256dV256dLUiV256dUi"
+
+__builtin_ve_vl_vslal_vvsl
+    .param_str = "V256dV256dLiUi"
+
+__builtin_ve_vl_vslal_vvsmvl
+    .param_str = "V256dV256dLiV256bV256dUi"
+
+__builtin_ve_vl_vslal_vvsvl
+    .param_str = "V256dV256dLiV256dUi"
+
+__builtin_ve_vl_vslal_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vslal_vvvmvl
+    .param_str = "V256dV256dV256dV256bV256dUi"
+
+__builtin_ve_vl_vslal_vvvvl
+    .param_str = "V256dV256dV256dV256dUi"
+
+__builtin_ve_vl_vslawsx_vvsl
+    .param_str = "V256dV256diUi"
+
+__builtin_ve_vl_vslawsx_vvsmvl
+    .param_str = "V256dV256diV256bV256dUi"
+
+__builtin_ve_vl_vslawsx_vvsvl
+    .param_str = "V256dV256diV256dUi"
+
+__builtin_ve_vl_vslawsx_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vslawsx_vvvmvl
+    .param_str = "V256dV256dV256dV256bV256dUi"
+
+__builtin_ve_vl_vslawsx_vvvvl
+    .param_str = "V256dV256dV256dV256dUi"
+
+__builtin_ve_vl_vslawzx_vvsl
+    .param_str = "V256dV256diUi"
+
+__builtin_ve_vl_vslawzx_vvsmvl
+    .param_str = "V256dV256diV256bV256dUi"
+
+__builtin_ve_vl_vslawzx_vvsvl
+    .param_str = "V256dV256diV256dUi"
+
+__builtin_ve_vl_vslawzx_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vslawzx_vvvmvl
+    .param_str = "V256dV256dV256dV256bV256dUi"
+
+__builtin_ve_vl_vslawzx_vvvvl
+    .param_str = "V256dV256dV256dV256dUi"
+
+__builtin_ve_vl_vsll_vvsl
+    .param_str = "V256dV256dLUiUi"
+
+__builtin_ve_vl_vsll_vvsmvl
+    .param_str = "V256dV256dLUiV256bV256dUi"
+
+__builtin_ve_vl_vsll_vvsvl
+    .param_str = "V256dV256dLUiV256dUi"
+
+__builtin_ve_vl_vsll_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vsll_vvvmvl
+    .param_str = "V256dV256dV256dV256bV256dUi"
+
+__builtin_ve_vl_vsll_vvvvl
+    .param_str = "V256dV256dV256dV256dUi"
+
+__builtin_ve_vl_vsral_vvsl
+    .param_str = "V256dV256dLiUi"
+
+__builtin_ve_vl_vsral_vvsmvl
+    .param_str = "V256dV256dLiV256bV256dUi"
+
+__builtin_ve_vl_vsral_vvsvl
+    .param_str = "V256dV256dLiV256dUi"
+
+__builtin_ve_vl_vsral_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vsral_vvvmvl
+    .param_str = "V256dV256dV256dV256bV256dUi"
+
+__builtin_ve_vl_vsral_vvvvl
+    .param_str = "V256dV256dV256dV256dUi"
+
+__builtin_ve_vl_vsrawsx_vvsl
+    .param_str = "V256dV256diUi"
+
+__builtin_ve_vl_vsrawsx_vvsmvl
+    .param_str = "V256dV256diV256bV256dUi"
+
+__builtin_ve_vl_vsrawsx_vvsvl
+    .param_str = "V256dV256diV256dUi"
+
+__builtin_ve_vl_vsrawsx_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vsrawsx_vvvmvl
+    .param_str = "V256dV256dV256dV256bV256dUi"
+
+__builtin_ve_vl_vsrawsx_vvvvl
+    .param_str = "V256dV256dV256dV256dUi"
+
+__builtin_ve_vl_vsrawzx_vvsl
+    .param_str = "V256dV256diUi"
+
+__builtin_ve_vl_vsrawzx_vvsmvl
+    .param_str = "V256dV256diV256bV256dUi"
+
+__builtin_ve_vl_vsrawzx_vvsvl
+    .param_str = "V256dV256diV256dUi"
+
+__builtin_ve_vl_vsrawzx_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vsrawzx_vvvmvl
+    .param_str = "V256dV256dV256dV256bV256dUi"
+
+__builtin_ve_vl_vsrawzx_vvvvl
+    .param_str = "V256dV256dV256dV256dUi"
+
+__builtin_ve_vl_vsrl_vvsl
+    .param_str = "V256dV256dLUiUi"
+
+__builtin_ve_vl_vsrl_vvsmvl
+    .param_str = "V256dV256dLUiV256bV256dUi"
+
+__builtin_ve_vl_vsrl_vvsvl
+    .param_str = "V256dV256dLUiV256dUi"
+
+__builtin_ve_vl_vsrl_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vsrl_vvvmvl
+    .param_str = "V256dV256dV256dV256bV256dUi"
+
+__builtin_ve_vl_vsrl_vvvvl
+    .param_str = "V256dV256dV256dV256dUi"
+
+__builtin_ve_vl_vst2d_vssl
+    .param_str = "vV256dLUiv*Ui"
+
+__builtin_ve_vl_vst2d_vssml
+    .param_str = "vV256dLUiv*V256bUi"
+
+__builtin_ve_vl_vst2dnc_vssl
+    .param_str = "vV256dLUiv*Ui"
+
+__builtin_ve_vl_vst2dnc_vssml
+    .param_str = "vV256dLUiv*V256bUi"
+
+__builtin_ve_vl_vst2dncot_vssl
+    .param_str = "vV256dLUiv*Ui"
+
+__builtin_ve_vl_vst2dncot_vssml
+    .param_str = "vV256dLUiv*V256bUi"
+
+__builtin_ve_vl_vst2dot_vssl
+    .param_str = "vV256dLUiv*Ui"
+
+__builtin_ve_vl_vst2dot_vssml
+    .param_str = "vV256dLUiv*V256bUi"
+
+__builtin_ve_vl_vst_vssl
+    .param_str = "vV256dLUiv*Ui"
+
+__builtin_ve_vl_vst_vssml
+    .param_str = "vV256dLUiv*V256bUi"
+
+__builtin_ve_vl_vstl2d_vssl
+    .param_str = "vV256dLUiv*Ui"
+
+__builtin_ve_vl_vstl2d_vssml
+    .param_str = "vV256dLUiv*V256bUi"
+
+__builtin_ve_vl_vstl2dnc_vssl
+    .param_str = "vV256dLUiv*Ui"
+
+__builtin_ve_vl_vstl2dnc_vssml
+    .param_str = "vV256dLUiv*V256bUi"
+
+__builtin_ve_vl_vstl2dncot_vssl
+    .param_str = "vV256dLUiv*Ui"
+
+__builtin_ve_vl_vstl2dncot_vssml
+    .param_str = "vV256dLUiv*V256bUi"
+
+__builtin_ve_vl_vstl2dot_vssl
+    .param_str = "vV256dLUiv*Ui"
+
+__builtin_ve_vl_vstl2dot_vssml
+    .param_str = "vV256dLUiv*V256bUi"
+
+__builtin_ve_vl_vstl_vssl
+    .param_str = "vV256dLUiv*Ui"
+
+__builtin_ve_vl_vstl_vssml
+    .param_str = "vV256dLUiv*V256bUi"
+
+__builtin_ve_vl_vstlnc_vssl
+    .param_str = "vV256dLUiv*Ui"
+
+__builtin_ve_vl_vstlnc_vssml
+    .param_str = "vV256dLUiv*V256bUi"
+
+__builtin_ve_vl_vstlncot_vssl
+    .param_str = "vV256dLUiv*Ui"
+
+__builtin_ve_vl_vstlncot_vssml
+    .param_str = "vV256dLUiv*V256bUi"
+
+__builtin_ve_vl_vstlot_vssl
+    .param_str = "vV256dLUiv*Ui"
+
+__builtin_ve_vl_vstlot_vssml
+    .param_str = "vV256dLUiv*V256bUi"
+
+__builtin_ve_vl_vstnc_vssl
+    .param_str = "vV256dLUiv*Ui"
+
+__builtin_ve_vl_vstnc_vssml
+    .param_str = "vV256dLUiv*V256bUi"
+
+__builtin_ve_vl_vstncot_vssl
+    .param_str = "vV256dLUiv*Ui"
+
+__builtin_ve_vl_vstncot_vssml
+    .param_str = "vV256dLUiv*V256bUi"
+
+__builtin_ve_vl_vstot_vssl
+    .param_str = "vV256dLUiv*Ui"
+
+__builtin_ve_vl_vstot_vssml
+    .param_str = "vV256dLUiv*V256bUi"
+
+__builtin_ve_vl_vstu2d_vssl
+    .param_str = "vV256dLUiv*Ui"
+
+__builtin_ve_vl_vstu2d_vssml
+    .param_str = "vV256dLUiv*V256bUi"
+
+__builtin_ve_vl_vstu2dnc_vssl
+    .param_str = "vV256dLUiv*Ui"
+
+__builtin_ve_vl_vstu2dnc_vssml
+    .param_str = "vV256dLUiv*V256bUi"
+
+__builtin_ve_vl_vstu2dncot_vssl
+    .param_str = "vV256dLUiv*Ui"
+
+__builtin_ve_vl_vstu2dncot_vssml
+    .param_str = "vV256dLUiv*V256bUi"
+
+__builtin_ve_vl_vstu2dot_vssl
+    .param_str = "vV256dLUiv*Ui"
+
+__builtin_ve_vl_vstu2dot_vssml
+    .param_str = "vV256dLUiv*V256bUi"
+
+__builtin_ve_vl_vstu_vssl
+    .param_str = "vV256dLUiv*Ui"
+
+__builtin_ve_vl_vstu_vssml
+    .param_str = "vV256dLUiv*V256bUi"
+
+__builtin_ve_vl_vstunc_vssl
+    .param_str = "vV256dLUiv*Ui"
+
+__builtin_ve_vl_vstunc_vssml
+    .param_str = "vV256dLUiv*V256bUi"
+
+__builtin_ve_vl_vstuncot_vssl
+    .param_str = "vV256dLUiv*Ui"
+
+__builtin_ve_vl_vstuncot_vssml
+    .param_str = "vV256dLUiv*V256bUi"
+
+__builtin_ve_vl_vstuot_vssl
+    .param_str = "vV256dLUiv*Ui"
+
+__builtin_ve_vl_vstuot_vssml
+    .param_str = "vV256dLUiv*V256bUi"
+
+__builtin_ve_vl_vsubsl_vsvl
+    .param_str = "V256dLiV256dUi"
+
+__builtin_ve_vl_vsubsl_vsvmvl
+    .param_str = "V256dLiV256dV256bV256dUi"
+
+__builtin_ve_vl_vsubsl_vsvvl
+    .param_str = "V256dLiV256dV256dUi"
+
+__builtin_ve_vl_vsubsl_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vsubsl_vvvmvl
+    .param_str = "V256dV256dV256dV256bV256dUi"
+
+__builtin_ve_vl_vsubsl_vvvvl
+    .param_str = "V256dV256dV256dV256dUi"
+
+__builtin_ve_vl_vsubswsx_vsvl
+    .param_str = "V256diV256dUi"
+
+__builtin_ve_vl_vsubswsx_vsvmvl
+    .param_str = "V256diV256dV256bV256dUi"
+
+__builtin_ve_vl_vsubswsx_vsvvl
+    .param_str = "V256diV256dV256dUi"
+
+__builtin_ve_vl_vsubswsx_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vsubswsx_vvvmvl
+    .param_str = "V256dV256dV256dV256bV256dUi"
+
+__builtin_ve_vl_vsubswsx_vvvvl
+    .param_str = "V256dV256dV256dV256dUi"
+
+__builtin_ve_vl_vsubswzx_vsvl
+    .param_str = "V256diV256dUi"
+
+__builtin_ve_vl_vsubswzx_vsvmvl
+    .param_str = "V256diV256dV256bV256dUi"
+
+__builtin_ve_vl_vsubswzx_vsvvl
+    .param_str = "V256diV256dV256dUi"
+
+__builtin_ve_vl_vsubswzx_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vsubswzx_vvvmvl
+    .param_str = "V256dV256dV256dV256bV256dUi"
+
+__builtin_ve_vl_vsubswzx_vvvvl
+    .param_str = "V256dV256dV256dV256dUi"
+
+__builtin_ve_vl_vsubul_vsvl
+    .param_str = "V256dLUiV256dUi"
+
+__builtin_ve_vl_vsubul_vsvmvl
+    .param_str = "V256dLUiV256dV256bV256dUi"
+
+__builtin_ve_vl_vsubul_vsvvl
+    .param_str = "V256dLUiV256dV256dUi"
+
+__builtin_ve_vl_vsubul_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vsubul_vvvmvl
+    .param_str = "V256dV256dV256dV256bV256dUi"
+
+__builtin_ve_vl_vsubul_vvvvl
+    .param_str = "V256dV256dV256dV256dUi"
+
+__builtin_ve_vl_vsubuw_vsvl
+    .param_str = "V256dUiV256dUi"
+
+__builtin_ve_vl_vsubuw_vsvmvl
+    .param_str = "V256dUiV256dV256bV256dUi"
+
+__builtin_ve_vl_vsubuw_vsvvl
+    .param_str = "V256dUiV256dV256dUi"
+
+__builtin_ve_vl_vsubuw_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vsubuw_vvvmvl
+    .param_str = "V256dV256dV256dV256bV256dUi"
+
+__builtin_ve_vl_vsubuw_vvvvl
+    .param_str = "V256dV256dV256dV256dUi"
+
+__builtin_ve_vl_vsuml_vvl
+    .param_str = "V256dV256dUi"
+
+__builtin_ve_vl_vsuml_vvml
+    .param_str = "V256dV256dV256bUi"
+
+__builtin_ve_vl_vsumwsx_vvl
+    .param_str = "V256dV256dUi"
+
+__builtin_ve_vl_vsumwsx_vvml
+    .param_str = "V256dV256dV256bUi"
+
+__builtin_ve_vl_vsumwzx_vvl
+    .param_str = "V256dV256dUi"
+
+__builtin_ve_vl_vsumwzx_vvml
+    .param_str = "V256dV256dV256bUi"
+
+__builtin_ve_vl_vxor_vsvl
+    .param_str = "V256dLUiV256dUi"
+
+__builtin_ve_vl_vxor_vsvmvl
+    .param_str = "V256dLUiV256dV256bV256dUi"
+
+__builtin_ve_vl_vxor_vsvvl
+    .param_str = "V256dLUiV256dV256dUi"
+
+__builtin_ve_vl_vxor_vvvl
+    .param_str = "V256dV256dV256dUi"
+
+__builtin_ve_vl_vxor_vvvmvl
+    .param_str = "V256dV256dV256dV256bV256dUi"
+
+__builtin_ve_vl_vxor_vvvvl
+    .param_str = "V256dV256dV256dV256dUi"
+
+__builtin_ve_vl_xorm_MMM
+    .param_str = "V512bV512bV512b"
+
+__builtin_ve_vl_xorm_mmm
+    .param_str = "V256bV256bV256b"

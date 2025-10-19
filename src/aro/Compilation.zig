@@ -9,7 +9,6 @@ const Interner = backend.Interner;
 const CodeGenOptions = backend.CodeGenOptions;
 
 const Builtins = @import("Builtins.zig");
-const Builtin = Builtins.Builtin;
 const Diagnostics = @import("Diagnostics.zig");
 const DepFile = @import("DepFile.zig");
 const LangOpts = @import("LangOpts.zig");
@@ -1988,21 +1987,6 @@ pub fn pragmaEvent(comp: *Compilation, event: PragmaEvent) void {
             .after_parse => pragma.afterParse,
         };
         if (maybe_func) |func| func(pragma, comp);
-    }
-}
-
-pub fn hasBuiltin(comp: *const Compilation, name: []const u8) bool {
-    const builtin = Builtin.fromName(name) orelse return false;
-    return comp.hasBuiltinFunction(builtin);
-}
-
-pub fn hasBuiltinFunction(comp: *const Compilation, builtin: Builtin) bool {
-    if (!target_util.builtinEnabled(comp.target, builtin.properties.target_set)) return false;
-
-    switch (builtin.properties.language) {
-        .all_languages => return true,
-        .all_ms_languages => return comp.langopts.emulate == .msvc,
-        .gnu_lang, .all_gnu_languages => return comp.langopts.standard.isGNU(),
     }
 }
 

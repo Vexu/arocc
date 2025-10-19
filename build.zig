@@ -1,6 +1,6 @@
 const std = @import("std");
 const Build = std.Build;
-const GenerateDef = @import("build/GenerateDef.zig");
+const generateDef = @import("build/generate_def.zig").generateDef;
 
 const aro_version = std.SemanticVersion{
     .major = 0,
@@ -159,8 +159,23 @@ pub fn build(b: *Build) !void {
                 .name = "backend",
                 .module = aro_backend,
             },
-            GenerateDef.create(b, .{ .name = "Builtins/Builtin.def", .needs_large_dafsa_node = true }),
-            GenerateDef.create(b, .{ .name = "Attribute/names.def" }),
+            try generateDef(b, "Builtins/aarch64.def"),
+            try generateDef(b, "Builtins/amdgcn.def"),
+            try generateDef(b, "Builtins/arm.def"),
+            try generateDef(b, "Builtins/bpf.def"),
+            try generateDef(b, "Builtins/common.def"),
+            try generateDef(b, "Builtins/hexagon.def"),
+            try generateDef(b, "Builtins/loongarch.def"),
+            try generateDef(b, "Builtins/mips.def"),
+            try generateDef(b, "Builtins/nvptx.def"),
+            try generateDef(b, "Builtins/powerpc.def"),
+            try generateDef(b, "Builtins/riscv.def"),
+            try generateDef(b, "Builtins/s390x.def"),
+            try generateDef(b, "Builtins/ve.def"),
+            try generateDef(b, "Builtins/x86_64.def"),
+            try generateDef(b, "Builtins/x86.def"),
+            try generateDef(b, "Builtins/xcore.def"),
+            try generateDef(b, "Attribute/names.def"),
         },
     });
     const assembly_backend = b.addModule("assembly_backend", .{

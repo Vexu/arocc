@@ -1,0 +1,2205 @@
+# Generated from clang/include/clang/Basic/BuiltinsAMDGPU.def
+
+__builtin_amdgcn_alignbit
+    .param_str = "UiUiUiUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_amdgcn_alignbyte
+    .param_str = "UiUiUiUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_amdgcn_ashr_pk_i8_i32
+    .param_str = "UsUiUiUi"
+    .attributes = .{ .@"const" = true }
+    .features = "ashr_pk_insts"
+
+__builtin_amdgcn_ashr_pk_u8_i32
+    .param_str = "UsUiUiUi"
+    .attributes = .{ .@"const" = true }
+    .features = "ashr_pk_insts"
+
+__builtin_amdgcn_atomic_dec32
+    .param_str = "UZiUZiD*UZiUicC*"
+
+__builtin_amdgcn_atomic_dec64
+    .param_str = "UWiUWiD*UWiUicC*"
+
+__builtin_amdgcn_atomic_inc32
+    .param_str = "UZiUZiD*UZiUicC*"
+
+__builtin_amdgcn_atomic_inc64
+    .param_str = "UWiUWiD*UWiUicC*"
+
+__builtin_amdgcn_ballot_w32
+    .param_str = "ZUib"
+    .attributes = .{ .@"const" = true }
+    .features = "wavefrontsize32"
+
+__builtin_amdgcn_ballot_w64
+    .param_str = "WUib"
+    .attributes = .{ .@"const" = true }
+
+__builtin_amdgcn_bitop3_b16
+    .param_str = "ssssIUi"
+    .attributes = .{ .@"const" = true }
+    .features = "bitop3_insts"
+
+__builtin_amdgcn_bitop3_b32
+    .param_str = "iiiiIUi"
+    .attributes = .{ .@"const" = true }
+    .features = "bitop3_insts"
+
+__builtin_amdgcn_buffer_wbinvl1
+    .param_str = "v"
+
+__builtin_amdgcn_buffer_wbinvl1_vol
+    .param_str = "v"
+    .features = "ci_insts"
+
+__builtin_amdgcn_class
+    .param_str = "bdi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_amdgcn_classf
+    .param_str = "bfi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_amdgcn_classh
+    .param_str = "bhi"
+    .attributes = .{ .@"const" = true }
+    .features = "16_bit_insts"
+
+__builtin_amdgcn_cosf
+    .param_str = "ff"
+    .attributes = .{ .@"const" = true }
+
+__builtin_amdgcn_cosh
+    .param_str = "hh"
+    .attributes = .{ .@"const" = true }
+    .features = "16_bit_insts"
+
+__builtin_amdgcn_cubeid
+    .param_str = "ffff"
+    .attributes = .{ .@"const" = true }
+
+__builtin_amdgcn_cubema
+    .param_str = "ffff"
+    .attributes = .{ .@"const" = true }
+
+__builtin_amdgcn_cubesc
+    .param_str = "ffff"
+    .attributes = .{ .@"const" = true }
+
+__builtin_amdgcn_cubetc
+    .param_str = "ffff"
+    .attributes = .{ .@"const" = true }
+
+__builtin_amdgcn_cvt_f16_bf8
+    .param_str = "hiIi"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx1250_insts"
+
+__builtin_amdgcn_cvt_f16_fp8
+    .param_str = "hiIi"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx1250_insts"
+
+__builtin_amdgcn_cvt_f32_bf8
+    .param_str = "fiIi"
+    .attributes = .{ .@"const" = true }
+    .features = "fp8_conversion_insts"
+
+__builtin_amdgcn_cvt_f32_fp8
+    .param_str = "fiIi"
+    .attributes = .{ .@"const" = true }
+    .features = "fp8_conversion_insts"
+
+__builtin_amdgcn_cvt_f32_fp8_e5m3
+    .param_str = "fiIi"
+    .attributes = .{ .@"const" = true }
+    .features = "fp8e5m3_insts"
+
+__builtin_amdgcn_cvt_off_f32_i4
+    .param_str = "fi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_amdgcn_cvt_pk_bf8_f32
+    .param_str = "iffiIb"
+    .attributes = .{ .@"const" = true }
+    .features = "fp8_conversion_insts"
+
+__builtin_amdgcn_cvt_pk_f16_bf8
+    .param_str = "V2hs"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx1250_insts"
+
+__builtin_amdgcn_cvt_pk_f16_fp8
+    .param_str = "V2hs"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx1250_insts"
+
+__builtin_amdgcn_cvt_pk_f32_bf8
+    .param_str = "V2fiIb"
+    .attributes = .{ .@"const" = true }
+    .features = "fp8_conversion_insts"
+
+__builtin_amdgcn_cvt_pk_f32_fp8
+    .param_str = "V2fiIb"
+    .attributes = .{ .@"const" = true }
+    .features = "fp8_conversion_insts"
+
+__builtin_amdgcn_cvt_pk_fp8_f32
+    .param_str = "iffiIb"
+    .attributes = .{ .@"const" = true }
+    .features = "fp8_conversion_insts"
+
+__builtin_amdgcn_cvt_pk_i16
+    .param_str = "E2sii"
+    .attributes = .{ .@"const" = true }
+
+__builtin_amdgcn_cvt_pk_u16
+    .param_str = "E2UsUiUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_amdgcn_cvt_pk_u8_f32
+    .param_str = "UifUiUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_amdgcn_cvt_pknorm_i16
+    .param_str = "E2sff"
+    .attributes = .{ .@"const" = true }
+
+__builtin_amdgcn_cvt_pknorm_u16
+    .param_str = "E2Usff"
+    .attributes = .{ .@"const" = true }
+
+__builtin_amdgcn_cvt_pkrtz
+    .param_str = "E2hff"
+    .attributes = .{ .@"const" = true }
+
+__builtin_amdgcn_cvt_scalef32_2xpk16_bf6_f32
+    .param_str = "V6UiV16fV16ff"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx950_insts"
+
+__builtin_amdgcn_cvt_scalef32_2xpk16_fp6_f32
+    .param_str = "V6UiV16fV16ff"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx950_insts"
+
+__builtin_amdgcn_cvt_scalef32_f16_bf8
+    .param_str = "V2hV2hifIiIb"
+    .attributes = .{ .@"const" = true }
+    .features = "bf8_cvt_scale_insts"
+
+__builtin_amdgcn_cvt_scalef32_f16_fp8
+    .param_str = "V2hV2hifIiIb"
+    .attributes = .{ .@"const" = true }
+    .features = "fp8_cvt_scale_insts"
+
+__builtin_amdgcn_cvt_scalef32_f32_bf8
+    .param_str = "fifIi"
+    .attributes = .{ .@"const" = true }
+    .features = "bf8_cvt_scale_insts"
+
+__builtin_amdgcn_cvt_scalef32_f32_fp8
+    .param_str = "fifIi"
+    .attributes = .{ .@"const" = true }
+    .features = "fp8_cvt_scale_insts"
+
+__builtin_amdgcn_cvt_scalef32_pk32_bf16_bf6
+    .param_str = "V32yV6Uif"
+    .attributes = .{ .@"const" = true }
+    .features = "fp6bf6_cvt_scale_insts"
+
+__builtin_amdgcn_cvt_scalef32_pk32_bf16_fp6
+    .param_str = "V32yV6Uif"
+    .attributes = .{ .@"const" = true }
+    .features = "fp6bf6_cvt_scale_insts"
+
+__builtin_amdgcn_cvt_scalef32_pk32_bf6_bf16
+    .param_str = "V6UiV32yf"
+    .attributes = .{ .@"const" = true }
+    .features = "f16bf16_to_fp6bf6_cvt_scale_insts"
+
+__builtin_amdgcn_cvt_scalef32_pk32_bf6_f16
+    .param_str = "V6UiV32hf"
+    .attributes = .{ .@"const" = true }
+    .features = "f16bf16_to_fp6bf6_cvt_scale_insts"
+
+__builtin_amdgcn_cvt_scalef32_pk32_f16_bf6
+    .param_str = "V32hV6Uif"
+    .attributes = .{ .@"const" = true }
+    .features = "fp6bf6_cvt_scale_insts"
+
+__builtin_amdgcn_cvt_scalef32_pk32_f16_fp6
+    .param_str = "V32hV6Uif"
+    .attributes = .{ .@"const" = true }
+    .features = "fp6bf6_cvt_scale_insts"
+
+__builtin_amdgcn_cvt_scalef32_pk32_f32_bf6
+    .param_str = "V32fV6Uif"
+    .attributes = .{ .@"const" = true }
+    .features = "fp6bf6_cvt_scale_insts"
+
+__builtin_amdgcn_cvt_scalef32_pk32_f32_fp6
+    .param_str = "V32fV6Uif"
+    .attributes = .{ .@"const" = true }
+    .features = "fp6bf6_cvt_scale_insts"
+
+__builtin_amdgcn_cvt_scalef32_pk32_fp6_bf16
+    .param_str = "V6UiV32yf"
+    .attributes = .{ .@"const" = true }
+    .features = "f16bf16_to_fp6bf6_cvt_scale_insts"
+
+__builtin_amdgcn_cvt_scalef32_pk32_fp6_f16
+    .param_str = "V6UiV32hf"
+    .attributes = .{ .@"const" = true }
+    .features = "f16bf16_to_fp6bf6_cvt_scale_insts"
+
+__builtin_amdgcn_cvt_scalef32_pk_bf16_bf8
+    .param_str = "V2yUifIb"
+    .attributes = .{ .@"const" = true }
+    .features = "bf8_cvt_scale_insts"
+
+__builtin_amdgcn_cvt_scalef32_pk_bf16_fp4
+    .param_str = "V2yUifIi"
+    .attributes = .{ .@"const" = true }
+    .features = "fp4_cvt_scale_insts"
+
+__builtin_amdgcn_cvt_scalef32_pk_bf16_fp8
+    .param_str = "V2yUifIb"
+    .attributes = .{ .@"const" = true }
+    .features = "fp8_cvt_scale_insts"
+
+__builtin_amdgcn_cvt_scalef32_pk_bf8_bf16
+    .param_str = "V2sV2sV2yfIb"
+    .attributes = .{ .@"const" = true }
+    .features = "bf8_cvt_scale_insts"
+
+__builtin_amdgcn_cvt_scalef32_pk_bf8_f16
+    .param_str = "V2sV2sV2hfIb"
+    .attributes = .{ .@"const" = true }
+    .features = "bf8_cvt_scale_insts"
+
+__builtin_amdgcn_cvt_scalef32_pk_bf8_f32
+    .param_str = "V2sV2sfffIb"
+    .attributes = .{ .@"const" = true }
+    .features = "bf8_cvt_scale_insts"
+
+__builtin_amdgcn_cvt_scalef32_pk_f16_bf8
+    .param_str = "V2hUifIb"
+    .attributes = .{ .@"const" = true }
+    .features = "bf8_cvt_scale_insts"
+
+__builtin_amdgcn_cvt_scalef32_pk_f16_fp4
+    .param_str = "V2hUifIi"
+    .attributes = .{ .@"const" = true }
+    .features = "fp4_cvt_scale_insts"
+
+__builtin_amdgcn_cvt_scalef32_pk_f16_fp8
+    .param_str = "V2hUifIb"
+    .attributes = .{ .@"const" = true }
+    .features = "fp8_cvt_scale_insts"
+
+__builtin_amdgcn_cvt_scalef32_pk_f32_bf8
+    .param_str = "V2fUifIb"
+    .attributes = .{ .@"const" = true }
+    .features = "bf8_cvt_scale_insts"
+
+__builtin_amdgcn_cvt_scalef32_pk_f32_fp4
+    .param_str = "V2fUifIi"
+    .attributes = .{ .@"const" = true }
+    .features = "fp4_cvt_scale_insts"
+
+__builtin_amdgcn_cvt_scalef32_pk_f32_fp8
+    .param_str = "V2fUifIb"
+    .attributes = .{ .@"const" = true }
+    .features = "fp8_cvt_scale_insts"
+
+__builtin_amdgcn_cvt_scalef32_pk_fp4_bf16
+    .param_str = "UiUiV2yfIi"
+    .attributes = .{ .@"const" = true }
+    .features = "fp4_cvt_scale_insts"
+
+__builtin_amdgcn_cvt_scalef32_pk_fp4_f16
+    .param_str = "UiUiV2hfIi"
+    .attributes = .{ .@"const" = true }
+    .features = "fp4_cvt_scale_insts"
+
+__builtin_amdgcn_cvt_scalef32_pk_fp4_f32
+    .param_str = "UiUifffIi"
+    .attributes = .{ .@"const" = true }
+    .features = "fp4_cvt_scale_insts"
+
+__builtin_amdgcn_cvt_scalef32_pk_fp8_bf16
+    .param_str = "V2sV2sV2yfIb"
+    .attributes = .{ .@"const" = true }
+    .features = "fp8_cvt_scale_insts"
+
+__builtin_amdgcn_cvt_scalef32_pk_fp8_f16
+    .param_str = "V2sV2sV2hfIb"
+    .attributes = .{ .@"const" = true }
+    .features = "fp8_cvt_scale_insts"
+
+__builtin_amdgcn_cvt_scalef32_pk_fp8_f32
+    .param_str = "V2sV2sfffIb"
+    .attributes = .{ .@"const" = true }
+    .features = "fp8_cvt_scale_insts"
+
+__builtin_amdgcn_cvt_scalef32_sr_bf8_bf16
+    .param_str = "iiyUifIi"
+    .attributes = .{ .@"const" = true }
+    .features = "bf8_cvt_scale_insts"
+
+__builtin_amdgcn_cvt_scalef32_sr_bf8_f16
+    .param_str = "iihUifIi"
+    .attributes = .{ .@"const" = true }
+    .features = "bf8_cvt_scale_insts"
+
+__builtin_amdgcn_cvt_scalef32_sr_bf8_f32
+    .param_str = "iifUifIi"
+    .attributes = .{ .@"const" = true }
+    .features = "bf8_cvt_scale_insts"
+
+__builtin_amdgcn_cvt_scalef32_sr_fp8_bf16
+    .param_str = "iiyUifIi"
+    .attributes = .{ .@"const" = true }
+    .features = "fp8_cvt_scale_insts"
+
+__builtin_amdgcn_cvt_scalef32_sr_fp8_f16
+    .param_str = "iihUifIi"
+    .attributes = .{ .@"const" = true }
+    .features = "fp8_cvt_scale_insts"
+
+__builtin_amdgcn_cvt_scalef32_sr_fp8_f32
+    .param_str = "iifUifIi"
+    .attributes = .{ .@"const" = true }
+    .features = "fp8_cvt_scale_insts"
+
+__builtin_amdgcn_cvt_scalef32_sr_pk32_bf6_bf16
+    .param_str = "V6UiV32yUif"
+    .attributes = .{ .@"const" = true }
+    .features = "f16bf16_to_fp6bf6_cvt_scale_insts"
+
+__builtin_amdgcn_cvt_scalef32_sr_pk32_bf6_f16
+    .param_str = "V6UiV32hUif"
+    .attributes = .{ .@"const" = true }
+    .features = "f16bf16_to_fp6bf6_cvt_scale_insts"
+
+__builtin_amdgcn_cvt_scalef32_sr_pk32_bf6_f32
+    .param_str = "V6UiV32fUif"
+    .attributes = .{ .@"const" = true }
+    .features = "f16bf16_to_fp6bf6_cvt_scale_insts"
+
+__builtin_amdgcn_cvt_scalef32_sr_pk32_fp6_bf16
+    .param_str = "V6UiV32yUif"
+    .attributes = .{ .@"const" = true }
+    .features = "f16bf16_to_fp6bf6_cvt_scale_insts"
+
+__builtin_amdgcn_cvt_scalef32_sr_pk32_fp6_f16
+    .param_str = "V6UiV32hUif"
+    .attributes = .{ .@"const" = true }
+    .features = "f16bf16_to_fp6bf6_cvt_scale_insts"
+
+__builtin_amdgcn_cvt_scalef32_sr_pk32_fp6_f32
+    .param_str = "V6UiV32fUif"
+    .attributes = .{ .@"const" = true }
+    .features = "f16bf16_to_fp6bf6_cvt_scale_insts"
+
+__builtin_amdgcn_cvt_scalef32_sr_pk_fp4_bf16
+    .param_str = "UiUiV2yUifIi"
+    .attributes = .{ .@"const" = true }
+    .features = "fp4_cvt_scale_insts"
+
+__builtin_amdgcn_cvt_scalef32_sr_pk_fp4_f16
+    .param_str = "UiUiV2hUifIi"
+    .attributes = .{ .@"const" = true }
+    .features = "fp4_cvt_scale_insts"
+
+__builtin_amdgcn_cvt_scalef32_sr_pk_fp4_f32
+    .param_str = "UiUiV2fUifIi"
+    .attributes = .{ .@"const" = true }
+    .features = "fp4_cvt_scale_insts"
+
+__builtin_amdgcn_cvt_sr_bf16_f32
+    .param_str = "V2yV2yfUiIb"
+    .attributes = .{ .@"const" = true }
+    .features = "f32_to_f16bf16_cvt_sr_insts"
+
+__builtin_amdgcn_cvt_sr_bf8_f32
+    .param_str = "ifiiIi"
+    .attributes = .{ .@"const" = true }
+    .features = "fp8_conversion_insts"
+
+__builtin_amdgcn_cvt_sr_f16_f32
+    .param_str = "V2hV2hfUiIb"
+    .attributes = .{ .@"const" = true }
+    .features = "f32_to_f16bf16_cvt_sr_insts"
+
+__builtin_amdgcn_cvt_sr_fp8_f32
+    .param_str = "ifiiIi"
+    .attributes = .{ .@"const" = true }
+    .features = "fp8_conversion_insts"
+
+__builtin_amdgcn_dispatch_ptr
+    .param_str = "v*4"
+    .attributes = .{ .@"const" = true }
+
+__builtin_amdgcn_div_fixup
+    .param_str = "dddd"
+    .attributes = .{ .@"const" = true }
+
+__builtin_amdgcn_div_fixupf
+    .param_str = "ffff"
+    .attributes = .{ .@"const" = true }
+
+__builtin_amdgcn_div_fixuph
+    .param_str = "hhhh"
+    .attributes = .{ .@"const" = true }
+    .features = "16_bit_insts"
+
+__builtin_amdgcn_div_fmas
+    .param_str = "ddddb"
+    .attributes = .{ .@"const" = true }
+
+__builtin_amdgcn_div_fmasf
+    .param_str = "ffffb"
+    .attributes = .{ .@"const" = true }
+
+__builtin_amdgcn_div_scale
+    .param_str = "dddbb*"
+
+__builtin_amdgcn_div_scalef
+    .param_str = "fffbb*"
+
+__builtin_amdgcn_dot4_f32_bf8_bf8
+    .param_str = "fUiUif"
+    .attributes = .{ .@"const" = true }
+    .features = "dot11_insts"
+
+__builtin_amdgcn_dot4_f32_bf8_fp8
+    .param_str = "fUiUif"
+    .attributes = .{ .@"const" = true }
+    .features = "dot11_insts"
+
+__builtin_amdgcn_dot4_f32_fp8_bf8
+    .param_str = "fUiUif"
+    .attributes = .{ .@"const" = true }
+    .features = "dot11_insts"
+
+__builtin_amdgcn_dot4_f32_fp8_fp8
+    .param_str = "fUiUif"
+    .attributes = .{ .@"const" = true }
+    .features = "dot11_insts"
+
+__builtin_amdgcn_ds_append
+    .param_str = "ii*3"
+
+__builtin_amdgcn_ds_atomic_async_barrier_arrive_b64
+    .param_str = "vLi*3"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx1250_insts"
+
+__builtin_amdgcn_ds_atomic_barrier_arrive_rtn_b64
+    .param_str = "LiLi*3Li"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx1250_insts"
+
+__builtin_amdgcn_ds_atomic_fadd_f32
+    .param_str = "ff*3f"
+    .attributes = .{ .custom_typecheck = true }
+    .features = "gfx8_insts"
+
+__builtin_amdgcn_ds_atomic_fadd_f64
+    .param_str = "dd*3d"
+    .attributes = .{ .custom_typecheck = true }
+    .features = "gfx90a_insts"
+
+__builtin_amdgcn_ds_atomic_fadd_v2bf16
+    .param_str = "V2sV2s*3V2s"
+    .attributes = .{ .custom_typecheck = true }
+    .features = "atomic_ds_pk_add_16_insts"
+
+__builtin_amdgcn_ds_atomic_fadd_v2f16
+    .param_str = "V2hV2h*3V2h"
+    .attributes = .{ .custom_typecheck = true }
+    .features = "atomic_ds_pk_add_16_insts"
+
+__builtin_amdgcn_ds_bpermute
+    .param_str = "iii"
+    .attributes = .{ .@"const" = true }
+
+__builtin_amdgcn_ds_bpermute_fi_b32
+    .param_str = "iii"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx12_insts"
+
+__builtin_amdgcn_ds_bvh_stack_push4_pop1_rtn
+    .param_str = "V2UiUiUiV4UiIi"
+    .features = "gfx11_insts"
+
+__builtin_amdgcn_ds_bvh_stack_push8_pop1_rtn
+    .param_str = "V2UiUiUiV8UiIi"
+    .features = "gfx12_insts"
+
+__builtin_amdgcn_ds_bvh_stack_push8_pop2_rtn
+    .param_str = "V2WUiUiUiV8UiIi"
+    .features = "gfx12_insts"
+
+__builtin_amdgcn_ds_bvh_stack_rtn
+    .param_str = "V2UiUiUiV4UiIi"
+    .features = "gfx11_insts"
+
+__builtin_amdgcn_ds_consume
+    .param_str = "ii*3"
+
+__builtin_amdgcn_ds_faddf
+    .param_str = "ff*3fIiIiIb"
+
+__builtin_amdgcn_ds_fmaxf
+    .param_str = "ff*3fIiIiIb"
+
+__builtin_amdgcn_ds_fminf
+    .param_str = "ff*3fIiIiIb"
+
+__builtin_amdgcn_ds_gws_barrier
+    .param_str = "vUiUi"
+    .features = "gws"
+
+__builtin_amdgcn_ds_gws_init
+    .param_str = "vUiUi"
+    .features = "gws"
+
+__builtin_amdgcn_ds_gws_sema_br
+    .param_str = "vUiUi"
+    .features = "gws"
+
+__builtin_amdgcn_ds_gws_sema_p
+    .param_str = "vUi"
+    .features = "gws"
+
+__builtin_amdgcn_ds_gws_sema_release_all
+    .param_str = "vUi"
+    .features = "ci_insts"
+
+__builtin_amdgcn_ds_gws_sema_v
+    .param_str = "vUi"
+    .features = "gws"
+
+__builtin_amdgcn_ds_load_tr16_b128_v8bf16
+    .param_str = "V8yV8y*3"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx1250_insts,wavefrontsize32"
+
+__builtin_amdgcn_ds_load_tr16_b128_v8f16
+    .param_str = "V8hV8h*3"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx1250_insts,wavefrontsize32"
+
+__builtin_amdgcn_ds_load_tr16_b128_v8i16
+    .param_str = "V8sV8s*3"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx1250_insts,wavefrontsize32"
+
+__builtin_amdgcn_ds_load_tr4_b64_v2i32
+    .param_str = "V2iV2i*3"
+    .attributes = .{ .@"const" = true }
+    .features = "transpose_load_f4f6_insts,wavefrontsize32"
+
+__builtin_amdgcn_ds_load_tr6_b96_v3i32
+    .param_str = "V3iV3i*3"
+    .attributes = .{ .@"const" = true }
+    .features = "transpose_load_f4f6_insts,wavefrontsize32"
+
+__builtin_amdgcn_ds_load_tr8_b64_v2i32
+    .param_str = "V2iV2i*3"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx1250_insts,wavefrontsize32"
+
+__builtin_amdgcn_ds_permute
+    .param_str = "iii"
+    .attributes = .{ .@"const" = true }
+
+__builtin_amdgcn_ds_read_tr16_b64_v4bf16
+    .param_str = "V4yV4y*3"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx950_insts"
+
+__builtin_amdgcn_ds_read_tr16_b64_v4f16
+    .param_str = "V4hV4h*3"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx950_insts"
+
+__builtin_amdgcn_ds_read_tr16_b64_v4i16
+    .param_str = "V4sV4s*3"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx950_insts"
+
+__builtin_amdgcn_ds_read_tr4_b64_v2i32
+    .param_str = "V2iV2i*3"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx950_insts"
+
+__builtin_amdgcn_ds_read_tr6_b96_v3i32
+    .param_str = "V3iV3i*3"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx950_insts"
+
+__builtin_amdgcn_ds_read_tr8_b64_v2i32
+    .param_str = "V2iV2i*3"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx950_insts"
+
+__builtin_amdgcn_ds_swizzle
+    .param_str = "iiIi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_amdgcn_endpgm
+    .param_str = "v"
+    .attributes = .{ .@"noreturn" = true }
+
+__builtin_amdgcn_exp2f
+    .param_str = "ff"
+    .attributes = .{ .@"const" = true }
+
+__builtin_amdgcn_fcmp
+    .param_str = "WUiddIi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_amdgcn_fcmpf
+    .param_str = "WUiffIi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_amdgcn_fdot2
+    .param_str = "fV2hV2hfIb"
+    .attributes = .{ .@"const" = true }
+    .features = "dot10_insts"
+
+__builtin_amdgcn_fdot2_bf16_bf16
+    .param_str = "sV2sV2ss"
+    .attributes = .{ .@"const" = true }
+    .features = "dot9_insts"
+
+__builtin_amdgcn_fdot2_f16_f16
+    .param_str = "hV2hV2hh"
+    .attributes = .{ .@"const" = true }
+    .features = "dot9_insts"
+
+__builtin_amdgcn_fdot2_f32_bf16
+    .param_str = "fV2sV2sfIb"
+    .attributes = .{ .@"const" = true }
+    .features = "dot12_insts"
+
+__builtin_amdgcn_fdot2c_f32_bf16
+    .param_str = "fV2yV2yfIb"
+    .attributes = .{ .@"const" = true }
+    .features = "dot13_insts"
+
+__builtin_amdgcn_fence
+    .param_str = "vUicC*."
+
+__builtin_amdgcn_flat_atomic_fadd_f32
+    .param_str = "ff*0f"
+    .attributes = .{ .custom_typecheck = true }
+    .features = "gfx940_insts"
+
+__builtin_amdgcn_flat_atomic_fadd_f64
+    .param_str = "dd*0d"
+    .attributes = .{ .custom_typecheck = true }
+    .features = "gfx90a_insts"
+
+__builtin_amdgcn_flat_atomic_fadd_v2bf16
+    .param_str = "V2sV2s*0V2s"
+    .attributes = .{ .custom_typecheck = true }
+    .features = "atomic_flat_pk_add_16_insts"
+
+__builtin_amdgcn_flat_atomic_fadd_v2f16
+    .param_str = "V2hV2h*0V2h"
+    .attributes = .{ .custom_typecheck = true }
+    .features = "atomic_flat_pk_add_16_insts"
+
+__builtin_amdgcn_flat_atomic_fmax_f64
+    .param_str = "dd*0d"
+    .attributes = .{ .custom_typecheck = true }
+    .features = "gfx90a_insts"
+
+__builtin_amdgcn_flat_atomic_fmin_f64
+    .param_str = "dd*0d"
+    .attributes = .{ .custom_typecheck = true }
+    .features = "gfx90a_insts"
+
+__builtin_amdgcn_fmed3f
+    .param_str = "ffff"
+    .attributes = .{ .@"const" = true }
+
+__builtin_amdgcn_fmed3h
+    .param_str = "hhhh"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx9_insts"
+
+__builtin_amdgcn_fract
+    .param_str = "dd"
+    .attributes = .{ .@"const" = true }
+
+__builtin_amdgcn_fractf
+    .param_str = "ff"
+    .attributes = .{ .@"const" = true }
+
+__builtin_amdgcn_fracth
+    .param_str = "hh"
+    .attributes = .{ .@"const" = true }
+    .features = "16_bit_insts"
+
+__builtin_amdgcn_frexp_exp
+    .param_str = "id"
+    .attributes = .{ .@"const" = true }
+
+__builtin_amdgcn_frexp_expf
+    .param_str = "if"
+    .attributes = .{ .@"const" = true }
+
+__builtin_amdgcn_frexp_exph
+    .param_str = "sh"
+    .attributes = .{ .@"const" = true }
+    .features = "16_bit_insts"
+
+__builtin_amdgcn_frexp_mant
+    .param_str = "dd"
+    .attributes = .{ .@"const" = true }
+
+__builtin_amdgcn_frexp_mantf
+    .param_str = "ff"
+    .attributes = .{ .@"const" = true }
+
+__builtin_amdgcn_frexp_manth
+    .param_str = "hh"
+    .attributes = .{ .@"const" = true }
+    .features = "16_bit_insts"
+
+__builtin_amdgcn_get_fpenv
+    .param_str = "WUi"
+
+__builtin_amdgcn_global_atomic_fadd_f32
+    .param_str = "ff*1f"
+    .attributes = .{ .custom_typecheck = true }
+    .features = "atomic_fadd_rtn_insts"
+
+__builtin_amdgcn_global_atomic_fadd_f64
+    .param_str = "dd*1d"
+    .attributes = .{ .custom_typecheck = true }
+    .features = "gfx90a_insts"
+
+__builtin_amdgcn_global_atomic_fadd_v2bf16
+    .param_str = "V2sV2s*1V2s"
+    .attributes = .{ .custom_typecheck = true }
+    .features = "atomic_global_pk_add_bf16_inst"
+
+__builtin_amdgcn_global_atomic_fadd_v2f16
+    .param_str = "V2hV2h*1V2h"
+    .attributes = .{ .custom_typecheck = true }
+    .features = "atomic_buffer_global_pk_add_f16_insts"
+
+__builtin_amdgcn_global_atomic_fmax_f64
+    .param_str = "dd*1d"
+    .attributes = .{ .custom_typecheck = true }
+    .features = "gfx90a_insts"
+
+__builtin_amdgcn_global_atomic_fmin_f64
+    .param_str = "dd*1d"
+    .attributes = .{ .custom_typecheck = true }
+    .features = "gfx90a_insts"
+
+__builtin_amdgcn_global_load_lds
+    .param_str = "vv*1v*3IUiIiIUi"
+    .attributes = .{ .custom_typecheck = true }
+    .features = "vmem_to_lds_load_insts"
+
+__builtin_amdgcn_global_load_tr16_b128_v8bf16
+    .param_str = "V8yV8y*1"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx1250_insts,wavefrontsize32"
+
+__builtin_amdgcn_global_load_tr16_b128_v8f16
+    .param_str = "V8hV8h*1"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx1250_insts,wavefrontsize32"
+
+__builtin_amdgcn_global_load_tr16_b128_v8i16
+    .param_str = "V8sV8s*1"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx1250_insts,wavefrontsize32"
+
+__builtin_amdgcn_global_load_tr4_b64_v2i32
+    .param_str = "V2iV2i*1"
+    .attributes = .{ .@"const" = true }
+    .features = "transpose_load_f4f6_insts,wavefrontsize32"
+
+__builtin_amdgcn_global_load_tr6_b96_v3i32
+    .param_str = "V3iV3i*1"
+    .attributes = .{ .@"const" = true }
+    .features = "transpose_load_f4f6_insts,wavefrontsize32"
+
+__builtin_amdgcn_global_load_tr8_b64_v2i32
+    .param_str = "V2iV2i*1"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx1250_insts,wavefrontsize32"
+
+__builtin_amdgcn_global_load_tr_b128_v4bf16
+    .param_str = "V4yV4y*1"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx12_insts,wavefrontsize64"
+
+__builtin_amdgcn_global_load_tr_b128_v4f16
+    .param_str = "V4hV4h*1"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx12_insts,wavefrontsize64"
+
+__builtin_amdgcn_global_load_tr_b128_v4i16
+    .param_str = "V4sV4s*1"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx12_insts,wavefrontsize64"
+
+__builtin_amdgcn_global_load_tr_b128_v8bf16
+    .param_str = "V8yV8y*1"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx12_insts,wavefrontsize32"
+
+__builtin_amdgcn_global_load_tr_b128_v8f16
+    .param_str = "V8hV8h*1"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx12_insts,wavefrontsize32"
+
+__builtin_amdgcn_global_load_tr_b128_v8i16
+    .param_str = "V8sV8s*1"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx12_insts,wavefrontsize32"
+
+__builtin_amdgcn_global_load_tr_b64_i32
+    .param_str = "ii*1"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx12_insts,wavefrontsize64"
+
+__builtin_amdgcn_global_load_tr_b64_v2i32
+    .param_str = "V2iV2i*1"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx12_insts,wavefrontsize32"
+
+__builtin_amdgcn_grid_size_x
+    .param_str = "Ui"
+    .attributes = .{ .@"const" = true }
+
+__builtin_amdgcn_grid_size_y
+    .param_str = "Ui"
+    .attributes = .{ .@"const" = true }
+
+__builtin_amdgcn_grid_size_z
+    .param_str = "Ui"
+    .attributes = .{ .@"const" = true }
+
+__builtin_amdgcn_groupstaticsize
+    .param_str = "Ui"
+
+__builtin_amdgcn_iglp_opt
+    .param_str = "vIi"
+
+__builtin_amdgcn_image_bvh8_intersect_ray
+    .param_str = "V10UiWUifUcV3fV3fUiV4UiV3f*V3f*"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx12_insts"
+
+__builtin_amdgcn_image_bvh_dual_intersect_ray
+    .param_str = "V10UiWUifUcV3fV3fV2UiV4UiV3f*V3f*"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx12_insts"
+
+__builtin_amdgcn_image_bvh_intersect_ray
+    .param_str = "V4UiUifV4fV4fV4fV4Ui"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx10_insts"
+
+__builtin_amdgcn_image_bvh_intersect_ray_h
+    .param_str = "V4UiUifV4fV4hV4hV4Ui"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx10_insts"
+
+__builtin_amdgcn_image_bvh_intersect_ray_l
+    .param_str = "V4UiWUifV4fV4fV4fV4Ui"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx10_insts"
+
+__builtin_amdgcn_image_bvh_intersect_ray_lh
+    .param_str = "V4UiWUifV4fV4hV4hV4Ui"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx10_insts"
+
+__builtin_amdgcn_implicitarg_ptr
+    .param_str = "v*4"
+    .attributes = .{ .@"const" = true }
+
+__builtin_amdgcn_interp_mov
+    .param_str = "fUiUiUiUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_amdgcn_interp_p1
+    .param_str = "ffUiUiUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_amdgcn_interp_p1_f16
+    .param_str = "ffUiUibUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_amdgcn_interp_p2
+    .param_str = "fffUiUiUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_amdgcn_interp_p2_f16
+    .param_str = "hffUiUibUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_amdgcn_is_private
+    .param_str = "bvC*0"
+    .attributes = .{ .@"const" = true }
+
+__builtin_amdgcn_is_shared
+    .param_str = "bvC*0"
+    .attributes = .{ .@"const" = true }
+
+__builtin_amdgcn_kernarg_segment_ptr
+    .param_str = "v*4"
+    .attributes = .{ .@"const" = true }
+
+__builtin_amdgcn_ldexp
+    .param_str = "ddi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_amdgcn_ldexpf
+    .param_str = "ffi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_amdgcn_ldexph
+    .param_str = "hhi"
+    .attributes = .{ .@"const" = true }
+    .features = "16_bit_insts"
+
+__builtin_amdgcn_lerp
+    .param_str = "UiUiUiUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_amdgcn_load_to_lds
+    .param_str = "vv*v*3IUiIiIUi"
+    .features = "vmem_to_lds_load_insts"
+
+__builtin_amdgcn_log_clampf
+    .param_str = "ff"
+    .attributes = .{ .@"const" = true }
+
+__builtin_amdgcn_logf
+    .param_str = "ff"
+    .attributes = .{ .@"const" = true }
+
+__builtin_amdgcn_make_buffer_rsrc
+    .param_str = "Qbv*sii"
+    .attributes = .{ .@"const" = true }
+
+__builtin_amdgcn_mbcnt_hi
+    .param_str = "UiUiUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_amdgcn_mbcnt_lo
+    .param_str = "UiUiUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_amdgcn_mfma_f32_16x16x16bf16_1k
+    .param_str = "V4fV4sV4sV4fIiIiIi"
+    .attributes = .{ .@"const" = true }
+    .features = "mai_insts"
+
+__builtin_amdgcn_mfma_f32_16x16x16f16
+    .param_str = "V4fV4hV4hV4fIiIiIi"
+    .attributes = .{ .@"const" = true }
+    .features = "mai_insts"
+
+__builtin_amdgcn_mfma_f32_16x16x1f32
+    .param_str = "V16fffV16fIiIiIi"
+    .attributes = .{ .@"const" = true }
+    .features = "mai_insts"
+
+__builtin_amdgcn_mfma_f32_16x16x2bf16
+    .param_str = "V16fV2sV2sV16fIiIiIi"
+    .attributes = .{ .@"const" = true }
+    .features = "mai_insts"
+
+__builtin_amdgcn_mfma_f32_16x16x32_bf16
+    .param_str = "V4fV8yV8yV4fIiIiIi"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx950_insts"
+
+__builtin_amdgcn_mfma_f32_16x16x32_bf8_bf8
+    .param_str = "V4fWiWiV4fIiIiIi"
+    .attributes = .{ .@"const" = true }
+    .features = "fp8_insts"
+
+__builtin_amdgcn_mfma_f32_16x16x32_bf8_fp8
+    .param_str = "V4fWiWiV4fIiIiIi"
+    .attributes = .{ .@"const" = true }
+    .features = "fp8_insts"
+
+__builtin_amdgcn_mfma_f32_16x16x32_f16
+    .param_str = "V4fV8hV8hV4fIiIiIi"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx950_insts"
+
+__builtin_amdgcn_mfma_f32_16x16x32_fp8_bf8
+    .param_str = "V4fWiWiV4fIiIiIi"
+    .attributes = .{ .@"const" = true }
+    .features = "fp8_insts"
+
+__builtin_amdgcn_mfma_f32_16x16x32_fp8_fp8
+    .param_str = "V4fWiWiV4fIiIiIi"
+    .attributes = .{ .@"const" = true }
+    .features = "fp8_insts"
+
+__builtin_amdgcn_mfma_f32_16x16x4bf16_1k
+    .param_str = "V16fV4sV4sV16fIiIiIi"
+    .attributes = .{ .@"const" = true }
+    .features = "mai_insts"
+
+__builtin_amdgcn_mfma_f32_16x16x4f16
+    .param_str = "V16fV4hV4hV16fIiIiIi"
+    .attributes = .{ .@"const" = true }
+    .features = "mai_insts"
+
+__builtin_amdgcn_mfma_f32_16x16x4f32
+    .param_str = "V4fffV4fIiIiIi"
+    .attributes = .{ .@"const" = true }
+    .features = "mai_insts"
+
+__builtin_amdgcn_mfma_f32_16x16x8_xf32
+    .param_str = "V4fV2fV2fV4fIiIiIi"
+    .attributes = .{ .@"const" = true }
+    .features = "mai_insts"
+
+__builtin_amdgcn_mfma_f32_16x16x8bf16
+    .param_str = "V4fV2sV2sV4fIiIiIi"
+    .attributes = .{ .@"const" = true }
+    .features = "mai_insts"
+
+__builtin_amdgcn_mfma_f32_32x32x16_bf16
+    .param_str = "V16fV8yV8yV16fIiIiIi"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx950_insts"
+
+__builtin_amdgcn_mfma_f32_32x32x16_bf8_bf8
+    .param_str = "V16fWiWiV16fIiIiIi"
+    .attributes = .{ .@"const" = true }
+    .features = "fp8_insts"
+
+__builtin_amdgcn_mfma_f32_32x32x16_bf8_fp8
+    .param_str = "V16fWiWiV16fIiIiIi"
+    .attributes = .{ .@"const" = true }
+    .features = "fp8_insts"
+
+__builtin_amdgcn_mfma_f32_32x32x16_f16
+    .param_str = "V16fV8hV8hV16fIiIiIi"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx950_insts"
+
+__builtin_amdgcn_mfma_f32_32x32x16_fp8_bf8
+    .param_str = "V16fWiWiV16fIiIiIi"
+    .attributes = .{ .@"const" = true }
+    .features = "fp8_insts"
+
+__builtin_amdgcn_mfma_f32_32x32x16_fp8_fp8
+    .param_str = "V16fWiWiV16fIiIiIi"
+    .attributes = .{ .@"const" = true }
+    .features = "fp8_insts"
+
+__builtin_amdgcn_mfma_f32_32x32x1f32
+    .param_str = "V32fffV32fIiIiIi"
+    .attributes = .{ .@"const" = true }
+    .features = "mai_insts"
+
+__builtin_amdgcn_mfma_f32_32x32x2bf16
+    .param_str = "V32fV2sV2sV32fIiIiIi"
+    .attributes = .{ .@"const" = true }
+    .features = "mai_insts"
+
+__builtin_amdgcn_mfma_f32_32x32x2f32
+    .param_str = "V16fffV16fIiIiIi"
+    .attributes = .{ .@"const" = true }
+    .features = "mai_insts"
+
+__builtin_amdgcn_mfma_f32_32x32x4_xf32
+    .param_str = "V16fV2fV2fV16fIiIiIi"
+    .attributes = .{ .@"const" = true }
+    .features = "mai_insts"
+
+__builtin_amdgcn_mfma_f32_32x32x4bf16
+    .param_str = "V16fV2sV2sV16fIiIiIi"
+    .attributes = .{ .@"const" = true }
+    .features = "mai_insts"
+
+__builtin_amdgcn_mfma_f32_32x32x4bf16_1k
+    .param_str = "V32fV4sV4sV32fIiIiIi"
+    .attributes = .{ .@"const" = true }
+    .features = "mai_insts"
+
+__builtin_amdgcn_mfma_f32_32x32x4f16
+    .param_str = "V32fV4hV4hV32fIiIiIi"
+    .attributes = .{ .@"const" = true }
+    .features = "mai_insts"
+
+__builtin_amdgcn_mfma_f32_32x32x8bf16_1k
+    .param_str = "V16fV4sV4sV16fIiIiIi"
+    .attributes = .{ .@"const" = true }
+    .features = "mai_insts"
+
+__builtin_amdgcn_mfma_f32_32x32x8f16
+    .param_str = "V16fV4hV4hV16fIiIiIi"
+    .attributes = .{ .@"const" = true }
+    .features = "mai_insts"
+
+__builtin_amdgcn_mfma_f32_4x4x1f32
+    .param_str = "V4fffV4fIiIiIi"
+    .attributes = .{ .@"const" = true }
+    .features = "mai_insts"
+
+__builtin_amdgcn_mfma_f32_4x4x2bf16
+    .param_str = "V4fV2sV2sV4fIiIiIi"
+    .attributes = .{ .@"const" = true }
+    .features = "mai_insts"
+
+__builtin_amdgcn_mfma_f32_4x4x4bf16_1k
+    .param_str = "V4fV4sV4sV4fIiIiIi"
+    .attributes = .{ .@"const" = true }
+    .features = "mai_insts"
+
+__builtin_amdgcn_mfma_f32_4x4x4f16
+    .param_str = "V4fV4hV4hV4fIiIiIi"
+    .attributes = .{ .@"const" = true }
+    .features = "mai_insts"
+
+__builtin_amdgcn_mfma_f64_16x16x4f64
+    .param_str = "V4dddV4dIiIiIi"
+    .attributes = .{ .@"const" = true }
+    .features = "mai_insts"
+
+__builtin_amdgcn_mfma_f64_4x4x4f64
+    .param_str = "ddddIiIiIi"
+    .attributes = .{ .@"const" = true }
+    .features = "mai_insts"
+
+__builtin_amdgcn_mfma_i32_16x16x16i8
+    .param_str = "V4iiiV4iIiIiIi"
+    .attributes = .{ .@"const" = true }
+    .features = "mai_insts"
+
+__builtin_amdgcn_mfma_i32_16x16x32_i8
+    .param_str = "V4iWiWiV4iIiIiIi"
+    .attributes = .{ .@"const" = true }
+    .features = "mai_insts"
+
+__builtin_amdgcn_mfma_i32_16x16x4i8
+    .param_str = "V16iiiV16iIiIiIi"
+    .attributes = .{ .@"const" = true }
+    .features = "mai_insts"
+
+__builtin_amdgcn_mfma_i32_16x16x64_i8
+    .param_str = "V4iV4iV4iV4iIiIiIi"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx950_insts"
+
+__builtin_amdgcn_mfma_i32_32x32x16_i8
+    .param_str = "V16iWiWiV16iIiIiIi"
+    .attributes = .{ .@"const" = true }
+    .features = "mai_insts"
+
+__builtin_amdgcn_mfma_i32_32x32x32_i8
+    .param_str = "V16iV4iV4iV16iIiIiIi"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx950_insts"
+
+__builtin_amdgcn_mfma_i32_32x32x4i8
+    .param_str = "V32iiiV32iIiIiIi"
+    .attributes = .{ .@"const" = true }
+    .features = "mai_insts"
+
+__builtin_amdgcn_mfma_i32_32x32x8i8
+    .param_str = "V16iiiV16iIiIiIi"
+    .attributes = .{ .@"const" = true }
+    .features = "mai_insts"
+
+__builtin_amdgcn_mfma_i32_4x4x4i8
+    .param_str = "V4iiiV4iIiIiIi"
+    .attributes = .{ .@"const" = true }
+    .features = "mai_insts"
+
+__builtin_amdgcn_mfma_scale_f32_16x16x128_f8f6f4
+    .param_str = "V4fV8ZiV8ZiV4fIiIiIiiIii"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx950_insts"
+
+__builtin_amdgcn_mfma_scale_f32_32x32x64_f8f6f4
+    .param_str = "V16fV8ZiV8ZiV16fIiIiIiiIii"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx950_insts"
+
+__builtin_amdgcn_mov_dpp
+    .param_str = "iiIiIiIiIb"
+    .attributes = .{ .@"const" = true, .custom_typecheck = true }
+    .features = "dpp"
+
+__builtin_amdgcn_mov_dpp8
+    .param_str = "UiUiIUi"
+    .attributes = .{ .@"const" = true, .custom_typecheck = true }
+    .features = "gfx10_insts"
+
+__builtin_amdgcn_mqsad_pk_u16_u8
+    .param_str = "WUiWUiUiWUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_amdgcn_mqsad_u32_u8
+    .param_str = "V4UiWUiUiV4Ui"
+    .attributes = .{ .@"const" = true }
+
+__builtin_amdgcn_msad_u8
+    .param_str = "UiUiUiUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_amdgcn_perm
+    .param_str = "UiUiUiUi"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx8_insts"
+
+__builtin_amdgcn_permlane16
+    .param_str = "UiUiUiUiUiIbIb"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx10_insts"
+
+__builtin_amdgcn_permlane16_swap
+    .param_str = "V2UiUiUiIbIb"
+    .attributes = .{ .@"const" = true }
+    .features = "permlane16_swap"
+
+__builtin_amdgcn_permlane16_var
+    .param_str = "UiUiUiUiIbIb"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx12_insts"
+
+__builtin_amdgcn_permlane32_swap
+    .param_str = "V2UiUiUiIbIb"
+    .attributes = .{ .@"const" = true }
+    .features = "permlane32_swap"
+
+__builtin_amdgcn_permlane64
+    .param_str = "UiUi"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx11_insts"
+
+__builtin_amdgcn_permlanex16
+    .param_str = "UiUiUiUiUiIbIb"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx10_insts"
+
+__builtin_amdgcn_permlanex16_var
+    .param_str = "UiUiUiUiIbIb"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx12_insts"
+
+__builtin_amdgcn_prng_b32
+    .param_str = "UiUi"
+    .attributes = .{ .@"const" = true }
+    .features = "prng_inst"
+
+__builtin_amdgcn_qsad_pk_u16_u8
+    .param_str = "WUiWUiUiWUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_amdgcn_queue_ptr
+    .param_str = "v*4"
+    .attributes = .{ .@"const" = true }
+
+__builtin_amdgcn_raw_buffer_load_b128
+    .param_str = "V4UiQbiiIi"
+
+__builtin_amdgcn_raw_buffer_load_b16
+    .param_str = "UsQbiiIi"
+
+__builtin_amdgcn_raw_buffer_load_b32
+    .param_str = "UiQbiiIi"
+
+__builtin_amdgcn_raw_buffer_load_b64
+    .param_str = "V2UiQbiiIi"
+
+__builtin_amdgcn_raw_buffer_load_b8
+    .param_str = "UcQbiiIi"
+
+__builtin_amdgcn_raw_buffer_load_b96
+    .param_str = "V3UiQbiiIi"
+
+__builtin_amdgcn_raw_buffer_store_b128
+    .param_str = "vV4UiQbiiIi"
+
+__builtin_amdgcn_raw_buffer_store_b16
+    .param_str = "vUsQbiiIi"
+
+__builtin_amdgcn_raw_buffer_store_b32
+    .param_str = "vUiQbiiIi"
+
+__builtin_amdgcn_raw_buffer_store_b64
+    .param_str = "vV2UiQbiiIi"
+
+__builtin_amdgcn_raw_buffer_store_b8
+    .param_str = "vUcQbiiIi"
+
+__builtin_amdgcn_raw_buffer_store_b96
+    .param_str = "vV3UiQbiiIi"
+
+__builtin_amdgcn_raw_ptr_buffer_load_lds
+    .param_str = "vQbv*3IUiiiIiIi"
+    .attributes = .{ .custom_typecheck = true }
+    .features = "vmem_to_lds_load_insts"
+
+__builtin_amdgcn_rcp
+    .param_str = "dd"
+    .attributes = .{ .@"const" = true }
+
+__builtin_amdgcn_rcpf
+    .param_str = "ff"
+    .attributes = .{ .@"const" = true }
+
+__builtin_amdgcn_rcph
+    .param_str = "hh"
+    .attributes = .{ .@"const" = true }
+    .features = "16_bit_insts"
+
+__builtin_amdgcn_read_exec
+    .param_str = "WUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_amdgcn_read_exec_hi
+    .param_str = "Ui"
+    .attributes = .{ .@"const" = true }
+
+__builtin_amdgcn_read_exec_lo
+    .param_str = "Ui"
+    .attributes = .{ .@"const" = true }
+
+__builtin_amdgcn_readfirstlane
+    .param_str = "ii"
+    .attributes = .{ .@"const" = true }
+
+__builtin_amdgcn_readlane
+    .param_str = "iii"
+    .attributes = .{ .@"const" = true }
+
+__builtin_amdgcn_rsq
+    .param_str = "dd"
+    .attributes = .{ .@"const" = true }
+
+__builtin_amdgcn_rsq_clamp
+    .param_str = "dd"
+    .attributes = .{ .@"const" = true }
+
+__builtin_amdgcn_rsq_clampf
+    .param_str = "ff"
+    .attributes = .{ .@"const" = true }
+
+__builtin_amdgcn_rsqf
+    .param_str = "ff"
+    .attributes = .{ .@"const" = true }
+
+__builtin_amdgcn_rsqh
+    .param_str = "hh"
+    .attributes = .{ .@"const" = true }
+    .features = "16_bit_insts"
+
+__builtin_amdgcn_s_barrier
+    .param_str = "v"
+
+__builtin_amdgcn_s_barrier_signal
+    .param_str = "vIi"
+    .features = "gfx12_insts"
+
+__builtin_amdgcn_s_barrier_signal_isfirst
+    .param_str = "bIi"
+    .features = "gfx12_insts"
+
+__builtin_amdgcn_s_barrier_signal_var
+    .param_str = "vv*i"
+    .features = "gfx12_insts"
+
+__builtin_amdgcn_s_barrier_wait
+    .param_str = "vIs"
+    .features = "gfx12_insts"
+
+__builtin_amdgcn_s_buffer_prefetch_data
+    .param_str = "vQbIiUi"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx12_insts"
+
+__builtin_amdgcn_s_dcache_inv
+    .param_str = "v"
+
+__builtin_amdgcn_s_dcache_inv_vol
+    .param_str = "v"
+    .features = "ci_insts"
+
+__builtin_amdgcn_s_dcache_wb
+    .param_str = "v"
+    .features = "gfx8_insts"
+
+__builtin_amdgcn_s_decperflevel
+    .param_str = "vIi"
+
+__builtin_amdgcn_s_get_barrier_state
+    .param_str = "Uii"
+    .features = "gfx12_insts"
+
+__builtin_amdgcn_s_get_named_barrier_state
+    .param_str = "Uiv*"
+    .features = "gfx12_insts"
+
+__builtin_amdgcn_s_getpc
+    .param_str = "WUi"
+
+__builtin_amdgcn_s_getreg
+    .param_str = "UiIi"
+
+__builtin_amdgcn_s_incperflevel
+    .param_str = "vIi"
+
+__builtin_amdgcn_s_memrealtime
+    .param_str = "WUi"
+    .features = "s_memrealtime"
+
+__builtin_amdgcn_s_memtime
+    .param_str = "WUi"
+    .features = "s_memtime_inst"
+
+__builtin_amdgcn_s_monitor_sleep
+    .param_str = "vIs"
+    .features = "gfx1250_insts"
+
+__builtin_amdgcn_s_prefetch_data
+    .param_str = "vvC*Ui"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx12_insts"
+
+__builtin_amdgcn_s_sendmsg
+    .param_str = "vIiUi"
+
+__builtin_amdgcn_s_sendmsg_rtn
+    .param_str = "UiUIi"
+    .features = "gfx11_insts"
+
+__builtin_amdgcn_s_sendmsg_rtnl
+    .param_str = "UWiUIi"
+    .features = "gfx11_insts"
+
+__builtin_amdgcn_s_sendmsghalt
+    .param_str = "vIiUi"
+
+__builtin_amdgcn_s_setprio
+    .param_str = "vIs"
+
+__builtin_amdgcn_s_setprio_inc_wg
+    .param_str = "vIs"
+    .features = "setprio_inc_wg_inst"
+
+__builtin_amdgcn_s_setreg
+    .param_str = "vIiUi"
+
+__builtin_amdgcn_s_sleep
+    .param_str = "vIi"
+
+__builtin_amdgcn_s_sleep_var
+    .param_str = "vUi"
+    .features = "gfx12_insts"
+
+__builtin_amdgcn_s_ttracedata
+    .param_str = "vi"
+
+__builtin_amdgcn_s_ttracedata_imm
+    .param_str = "vIs"
+    .features = "gfx10_insts"
+
+__builtin_amdgcn_s_wait_asynccnt
+    .param_str = "vIUs"
+    .features = "gfx1250_insts"
+
+__builtin_amdgcn_s_wait_event_export_ready
+    .param_str = "v"
+    .features = "gfx11_insts"
+
+__builtin_amdgcn_s_wait_tensorcnt
+    .param_str = "vIUs"
+    .features = "gfx1250_insts"
+
+__builtin_amdgcn_s_waitcnt
+    .param_str = "vIi"
+
+__builtin_amdgcn_sad_hi_u8
+    .param_str = "UiUiUiUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_amdgcn_sad_u16
+    .param_str = "UiUiUiUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_amdgcn_sad_u8
+    .param_str = "UiUiUiUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_amdgcn_sbfe
+    .param_str = "UiUiUiUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_amdgcn_sched_barrier
+    .param_str = "vIi"
+
+__builtin_amdgcn_sched_group_barrier
+    .param_str = "vIiIiIi"
+
+__builtin_amdgcn_sdot2
+    .param_str = "SiV2SsV2SsSiIb"
+    .attributes = .{ .@"const" = true }
+    .features = "dot2_insts"
+
+__builtin_amdgcn_sdot4
+    .param_str = "SiSiSiSiIb"
+    .attributes = .{ .@"const" = true }
+    .features = "dot1_insts"
+
+__builtin_amdgcn_sdot8
+    .param_str = "SiSiSiSiIb"
+    .attributes = .{ .@"const" = true }
+    .features = "dot1_insts"
+
+__builtin_amdgcn_set_fpenv
+    .param_str = "vWUi"
+
+__builtin_amdgcn_sicmp
+    .param_str = "WUiiiIi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_amdgcn_sicmpl
+    .param_str = "WUiWiWiIi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_amdgcn_sinf
+    .param_str = "ff"
+    .attributes = .{ .@"const" = true }
+
+__builtin_amdgcn_sinh
+    .param_str = "hh"
+    .attributes = .{ .@"const" = true }
+    .features = "16_bit_insts"
+
+__builtin_amdgcn_smfmac_f32_16x16x128_bf8_bf8
+    .param_str = "V4fV4iV8iV4fiIiIi"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx950_insts"
+
+__builtin_amdgcn_smfmac_f32_16x16x128_bf8_fp8
+    .param_str = "V4fV4iV8iV4fiIiIi"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx950_insts"
+
+__builtin_amdgcn_smfmac_f32_16x16x128_fp8_bf8
+    .param_str = "V4fV4iV8iV4fiIiIi"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx950_insts"
+
+__builtin_amdgcn_smfmac_f32_16x16x128_fp8_fp8
+    .param_str = "V4fV4iV8iV4fiIiIi"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx950_insts"
+
+__builtin_amdgcn_smfmac_f32_16x16x32_bf16
+    .param_str = "V4fV4sV8sV4fiIiIi"
+    .attributes = .{ .@"const" = true }
+    .features = "mai_insts"
+
+__builtin_amdgcn_smfmac_f32_16x16x32_f16
+    .param_str = "V4fV4hV8hV4fiIiIi"
+    .attributes = .{ .@"const" = true }
+    .features = "mai_insts"
+
+__builtin_amdgcn_smfmac_f32_16x16x64_bf16
+    .param_str = "V4fV8yV16yV4fiIiIi"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx950_insts"
+
+__builtin_amdgcn_smfmac_f32_16x16x64_bf8_bf8
+    .param_str = "V4fV2iV4iV4fiIiIi"
+    .attributes = .{ .@"const" = true }
+    .features = "fp8_insts"
+
+__builtin_amdgcn_smfmac_f32_16x16x64_bf8_fp8
+    .param_str = "V4fV2iV4iV4fiIiIi"
+    .attributes = .{ .@"const" = true }
+    .features = "fp8_insts"
+
+__builtin_amdgcn_smfmac_f32_16x16x64_f16
+    .param_str = "V4fV8hV16hV4fiIiIi"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx950_insts"
+
+__builtin_amdgcn_smfmac_f32_16x16x64_fp8_bf8
+    .param_str = "V4fV2iV4iV4fiIiIi"
+    .attributes = .{ .@"const" = true }
+    .features = "fp8_insts"
+
+__builtin_amdgcn_smfmac_f32_16x16x64_fp8_fp8
+    .param_str = "V4fV2iV4iV4fiIiIi"
+    .attributes = .{ .@"const" = true }
+    .features = "fp8_insts"
+
+__builtin_amdgcn_smfmac_f32_32x32x16_bf16
+    .param_str = "V16fV4sV8sV16fiIiIi"
+    .attributes = .{ .@"const" = true }
+    .features = "mai_insts"
+
+__builtin_amdgcn_smfmac_f32_32x32x16_f16
+    .param_str = "V16fV4hV8hV16fiIiIi"
+    .attributes = .{ .@"const" = true }
+    .features = "mai_insts"
+
+__builtin_amdgcn_smfmac_f32_32x32x32_bf16
+    .param_str = "V16fV8yV16yV16fiIiIi"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx950_insts"
+
+__builtin_amdgcn_smfmac_f32_32x32x32_bf8_bf8
+    .param_str = "V16fV2iV4iV16fiIiIi"
+    .attributes = .{ .@"const" = true }
+    .features = "fp8_insts"
+
+__builtin_amdgcn_smfmac_f32_32x32x32_bf8_fp8
+    .param_str = "V16fV2iV4iV16fiIiIi"
+    .attributes = .{ .@"const" = true }
+    .features = "fp8_insts"
+
+__builtin_amdgcn_smfmac_f32_32x32x32_f16
+    .param_str = "V16fV8hV16hV16fiIiIi"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx950_insts"
+
+__builtin_amdgcn_smfmac_f32_32x32x32_fp8_bf8
+    .param_str = "V16fV2iV4iV16fiIiIi"
+    .attributes = .{ .@"const" = true }
+    .features = "fp8_insts"
+
+__builtin_amdgcn_smfmac_f32_32x32x32_fp8_fp8
+    .param_str = "V16fV2iV4iV16fiIiIi"
+    .attributes = .{ .@"const" = true }
+    .features = "fp8_insts"
+
+__builtin_amdgcn_smfmac_f32_32x32x64_bf8_bf8
+    .param_str = "V16fV4iV8iV16fiIiIi"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx950_insts"
+
+__builtin_amdgcn_smfmac_f32_32x32x64_bf8_fp8
+    .param_str = "V16fV4iV8iV16fiIiIi"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx950_insts"
+
+__builtin_amdgcn_smfmac_f32_32x32x64_fp8_bf8
+    .param_str = "V16fV4iV8iV16fiIiIi"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx950_insts"
+
+__builtin_amdgcn_smfmac_f32_32x32x64_fp8_fp8
+    .param_str = "V16fV4iV8iV16fiIiIi"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx950_insts"
+
+__builtin_amdgcn_smfmac_i32_16x16x128_i8
+    .param_str = "V4iV4iV8iV4iiIiIi"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx950_insts"
+
+__builtin_amdgcn_smfmac_i32_16x16x64_i8
+    .param_str = "V4iV2iV4iV4iiIiIi"
+    .attributes = .{ .@"const" = true }
+    .features = "mai_insts"
+
+__builtin_amdgcn_smfmac_i32_32x32x32_i8
+    .param_str = "V16iV2iV4iV16iiIiIi"
+    .attributes = .{ .@"const" = true }
+    .features = "mai_insts"
+
+__builtin_amdgcn_smfmac_i32_32x32x64_i8
+    .param_str = "V16iV4iV8iV16iiIiIi"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx950_insts"
+
+__builtin_amdgcn_sqrt
+    .param_str = "dd"
+    .attributes = .{ .@"const" = true }
+
+__builtin_amdgcn_sqrtf
+    .param_str = "ff"
+    .attributes = .{ .@"const" = true }
+
+__builtin_amdgcn_sqrth
+    .param_str = "hh"
+    .attributes = .{ .@"const" = true }
+    .features = "16_bit_insts"
+
+__builtin_amdgcn_sudot4
+    .param_str = "iIbiIbiiIb"
+    .attributes = .{ .@"const" = true }
+    .features = "dot8_insts"
+
+__builtin_amdgcn_sudot8
+    .param_str = "iIbiIbiiIb"
+    .attributes = .{ .@"const" = true }
+    .features = "dot8_insts"
+
+__builtin_amdgcn_swmmac_bf16_16x16x32_bf16_w32
+    .param_str = "V8sV8sV16sV8si"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx12_insts,wavefrontsize32"
+
+__builtin_amdgcn_swmmac_bf16_16x16x32_bf16_w64
+    .param_str = "V4sV4sV8sV4si"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx12_insts,wavefrontsize64"
+
+__builtin_amdgcn_swmmac_f16_16x16x32_f16_w32
+    .param_str = "V8hV8hV16hV8hi"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx12_insts,wavefrontsize32"
+
+__builtin_amdgcn_swmmac_f16_16x16x32_f16_w64
+    .param_str = "V4hV4hV8hV4hi"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx12_insts,wavefrontsize64"
+
+__builtin_amdgcn_swmmac_f32_16x16x32_bf16_w32
+    .param_str = "V8fV8sV16sV8fi"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx12_insts,wavefrontsize32"
+
+__builtin_amdgcn_swmmac_f32_16x16x32_bf16_w64
+    .param_str = "V4fV4sV8sV4fi"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx12_insts,wavefrontsize64"
+
+__builtin_amdgcn_swmmac_f32_16x16x32_bf8_bf8_w32
+    .param_str = "V8fV2iV4iV8fi"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx12_insts,wavefrontsize32"
+
+__builtin_amdgcn_swmmac_f32_16x16x32_bf8_bf8_w64
+    .param_str = "V4fiV2iV4fi"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx12_insts,wavefrontsize64"
+
+__builtin_amdgcn_swmmac_f32_16x16x32_bf8_fp8_w32
+    .param_str = "V8fV2iV4iV8fi"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx12_insts,wavefrontsize32"
+
+__builtin_amdgcn_swmmac_f32_16x16x32_bf8_fp8_w64
+    .param_str = "V4fiV2iV4fi"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx12_insts,wavefrontsize64"
+
+__builtin_amdgcn_swmmac_f32_16x16x32_f16_w32
+    .param_str = "V8fV8hV16hV8fi"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx12_insts,wavefrontsize32"
+
+__builtin_amdgcn_swmmac_f32_16x16x32_f16_w64
+    .param_str = "V4fV4hV8hV4fi"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx12_insts,wavefrontsize64"
+
+__builtin_amdgcn_swmmac_f32_16x16x32_fp8_bf8_w32
+    .param_str = "V8fV2iV4iV8fi"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx12_insts,wavefrontsize32"
+
+__builtin_amdgcn_swmmac_f32_16x16x32_fp8_bf8_w64
+    .param_str = "V4fiV2iV4fi"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx12_insts,wavefrontsize64"
+
+__builtin_amdgcn_swmmac_f32_16x16x32_fp8_fp8_w32
+    .param_str = "V8fV2iV4iV8fi"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx12_insts,wavefrontsize32"
+
+__builtin_amdgcn_swmmac_f32_16x16x32_fp8_fp8_w64
+    .param_str = "V4fiV2iV4fi"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx12_insts,wavefrontsize64"
+
+__builtin_amdgcn_swmmac_i32_16x16x32_iu4_w32
+    .param_str = "V8iIbiIbV2iV8iiIb"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx12_insts,wavefrontsize32"
+
+__builtin_amdgcn_swmmac_i32_16x16x32_iu4_w64
+    .param_str = "V4iIbiIbiV4iiIb"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx12_insts,wavefrontsize64"
+
+__builtin_amdgcn_swmmac_i32_16x16x32_iu8_w32
+    .param_str = "V8iIbV2iIbV4iV8iiIb"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx12_insts,wavefrontsize32"
+
+__builtin_amdgcn_swmmac_i32_16x16x32_iu8_w64
+    .param_str = "V4iIbiIbV2iV4iiIb"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx12_insts,wavefrontsize64"
+
+__builtin_amdgcn_swmmac_i32_16x16x64_iu4_w32
+    .param_str = "V8iIbV2iIbV4iV8iiIb"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx12_insts,wavefrontsize32"
+
+__builtin_amdgcn_swmmac_i32_16x16x64_iu4_w64
+    .param_str = "V4iIbiIbV2iV4iiIb"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx12_insts,wavefrontsize64"
+
+__builtin_amdgcn_tanh_bf16
+    .param_str = "yy"
+    .attributes = .{ .@"const" = true }
+    .features = "bf16_trans_insts"
+
+__builtin_amdgcn_tensor_load_to_lds
+    .param_str = "vV4iV8iV4iV4iIi"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx1250_insts"
+
+__builtin_amdgcn_tensor_load_to_lds_d2
+    .param_str = "vV4iV8iIi"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx1250_insts"
+
+__builtin_amdgcn_tensor_store_from_lds
+    .param_str = "vV4iV8iV4iV4iIi"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx1250_insts"
+
+__builtin_amdgcn_tensor_store_from_lds_d2
+    .param_str = "vV4iV8iIi"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx1250_insts"
+
+__builtin_amdgcn_trig_preop
+    .param_str = "ddi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_amdgcn_trig_preopf
+    .param_str = "ffi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_amdgcn_ubfe
+    .param_str = "UiUiUiUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_amdgcn_udot2
+    .param_str = "UiV2UsV2UsUiIb"
+    .attributes = .{ .@"const" = true }
+    .features = "dot2_insts"
+
+__builtin_amdgcn_udot4
+    .param_str = "UiUiUiUiIb"
+    .attributes = .{ .@"const" = true }
+    .features = "dot7_insts"
+
+__builtin_amdgcn_udot8
+    .param_str = "UiUiUiUiIb"
+    .attributes = .{ .@"const" = true }
+    .features = "dot7_insts"
+
+__builtin_amdgcn_uicmp
+    .param_str = "WUiUiUiIi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_amdgcn_uicmpl
+    .param_str = "WUiWUiWUiIi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_amdgcn_update_dpp
+    .param_str = "iiiIiIiIiIb"
+    .attributes = .{ .@"const" = true, .custom_typecheck = true }
+    .features = "dpp"
+
+__builtin_amdgcn_wave_barrier
+    .param_str = "v"
+
+__builtin_amdgcn_wavefrontsize
+    .param_str = "Ui"
+    .attributes = .{ .@"const" = true }
+
+__builtin_amdgcn_wmma_bf16_16x16x16_bf16_tied_w32
+    .param_str = "V16sV16sV16sV16sIb"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx11_insts,wavefrontsize32"
+
+__builtin_amdgcn_wmma_bf16_16x16x16_bf16_tied_w64
+    .param_str = "V8sV16sV16sV8sIb"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx11_insts,wavefrontsize64"
+
+__builtin_amdgcn_wmma_bf16_16x16x16_bf16_w32
+    .param_str = "V16sV16sV16sV16sIb"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx11_insts,wavefrontsize32"
+
+__builtin_amdgcn_wmma_bf16_16x16x16_bf16_w32_gfx12
+    .param_str = "V8sV8sV8sV8s"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx12_insts,wavefrontsize32"
+
+__builtin_amdgcn_wmma_bf16_16x16x16_bf16_w64
+    .param_str = "V8sV16sV16sV8sIb"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx11_insts,wavefrontsize64"
+
+__builtin_amdgcn_wmma_bf16_16x16x16_bf16_w64_gfx12
+    .param_str = "V4sV4sV4sV4s"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx12_insts,wavefrontsize64"
+
+__builtin_amdgcn_wmma_f16_16x16x16_f16_tied_w32
+    .param_str = "V16hV16hV16hV16hIb"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx11_insts,wavefrontsize32"
+
+__builtin_amdgcn_wmma_f16_16x16x16_f16_tied_w64
+    .param_str = "V8hV16hV16hV8hIb"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx11_insts,wavefrontsize64"
+
+__builtin_amdgcn_wmma_f16_16x16x16_f16_w32
+    .param_str = "V16hV16hV16hV16hIb"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx11_insts,wavefrontsize32"
+
+__builtin_amdgcn_wmma_f16_16x16x16_f16_w32_gfx12
+    .param_str = "V8hV8hV8hV8h"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx12_insts,wavefrontsize32"
+
+__builtin_amdgcn_wmma_f16_16x16x16_f16_w64
+    .param_str = "V8hV16hV16hV8hIb"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx11_insts,wavefrontsize64"
+
+__builtin_amdgcn_wmma_f16_16x16x16_f16_w64_gfx12
+    .param_str = "V4hV4hV4hV4h"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx12_insts,wavefrontsize64"
+
+__builtin_amdgcn_wmma_f32_16x16x16_bf16_w32
+    .param_str = "V8fV16sV16sV8f"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx11_insts,wavefrontsize32"
+
+__builtin_amdgcn_wmma_f32_16x16x16_bf16_w32_gfx12
+    .param_str = "V8fV8sV8sV8f"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx12_insts,wavefrontsize32"
+
+__builtin_amdgcn_wmma_f32_16x16x16_bf16_w64
+    .param_str = "V4fV16sV16sV4f"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx11_insts,wavefrontsize64"
+
+__builtin_amdgcn_wmma_f32_16x16x16_bf16_w64_gfx12
+    .param_str = "V4fV4sV4sV4f"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx12_insts,wavefrontsize64"
+
+__builtin_amdgcn_wmma_f32_16x16x16_bf8_bf8_w32_gfx12
+    .param_str = "V8fV2iV2iV8f"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx12_insts,wavefrontsize32"
+
+__builtin_amdgcn_wmma_f32_16x16x16_bf8_bf8_w64_gfx12
+    .param_str = "V4fiiV4f"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx12_insts,wavefrontsize64"
+
+__builtin_amdgcn_wmma_f32_16x16x16_bf8_fp8_w32_gfx12
+    .param_str = "V8fV2iV2iV8f"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx12_insts,wavefrontsize32"
+
+__builtin_amdgcn_wmma_f32_16x16x16_bf8_fp8_w64_gfx12
+    .param_str = "V4fiiV4f"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx12_insts,wavefrontsize64"
+
+__builtin_amdgcn_wmma_f32_16x16x16_f16_w32
+    .param_str = "V8fV16hV16hV8f"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx11_insts,wavefrontsize32"
+
+__builtin_amdgcn_wmma_f32_16x16x16_f16_w32_gfx12
+    .param_str = "V8fV8hV8hV8f"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx12_insts,wavefrontsize32"
+
+__builtin_amdgcn_wmma_f32_16x16x16_f16_w64
+    .param_str = "V4fV16hV16hV4f"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx11_insts,wavefrontsize64"
+
+__builtin_amdgcn_wmma_f32_16x16x16_f16_w64_gfx12
+    .param_str = "V4fV4hV4hV4f"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx12_insts,wavefrontsize64"
+
+__builtin_amdgcn_wmma_f32_16x16x16_fp8_bf8_w32_gfx12
+    .param_str = "V8fV2iV2iV8f"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx12_insts,wavefrontsize32"
+
+__builtin_amdgcn_wmma_f32_16x16x16_fp8_bf8_w64_gfx12
+    .param_str = "V4fiiV4f"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx12_insts,wavefrontsize64"
+
+__builtin_amdgcn_wmma_f32_16x16x16_fp8_fp8_w32_gfx12
+    .param_str = "V8fV2iV2iV8f"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx12_insts,wavefrontsize32"
+
+__builtin_amdgcn_wmma_f32_16x16x16_fp8_fp8_w64_gfx12
+    .param_str = "V4fiiV4f"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx12_insts,wavefrontsize64"
+
+__builtin_amdgcn_wmma_i32_16x16x16_iu4_w32
+    .param_str = "V8iIbV2iIbV2iV8iIb"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx11_insts,wavefrontsize32"
+
+__builtin_amdgcn_wmma_i32_16x16x16_iu4_w32_gfx12
+    .param_str = "V8iIbiIbiV8iIb"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx12_insts,wavefrontsize32"
+
+__builtin_amdgcn_wmma_i32_16x16x16_iu4_w64
+    .param_str = "V4iIbV2iIbV2iV4iIb"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx11_insts,wavefrontsize64"
+
+__builtin_amdgcn_wmma_i32_16x16x16_iu4_w64_gfx12
+    .param_str = "V4iIbiIbiV4iIb"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx12_insts,wavefrontsize64"
+
+__builtin_amdgcn_wmma_i32_16x16x16_iu8_w32
+    .param_str = "V8iIbV4iIbV4iV8iIb"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx11_insts,wavefrontsize32"
+
+__builtin_amdgcn_wmma_i32_16x16x16_iu8_w32_gfx12
+    .param_str = "V8iIbV2iIbV2iV8iIb"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx12_insts,wavefrontsize32"
+
+__builtin_amdgcn_wmma_i32_16x16x16_iu8_w64
+    .param_str = "V4iIbV4iIbV4iV4iIb"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx11_insts,wavefrontsize64"
+
+__builtin_amdgcn_wmma_i32_16x16x16_iu8_w64_gfx12
+    .param_str = "V4iIbiIbiV4iIb"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx12_insts,wavefrontsize64"
+
+__builtin_amdgcn_wmma_i32_16x16x32_iu4_w32_gfx12
+    .param_str = "V8iIbV2iIbV2iV8iIb"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx12_insts,wavefrontsize32"
+
+__builtin_amdgcn_wmma_i32_16x16x32_iu4_w64_gfx12
+    .param_str = "V4iIbiIbiV4iIb"
+    .attributes = .{ .@"const" = true }
+    .features = "gfx12_insts,wavefrontsize64"
+
+__builtin_amdgcn_workgroup_id_x
+    .param_str = "Ui"
+    .attributes = .{ .@"const" = true }
+
+__builtin_amdgcn_workgroup_id_y
+    .param_str = "Ui"
+    .attributes = .{ .@"const" = true }
+
+__builtin_amdgcn_workgroup_id_z
+    .param_str = "Ui"
+    .attributes = .{ .@"const" = true }
+
+__builtin_amdgcn_workgroup_size_x
+    .param_str = "Us"
+    .attributes = .{ .@"const" = true }
+
+__builtin_amdgcn_workgroup_size_y
+    .param_str = "Us"
+    .attributes = .{ .@"const" = true }
+
+__builtin_amdgcn_workgroup_size_z
+    .param_str = "Us"
+    .attributes = .{ .@"const" = true }
+
+__builtin_amdgcn_workitem_id_x
+    .param_str = "Ui"
+    .attributes = .{ .@"const" = true }
+
+__builtin_amdgcn_workitem_id_y
+    .param_str = "Ui"
+    .attributes = .{ .@"const" = true }
+
+__builtin_amdgcn_workitem_id_z
+    .param_str = "Ui"
+    .attributes = .{ .@"const" = true }
+
+__builtin_r600_implicitarg_ptr
+    .param_str = "Uc*7"
+    .attributes = .{ .@"const" = true }
+
+__builtin_r600_read_tgid_x
+    .param_str = "Ui"
+    .attributes = .{ .@"const" = true }
+
+__builtin_r600_read_tgid_y
+    .param_str = "Ui"
+    .attributes = .{ .@"const" = true }
+
+__builtin_r600_read_tgid_z
+    .param_str = "Ui"
+    .attributes = .{ .@"const" = true }
+
+__builtin_r600_read_tidig_x
+    .param_str = "Ui"
+    .attributes = .{ .@"const" = true }
+
+__builtin_r600_read_tidig_y
+    .param_str = "Ui"
+    .attributes = .{ .@"const" = true }
+
+__builtin_r600_read_tidig_z
+    .param_str = "Ui"
+    .attributes = .{ .@"const" = true }
+
+__builtin_r600_recipsqrt_ieee
+    .param_str = "dd"
+    .attributes = .{ .@"const" = true }
+
+__builtin_r600_recipsqrt_ieeef
+    .param_str = "ff"
+    .attributes = .{ .@"const" = true }

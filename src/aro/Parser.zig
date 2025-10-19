@@ -6,7 +6,6 @@ const big = std.math.big;
 
 const Attribute = @import("Attribute.zig");
 const Builtins = @import("Builtins.zig");
-const Builtin = Builtins.Builtin;
 const evalBuiltin = @import("Builtins/eval.zig").eval;
 const char_info = @import("char_info.zig");
 const Compilation = @import("Compilation.zig");
@@ -5652,14 +5651,14 @@ const CallExpr = union(enum) {
     standard: Node.Index,
     builtin: struct {
         builtin_tok: TokenIndex,
-        tag: Builtin.Tag,
+        expanded: Builtins.Expanded,
     },
 
     fn init(p: *Parser, call_node: Node.Index, func_node: Node.Index) CallExpr {
         if (p.getNode(call_node, .builtin_ref)) |builtin_ref| {
             const name = p.tokSlice(builtin_ref.name_tok);
             const expanded = p.comp.builtins.lookup(name);
-            return .{ .builtin = .{ .builtin_tok = builtin_ref.name_tok, .tag = expanded.builtin.tag } };
+            return .{ .builtin = .{ .builtin_tok = builtin_ref.name_tok, .expanded = expanded } };
         }
         return .{ .standard = func_node };
     }
@@ -5667,11 +5666,14 @@ const CallExpr = union(enum) {
     fn shouldPerformLvalConversion(self: CallExpr, arg_idx: u32) bool {
         return switch (self) {
             .standard => true,
-            .builtin => |builtin| switch (builtin.tag) {
-                .__builtin_va_start,
-                .__va_start,
-                .va_start,
-                => arg_idx != 1,
+            .builtin => |builtin| switch (builtin.expanded.tag) {
+                .common => |tag| switch (tag) {
+                    .__builtin_va_start,
+                    .__va_start,
+                    .va_start,
+                    => arg_idx != 1,
+                    else => true,
+                },
                 else => true,
             },
         };
@@ -5680,20 +5682,23 @@ const CallExpr = union(enum) {
     fn shouldPromoteVarArg(self: CallExpr, arg_idx: u32) bool {
         return switch (self) {
             .standard => true,
-            .builtin => |builtin| switch (builtin.tag) {
-                .__builtin_va_start,
-                .__va_start,
-                .va_start,
-                => arg_idx != 1,
-                .__builtin_add_overflow,
-                .__builtin_complex,
-                .__builtin_isinf,
-                .__builtin_isinf_sign,
-                .__builtin_mul_overflow,
-                .__builtin_isnan,
-                .__builtin_sub_overflow,
-                => false,
-                else => true,
+            .builtin => |builtin| switch (builtin.expanded.tag) {
+                .common => |tag| switch (tag) {
+                    .__builtin_va_start,
+                    .__va_start,
+                    .va_start,
+                    => arg_idx != 1,
+                    .__builtin_add_overflow,
+                    .__builtin_complex,
+                    .__builtin_isinf,
+                    .__builtin_isinf_sign,
+                    .__builtin_mul_overflow,
+                    .__builtin_isnan,
+                    .__builtin_sub_overflow,
+                    => false,
+                    else => true,
+                },
+                else => false,
             },
         };
     }
@@ -5708,61 +5713,64 @@ const CallExpr = union(enum) {
         if (self == .standard) return;
 
         const builtin_tok = self.builtin.builtin_tok;
-        switch (self.builtin.tag) {
-            .__builtin_va_start,
-            .__va_start,
-            .va_start,
-            => return p.checkVaStartArg(builtin_tok, first_after, param_tok, arg, arg_idx),
-            .__builtin_complex => return p.checkComplexArg(builtin_tok, first_after, param_tok, arg, arg_idx),
-            .__builtin_add_overflow,
-            .__builtin_sub_overflow,
-            .__builtin_mul_overflow,
-            => return p.checkArithOverflowArg(builtin_tok, first_after, param_tok, arg, arg_idx),
+        switch (self.builtin.expanded.tag) {
+            .common => |tag| switch (tag) {
+                .__builtin_va_start,
+                .__va_start,
+                .va_start,
+                => return p.checkVaStartArg(builtin_tok, first_after, param_tok, arg, arg_idx),
+                .__builtin_complex => return p.checkComplexArg(builtin_tok, first_after, param_tok, arg, arg_idx),
+                .__builtin_add_overflow,
+                .__builtin_sub_overflow,
+                .__builtin_mul_overflow,
+                => return p.checkArithOverflowArg(builtin_tok, first_after, param_tok, arg, arg_idx),
 
-            .__builtin_elementwise_abs,
-            => return p.checkElementwiseArg(param_tok, arg, arg_idx, .sint_float),
-            .__builtin_elementwise_bitreverse,
-            .__builtin_elementwise_add_sat,
-            .__builtin_elementwise_sub_sat,
-            .__builtin_elementwise_popcount,
-            => return p.checkElementwiseArg(param_tok, arg, arg_idx, .int),
-            .__builtin_elementwise_canonicalize,
-            .__builtin_elementwise_ceil,
-            .__builtin_elementwise_cos,
-            .__builtin_elementwise_exp,
-            .__builtin_elementwise_exp2,
-            .__builtin_elementwise_floor,
-            .__builtin_elementwise_log,
-            .__builtin_elementwise_log10,
-            .__builtin_elementwise_log2,
-            .__builtin_elementwise_nearbyint,
-            .__builtin_elementwise_rint,
-            .__builtin_elementwise_round,
-            .__builtin_elementwise_roundeven,
-            .__builtin_elementwise_sin,
-            .__builtin_elementwise_sqrt,
-            .__builtin_elementwise_trunc,
-            .__builtin_elementwise_copysign,
-            .__builtin_elementwise_pow,
-            .__builtin_elementwise_fma,
-            => return p.checkElementwiseArg(param_tok, arg, arg_idx, .float),
-            .__builtin_elementwise_max,
-            .__builtin_elementwise_min,
-            => return p.checkElementwiseArg(param_tok, arg, arg_idx, .both),
+                .__builtin_elementwise_abs,
+                => return p.checkElementwiseArg(param_tok, arg, arg_idx, .sint_float),
+                .__builtin_elementwise_bitreverse,
+                .__builtin_elementwise_add_sat,
+                .__builtin_elementwise_sub_sat,
+                .__builtin_elementwise_popcount,
+                => return p.checkElementwiseArg(param_tok, arg, arg_idx, .int),
+                .__builtin_elementwise_canonicalize,
+                .__builtin_elementwise_ceil,
+                .__builtin_elementwise_cos,
+                .__builtin_elementwise_exp,
+                .__builtin_elementwise_exp2,
+                .__builtin_elementwise_floor,
+                .__builtin_elementwise_log,
+                .__builtin_elementwise_log10,
+                .__builtin_elementwise_log2,
+                .__builtin_elementwise_nearbyint,
+                .__builtin_elementwise_rint,
+                .__builtin_elementwise_round,
+                .__builtin_elementwise_roundeven,
+                .__builtin_elementwise_sin,
+                .__builtin_elementwise_sqrt,
+                .__builtin_elementwise_trunc,
+                .__builtin_elementwise_copysign,
+                .__builtin_elementwise_pow,
+                .__builtin_elementwise_fma,
+                => return p.checkElementwiseArg(param_tok, arg, arg_idx, .float),
+                .__builtin_elementwise_max,
+                .__builtin_elementwise_min,
+                => return p.checkElementwiseArg(param_tok, arg, arg_idx, .both),
 
-            .__builtin_reduce_add,
-            .__builtin_reduce_mul,
-            .__builtin_reduce_and,
-            .__builtin_reduce_or,
-            .__builtin_reduce_xor,
-            => return p.checkElementwiseArg(param_tok, arg, arg_idx, .int),
-            .__builtin_reduce_max,
-            .__builtin_reduce_min,
-            => return p.checkElementwiseArg(param_tok, arg, arg_idx, .both),
+                .__builtin_reduce_add,
+                .__builtin_reduce_mul,
+                .__builtin_reduce_and,
+                .__builtin_reduce_or,
+                .__builtin_reduce_xor,
+                => return p.checkElementwiseArg(param_tok, arg, arg_idx, .int),
+                .__builtin_reduce_max,
+                .__builtin_reduce_min,
+                => return p.checkElementwiseArg(param_tok, arg, arg_idx, .both),
 
-            .__builtin_nondeterministic_value => return p.checkElementwiseArg(param_tok, arg, arg_idx, .both),
-            .__builtin_nontemporal_load => return p.checkNonTemporalArg(param_tok, arg, arg_idx, .load),
-            .__builtin_nontemporal_store => return p.checkNonTemporalArg(param_tok, arg, arg_idx, .store),
+                .__builtin_nondeterministic_value => return p.checkElementwiseArg(param_tok, arg, arg_idx, .both),
+                .__builtin_nontemporal_load => return p.checkNonTemporalArg(param_tok, arg, arg_idx, .load),
+                .__builtin_nontemporal_store => return p.checkNonTemporalArg(param_tok, arg, arg_idx, .store),
+                else => {},
+            },
             else => {},
         }
     }
@@ -5775,13 +5783,162 @@ const CallExpr = union(enum) {
     fn paramCountOverride(self: CallExpr) ?u32 {
         return switch (self) {
             .standard => null,
-            .builtin => |builtin| switch (builtin.tag) {
-                .__c11_atomic_thread_fence,
-                .__c11_atomic_signal_fence,
+            .builtin => |builtin| switch (builtin.expanded.tag) {
+                .common => |tag| switch (tag) {
+                    .__c11_atomic_thread_fence,
+                    .__c11_atomic_signal_fence,
+                    .__c11_atomic_is_lock_free,
+                    .__builtin_isinf,
+                    .__builtin_isinf_sign,
+                    .__builtin_isnan,
+                    .__builtin_elementwise_abs,
+                    .__builtin_elementwise_bitreverse,
+                    .__builtin_elementwise_canonicalize,
+                    .__builtin_elementwise_ceil,
+                    .__builtin_elementwise_cos,
+                    .__builtin_elementwise_exp,
+                    .__builtin_elementwise_exp2,
+                    .__builtin_elementwise_floor,
+                    .__builtin_elementwise_log,
+                    .__builtin_elementwise_log10,
+                    .__builtin_elementwise_log2,
+                    .__builtin_elementwise_nearbyint,
+                    .__builtin_elementwise_rint,
+                    .__builtin_elementwise_round,
+                    .__builtin_elementwise_roundeven,
+                    .__builtin_elementwise_sin,
+                    .__builtin_elementwise_sqrt,
+                    .__builtin_elementwise_trunc,
+                    .__builtin_elementwise_popcount,
+                    .__builtin_nontemporal_load,
+                    .__builtin_nondeterministic_value,
+                    .__builtin_reduce_add,
+                    .__builtin_reduce_mul,
+                    .__builtin_reduce_and,
+                    .__builtin_reduce_or,
+                    .__builtin_reduce_xor,
+                    .__builtin_reduce_max,
+                    .__builtin_reduce_min,
+                    => 1,
+
+                    .__builtin_complex,
+                    .__c11_atomic_load,
+                    .__c11_atomic_init,
+                    .__builtin_elementwise_add_sat,
+                    .__builtin_elementwise_copysign,
+                    .__builtin_elementwise_max,
+                    .__builtin_elementwise_min,
+                    .__builtin_elementwise_pow,
+                    .__builtin_elementwise_sub_sat,
+                    .__builtin_nontemporal_store,
+                    => 2,
+
+                    .__c11_atomic_store,
+                    .__c11_atomic_exchange,
+                    .__c11_atomic_fetch_add,
+                    .__c11_atomic_fetch_sub,
+                    .__c11_atomic_fetch_or,
+                    .__c11_atomic_fetch_xor,
+                    .__c11_atomic_fetch_and,
+                    .__atomic_fetch_add,
+                    .__atomic_fetch_sub,
+                    .__atomic_fetch_and,
+                    .__atomic_fetch_xor,
+                    .__atomic_fetch_or,
+                    .__atomic_fetch_nand,
+                    .__atomic_add_fetch,
+                    .__atomic_sub_fetch,
+                    .__atomic_and_fetch,
+                    .__atomic_xor_fetch,
+                    .__atomic_or_fetch,
+                    .__atomic_nand_fetch,
+                    .__builtin_add_overflow,
+                    .__builtin_sub_overflow,
+                    .__builtin_mul_overflow,
+                    .__builtin_elementwise_fma,
+                    => 3,
+
+                    .__c11_atomic_compare_exchange_strong,
+                    .__c11_atomic_compare_exchange_weak,
+                    => 5,
+
+                    .__atomic_compare_exchange,
+                    .__atomic_compare_exchange_n,
+                    => 6,
+                    else => null,
+                },
+                else => null,
+            },
+        };
+    }
+
+    fn returnType(self: CallExpr, p: *Parser, func_qt: QualType) !QualType {
+        if (self == .standard) {
+            return if (func_qt.get(p.comp, .func)) |func_ty| func_ty.return_type else .invalid;
+        }
+        const builtin = self.builtin;
+        const func_ty = func_qt.get(p.comp, .func).?;
+        return switch (builtin.expanded.tag) {
+            .common => |tag| switch (tag) {
+                .__c11_atomic_exchange => {
+                    if (p.list_buf.items.len != 4) return .invalid; // wrong number of arguments; already an error
+                    const second_param = p.list_buf.items[2];
+                    return second_param.qt(&p.tree);
+                },
+                .__c11_atomic_load => {
+                    if (p.list_buf.items.len != 3) return .invalid; // wrong number of arguments; already an error
+                    const first_param = p.list_buf.items[1];
+                    const qt = first_param.qt(&p.tree);
+                    if (!qt.isPointer(p.comp)) return .invalid;
+                    return qt.childType(p.comp);
+                },
+
+                .__atomic_fetch_add,
+                .__atomic_add_fetch,
+                .__c11_atomic_fetch_add,
+
+                .__atomic_fetch_sub,
+                .__atomic_sub_fetch,
+                .__c11_atomic_fetch_sub,
+
+                .__atomic_fetch_and,
+                .__atomic_and_fetch,
+                .__c11_atomic_fetch_and,
+
+                .__atomic_fetch_xor,
+                .__atomic_xor_fetch,
+                .__c11_atomic_fetch_xor,
+
+                .__atomic_fetch_or,
+                .__atomic_or_fetch,
+                .__c11_atomic_fetch_or,
+
+                .__atomic_fetch_nand,
+                .__atomic_nand_fetch,
+                .__c11_atomic_fetch_nand,
+                => {
+                    if (p.list_buf.items.len != 3) return .invalid; // wrong number of arguments; already an error
+                    const second_param = p.list_buf.items[2];
+                    return second_param.qt(&p.tree);
+                },
+                .__builtin_complex => {
+                    if (p.list_buf.items.len < 1) return .invalid; // not enough arguments; already an error
+                    const last_param = p.list_buf.items[p.list_buf.items.len - 1];
+                    return try last_param.qt(&p.tree).toComplex(p.comp);
+                },
+                .__atomic_compare_exchange,
+                .__atomic_compare_exchange_n,
                 .__c11_atomic_is_lock_free,
-                .__builtin_isinf,
-                .__builtin_isinf_sign,
-                .__builtin_isnan,
+                => .bool,
+
+                .__c11_atomic_compare_exchange_strong,
+                .__c11_atomic_compare_exchange_weak,
+                => {
+                    if (p.list_buf.items.len != 6) return .invalid; // wrong number of arguments
+                    const third_param = p.list_buf.items[3];
+                    return third_param.qt(&p.tree);
+                },
+
                 .__builtin_elementwise_abs,
                 .__builtin_elementwise_bitreverse,
                 .__builtin_elementwise_canonicalize,
@@ -5800,9 +5957,21 @@ const CallExpr = union(enum) {
                 .__builtin_elementwise_sin,
                 .__builtin_elementwise_sqrt,
                 .__builtin_elementwise_trunc,
+                .__builtin_elementwise_add_sat,
+                .__builtin_elementwise_copysign,
+                .__builtin_elementwise_max,
+                .__builtin_elementwise_min,
+                .__builtin_elementwise_pow,
+                .__builtin_elementwise_sub_sat,
+                .__builtin_elementwise_fma,
                 .__builtin_elementwise_popcount,
-                .__builtin_nontemporal_load,
                 .__builtin_nondeterministic_value,
+                => {
+                    if (p.list_buf.items.len < 1) return .invalid; // not enough arguments; already an error
+                    const last_param = p.list_buf.items[p.list_buf.items.len - 1];
+                    return last_param.qt(&p.tree);
+                },
+                .__builtin_nontemporal_load,
                 .__builtin_reduce_add,
                 .__builtin_reduce_mul,
                 .__builtin_reduce_and,
@@ -5810,169 +5979,14 @@ const CallExpr = union(enum) {
                 .__builtin_reduce_xor,
                 .__builtin_reduce_max,
                 .__builtin_reduce_min,
-                => 1,
-
-                .__builtin_complex,
-                .__c11_atomic_load,
-                .__c11_atomic_init,
-                .__builtin_elementwise_add_sat,
-                .__builtin_elementwise_copysign,
-                .__builtin_elementwise_max,
-                .__builtin_elementwise_min,
-                .__builtin_elementwise_pow,
-                .__builtin_elementwise_sub_sat,
-                .__builtin_nontemporal_store,
-                => 2,
-
-                .__c11_atomic_store,
-                .__c11_atomic_exchange,
-                .__c11_atomic_fetch_add,
-                .__c11_atomic_fetch_sub,
-                .__c11_atomic_fetch_or,
-                .__c11_atomic_fetch_xor,
-                .__c11_atomic_fetch_and,
-                .__atomic_fetch_add,
-                .__atomic_fetch_sub,
-                .__atomic_fetch_and,
-                .__atomic_fetch_xor,
-                .__atomic_fetch_or,
-                .__atomic_fetch_nand,
-                .__atomic_add_fetch,
-                .__atomic_sub_fetch,
-                .__atomic_and_fetch,
-                .__atomic_xor_fetch,
-                .__atomic_or_fetch,
-                .__atomic_nand_fetch,
-                .__builtin_add_overflow,
-                .__builtin_sub_overflow,
-                .__builtin_mul_overflow,
-                .__builtin_elementwise_fma,
-                => 3,
-
-                .__c11_atomic_compare_exchange_strong,
-                .__c11_atomic_compare_exchange_weak,
-                => 5,
-
-                .__atomic_compare_exchange,
-                .__atomic_compare_exchange_n,
-                => 6,
-                else => null,
+                => {
+                    if (p.list_buf.items.len < 1) return .invalid; // not enough arguments; already an error
+                    const last_param = p.list_buf.items[p.list_buf.items.len - 1];
+                    return last_param.qt(&p.tree).childType(p.comp);
+                },
+                else => func_ty.return_type,
             },
-        };
-    }
-
-    fn returnType(self: CallExpr, p: *Parser, func_qt: QualType) !QualType {
-        if (self == .standard) {
-            return if (func_qt.get(p.comp, .func)) |func_ty| func_ty.return_type else .invalid;
-        }
-        const builtin = self.builtin;
-        const func_ty = func_qt.get(p.comp, .func).?;
-        return switch (builtin.tag) {
-            .__c11_atomic_exchange => {
-                if (p.list_buf.items.len != 4) return .invalid; // wrong number of arguments; already an error
-                const second_param = p.list_buf.items[2];
-                return second_param.qt(&p.tree);
-            },
-            .__c11_atomic_load => {
-                if (p.list_buf.items.len != 3) return .invalid; // wrong number of arguments; already an error
-                const first_param = p.list_buf.items[1];
-                const qt = first_param.qt(&p.tree);
-                if (!qt.isPointer(p.comp)) return .invalid;
-                return qt.childType(p.comp);
-            },
-
-            .__atomic_fetch_add,
-            .__atomic_add_fetch,
-            .__c11_atomic_fetch_add,
-
-            .__atomic_fetch_sub,
-            .__atomic_sub_fetch,
-            .__c11_atomic_fetch_sub,
-
-            .__atomic_fetch_and,
-            .__atomic_and_fetch,
-            .__c11_atomic_fetch_and,
-
-            .__atomic_fetch_xor,
-            .__atomic_xor_fetch,
-            .__c11_atomic_fetch_xor,
-
-            .__atomic_fetch_or,
-            .__atomic_or_fetch,
-            .__c11_atomic_fetch_or,
-
-            .__atomic_fetch_nand,
-            .__atomic_nand_fetch,
-            .__c11_atomic_fetch_nand,
-            => {
-                if (p.list_buf.items.len != 3) return .invalid; // wrong number of arguments; already an error
-                const second_param = p.list_buf.items[2];
-                return second_param.qt(&p.tree);
-            },
-            .__builtin_complex => {
-                if (p.list_buf.items.len < 1) return .invalid; // not enough arguments; already an error
-                const last_param = p.list_buf.items[p.list_buf.items.len - 1];
-                return try last_param.qt(&p.tree).toComplex(p.comp);
-            },
-            .__atomic_compare_exchange,
-            .__atomic_compare_exchange_n,
-            .__c11_atomic_is_lock_free,
-            => .bool,
             else => func_ty.return_type,
-
-            .__c11_atomic_compare_exchange_strong,
-            .__c11_atomic_compare_exchange_weak,
-            => {
-                if (p.list_buf.items.len != 6) return .invalid; // wrong number of arguments
-                const third_param = p.list_buf.items[3];
-                return third_param.qt(&p.tree);
-            },
-
-            .__builtin_elementwise_abs,
-            .__builtin_elementwise_bitreverse,
-            .__builtin_elementwise_canonicalize,
-            .__builtin_elementwise_ceil,
-            .__builtin_elementwise_cos,
-            .__builtin_elementwise_exp,
-            .__builtin_elementwise_exp2,
-            .__builtin_elementwise_floor,
-            .__builtin_elementwise_log,
-            .__builtin_elementwise_log10,
-            .__builtin_elementwise_log2,
-            .__builtin_elementwise_nearbyint,
-            .__builtin_elementwise_rint,
-            .__builtin_elementwise_round,
-            .__builtin_elementwise_roundeven,
-            .__builtin_elementwise_sin,
-            .__builtin_elementwise_sqrt,
-            .__builtin_elementwise_trunc,
-            .__builtin_elementwise_add_sat,
-            .__builtin_elementwise_copysign,
-            .__builtin_elementwise_max,
-            .__builtin_elementwise_min,
-            .__builtin_elementwise_pow,
-            .__builtin_elementwise_sub_sat,
-            .__builtin_elementwise_fma,
-            .__builtin_elementwise_popcount,
-            .__builtin_nondeterministic_value,
-            => {
-                if (p.list_buf.items.len < 1) return .invalid; // not enough arguments; already an error
-                const last_param = p.list_buf.items[p.list_buf.items.len - 1];
-                return last_param.qt(&p.tree);
-            },
-            .__builtin_nontemporal_load,
-            .__builtin_reduce_add,
-            .__builtin_reduce_mul,
-            .__builtin_reduce_and,
-            .__builtin_reduce_or,
-            .__builtin_reduce_xor,
-            .__builtin_reduce_max,
-            .__builtin_reduce_min,
-            => {
-                if (p.list_buf.items.len < 1) return .invalid; // not enough arguments; already an error
-                const last_param = p.list_buf.items[p.list_buf.items.len - 1];
-                return last_param.qt(&p.tree).childType(p.comp);
-            },
         };
     }
 
@@ -5990,7 +6004,7 @@ const CallExpr = union(enum) {
                 } }),
             },
             .builtin => |builtin| return .{
-                .val = try evalBuiltin(builtin.tag, p, args),
+                .val = try evalBuiltin(builtin.expanded, p, args),
                 .qt = return_qt,
                 .node = try p.addNode(.{ .builtin_call_expr = .{
                     .builtin_tok = builtin.builtin_tok,
@@ -6041,7 +6055,7 @@ pub const Result = struct {
             },
             .builtin_call_expr => |call| {
                 const expanded = p.comp.builtins.lookup(p.tokSlice(call.builtin_tok));
-                const attributes = expanded.builtin.properties.attributes;
+                const attributes = expanded.attributes;
                 if (attributes.pure) try p.err(call.builtin_tok, .builtin_unused, .{"pure"});
                 if (attributes.@"const") try p.err(call.builtin_tok, .builtin_unused, .{"const"});
                 return;
@@ -9393,22 +9407,25 @@ fn primaryExpr(p: *Parser) Error!?Result {
                         return error.ParsingFailed;
                     },
                 };
-                if (some.builtin.properties.header != .none) {
+                if (some.header != .none) {
                     try p.err(name_tok, .implicit_builtin, .{name});
                     try p.err(name_tok, .implicit_builtin_header_note, .{
-                        @tagName(some.builtin.properties.header), Builtin.nameFromTag(some.builtin.tag).span(),
+                        @tagName(some.header), name,
                     });
                 }
 
-                switch (some.builtin.tag) {
-                    .__builtin_choose_expr => return try p.builtinChooseExpr(),
-                    .__builtin_va_arg => return try p.builtinVaArg(name_tok),
-                    .__builtin_offsetof => return try p.builtinOffsetof(name_tok, .bytes),
-                    .__builtin_bitoffsetof => return try p.builtinOffsetof(name_tok, .bits),
-                    .__builtin_types_compatible_p => return try p.typesCompatible(name_tok),
-                    .__builtin_convertvector => return try p.convertvector(name_tok),
-                    .__builtin_shufflevector => return try p.shufflevector(name_tok),
-                    .__builtin_bit_cast => return try p.builtinBitCast(name_tok),
+                switch (some.tag) {
+                    .common => |tag| switch (tag) {
+                        .__builtin_choose_expr => return try p.builtinChooseExpr(),
+                        .__builtin_va_arg => return try p.builtinVaArg(name_tok),
+                        .__builtin_offsetof => return try p.builtinOffsetof(name_tok, .bytes),
+                        .__builtin_bitoffsetof => return try p.builtinOffsetof(name_tok, .bits),
+                        .__builtin_types_compatible_p => return try p.typesCompatible(name_tok),
+                        .__builtin_convertvector => return try p.convertvector(name_tok),
+                        .__builtin_shufflevector => return try p.shufflevector(name_tok),
+                        .__builtin_bit_cast => return try p.builtinBitCast(name_tok),
+                        else => {},
+                    },
                     else => {},
                 }
 

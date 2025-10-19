@@ -1,0 +1,1448 @@
+# Generated from clang/include/clang/Basic/BuiltinsSystemZ.def
+
+__builtin_non_tx_store
+    .param_str = "vULi*ULi"
+    .features = "transactional_execution"
+
+__builtin_s390_bdepg
+    .param_str = "ULiULiULi"
+    .attributes = .{ .@"const" = true }
+    .features = "miscellaneous_extensions_4"
+
+__builtin_s390_bextg
+    .param_str = "ULiULiULi"
+    .attributes = .{ .@"const" = true }
+    .features = "miscellaneous_extensions_4"
+
+__builtin_s390_lcbb
+    .param_str = "UivC*Ii"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vaccb
+    .param_str = "V16UcV16UcV16Uc"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vacccq
+    .param_str = "ULLLiULLLiULLLiULLLi"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vaccf
+    .param_str = "V4UiV4UiV4Ui"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vaccg
+    .param_str = "V2ULLiV2ULLiV2ULLi"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vacch
+    .param_str = "V8UsV8UsV8Us"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vaccq
+    .param_str = "ULLLiULLLiULLLi"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vacq
+    .param_str = "ULLLiULLLiULLLiULLLi"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vaq
+    .param_str = "SLLLiSLLLiSLLLi"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vavgb
+    .param_str = "V16ScV16ScV16Sc"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vavgf
+    .param_str = "V4SiV4SiV4Si"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vavgg
+    .param_str = "V2SLLiV2SLLiV2SLLi"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vavgh
+    .param_str = "V8SsV8SsV8Ss"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vavglb
+    .param_str = "V16UcV16UcV16Uc"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vavglf
+    .param_str = "V4UiV4UiV4Ui"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vavglg
+    .param_str = "V2ULLiV2ULLiV2ULLi"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vavglh
+    .param_str = "V8UsV8UsV8Us"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vavglq
+    .param_str = "ULLLiULLLiULLLi"
+    .attributes = .{ .@"const" = true }
+    .features = "vector_enhancements_3"
+
+__builtin_s390_vavgq
+    .param_str = "SLLLiSLLLiSLLLi"
+    .attributes = .{ .@"const" = true }
+    .features = "vector_enhancements_3"
+
+__builtin_s390_vbperm
+    .param_str = "V2ULLiV16UcV16Uc"
+    .attributes = .{ .@"const" = true }
+    .features = "vector_enhancements_1"
+
+__builtin_s390_vceqbs
+    .param_str = "V16ScV16UcV16Uci*"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vceqfs
+    .param_str = "V4SiV4UiV4Uii*"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vceqgs
+    .param_str = "V2SLLiV2ULLiV2ULLii*"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vceqhs
+    .param_str = "V8SsV8UsV8Usi*"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vceqqs
+    .param_str = "SLLLiULLLiULLLii*"
+    .attributes = .{ .@"const" = true }
+    .features = "vector_enhancements_3"
+
+__builtin_s390_vcfn
+    .param_str = "V8UsV8UsIi"
+    .attributes = .{ .@"const" = true }
+    .features = "nnp_assist"
+
+__builtin_s390_vchbs
+    .param_str = "V16ScV16ScV16Sci*"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vchfs
+    .param_str = "V4SiV4SiV4Sii*"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vchgs
+    .param_str = "V2SLLiV2SLLiV2SLLii*"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vchhs
+    .param_str = "V8SsV8SsV8Ssi*"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vchlbs
+    .param_str = "V16ScV16UcV16Uci*"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vchlfs
+    .param_str = "V4SiV4UiV4Uii*"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vchlgs
+    .param_str = "V2SLLiV2ULLiV2ULLii*"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vchlhs
+    .param_str = "V8SsV8UsV8Usi*"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vchlqs
+    .param_str = "SLLLiULLLiULLLii*"
+    .attributes = .{ .@"const" = true }
+    .features = "vector_enhancements_3"
+
+__builtin_s390_vchqs
+    .param_str = "SLLLiSLLLiSLLLii*"
+    .attributes = .{ .@"const" = true }
+    .features = "vector_enhancements_3"
+
+__builtin_s390_vcksm
+    .param_str = "V4UiV4UiV4Ui"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vclfnhs
+    .param_str = "V4fV8UsIi"
+    .attributes = .{ .@"const" = true }
+    .features = "nnp_assist"
+
+__builtin_s390_vclfnls
+    .param_str = "V4fV8UsIi"
+    .attributes = .{ .@"const" = true }
+    .features = "nnp_assist"
+
+__builtin_s390_vclzb
+    .param_str = "V16UcV16Uc"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vclzf
+    .param_str = "V4UiV4Ui"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vclzg
+    .param_str = "V2ULLiV2ULLi"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vclzh
+    .param_str = "V8UsV8Us"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vclzq
+    .param_str = "ULLLiULLLi"
+    .attributes = .{ .@"const" = true }
+    .features = "vector_enhancements_3"
+
+__builtin_s390_vcnf
+    .param_str = "V8UsV8UsIi"
+    .attributes = .{ .@"const" = true }
+    .features = "nnp_assist"
+
+__builtin_s390_vcrnfs
+    .param_str = "V8UsV4fV4fIi"
+    .attributes = .{ .@"const" = true }
+    .features = "nnp_assist"
+
+__builtin_s390_vctzb
+    .param_str = "V16UcV16Uc"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vctzf
+    .param_str = "V4UiV4Ui"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vctzg
+    .param_str = "V2ULLiV2ULLi"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vctzh
+    .param_str = "V8UsV8Us"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vctzq
+    .param_str = "ULLLiULLLi"
+    .attributes = .{ .@"const" = true }
+    .features = "vector_enhancements_3"
+
+__builtin_s390_verimb
+    .param_str = "V16UcV16UcV16UcV16UcIi"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_verimf
+    .param_str = "V4UiV4UiV4UiV4UiIi"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_verimg
+    .param_str = "V2ULLiV2ULLiV2ULLiV2ULLiIi"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_verimh
+    .param_str = "V8UsV8UsV8UsV8UsIi"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_verllb
+    .param_str = "V16UcV16UcUc"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_verllf
+    .param_str = "V4UiV4UiUc"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_verllg
+    .param_str = "V2ULLiV2ULLiUc"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_verllh
+    .param_str = "V8UsV8UsUc"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_verllvb
+    .param_str = "V16UcV16UcV16Uc"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_verllvf
+    .param_str = "V4UiV4UiV4Ui"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_verllvg
+    .param_str = "V2ULLiV2ULLiV2ULLi"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_verllvh
+    .param_str = "V8UsV8UsV8Us"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_veval
+    .param_str = "V16UcV16UcV16UcV16UcIi"
+    .attributes = .{ .@"const" = true }
+    .features = "vector_enhancements_3"
+
+__builtin_s390_vfaeb
+    .param_str = "V16UcV16UcV16UcIi"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vfaebs
+    .param_str = "V16UcV16UcV16UcIii*"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vfaef
+    .param_str = "V4UiV4UiV4UiIi"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vfaefs
+    .param_str = "V4UiV4UiV4UiIii*"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vfaeh
+    .param_str = "V8UsV8UsV8UsIi"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vfaehs
+    .param_str = "V8UsV8UsV8UsIii*"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vfaezb
+    .param_str = "V16UcV16UcV16UcIi"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vfaezbs
+    .param_str = "V16UcV16UcV16UcIii*"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vfaezf
+    .param_str = "V4UiV4UiV4UiIi"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vfaezfs
+    .param_str = "V4UiV4UiV4UiIii*"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vfaezh
+    .param_str = "V8UsV8UsV8UsIi"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vfaezhs
+    .param_str = "V8UsV8UsV8UsIii*"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vfcedbs
+    .param_str = "V2SLLiV2dV2di*"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vfcesbs
+    .param_str = "V4SiV4fV4fi*"
+    .attributes = .{ .@"const" = true }
+    .features = "vector_enhancements_1"
+
+__builtin_s390_vfchdbs
+    .param_str = "V2SLLiV2dV2di*"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vfchedbs
+    .param_str = "V2SLLiV2dV2di*"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vfchesbs
+    .param_str = "V4SiV4fV4fi*"
+    .attributes = .{ .@"const" = true }
+    .features = "vector_enhancements_1"
+
+__builtin_s390_vfchsbs
+    .param_str = "V4SiV4fV4fi*"
+    .attributes = .{ .@"const" = true }
+    .features = "vector_enhancements_1"
+
+__builtin_s390_vfeeb
+    .param_str = "V16UcV16UcV16Uc"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vfeebs
+    .param_str = "V16UcV16UcV16Uci*"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vfeef
+    .param_str = "V4UiV4UiV4Ui"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vfeefs
+    .param_str = "V4UiV4UiV4Uii*"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vfeeh
+    .param_str = "V8UsV8UsV8Us"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vfeehs
+    .param_str = "V8UsV8UsV8Usi*"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vfeezb
+    .param_str = "V16UcV16UcV16Uc"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vfeezbs
+    .param_str = "V16UcV16UcV16Uci*"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vfeezf
+    .param_str = "V4UiV4UiV4Ui"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vfeezfs
+    .param_str = "V4UiV4UiV4Uii*"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vfeezh
+    .param_str = "V8UsV8UsV8Us"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vfeezhs
+    .param_str = "V8UsV8UsV8Usi*"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vfeneb
+    .param_str = "V16UcV16UcV16Uc"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vfenebs
+    .param_str = "V16UcV16UcV16Uci*"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vfenef
+    .param_str = "V4UiV4UiV4Ui"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vfenefs
+    .param_str = "V4UiV4UiV4Uii*"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vfeneh
+    .param_str = "V8UsV8UsV8Us"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vfenehs
+    .param_str = "V8UsV8UsV8Usi*"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vfenezb
+    .param_str = "V16UcV16UcV16Uc"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vfenezbs
+    .param_str = "V16UcV16UcV16Uci*"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vfenezf
+    .param_str = "V4UiV4UiV4Ui"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vfenezfs
+    .param_str = "V4UiV4UiV4Uii*"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vfenezh
+    .param_str = "V8UsV8UsV8Us"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vfenezhs
+    .param_str = "V8UsV8UsV8Usi*"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vfidb
+    .param_str = "V2dV2dIiIi"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vfisb
+    .param_str = "V4fV4fIiIi"
+    .attributes = .{ .@"const" = true }
+    .features = "vector_enhancements_1"
+
+__builtin_s390_vflndb
+    .param_str = "V2dV2d"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vflnsb
+    .param_str = "V4fV4f"
+    .attributes = .{ .@"const" = true }
+    .features = "vector_enhancements_1"
+
+__builtin_s390_vflpdb
+    .param_str = "V2dV2d"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vflpsb
+    .param_str = "V4fV4f"
+    .attributes = .{ .@"const" = true }
+    .features = "vector_enhancements_1"
+
+__builtin_s390_vfmadb
+    .param_str = "V2dV2dV2dV2d"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vfmasb
+    .param_str = "V4fV4fV4fV4f"
+    .attributes = .{ .@"const" = true }
+    .features = "vector_enhancements_1"
+
+__builtin_s390_vfmaxdb
+    .param_str = "V2dV2dV2dIi"
+    .attributes = .{ .@"const" = true }
+    .features = "vector_enhancements_1"
+
+__builtin_s390_vfmaxsb
+    .param_str = "V4fV4fV4fIi"
+    .attributes = .{ .@"const" = true }
+    .features = "vector_enhancements_1"
+
+__builtin_s390_vfmindb
+    .param_str = "V2dV2dV2dIi"
+    .attributes = .{ .@"const" = true }
+    .features = "vector_enhancements_1"
+
+__builtin_s390_vfminsb
+    .param_str = "V4fV4fV4fIi"
+    .attributes = .{ .@"const" = true }
+    .features = "vector_enhancements_1"
+
+__builtin_s390_vfmsdb
+    .param_str = "V2dV2dV2dV2d"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vfmssb
+    .param_str = "V4fV4fV4fV4f"
+    .attributes = .{ .@"const" = true }
+    .features = "vector_enhancements_1"
+
+__builtin_s390_vfnmadb
+    .param_str = "V2dV2dV2dV2d"
+    .attributes = .{ .@"const" = true }
+    .features = "vector_enhancements_1"
+
+__builtin_s390_vfnmasb
+    .param_str = "V4fV4fV4fV4f"
+    .attributes = .{ .@"const" = true }
+    .features = "vector_enhancements_1"
+
+__builtin_s390_vfnmsdb
+    .param_str = "V2dV2dV2dV2d"
+    .attributes = .{ .@"const" = true }
+    .features = "vector_enhancements_1"
+
+__builtin_s390_vfnmssb
+    .param_str = "V4fV4fV4fV4f"
+    .attributes = .{ .@"const" = true }
+    .features = "vector_enhancements_1"
+
+__builtin_s390_vfsqdb
+    .param_str = "V2dV2d"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vfsqsb
+    .param_str = "V4fV4f"
+    .attributes = .{ .@"const" = true }
+    .features = "vector_enhancements_1"
+
+__builtin_s390_vftcidb
+    .param_str = "V2SLLiV2dIii*"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vftcisb
+    .param_str = "V4SiV4fIii*"
+    .attributes = .{ .@"const" = true }
+    .features = "vector_enhancements_1"
+
+__builtin_s390_vgemb
+    .param_str = "V16UcV8Us"
+    .attributes = .{ .@"const" = true }
+    .features = "vector_enhancements_3"
+
+__builtin_s390_vgemf
+    .param_str = "V4UiV16Uc"
+    .attributes = .{ .@"const" = true }
+    .features = "vector_enhancements_3"
+
+__builtin_s390_vgemg
+    .param_str = "V2ULLiV16Uc"
+    .attributes = .{ .@"const" = true }
+    .features = "vector_enhancements_3"
+
+__builtin_s390_vgemh
+    .param_str = "V8UsV16Uc"
+    .attributes = .{ .@"const" = true }
+    .features = "vector_enhancements_3"
+
+__builtin_s390_vgemq
+    .param_str = "ULLLiV16Uc"
+    .attributes = .{ .@"const" = true }
+    .features = "vector_enhancements_3"
+
+__builtin_s390_vgfmab
+    .param_str = "V8UsV16UcV16UcV8Us"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vgfmaf
+    .param_str = "V2ULLiV4UiV4UiV2ULLi"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vgfmag
+    .param_str = "ULLLiV2ULLiV2ULLiULLLi"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vgfmah
+    .param_str = "V4UiV8UsV8UsV4Ui"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vgfmb
+    .param_str = "V8UsV16UcV16Uc"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vgfmf
+    .param_str = "V2ULLiV4UiV4Ui"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vgfmg
+    .param_str = "ULLLiV2ULLiV2ULLi"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vgfmh
+    .param_str = "V4UiV8UsV8Us"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vistrb
+    .param_str = "V16UcV16Uc"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vistrbs
+    .param_str = "V16UcV16Uci*"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vistrf
+    .param_str = "V4UiV4Ui"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vistrfs
+    .param_str = "V4UiV4Uii*"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vistrh
+    .param_str = "V8UsV8Us"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vistrhs
+    .param_str = "V8UsV8Usi*"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vlbb
+    .param_str = "V16ScvC*Ii"
+    .features = "vector"
+
+__builtin_s390_vlbrf
+    .param_str = "V4UiV4Ui"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vlbrg
+    .param_str = "V2ULLiV2ULLi"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vlbrh
+    .param_str = "V8UsV8Us"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vlbrq
+    .param_str = "ULLLiULLLi"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vll
+    .param_str = "V16ScUivC*"
+    .features = "vector"
+
+__builtin_s390_vlrlr
+    .param_str = "V16ScUivC*"
+    .features = "vector_enhancements_1"
+
+__builtin_s390_vmaeb
+    .param_str = "V8SsV16ScV16ScV8Ss"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vmaef
+    .param_str = "V2SLLiV4SiV4SiV2SLLi"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vmaeg
+    .param_str = "SLLLiV2SLLiV2SLLiSLLLi"
+    .attributes = .{ .@"const" = true }
+    .features = "vector_enhancements_3"
+
+__builtin_s390_vmaeh
+    .param_str = "V4SiV8SsV8SsV4Si"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vmahb
+    .param_str = "V16ScV16ScV16ScV16Sc"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vmahf
+    .param_str = "V4SiV4SiV4SiV4Si"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vmahg
+    .param_str = "V2SLLiV2SLLiV2SLLiV2SLLi"
+    .attributes = .{ .@"const" = true }
+    .features = "vector_enhancements_3"
+
+__builtin_s390_vmahh
+    .param_str = "V8SsV8SsV8SsV8Ss"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vmahq
+    .param_str = "SLLLiSLLLiSLLLiSLLLi"
+    .attributes = .{ .@"const" = true }
+    .features = "vector_enhancements_3"
+
+__builtin_s390_vmaleb
+    .param_str = "V8UsV16UcV16UcV8Us"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vmalef
+    .param_str = "V2ULLiV4UiV4UiV2ULLi"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vmaleg
+    .param_str = "ULLLiV2ULLiV2ULLiULLLi"
+    .attributes = .{ .@"const" = true }
+    .features = "vector_enhancements_3"
+
+__builtin_s390_vmaleh
+    .param_str = "V4UiV8UsV8UsV4Ui"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vmalhb
+    .param_str = "V16UcV16UcV16UcV16Uc"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vmalhf
+    .param_str = "V4UiV4UiV4UiV4Ui"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vmalhg
+    .param_str = "V2ULLiV2ULLiV2ULLiV2ULLi"
+    .attributes = .{ .@"const" = true }
+    .features = "vector_enhancements_3"
+
+__builtin_s390_vmalhh
+    .param_str = "V8UsV8UsV8UsV8Us"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vmalhq
+    .param_str = "ULLLiULLLiULLLiULLLi"
+    .attributes = .{ .@"const" = true }
+    .features = "vector_enhancements_3"
+
+__builtin_s390_vmalob
+    .param_str = "V8UsV16UcV16UcV8Us"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vmalof
+    .param_str = "V2ULLiV4UiV4UiV2ULLi"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vmalog
+    .param_str = "ULLLiV2ULLiV2ULLiULLLi"
+    .attributes = .{ .@"const" = true }
+    .features = "vector_enhancements_3"
+
+__builtin_s390_vmaloh
+    .param_str = "V4UiV8UsV8UsV4Ui"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vmaob
+    .param_str = "V8SsV16ScV16ScV8Ss"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vmaof
+    .param_str = "V2SLLiV4SiV4SiV2SLLi"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vmaog
+    .param_str = "SLLLiV2SLLiV2SLLiSLLLi"
+    .attributes = .{ .@"const" = true }
+    .features = "vector_enhancements_3"
+
+__builtin_s390_vmaoh
+    .param_str = "V4SiV8SsV8SsV4Si"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vmeb
+    .param_str = "V8SsV16ScV16Sc"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vmef
+    .param_str = "V2SLLiV4SiV4Si"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vmeg
+    .param_str = "SLLLiV2SLLiV2SLLi"
+    .attributes = .{ .@"const" = true }
+    .features = "vector_enhancements_3"
+
+__builtin_s390_vmeh
+    .param_str = "V4SiV8SsV8Ss"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vmhb
+    .param_str = "V16ScV16ScV16Sc"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vmhf
+    .param_str = "V4SiV4SiV4Si"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vmhg
+    .param_str = "V2SLLiV2SLLiV2SLLi"
+    .attributes = .{ .@"const" = true }
+    .features = "vector_enhancements_3"
+
+__builtin_s390_vmhh
+    .param_str = "V8SsV8SsV8Ss"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vmhq
+    .param_str = "SLLLiSLLLiSLLLi"
+    .attributes = .{ .@"const" = true }
+    .features = "vector_enhancements_3"
+
+__builtin_s390_vmleb
+    .param_str = "V8UsV16UcV16Uc"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vmlef
+    .param_str = "V2ULLiV4UiV4Ui"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vmleg
+    .param_str = "ULLLiV2ULLiV2ULLi"
+    .attributes = .{ .@"const" = true }
+    .features = "vector_enhancements_3"
+
+__builtin_s390_vmleh
+    .param_str = "V4UiV8UsV8Us"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vmlhb
+    .param_str = "V16UcV16UcV16Uc"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vmlhf
+    .param_str = "V4UiV4UiV4Ui"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vmlhg
+    .param_str = "V2ULLiV2ULLiV2ULLi"
+    .attributes = .{ .@"const" = true }
+    .features = "vector_enhancements_3"
+
+__builtin_s390_vmlhh
+    .param_str = "V8UsV8UsV8Us"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vmlhq
+    .param_str = "ULLLiULLLiULLLi"
+    .attributes = .{ .@"const" = true }
+    .features = "vector_enhancements_3"
+
+__builtin_s390_vmlob
+    .param_str = "V8UsV16UcV16Uc"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vmlof
+    .param_str = "V2ULLiV4UiV4Ui"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vmlog
+    .param_str = "ULLLiV2ULLiV2ULLi"
+    .attributes = .{ .@"const" = true }
+    .features = "vector_enhancements_3"
+
+__builtin_s390_vmloh
+    .param_str = "V4UiV8UsV8Us"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vmob
+    .param_str = "V8SsV16ScV16Sc"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vmof
+    .param_str = "V2SLLiV4SiV4Si"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vmog
+    .param_str = "SLLLiV2SLLiV2SLLi"
+    .attributes = .{ .@"const" = true }
+    .features = "vector_enhancements_3"
+
+__builtin_s390_vmoh
+    .param_str = "V4SiV8SsV8Ss"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vmslg
+    .param_str = "ULLLiV2ULLiV2ULLiULLLiIi"
+    .attributes = .{ .@"const" = true }
+    .features = "vector_enhancements_1"
+
+__builtin_s390_vpdi
+    .param_str = "V2ULLiV2ULLiV2ULLiIi"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vperm
+    .param_str = "V16UcV16UcV16UcV16Uc"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vpklsf
+    .param_str = "V8UsV4UiV4Ui"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vpklsfs
+    .param_str = "V8UsV4UiV4Uii*"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vpklsg
+    .param_str = "V4UiV2ULLiV2ULLi"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vpklsgs
+    .param_str = "V4UiV2ULLiV2ULLii*"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vpklsh
+    .param_str = "V16UcV8UsV8Us"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vpklshs
+    .param_str = "V16UcV8UsV8Usi*"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vpksf
+    .param_str = "V8SsV4SiV4Si"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vpksfs
+    .param_str = "V8SsV4SiV4Sii*"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vpksg
+    .param_str = "V4SiV2SLLiV2SLLi"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vpksgs
+    .param_str = "V4SiV2SLLiV2SLLii*"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vpksh
+    .param_str = "V16ScV8SsV8Ss"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vpkshs
+    .param_str = "V16ScV8SsV8Ssi*"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vsbcbiq
+    .param_str = "ULLLiULLLiULLLiULLLi"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vsbiq
+    .param_str = "ULLLiULLLiULLLiULLLi"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vscbib
+    .param_str = "V16UcV16UcV16Uc"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vscbif
+    .param_str = "V4UiV4UiV4Ui"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vscbig
+    .param_str = "V2ULLiV2ULLiV2ULLi"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vscbih
+    .param_str = "V8UsV8UsV8Us"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vscbiq
+    .param_str = "ULLLiULLLiULLLi"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vsl
+    .param_str = "V16UcV16UcV16Uc"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vslb
+    .param_str = "V16UcV16UcV16Uc"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vsld
+    .param_str = "V16UcV16UcV16UcIi"
+    .attributes = .{ .@"const" = true }
+    .features = "vector_enhancements_2"
+
+__builtin_s390_vsldb
+    .param_str = "V16UcV16UcV16UcIi"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vsq
+    .param_str = "SLLLiSLLLiSLLLi"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vsra
+    .param_str = "V16UcV16UcV16Uc"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vsrab
+    .param_str = "V16UcV16UcV16Uc"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vsrd
+    .param_str = "V16UcV16UcV16UcIi"
+    .attributes = .{ .@"const" = true }
+    .features = "vector_enhancements_2"
+
+__builtin_s390_vsrl
+    .param_str = "V16UcV16UcV16Uc"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vsrlb
+    .param_str = "V16UcV16UcV16Uc"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vstl
+    .param_str = "vV16ScUiv*"
+    .features = "vector"
+
+__builtin_s390_vstrcb
+    .param_str = "V16UcV16UcV16UcV16UcIi"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vstrcbs
+    .param_str = "V16UcV16UcV16UcV16UcIii*"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vstrcf
+    .param_str = "V4UiV4UiV4UiV4UiIi"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vstrcfs
+    .param_str = "V4UiV4UiV4UiV4UiIii*"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vstrch
+    .param_str = "V8UsV8UsV8UsV8UsIi"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vstrchs
+    .param_str = "V8UsV8UsV8UsV8UsIii*"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vstrczb
+    .param_str = "V16UcV16UcV16UcV16UcIi"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vstrczbs
+    .param_str = "V16UcV16UcV16UcV16UcIii*"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vstrczf
+    .param_str = "V4UiV4UiV4UiV4UiIi"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vstrczfs
+    .param_str = "V4UiV4UiV4UiV4UiIii*"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vstrczh
+    .param_str = "V8UsV8UsV8UsV8UsIi"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vstrczhs
+    .param_str = "V8UsV8UsV8UsV8UsIii*"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vstrlr
+    .param_str = "vV16ScUiv*"
+    .features = "vector_enhancements_1"
+
+__builtin_s390_vstrsb
+    .param_str = "V16UcV16UcV16UcV16Uci*"
+    .attributes = .{ .@"const" = true }
+    .features = "vector_enhancements_2"
+
+__builtin_s390_vstrsf
+    .param_str = "V16UcV4UiV4UiV16Uci*"
+    .attributes = .{ .@"const" = true }
+    .features = "vector_enhancements_2"
+
+__builtin_s390_vstrsh
+    .param_str = "V16UcV8UsV8UsV16Uci*"
+    .attributes = .{ .@"const" = true }
+    .features = "vector_enhancements_2"
+
+__builtin_s390_vstrszb
+    .param_str = "V16UcV16UcV16UcV16Uci*"
+    .attributes = .{ .@"const" = true }
+    .features = "vector_enhancements_2"
+
+__builtin_s390_vstrszf
+    .param_str = "V16UcV4UiV4UiV16Uci*"
+    .attributes = .{ .@"const" = true }
+    .features = "vector_enhancements_2"
+
+__builtin_s390_vstrszh
+    .param_str = "V16UcV8UsV8UsV16Uci*"
+    .attributes = .{ .@"const" = true }
+    .features = "vector_enhancements_2"
+
+__builtin_s390_vsumb
+    .param_str = "V4UiV16UcV16Uc"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vsumgf
+    .param_str = "V2ULLiV4UiV4Ui"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vsumgh
+    .param_str = "V2ULLiV8UsV8Us"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vsumh
+    .param_str = "V4UiV8UsV8Us"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vsumqf
+    .param_str = "ULLLiV4UiV4Ui"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vsumqg
+    .param_str = "ULLLiV2ULLiV2ULLi"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vtm
+    .param_str = "iV16UcV16Uc"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vuphb
+    .param_str = "V8SsV16Sc"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vuphf
+    .param_str = "V2SLLiV4Si"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vuphg
+    .param_str = "SLLLiV2SLLi"
+    .attributes = .{ .@"const" = true }
+    .features = "vector_enhancements_3"
+
+__builtin_s390_vuphh
+    .param_str = "V4SiV8Ss"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vuplb
+    .param_str = "V8SsV16Sc"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vuplf
+    .param_str = "V2SLLiV4Si"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vuplg
+    .param_str = "SLLLiV2SLLi"
+    .attributes = .{ .@"const" = true }
+    .features = "vector_enhancements_3"
+
+__builtin_s390_vuplhb
+    .param_str = "V8UsV16Uc"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vuplhf
+    .param_str = "V2ULLiV4Ui"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vuplhg
+    .param_str = "ULLLiV2ULLi"
+    .attributes = .{ .@"const" = true }
+    .features = "vector_enhancements_3"
+
+__builtin_s390_vuplhh
+    .param_str = "V4UiV8Us"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vuplhw
+    .param_str = "V4SiV8Ss"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vupllb
+    .param_str = "V8UsV16Uc"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vupllf
+    .param_str = "V2ULLiV4Ui"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_s390_vupllg
+    .param_str = "ULLLiV2ULLi"
+    .attributes = .{ .@"const" = true }
+    .features = "vector_enhancements_3"
+
+__builtin_s390_vupllh
+    .param_str = "V4UiV8Us"
+    .attributes = .{ .@"const" = true }
+    .features = "vector"
+
+__builtin_tabort
+    .param_str = "vi"
+    .attributes = .{ .@"noreturn" = true }
+    .features = "transactional_execution"
+
+__builtin_tbegin
+    .param_str = "iv*"
+    .attributes = .{ .returns_twice = true }
+    .features = "transactional_execution"
+
+__builtin_tbegin_nofloat
+    .param_str = "iv*"
+    .attributes = .{ .returns_twice = true }
+    .features = "transactional_execution"
+
+__builtin_tbeginc
+    .param_str = "v"
+    .attributes = .{ .returns_twice = true }
+    .features = "transactional_execution"
+
+__builtin_tend
+    .param_str = "i"
+    .features = "transactional_execution"
+
+__builtin_tx_assist
+    .param_str = "vi"
+    .features = "transactional_execution"
+
+__builtin_tx_nesting_depth
+    .param_str = "i"
+    .attributes = .{ .@"const" = true }
+    .features = "transactional_execution"

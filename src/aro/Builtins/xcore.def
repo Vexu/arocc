@@ -1,0 +1,15 @@
+# Generated from clang/include/clang/Basic/BuiltinsXCore.def
+
+__builtin_bitrev
+    .param_str = "UiUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_getid
+    .param_str = "Si"
+    .attributes = .{ .@"const" = true }
+
+__builtin_getps
+    .param_str = "UiUi"
+
+__builtin_setps
+    .param_str = "vUiUi"

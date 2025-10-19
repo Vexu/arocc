@@ -1,0 +1,340 @@
+# Generated from clang/include/clang/Basic/BuiltinsRISCV.td
+
+__builtin_riscv_aes32dsi
+    .param_str = "UiUiUiIUi"
+    .features = "zknd,32bit"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_aes32dsmi
+    .param_str = "UiUiUiIUi"
+    .features = "zknd,32bit"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_aes32esi
+    .param_str = "UiUiUiIUi"
+    .features = "zkne,32bit"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_aes32esmi
+    .param_str = "UiUiUiIUi"
+    .features = "zkne,32bit"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_aes64ds
+    .param_str = "UWiUWiUWi"
+    .features = "zknd,64bit"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_aes64dsm
+    .param_str = "UWiUWiUWi"
+    .features = "zknd,64bit"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_aes64es
+    .param_str = "UWiUWiUWi"
+    .features = "zkne,64bit"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_aes64esm
+    .param_str = "UWiUWiUWi"
+    .features = "zkne,64bit"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_aes64im
+    .param_str = "UWiUWi"
+    .features = "zknd,64bit"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_aes64ks1i
+    .param_str = "UWiUWiIUi"
+    .features = "zknd|zkne,64bit"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_aes64ks2
+    .param_str = "UWiUWiUWi"
+    .features = "zknd|zkne,64bit"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_cv_alu_addN
+    .param_str = "iiiUi"
+    .features = "xcvalu"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_cv_alu_addRN
+    .param_str = "iiiUi"
+    .features = "xcvalu"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_cv_alu_adduN
+    .param_str = "UiUiUiUi"
+    .features = "xcvalu"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_cv_alu_adduRN
+    .param_str = "UiUiUiUi"
+    .features = "xcvalu"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_cv_alu_clip
+    .param_str = "iii"
+    .features = "xcvalu"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_cv_alu_clipu
+    .param_str = "UiUiUi"
+    .features = "xcvalu"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_cv_alu_extbs
+    .param_str = "ii"
+    .features = "xcvalu"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_cv_alu_extbz
+    .param_str = "UiUi"
+    .features = "xcvalu"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_cv_alu_exths
+    .param_str = "ii"
+    .features = "xcvalu"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_cv_alu_exthz
+    .param_str = "UiUi"
+    .features = "xcvalu"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_cv_alu_sle
+    .param_str = "iii"
+    .features = "xcvalu"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_cv_alu_sleu
+    .param_str = "iUiUi"
+    .features = "xcvalu"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_cv_alu_subN
+    .param_str = "iiiUi"
+    .features = "xcvalu"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_cv_alu_subRN
+    .param_str = "iiiUi"
+    .features = "xcvalu"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_cv_alu_subuN
+    .param_str = "UiUiUiUi"
+    .features = "xcvalu"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_cv_alu_subuRN
+    .param_str = "UiUiUiUi"
+    .features = "xcvalu"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_brev8_32
+    .param_str = "UiUi"
+    .features = "zbkb"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_brev8_64
+    .param_str = "UWiUWi"
+    .features = "zbkb,64bit"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_clmul_32
+    .param_str = "UiUiUi"
+    .features = "zbc|zbkc"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_clmul_64
+    .param_str = "UWiUWiUWi"
+    .features = "zbc|zbkc,64bit"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_clmulh_32
+    .param_str = "UiUiUi"
+    .features = "zbc|zbkc,32bit"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_clmulh_64
+    .param_str = "UWiUWiUWi"
+    .features = "zbc|zbkc,64bit"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_clmulr_32
+    .param_str = "UiUiUi"
+    .features = "zbc,32bit"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_clmulr_64
+    .param_str = "UWiUWiUWi"
+    .features = "zbc,64bit"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_clz_32
+    .param_str = "UiUi"
+    .features = "zbb|xtheadbb"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_clz_64
+    .param_str = "UiUWi"
+    .features = "zbb|xtheadbb,64bit"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_ctz_32
+    .param_str = "UiUi"
+    .features = "zbb"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_ctz_64
+    .param_str = "UiUWi"
+    .features = "zbb,64bit"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_ntl_load
+    .param_str = "v."
+    .features = "zihintntl"
+    .attributes = .{ .custom_typecheck = true }
+
+__builtin_riscv_ntl_store
+    .param_str = "v."
+    .features = "zihintntl"
+    .attributes = .{ .custom_typecheck = true }
+
+__builtin_riscv_orc_b_32
+    .param_str = "UiUi"
+    .features = "zbb"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_orc_b_64
+    .param_str = "UWiUWi"
+    .features = "zbb,64bit"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_pause
+    .param_str = "v"
+    .features = "zihintpause"
+
+__builtin_riscv_sha256sig0
+    .param_str = "UiUi"
+    .features = "zknh"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_sha256sig1
+    .param_str = "UiUi"
+    .features = "zknh"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_sha256sum0
+    .param_str = "UiUi"
+    .features = "zknh"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_sha256sum1
+    .param_str = "UiUi"
+    .features = "zknh"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_sha512sig0
+    .param_str = "UWiUWi"
+    .features = "zknh,64bit"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_sha512sig0h
+    .param_str = "UiUiUi"
+    .features = "zknh,32bit"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_sha512sig0l
+    .param_str = "UiUiUi"
+    .features = "zknh,32bit"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_sha512sig1
+    .param_str = "UWiUWi"
+    .features = "zknh,64bit"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_sha512sig1h
+    .param_str = "UiUiUi"
+    .features = "zknh,32bit"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_sha512sig1l
+    .param_str = "UiUiUi"
+    .features = "zknh,32bit"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_sha512sum0
+    .param_str = "UWiUWi"
+    .features = "zknh,64bit"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_sha512sum0r
+    .param_str = "UiUiUi"
+    .features = "zknh,32bit"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_sha512sum1
+    .param_str = "UWiUWi"
+    .features = "zknh,64bit"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_sha512sum1r
+    .param_str = "UiUiUi"
+    .features = "zknh,32bit"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_sm3p0
+    .param_str = "UiUi"
+    .features = "zksh"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_sm3p1
+    .param_str = "UiUi"
+    .features = "zksh"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_sm4ed
+    .param_str = "UiUiUiIUi"
+    .features = "zksed"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_sm4ks
+    .param_str = "UiUiUiIUi"
+    .features = "zksed"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_unzip_32
+    .param_str = "UiUi"
+    .features = "zbkb,32bit"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_xperm4_32
+    .param_str = "UiUiUi"
+    .features = "zbkx,32bit"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_xperm4_64
+    .param_str = "UWiUWiUWi"
+    .features = "zbkx,64bit"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_xperm8_32
+    .param_str = "UiUiUi"
+    .features = "zbkx,32bit"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_xperm8_64
+    .param_str = "UWiUWiUWi"
+    .features = "zbkx,64bit"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_zip_32
+    .param_str = "UiUi"
+    .features = "zbkb,32bit"
+    .attributes = .{ .@"const" = true }

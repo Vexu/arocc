@@ -3,7 +3,6 @@ const std = @import("std");
 const backend = @import("backend");
 
 const LangOpts = @import("LangOpts.zig");
-const TargetSet = @import("Builtins/Properties.zig").TargetSet;
 const QualType = @import("TypeStore.zig").QualType;
 
 pub const Vendor = enum {
@@ -457,27 +456,6 @@ pub fn isEnvironment(target: std.Target, query: []const u8) bool {
     const lower = toLower(query, &buf) orelse return false;
     const query_abi = std.meta.stringToEnum(std.Target.Abi, lower) orelse return false;
     return query_abi == target.abi;
-}
-
-pub fn builtinEnabled(target: std.Target, enabled_for: TargetSet) bool {
-    var it = enabled_for.iterator();
-    while (it.next()) |val| {
-        switch (val) {
-            .basic => return true,
-            .x86_64 => if (target.cpu.arch == .x86_64) return true,
-            .x86 => if (target.cpu.arch.isX86()) return true,
-            .aarch64 => if (target.cpu.arch == .aarch64) return true,
-            .arm => if (target.cpu.arch == .arm) return true,
-            .ppc => switch (target.cpu.arch) {
-                .powerpc, .powerpc64, .powerpc64le => return true,
-                else => {},
-            },
-            else => {
-                // Todo: handle other target predicates
-            },
-        }
-    }
-    return false;
 }
 
 pub fn defaultFpEvalMethod(target: std.Target) LangOpts.FPEvalMethod {

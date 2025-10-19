@@ -1,0 +1,6234 @@
+# Special cased builtins
+
+__builtin_choose_expr
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__builtin_va_arg
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__builtin_offsetof
+    .param_str = "z."
+    .attributes = .{ .custom_typecheck = true }
+
+__builtin_bitoffsetof
+    .param_str = "z."
+    .attributes = .{ .custom_typecheck = true }
+
+__builtin_types_compatible_p
+    .param_str = "i."
+    .attributes = .{ .custom_typecheck = true }
+
+__builtin_convertvector
+    .param_str = "v."
+    .attributes = .{ .@"const" = true, .custom_typecheck = true, .const_evaluable = true }
+
+__builtin_shufflevector
+    .param_str = "v."
+    .attributes = .{ .@"const" = true, .custom_typecheck = true, .const_evaluable = true }
+
+__builtin_bit_cast
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__builtin_addressof
+    .param_str = "v."
+    .attributes = .{ .@"const" = true, .custom_typecheck = true, .const_evaluable = true }
+
+__builtin_function_start
+    .param_str = "v."
+    .attributes = .{ .@"const" = true, .custom_typecheck = true, .const_evaluable = true }
+
+__builtin_ms_va_copy
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__builtin_ms_va_end
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__builtin_ms_va_start
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+# Generated from clang/include/clang/Basic/Builtins.td
+
+__atomic_add_fetch
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__atomic_and_fetch
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__atomic_clear
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__atomic_compare_exchange
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__atomic_compare_exchange_n
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__atomic_exchange
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__atomic_exchange_n
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__atomic_fetch_add
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__atomic_fetch_and
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__atomic_fetch_max
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__atomic_fetch_min
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__atomic_fetch_nand
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__atomic_fetch_or
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__atomic_fetch_sub
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__atomic_fetch_xor
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__atomic_load
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__atomic_load_n
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__atomic_max_fetch
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__atomic_min_fetch
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__atomic_nand_fetch
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__atomic_or_fetch
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__atomic_store
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__atomic_store_n
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__atomic_sub_fetch
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__atomic_test_and_set
+    .param_str = "b."
+    .attributes = .{ .custom_typecheck = true }
+
+__atomic_xor_fetch
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__c11_atomic_compare_exchange_strong
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__c11_atomic_compare_exchange_weak
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__c11_atomic_exchange
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__c11_atomic_fetch_add
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__c11_atomic_fetch_and
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__c11_atomic_fetch_max
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__c11_atomic_fetch_min
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__c11_atomic_fetch_nand
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__c11_atomic_fetch_or
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__c11_atomic_fetch_sub
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__c11_atomic_fetch_xor
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__c11_atomic_init
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__c11_atomic_load
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__c11_atomic_store
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__hip_atomic_compare_exchange_strong
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__hip_atomic_compare_exchange_weak
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__hip_atomic_exchange
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__hip_atomic_fetch_add
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__hip_atomic_fetch_and
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__hip_atomic_fetch_max
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__hip_atomic_fetch_min
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__hip_atomic_fetch_or
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__hip_atomic_fetch_sub
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__hip_atomic_fetch_xor
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__hip_atomic_load
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__hip_atomic_store
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__opencl_atomic_compare_exchange_strong
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__opencl_atomic_compare_exchange_weak
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__opencl_atomic_exchange
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__opencl_atomic_fetch_add
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__opencl_atomic_fetch_and
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__opencl_atomic_fetch_max
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__opencl_atomic_fetch_min
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__opencl_atomic_fetch_or
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__opencl_atomic_fetch_sub
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__opencl_atomic_fetch_xor
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__opencl_atomic_init
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__opencl_atomic_load
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__opencl_atomic_store
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__scoped_atomic_add_fetch
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__scoped_atomic_and_fetch
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__scoped_atomic_compare_exchange
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__scoped_atomic_compare_exchange_n
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__scoped_atomic_exchange
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__scoped_atomic_exchange_n
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__scoped_atomic_fetch_add
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__scoped_atomic_fetch_and
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__scoped_atomic_fetch_max
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__scoped_atomic_fetch_min
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__scoped_atomic_fetch_nand
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__scoped_atomic_fetch_or
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__scoped_atomic_fetch_sub
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__scoped_atomic_fetch_xor
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__scoped_atomic_load
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__scoped_atomic_load_n
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__scoped_atomic_max_fetch
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__scoped_atomic_min_fetch
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__scoped_atomic_nand_fetch
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__scoped_atomic_or_fetch
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__scoped_atomic_store
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__scoped_atomic_store_n
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__scoped_atomic_sub_fetch
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__scoped_atomic_xor_fetch
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__abnormal_termination
+    .param_str = "i"
+    .language = .all_ms_languages
+
+_abnormal_termination
+    .param_str = "i"
+    .language = .all_ms_languages
+
+__builtin_abort
+    .param_str = "v"
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+abort
+    .param_str = "v"
+    .header = .stdlib
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true }
+
+__builtin_abs
+    .param_str = "ii"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_evaluable = true, .@"const" = true }
+
+abs
+    .param_str = "ii"
+    .header = .stdlib
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true }
+
+__builtin_labs
+    .param_str = "LiLi"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_evaluable = true, .@"const" = true }
+
+labs
+    .param_str = "LiLi"
+    .header = .stdlib
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true }
+
+__builtin_llabs
+    .param_str = "LLiLLi"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_evaluable = true, .@"const" = true }
+
+llabs
+    .param_str = "LLiLLi"
+    .header = .stdlib
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true }
+
+__builtin_acosf
+    .param_str = "ff"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+acosf
+    .param_str = "ff"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_acos
+    .param_str = "dd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+acos
+    .param_str = "dd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_acosl
+    .param_str = "LdLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+acosl
+    .param_str = "LdLd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_acosf16
+    .param_str = "hh"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_acosf128
+    .param_str = "LLdLLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_acoshf
+    .param_str = "ff"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+acoshf
+    .param_str = "ff"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_acosh
+    .param_str = "dd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+acosh
+    .param_str = "dd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_acoshl
+    .param_str = "LdLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+acoshl
+    .param_str = "LdLd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_acoshf128
+    .param_str = "LLdLLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_add_overflow
+    .param_str = "b."
+    .attributes = .{ .custom_typecheck = true, .const_evaluable = true }
+
+__builtin_addcb
+    .param_str = "UcUcCUcCUcCUc*"
+    .attributes = .{ .const_evaluable = true }
+
+__builtin_addcs
+    .param_str = "UsUsCUsCUsCUs*"
+    .attributes = .{ .const_evaluable = true }
+
+__builtin_addc
+    .param_str = "UiUiCUiCUiCUi*"
+    .attributes = .{ .const_evaluable = true }
+
+__builtin_addcl
+    .param_str = "ULiULiCULiCULiCULi*"
+    .attributes = .{ .const_evaluable = true }
+
+__builtin_addcll
+    .param_str = "ULLiULLiCULLiCULLiCULLi*"
+    .attributes = .{ .const_evaluable = true }
+
+__builtin_align_down
+    .param_str = "v*vC*z"
+    .attributes = .{ .@"const" = true, .custom_typecheck = true, .const_evaluable = true }
+
+__builtin_align_up
+    .param_str = "v*vC*z"
+    .attributes = .{ .@"const" = true, .custom_typecheck = true, .const_evaluable = true }
+
+aligned_alloc
+    .param_str = "v*zz"
+    .header = .stdlib
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true }
+
+__builtin_alloca
+    .param_str = "v*z"
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+alloca
+    .param_str = "v*z"
+    .header = .stdlib
+    .language = .all_gnu_languages
+    .attributes = .{ .lib_function_without_prefix = true }
+
+_alloca
+    .param_str = "v*z"
+    .language = .all_ms_languages
+
+__builtin_alloca_uninitialized
+    .param_str = "v*z"
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+__builtin_alloca_with_align
+    .param_str = "v*zIz"
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+__builtin_alloca_with_align_uninitialized
+    .param_str = "v*zIz"
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+__builtin_allow_runtime_check
+    .param_str = "bcC*"
+    .attributes = .{ .pure = true, .@"const" = true }
+
+__builtin_annotation
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__arithmetic_fence
+    .param_str = "v."
+    .language = .all_languages
+    .attributes = .{ .custom_typecheck = true, .const_evaluable = true }
+
+__builtin_asinf
+    .param_str = "ff"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+asinf
+    .param_str = "ff"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_asin
+    .param_str = "dd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+asin
+    .param_str = "dd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_asinl
+    .param_str = "LdLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+asinl
+    .param_str = "LdLd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_asinf16
+    .param_str = "hh"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_asinf128
+    .param_str = "LLdLLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_asinhf
+    .param_str = "ff"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+asinhf
+    .param_str = "ff"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_asinh
+    .param_str = "dd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+asinh
+    .param_str = "dd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_asinhl
+    .param_str = "LdLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+asinhl
+    .param_str = "LdLd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_asinhf128
+    .param_str = "LLdLLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_assume
+    .param_str = "vb"
+    .attributes = .{ .const_evaluable = true }
+
+__builtin_assume_separate_storage
+    .param_str = "vvCD*vCD*"
+    .attributes = .{ .const_evaluable = true }
+
+__builtin_atanf
+    .param_str = "ff"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+atanf
+    .param_str = "ff"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_atan
+    .param_str = "dd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+atan
+    .param_str = "dd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_atanl
+    .param_str = "LdLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+atanl
+    .param_str = "LdLd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_atan2f
+    .param_str = "fff"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+atan2f
+    .param_str = "fff"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_atan2
+    .param_str = "ddd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+atan2
+    .param_str = "ddd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_atan2l
+    .param_str = "LdLdLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+atan2l
+    .param_str = "LdLdLd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_atan2f16
+    .param_str = "hhh"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_atan2f128
+    .param_str = "LLdLLdLLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_atanf16
+    .param_str = "hh"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_atanf128
+    .param_str = "LLdLLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_atanhf
+    .param_str = "ff"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+atanhf
+    .param_str = "ff"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_atanh
+    .param_str = "dd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+atanh
+    .param_str = "dd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_atanhl
+    .param_str = "LdLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+atanhl
+    .param_str = "LdLd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_atanhf128
+    .param_str = "LLdLLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__atomic_always_lock_free
+    .param_str = "bzvCD*"
+    .attributes = .{ .const_evaluable = true }
+
+__atomic_is_lock_free
+    .param_str = "bzvCD*"
+    .attributes = .{ .const_evaluable = true }
+
+__atomic_signal_fence
+    .param_str = "vi"
+
+__atomic_thread_fence
+    .param_str = "vi"
+
+bcmp
+    .param_str = "ivC*vC*z"
+    .header = .strings
+    .language = .all_gnu_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_evaluable = true }
+
+__builtin_bswap16
+    .param_str = "UsUs"
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
+
+__builtin_bswap32
+    .param_str = "UZiUZi"
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
+
+__builtin_bswap64
+    .param_str = "UWiUWi"
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
+
+__builtin_bzero
+    .param_str = "vv*z"
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+bzero
+    .param_str = "vv*z"
+    .header = .strings
+    .language = .all_gnu_languages
+    .attributes = .{ .lib_function_without_prefix = true }
+
+__builtin_bcopy
+    .param_str = "vvC*v*z"
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+bcopy
+    .param_str = "vvC*v*z"
+    .header = .strings
+    .language = .all_gnu_languages
+    .attributes = .{ .lib_function_without_prefix = true }
+
+__builtin_bitreverse8
+    .param_str = "UcUc"
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
+
+__builtin_bitreverse16
+    .param_str = "UsUs"
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
+
+__builtin_bitreverse32
+    .param_str = "UZiUZi"
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
+
+__builtin_bitreverse64
+    .param_str = "UWiUWi"
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
+
+_bittest
+    .param_str = "UcNiC*Ni"
+    .language = .all_ms_languages
+
+_bittest64
+    .param_str = "UcWiC*Wi"
+    .language = .all_ms_languages
+
+_bittestandcomplement
+    .param_str = "UcNi*Ni"
+    .language = .all_ms_languages
+
+_bittestandcomplement64
+    .param_str = "UcWi*Wi"
+    .language = .all_ms_languages
+
+_bittestandreset
+    .param_str = "UcNi*Ni"
+    .language = .all_ms_languages
+
+_bittestandreset64
+    .param_str = "UcWi*Wi"
+    .language = .all_ms_languages
+
+_bittestandset
+    .param_str = "UcNi*Ni"
+    .language = .all_ms_languages
+
+_bittestandset64
+    .param_str = "UcWi*Wi"
+    .language = .all_ms_languages
+
+_Block_object_assign
+    .param_str = "vv*vC*iC"
+    .header = .blocks
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true }
+
+_Block_object_dispose
+    .param_str = "vvC*iC"
+    .header = .blocks
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true }
+
+__builtin_assume_aligned
+    .param_str = "v*vC*z."
+    .attributes = .{ .@"const" = true, .custom_typecheck = true, .const_evaluable = true }
+
+__builtin_assume_dereferenceable
+    .param_str = "vvC*Iz"
+    .attributes = .{ .@"const" = true }
+
+__builtin_bcmp
+    .param_str = "ivC*vC*z"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_evaluable = true }
+
+__builtin_c23_va_start
+    .param_str = "vA."
+    .language = .c23_lang
+    .attributes = .{ .custom_typecheck = true }
+
+__builtin___CFStringMakeConstantString
+    .param_str = "FC*cC*"
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
+
+__builtin_cpu_init
+    .param_str = "v"
+
+__builtin_cpu_is
+    .param_str = "bcC*"
+    .attributes = .{ .@"const" = true }
+
+__builtin_cpu_supports
+    .param_str = "bcC*"
+    .attributes = .{ .@"const" = true }
+
+__builtin_calloc
+    .param_str = "v*zz"
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+__builtin_char_memchr
+    .param_str = "c*cC*iz"
+    .attributes = .{ .const_evaluable = true }
+
+__builtin_classify_type
+    .param_str = "i."
+    .attributes = .{ .@"const" = true, .custom_typecheck = true, .eval_args = false, .const_evaluable = true }
+
+__builtin_complex
+    .param_str = "v."
+    .attributes = .{ .@"const" = true, .custom_typecheck = true, .const_evaluable = true }
+
+__builtin_constant_p
+    .param_str = "i."
+    .attributes = .{ .@"const" = true, .custom_typecheck = true, .eval_args = false, .const_evaluable = true }
+
+__builtin_dump_struct
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__builtin_flt_rounds
+    .param_str = "i"
+
+__builtin_free
+    .param_str = "vv*"
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+__builtin_longjmp
+    .param_str = "vv**i"
+
+__builtin_malloc
+    .param_str = "v*z"
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+__builtin_memcmp
+    .param_str = "ivC*vC*z"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_evaluable = true }
+
+__builtin_memcpy_inline
+    .param_str = "vv*vC*Iz"
+
+__builtin_mempcpy
+    .param_str = "v*v*vC*z"
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+__builtin_memset_inline
+    .param_str = "vv*iIz"
+
+__builtin___NSStringMakeConstantString
+    .param_str = "FC*cC*"
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
+
+__builtin_operator_delete
+    .param_str = "vv*"
+    .attributes = .{ .custom_typecheck = true, .const_evaluable = true }
+
+__builtin_operator_new
+    .param_str = "v*z"
+    .attributes = .{ .@"const" = true, .custom_typecheck = true, .const_evaluable = true }
+
+__builtin_preserve_access_index
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__builtin_printf
+    .param_str = "icC*R."
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+__builtin_realloc
+    .param_str = "v*v*z"
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+__builtin_return_address
+    .param_str = "v*IUi"
+
+__builtin_set_flt_rounds
+    .param_str = "vi"
+
+__builtin_setjmp
+    .param_str = "iv**"
+    .attributes = .{ .returns_twice = true }
+
+__builtin_stdarg_start
+    .param_str = "vA."
+    .attributes = .{ .custom_typecheck = true }
+
+__builtin_strcspn
+    .param_str = "zcC*cC*"
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+__builtin_trivially_relocate
+    .param_str = "v*v*v*z"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .custom_typecheck = true }
+
+__builtin_va_start
+    .param_str = "vA."
+    .attributes = .{ .custom_typecheck = true }
+
+__c11_atomic_is_lock_free
+    .param_str = "bz"
+    .attributes = .{ .const_evaluable = true }
+
+__c11_atomic_signal_fence
+    .param_str = "vi"
+
+__c11_atomic_thread_fence
+    .param_str = "vi"
+
+__builtin_cabsf
+    .param_str = "fXf"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+cabsf
+    .param_str = "fXf"
+    .header = .complex
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_cabs
+    .param_str = "dXd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+cabs
+    .param_str = "dXd"
+    .header = .complex
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_cabsl
+    .param_str = "LdXLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+cabsl
+    .param_str = "LdXLd"
+    .header = .complex
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_cacosf
+    .param_str = "XfXf"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+cacosf
+    .param_str = "XfXf"
+    .header = .complex
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_cacos
+    .param_str = "XdXd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+cacos
+    .param_str = "XdXd"
+    .header = .complex
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_cacosl
+    .param_str = "XLdXLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+cacosl
+    .param_str = "XLdXLd"
+    .header = .complex
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_cacoshf
+    .param_str = "XfXf"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+cacoshf
+    .param_str = "XfXf"
+    .header = .complex
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_cacosh
+    .param_str = "XdXd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+cacosh
+    .param_str = "XdXd"
+    .header = .complex
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_cacoshl
+    .param_str = "XLdXLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+cacoshl
+    .param_str = "XLdXLd"
+    .header = .complex
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_call_with_static_chain
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+calloc
+    .param_str = "v*zz"
+    .header = .stdlib
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true }
+
+__builtin_canonicalizef
+    .param_str = "ff"
+    .attributes = .{ .@"const" = true }
+
+__builtin_canonicalize
+    .param_str = "dd"
+    .attributes = .{ .@"const" = true }
+
+__builtin_canonicalizel
+    .param_str = "LdLd"
+    .attributes = .{ .@"const" = true }
+
+__builtin_canonicalizef16
+    .param_str = "hh"
+    .attributes = .{ .@"const" = true }
+
+__builtin_cargf
+    .param_str = "fXf"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+cargf
+    .param_str = "fXf"
+    .header = .complex
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_carg
+    .param_str = "dXd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+carg
+    .param_str = "dXd"
+    .header = .complex
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_cargl
+    .param_str = "LdXLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+cargl
+    .param_str = "LdXLd"
+    .header = .complex
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_casinf
+    .param_str = "XfXf"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+casinf
+    .param_str = "XfXf"
+    .header = .complex
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_casin
+    .param_str = "XdXd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+casin
+    .param_str = "XdXd"
+    .header = .complex
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_casinl
+    .param_str = "XLdXLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+casinl
+    .param_str = "XLdXLd"
+    .header = .complex
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_casinhf
+    .param_str = "XfXf"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+casinhf
+    .param_str = "XfXf"
+    .header = .complex
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_casinh
+    .param_str = "XdXd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+casinh
+    .param_str = "XdXd"
+    .header = .complex
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_casinhl
+    .param_str = "XLdXLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+casinhl
+    .param_str = "XLdXLd"
+    .header = .complex
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_catanf
+    .param_str = "XfXf"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+catanf
+    .param_str = "XfXf"
+    .header = .complex
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_catan
+    .param_str = "XdXd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+catan
+    .param_str = "XdXd"
+    .header = .complex
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_catanl
+    .param_str = "XLdXLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+catanl
+    .param_str = "XLdXLd"
+    .header = .complex
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_catanhf
+    .param_str = "XfXf"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+catanhf
+    .param_str = "XfXf"
+    .header = .complex
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_catanh
+    .param_str = "XdXd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+catanh
+    .param_str = "XdXd"
+    .header = .complex
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_catanhl
+    .param_str = "XLdXLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+catanhl
+    .param_str = "XLdXLd"
+    .header = .complex
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_cbrtf
+    .param_str = "ff"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .@"const" = true }
+
+cbrtf
+    .param_str = "ff"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true }
+
+__builtin_cbrt
+    .param_str = "dd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .@"const" = true }
+
+cbrt
+    .param_str = "dd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true }
+
+__builtin_cbrtl
+    .param_str = "LdLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .@"const" = true }
+
+cbrtl
+    .param_str = "LdLd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true }
+
+__builtin_cbrtf128
+    .param_str = "LLdLLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .@"const" = true }
+
+__builtin_ccosf
+    .param_str = "XfXf"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+ccosf
+    .param_str = "XfXf"
+    .header = .complex
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_ccos
+    .param_str = "XdXd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+ccos
+    .param_str = "XdXd"
+    .header = .complex
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_ccosl
+    .param_str = "XLdXLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+ccosl
+    .param_str = "XLdXLd"
+    .header = .complex
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_ccoshf
+    .param_str = "XfXf"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+ccoshf
+    .param_str = "XfXf"
+    .header = .complex
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_ccosh
+    .param_str = "XdXd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+ccosh
+    .param_str = "XdXd"
+    .header = .complex
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_ccoshl
+    .param_str = "XLdXLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+ccoshl
+    .param_str = "XLdXLd"
+    .header = .complex
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_ceilf
+    .param_str = "ff"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .@"const" = true }
+
+ceilf
+    .param_str = "ff"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true }
+
+__builtin_ceil
+    .param_str = "dd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .@"const" = true }
+
+ceil
+    .param_str = "dd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true }
+
+__builtin_ceill
+    .param_str = "LdLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .@"const" = true }
+
+ceill
+    .param_str = "LdLd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true }
+
+__builtin_ceilf16
+    .param_str = "hh"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .@"const" = true }
+
+__builtin_ceilf128
+    .param_str = "LLdLLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .@"const" = true }
+
+__builtin_cexpf
+    .param_str = "XfXf"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+cexpf
+    .param_str = "XfXf"
+    .header = .complex
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_cexp
+    .param_str = "XdXd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+cexp
+    .param_str = "XdXd"
+    .header = .complex
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_cexpl
+    .param_str = "XLdXLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+cexpl
+    .param_str = "XLdXLd"
+    .header = .complex
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_cimagf
+    .param_str = "fXf"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .@"const" = true }
+
+cimagf
+    .param_str = "fXf"
+    .header = .complex
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true }
+
+__builtin_cimag
+    .param_str = "dXd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .@"const" = true }
+
+cimag
+    .param_str = "dXd"
+    .header = .complex
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true }
+
+__builtin_cimagl
+    .param_str = "LdXLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .@"const" = true }
+
+cimagl
+    .param_str = "LdXLd"
+    .header = .complex
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true }
+
+__builtin___clear_cache
+    .param_str = "vv*v*"
+
+__builtin_clogf
+    .param_str = "XfXf"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+clogf
+    .param_str = "XfXf"
+    .header = .complex
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_clog
+    .param_str = "XdXd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+clog
+    .param_str = "XdXd"
+    .header = .complex
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_clogl
+    .param_str = "XLdXLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+clogl
+    .param_str = "XLdXLd"
+    .header = .complex
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_clrsb
+    .param_str = "ii"
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
+
+__builtin_clrsbl
+    .param_str = "iLi"
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
+
+__builtin_clrsbll
+    .param_str = "iLLi"
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
+
+__builtin_clzs
+    .param_str = "iUs"
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
+
+__builtin_clz
+    .param_str = "iUi"
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
+
+__builtin_clzl
+    .param_str = "iULi"
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
+
+__builtin_clzll
+    .param_str = "iULLi"
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
+
+__builtin_clzg
+    .param_str = "i."
+    .attributes = .{ .@"const" = true, .const_evaluable = true, .custom_typecheck = true }
+
+__builtin_conjf
+    .param_str = "XfXf"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .@"const" = true }
+
+conjf
+    .param_str = "XfXf"
+    .header = .complex
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true }
+
+__builtin_conj
+    .param_str = "XdXd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .@"const" = true }
+
+conj
+    .param_str = "XdXd"
+    .header = .complex
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true }
+
+__builtin_conjl
+    .param_str = "XLdXLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .@"const" = true }
+
+conjl
+    .param_str = "XLdXLd"
+    .header = .complex
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true }
+
+__builtin_copysignf
+    .param_str = "fff"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_evaluable = true, .@"const" = true }
+
+copysignf
+    .param_str = "fff"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true }
+
+__builtin_copysign
+    .param_str = "ddd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_evaluable = true, .@"const" = true }
+
+copysign
+    .param_str = "ddd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true }
+
+__builtin_copysignl
+    .param_str = "LdLdLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_evaluable = true, .@"const" = true }
+
+copysignl
+    .param_str = "LdLdLd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true }
+
+__builtin_copysignf16
+    .param_str = "hhh"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .@"const" = true }
+
+__builtin_copysignf128
+    .param_str = "LLdLLdLLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .@"const" = true, .const_evaluable = true }
+
+__builtin_cosf
+    .param_str = "ff"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+cosf
+    .param_str = "ff"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_cos
+    .param_str = "dd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+cos
+    .param_str = "dd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_cosl
+    .param_str = "LdLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+cosl
+    .param_str = "LdLd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_cosf16
+    .param_str = "hh"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_cosf128
+    .param_str = "LLdLLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_coshf
+    .param_str = "ff"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+coshf
+    .param_str = "ff"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_cosh
+    .param_str = "dd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+cosh
+    .param_str = "dd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_coshl
+    .param_str = "LdLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+coshl
+    .param_str = "LdLd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_coshf16
+    .param_str = "hh"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_coshf128
+    .param_str = "LLdLLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__cospif
+    .param_str = "ff"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__cospi
+    .param_str = "dd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_counted_by_ref
+    .param_str = "i."
+    .attributes = .{ .custom_typecheck = true }
+
+__builtin_cpowf
+    .param_str = "XfXfXf"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+cpowf
+    .param_str = "XfXfXf"
+    .header = .complex
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_cpow
+    .param_str = "XdXdXd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+cpow
+    .param_str = "XdXdXd"
+    .header = .complex
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_cpowl
+    .param_str = "XLdXLdXLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+cpowl
+    .param_str = "XLdXLdXLd"
+    .header = .complex
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_cprojf
+    .param_str = "XfXf"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .@"const" = true }
+
+cprojf
+    .param_str = "XfXf"
+    .header = .complex
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true }
+
+__builtin_cproj
+    .param_str = "XdXd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .@"const" = true }
+
+cproj
+    .param_str = "XdXd"
+    .header = .complex
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true }
+
+__builtin_cprojl
+    .param_str = "XLdXLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .@"const" = true }
+
+cprojl
+    .param_str = "XLdXLd"
+    .header = .complex
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true }
+
+__builtin_crealf
+    .param_str = "fXf"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .@"const" = true }
+
+crealf
+    .param_str = "fXf"
+    .header = .complex
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true }
+
+__builtin_creal
+    .param_str = "dXd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .@"const" = true }
+
+creal
+    .param_str = "dXd"
+    .header = .complex
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true }
+
+__builtin_creall
+    .param_str = "LdXLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .@"const" = true }
+
+creall
+    .param_str = "LdXLd"
+    .header = .complex
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true }
+
+__builtin_csinf
+    .param_str = "XfXf"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+csinf
+    .param_str = "XfXf"
+    .header = .complex
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_csin
+    .param_str = "XdXd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+csin
+    .param_str = "XdXd"
+    .header = .complex
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_csinl
+    .param_str = "XLdXLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+csinl
+    .param_str = "XLdXLd"
+    .header = .complex
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_csinhf
+    .param_str = "XfXf"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+csinhf
+    .param_str = "XfXf"
+    .header = .complex
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_csinh
+    .param_str = "XdXd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+csinh
+    .param_str = "XdXd"
+    .header = .complex
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_csinhl
+    .param_str = "XLdXLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+csinhl
+    .param_str = "XLdXLd"
+    .header = .complex
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_csqrtf
+    .param_str = "XfXf"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+csqrtf
+    .param_str = "XfXf"
+    .header = .complex
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_csqrt
+    .param_str = "XdXd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+csqrt
+    .param_str = "XdXd"
+    .header = .complex
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_csqrtl
+    .param_str = "XLdXLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+csqrtl
+    .param_str = "XLdXLd"
+    .header = .complex
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_ctanf
+    .param_str = "XfXf"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+ctanf
+    .param_str = "XfXf"
+    .header = .complex
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_ctan
+    .param_str = "XdXd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+ctan
+    .param_str = "XdXd"
+    .header = .complex
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_ctanl
+    .param_str = "XLdXLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+ctanl
+    .param_str = "XLdXLd"
+    .header = .complex
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_ctanhf
+    .param_str = "XfXf"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+ctanhf
+    .param_str = "XfXf"
+    .header = .complex
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_ctanh
+    .param_str = "XdXd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+ctanh
+    .param_str = "XdXd"
+    .header = .complex
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_ctanhl
+    .param_str = "XLdXLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+ctanhl
+    .param_str = "XLdXLd"
+    .header = .complex
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_ctzs
+    .param_str = "iUs"
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
+
+__builtin_ctz
+    .param_str = "iUi"
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
+
+__builtin_ctzl
+    .param_str = "iULi"
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
+
+__builtin_ctzll
+    .param_str = "iULLi"
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
+
+__builtin_ctzg
+    .param_str = "i."
+    .attributes = .{ .@"const" = true, .const_evaluable = true, .custom_typecheck = true }
+
+__builtin_dwarf_sp_column
+    .param_str = "Ui"
+
+__builtin_dwarf_cfa
+    .param_str = "v*"
+
+__debugbreak
+    .param_str = "v"
+    .language = .all_ms_languages
+
+__builtin_debugtrap
+    .param_str = "v"
+
+__builtin_dynamic_object_size
+    .param_str = "zvC*i"
+    .attributes = .{ .eval_args = false, .const_evaluable = true }
+
+__builtin_eh_return
+    .param_str = "vzv*"
+
+__builtin_eh_return_data_regno
+    .param_str = "iIi"
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
+
+__builtin_elementwise_acos
+    .param_str = "v."
+    .attributes = .{ .@"const" = true, .custom_typecheck = true }
+
+__builtin_elementwise_asin
+    .param_str = "v."
+    .attributes = .{ .@"const" = true, .custom_typecheck = true }
+
+__builtin_elementwise_atan
+    .param_str = "v."
+    .attributes = .{ .@"const" = true, .custom_typecheck = true }
+
+__builtin_elementwise_atan2
+    .param_str = "v."
+    .attributes = .{ .@"const" = true, .custom_typecheck = true }
+
+__builtin_elementwise_abs
+    .param_str = "v."
+    .attributes = .{ .@"const" = true, .custom_typecheck = true }
+
+__builtin_elementwise_add_sat
+    .param_str = "v."
+    .attributes = .{ .@"const" = true, .custom_typecheck = true, .const_evaluable = true }
+
+__builtin_elementwise_bitreverse
+    .param_str = "v."
+    .attributes = .{ .@"const" = true, .custom_typecheck = true, .const_evaluable = true }
+
+__builtin_elementwise_canonicalize
+    .param_str = "v."
+    .attributes = .{ .@"const" = true, .custom_typecheck = true }
+
+__builtin_elementwise_ceil
+    .param_str = "v."
+    .attributes = .{ .@"const" = true, .custom_typecheck = true }
+
+__builtin_elementwise_copysign
+    .param_str = "v."
+    .attributes = .{ .@"const" = true, .custom_typecheck = true }
+
+__builtin_elementwise_cos
+    .param_str = "v."
+    .attributes = .{ .@"const" = true, .custom_typecheck = true }
+
+__builtin_elementwise_cosh
+    .param_str = "v."
+    .attributes = .{ .@"const" = true, .custom_typecheck = true }
+
+__builtin_elementwise_exp
+    .param_str = "v."
+    .attributes = .{ .@"const" = true, .custom_typecheck = true }
+
+__builtin_elementwise_exp2
+    .param_str = "v."
+    .attributes = .{ .@"const" = true, .custom_typecheck = true }
+
+__builtin_elementwise_exp10
+    .param_str = "v."
+    .attributes = .{ .@"const" = true, .custom_typecheck = true }
+
+__builtin_elementwise_floor
+    .param_str = "v."
+    .attributes = .{ .@"const" = true, .custom_typecheck = true }
+
+__builtin_elementwise_fma
+    .param_str = "v."
+    .attributes = .{ .@"const" = true, .custom_typecheck = true }
+
+__builtin_elementwise_fmod
+    .param_str = "v."
+    .attributes = .{ .@"const" = true, .custom_typecheck = true }
+
+__builtin_elementwise_log
+    .param_str = "v."
+    .attributes = .{ .@"const" = true, .custom_typecheck = true }
+
+__builtin_elementwise_log2
+    .param_str = "v."
+    .attributes = .{ .@"const" = true, .custom_typecheck = true }
+
+__builtin_elementwise_log10
+    .param_str = "v."
+    .attributes = .{ .@"const" = true, .custom_typecheck = true }
+
+__builtin_elementwise_max
+    .param_str = "v."
+    .attributes = .{ .@"const" = true, .custom_typecheck = true }
+
+__builtin_elementwise_maxnum
+    .param_str = "v."
+    .attributes = .{ .@"const" = true, .custom_typecheck = true }
+
+__builtin_elementwise_maximum
+    .param_str = "v."
+    .attributes = .{ .@"const" = true, .custom_typecheck = true }
+
+__builtin_elementwise_min
+    .param_str = "v."
+    .attributes = .{ .@"const" = true, .custom_typecheck = true }
+
+__builtin_elementwise_minnum
+    .param_str = "v."
+    .attributes = .{ .@"const" = true, .custom_typecheck = true }
+
+__builtin_elementwise_minimum
+    .param_str = "v."
+    .attributes = .{ .@"const" = true, .custom_typecheck = true }
+
+__builtin_elementwise_nearbyint
+    .param_str = "v."
+    .attributes = .{ .@"const" = true, .custom_typecheck = true }
+
+__builtin_elementwise_popcount
+    .param_str = "v."
+    .attributes = .{ .@"const" = true, .custom_typecheck = true, .const_evaluable = true }
+
+__builtin_elementwise_pow
+    .param_str = "v."
+    .attributes = .{ .@"const" = true, .custom_typecheck = true }
+
+__builtin_elementwise_rint
+    .param_str = "v."
+    .attributes = .{ .@"const" = true, .custom_typecheck = true }
+
+__builtin_elementwise_round
+    .param_str = "v."
+    .attributes = .{ .@"const" = true, .custom_typecheck = true }
+
+__builtin_elementwise_roundeven
+    .param_str = "v."
+    .attributes = .{ .@"const" = true, .custom_typecheck = true }
+
+__builtin_elementwise_sin
+    .param_str = "v."
+    .attributes = .{ .@"const" = true, .custom_typecheck = true }
+
+__builtin_elementwise_sinh
+    .param_str = "v."
+    .attributes = .{ .@"const" = true, .custom_typecheck = true }
+
+__builtin_elementwise_sqrt
+    .param_str = "v."
+    .attributes = .{ .@"const" = true, .custom_typecheck = true }
+
+__builtin_elementwise_sub_sat
+    .param_str = "v."
+    .attributes = .{ .@"const" = true, .custom_typecheck = true, .const_evaluable = true }
+
+__builtin_elementwise_tan
+    .param_str = "v."
+    .attributes = .{ .@"const" = true, .custom_typecheck = true }
+
+__builtin_elementwise_tanh
+    .param_str = "v."
+    .attributes = .{ .@"const" = true, .custom_typecheck = true }
+
+__builtin_elementwise_trunc
+    .param_str = "v."
+    .attributes = .{ .@"const" = true, .custom_typecheck = true }
+
+__builtin_erff
+    .param_str = "ff"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+erff
+    .param_str = "ff"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_erf
+    .param_str = "dd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+erf
+    .param_str = "dd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_erfl
+    .param_str = "LdLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+erfl
+    .param_str = "LdLd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_erff128
+    .param_str = "LLdLLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_erfcf
+    .param_str = "ff"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+erfcf
+    .param_str = "ff"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_erfc
+    .param_str = "dd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+erfc
+    .param_str = "dd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_erfcl
+    .param_str = "LdLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+erfcl
+    .param_str = "LdLd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_erfcf128
+    .param_str = "LLdLLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__exception_code
+    .param_str = "UNi"
+    .language = .all_ms_languages
+
+_exception_code
+    .param_str = "UNi"
+    .language = .all_ms_languages
+
+__exception_info
+    .param_str = "v*"
+    .language = .all_ms_languages
+
+_exception_info
+    .param_str = "v*"
+    .language = .all_ms_languages
+
+exit
+    .param_str = "vi"
+    .header = .stdlib
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true }
+
+_Exit
+    .param_str = "vi"
+    .header = .stdlib
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true }
+
+__builtin_expf
+    .param_str = "ff"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+expf
+    .param_str = "ff"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_exp
+    .param_str = "dd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+exp
+    .param_str = "dd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_expl
+    .param_str = "LdLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+expl
+    .param_str = "LdLd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_exp2f
+    .param_str = "ff"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+exp2f
+    .param_str = "ff"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_exp2
+    .param_str = "dd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+exp2
+    .param_str = "dd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_exp2l
+    .param_str = "LdLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+exp2l
+    .param_str = "LdLd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_exp2f16
+    .param_str = "hh"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_exp2f128
+    .param_str = "LLdLLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_exp10f
+    .param_str = "ff"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_exp10
+    .param_str = "dd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_exp10l
+    .param_str = "LdLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_exp10f16
+    .param_str = "hh"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_exp10f128
+    .param_str = "LLdLLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_expf16
+    .param_str = "hh"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_expf128
+    .param_str = "LLdLLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_expect
+    .param_str = "LiLiLi"
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
+
+__builtin_expect_with_probability
+    .param_str = "LiLiLid"
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
+
+__builtin_expm1f
+    .param_str = "ff"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+expm1f
+    .param_str = "ff"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_expm1
+    .param_str = "dd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+expm1
+    .param_str = "dd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_expm1l
+    .param_str = "LdLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+expm1l
+    .param_str = "LdLd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_expm1f128
+    .param_str = "LLdLLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_extend_pointer
+    .param_str = "ULLiv*"
+
+__builtin_extract_return_addr
+    .param_str = "v*v*"
+
+__builtin_ffs
+    .param_str = "ii"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .@"const" = true, .const_evaluable = true }
+
+__builtin_ffsl
+    .param_str = "iLi"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .@"const" = true, .const_evaluable = true }
+
+__builtin_ffsll
+    .param_str = "iLLi"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .@"const" = true, .const_evaluable = true }
+
+__builtin_fpclassify
+    .param_str = "iiiiii."
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .@"const" = true, .custom_typecheck = true, .const_evaluable = true }
+
+__builtin_fprintf
+    .param_str = "iP*RcC*R."
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+fprintf
+    .param_str = "iP*RcC*R."
+    .header = .stdio
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true }
+
+__builtin___fprintf_chk
+    .param_str = "iP*RicC*R."
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+__builtin_fscanf
+    .param_str = "iP*RcC*R."
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+fscanf
+    .param_str = "iP*RcC*R."
+    .header = .stdio
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true }
+
+__builtin_fabsf
+    .param_str = "ff"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_evaluable = true, .@"const" = true }
+
+fabsf
+    .param_str = "ff"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true }
+
+__builtin_fabs
+    .param_str = "dd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_evaluable = true, .@"const" = true }
+
+fabs
+    .param_str = "dd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true }
+
+__builtin_fabsl
+    .param_str = "LdLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_evaluable = true, .@"const" = true }
+
+fabsl
+    .param_str = "LdLd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true }
+
+__builtin_fabsf16
+    .param_str = "hh"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .@"const" = true }
+
+__builtin_fabsf128
+    .param_str = "LLdLLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .@"const" = true, .const_evaluable = true }
+
+__fastfail
+    .param_str = "vUi"
+    .language = .all_ms_languages
+
+__builtin_fdimf
+    .param_str = "fff"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+fdimf
+    .param_str = "fff"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_fdim
+    .param_str = "ddd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+fdim
+    .param_str = "ddd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_fdiml
+    .param_str = "LdLdLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+fdiml
+    .param_str = "LdLdLd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_fdimf128
+    .param_str = "LLdLLdLLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+finitef
+    .param_str = "if"
+    .header = .math
+    .language = .all_gnu_languages
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true }
+
+finite
+    .param_str = "id"
+    .header = .math
+    .language = .all_gnu_languages
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true }
+
+finitel
+    .param_str = "iLd"
+    .header = .math
+    .language = .all_gnu_languages
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true }
+
+__builtin_floorf
+    .param_str = "ff"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .@"const" = true }
+
+floorf
+    .param_str = "ff"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true }
+
+__builtin_floor
+    .param_str = "dd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .@"const" = true }
+
+floor
+    .param_str = "dd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true }
+
+__builtin_floorl
+    .param_str = "LdLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .@"const" = true }
+
+floorl
+    .param_str = "LdLd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true }
+
+__builtin_floorf16
+    .param_str = "hh"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .@"const" = true }
+
+__builtin_floorf128
+    .param_str = "LLdLLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .@"const" = true }
+
+__builtin_fmaf
+    .param_str = "ffff"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+fmaf
+    .param_str = "ffff"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_fma
+    .param_str = "dddd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+fma
+    .param_str = "dddd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_fmal
+    .param_str = "LdLdLdLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+fmal
+    .param_str = "LdLdLdLd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_fmaf16
+    .param_str = "hhhh"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_fmaf128
+    .param_str = "LLdLLdLLdLLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_fmaxf
+    .param_str = "fff"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_evaluable = true, .@"const" = true }
+
+fmaxf
+    .param_str = "fff"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true }
+
+__builtin_fmax
+    .param_str = "ddd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_evaluable = true, .@"const" = true }
+
+fmax
+    .param_str = "ddd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true }
+
+__builtin_fmaxl
+    .param_str = "LdLdLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_evaluable = true, .@"const" = true }
+
+fmaxl
+    .param_str = "LdLdLd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true }
+
+__builtin_fmaxf16
+    .param_str = "hhh"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .@"const" = true, .const_evaluable = true }
+
+__builtin_fmaxf128
+    .param_str = "LLdLLdLLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .@"const" = true, .const_evaluable = true }
+
+__builtin_fmaximum_numf
+    .param_str = "fff"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_evaluable = true, .@"const" = true }
+
+fmaximum_numf
+    .param_str = "fff"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true }
+
+__builtin_fmaximum_num
+    .param_str = "ddd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_evaluable = true, .@"const" = true }
+
+fmaximum_num
+    .param_str = "ddd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true }
+
+__builtin_fmaximum_numl
+    .param_str = "LdLdLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_evaluable = true, .@"const" = true }
+
+fmaximum_numl
+    .param_str = "LdLdLd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true }
+
+__builtin_fmaximum_numf16
+    .param_str = "hhh"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .@"const" = true, .const_evaluable = true }
+
+__builtin_fmaximum_numf128
+    .param_str = "LLdLLdLLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .@"const" = true, .const_evaluable = true }
+
+__builtin_fminf
+    .param_str = "fff"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_evaluable = true, .@"const" = true }
+
+fminf
+    .param_str = "fff"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true }
+
+__builtin_fmin
+    .param_str = "ddd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_evaluable = true, .@"const" = true }
+
+fmin
+    .param_str = "ddd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true }
+
+__builtin_fminl
+    .param_str = "LdLdLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_evaluable = true, .@"const" = true }
+
+fminl
+    .param_str = "LdLdLd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true }
+
+__builtin_fminf16
+    .param_str = "hhh"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .@"const" = true, .const_evaluable = true }
+
+__builtin_fminf128
+    .param_str = "LLdLLdLLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .@"const" = true, .const_evaluable = true }
+
+__builtin_fminimum_numf
+    .param_str = "fff"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_evaluable = true, .@"const" = true }
+
+fminimum_numf
+    .param_str = "fff"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true }
+
+__builtin_fminimum_num
+    .param_str = "ddd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_evaluable = true, .@"const" = true }
+
+fminimum_num
+    .param_str = "ddd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true }
+
+__builtin_fminimum_numl
+    .param_str = "LdLdLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_evaluable = true, .@"const" = true }
+
+fminimum_numl
+    .param_str = "LdLdLd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true }
+
+__builtin_fminimum_numf16
+    .param_str = "hhh"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .@"const" = true, .const_evaluable = true }
+
+__builtin_fminimum_numf128
+    .param_str = "LLdLLdLLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .@"const" = true, .const_evaluable = true }
+
+__builtin_fmodf
+    .param_str = "fff"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+fmodf
+    .param_str = "fff"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_fmod
+    .param_str = "ddd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+fmod
+    .param_str = "ddd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_fmodl
+    .param_str = "LdLdLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+fmodl
+    .param_str = "LdLdLd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_fmodf16
+    .param_str = "hhh"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_fmodf128
+    .param_str = "LLdLLdLLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+fopen
+    .param_str = "P*cC*cC*"
+    .header = .stdio
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true }
+
+__builtin_frame_address
+    .param_str = "v*IUi"
+
+fread
+    .param_str = "zv*zzP*"
+    .header = .stdio
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true }
+
+free
+    .param_str = "vv*"
+    .header = .stdlib
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true }
+
+__builtin_frexpf
+    .param_str = "ffi*"
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+frexpf
+    .param_str = "ffi*"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true }
+
+__builtin_frexp
+    .param_str = "ddi*"
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+frexp
+    .param_str = "ddi*"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true }
+
+__builtin_frexpl
+    .param_str = "LdLdi*"
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+frexpl
+    .param_str = "LdLdi*"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true }
+
+__builtin_frexpf16
+    .param_str = "hhi*"
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+__builtin_frexpf128
+    .param_str = "LLdLLdi*"
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+__builtin_frob_return_addr
+    .param_str = "v*v*"
+
+fwrite
+    .param_str = "zvC*zzP*"
+    .header = .stdio
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true }
+
+_exit
+    .param_str = "vi"
+    .header = .unistd
+    .language = .all_gnu_languages
+    .attributes = .{ .lib_function_without_prefix = true }
+
+_longjmp
+    .param_str = "vJi"
+    .header = .setjmp
+    .language = .all_gnu_languages
+    .attributes = .{ .lib_function_without_prefix = true }
+
+getcontext
+    .param_str = "iK*"
+    .header = .setjmp
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .returns_twice = true }
+
+__GetExceptionInfo
+    .param_str = "v*."
+    .language = .all_ms_languages
+    .attributes = .{ .custom_typecheck = true, .eval_args = false }
+
+__builtin___get_unsafe_stack_bottom
+    .param_str = "v*"
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+__builtin___get_unsafe_stack_ptr
+    .param_str = "v*"
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+__builtin___get_unsafe_stack_start
+    .param_str = "v*"
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+__builtin___get_unsafe_stack_top
+    .param_str = "v*"
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+__builtin_huge_valf
+    .param_str = "f"
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
+
+__builtin_huge_val
+    .param_str = "d"
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
+
+__builtin_huge_vall
+    .param_str = "Ld"
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
+
+__builtin_huge_valf128
+    .param_str = "LLd"
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
+
+__builtin_huge_valf16
+    .param_str = "x"
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
+
+__builtin_hypotf
+    .param_str = "fff"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+hypotf
+    .param_str = "fff"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_hypot
+    .param_str = "ddd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+hypot
+    .param_str = "ddd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_hypotl
+    .param_str = "LdLdLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+hypotl
+    .param_str = "LdLdLd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_hypotf128
+    .param_str = "LLdLLdLLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_ilogbf128
+    .param_str = "iLLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_ilogbf
+    .param_str = "if"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+ilogbf
+    .param_str = "if"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_ilogb
+    .param_str = "id"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+ilogb
+    .param_str = "id"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_ilogbl
+    .param_str = "iLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+ilogbl
+    .param_str = "iLd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_index
+    .param_str = "c*cC*i"
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+index
+    .param_str = "c*cC*i"
+    .header = .strings
+    .language = .all_gnu_languages
+    .attributes = .{ .lib_function_without_prefix = true }
+
+__builtin_inff
+    .param_str = "f"
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
+
+__builtin_inf
+    .param_str = "d"
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
+
+__builtin_infl
+    .param_str = "Ld"
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
+
+__builtin_inff128
+    .param_str = "LLd"
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
+
+__builtin_inff16
+    .param_str = "x"
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
+
+__builtin_init_dwarf_reg_size_table
+    .param_str = "vv*"
+
+_InterlockedAnd8
+    .param_str = "ccD*c"
+    .language = .all_ms_languages
+
+_InterlockedAnd16
+    .param_str = "ssD*s"
+    .language = .all_ms_languages
+
+_InterlockedAnd
+    .param_str = "NiNiD*Ni"
+    .language = .all_ms_languages
+
+_interlockedbittestandreset
+    .param_str = "UcNiD*Ni"
+    .language = .all_ms_languages
+
+_interlockedbittestandreset64
+    .param_str = "UcWiD*Wi"
+    .language = .all_ms_languages
+
+_interlockedbittestandreset64_acq
+    .param_str = "UcWiD*Wi"
+    .language = .all_ms_languages
+
+_interlockedbittestandreset64_nf
+    .param_str = "UcWiD*Wi"
+    .language = .all_ms_languages
+
+_interlockedbittestandreset64_rel
+    .param_str = "UcWiD*Wi"
+    .language = .all_ms_languages
+
+_interlockedbittestandreset_acq
+    .param_str = "UcNiD*Ni"
+    .language = .all_ms_languages
+
+_interlockedbittestandreset_nf
+    .param_str = "UcNiD*Ni"
+    .language = .all_ms_languages
+
+_interlockedbittestandreset_rel
+    .param_str = "UcNiD*Ni"
+    .language = .all_ms_languages
+
+_interlockedbittestandset
+    .param_str = "UcNiD*Ni"
+    .language = .all_ms_languages
+
+_interlockedbittestandset64
+    .param_str = "UcWiD*Wi"
+    .language = .all_ms_languages
+
+_interlockedbittestandset64_acq
+    .param_str = "UcWiD*Wi"
+    .language = .all_ms_languages
+
+_interlockedbittestandset64_nf
+    .param_str = "UcWiD*Wi"
+    .language = .all_ms_languages
+
+_interlockedbittestandset64_rel
+    .param_str = "UcWiD*Wi"
+    .language = .all_ms_languages
+
+_interlockedbittestandset_acq
+    .param_str = "UcNiD*Ni"
+    .language = .all_ms_languages
+
+_interlockedbittestandset_nf
+    .param_str = "UcNiD*Ni"
+    .language = .all_ms_languages
+
+_interlockedbittestandset_rel
+    .param_str = "UcNiD*Ni"
+    .language = .all_ms_languages
+
+_InterlockedCompareExchange8
+    .param_str = "ccD*cc"
+    .language = .all_ms_languages
+
+_InterlockedCompareExchange16
+    .param_str = "ssD*ss"
+    .language = .all_ms_languages
+
+_InterlockedCompareExchange
+    .param_str = "NiNiD*NiNi"
+    .language = .all_ms_languages
+
+_InterlockedCompareExchange64
+    .param_str = "LLiLLiD*LLiLLi"
+    .language = .all_ms_languages
+
+_InterlockedCompareExchangePointer
+    .param_str = "v*v*D*v*v*"
+    .language = .all_ms_languages
+
+_InterlockedCompareExchangePointer_nf
+    .param_str = "v*v*D*v*v*"
+    .language = .all_ms_languages
+
+_InterlockedDecrement16
+    .param_str = "ssD*"
+    .language = .all_ms_languages
+
+_InterlockedDecrement
+    .param_str = "NiNiD*"
+    .language = .all_ms_languages
+
+_InterlockedExchange8
+    .param_str = "ccD*c"
+    .language = .all_ms_languages
+
+_InterlockedExchange16
+    .param_str = "ssD*s"
+    .language = .all_ms_languages
+
+_InterlockedExchange
+    .param_str = "NiNiD*Ni"
+    .language = .all_ms_languages
+
+_InterlockedExchangeAdd8
+    .param_str = "ccD*c"
+    .language = .all_ms_languages
+
+_InterlockedExchangeAdd16
+    .param_str = "ssD*s"
+    .language = .all_ms_languages
+
+_InterlockedExchangeAdd
+    .param_str = "NiNiD*Ni"
+    .language = .all_ms_languages
+
+_InterlockedExchangePointer
+    .param_str = "v*v*D*v*"
+    .language = .all_ms_languages
+
+_InterlockedExchangeSub8
+    .param_str = "ccD*c"
+    .language = .all_ms_languages
+
+_InterlockedExchangeSub16
+    .param_str = "ssD*s"
+    .language = .all_ms_languages
+
+_InterlockedExchangeSub
+    .param_str = "NiNiD*Ni"
+    .language = .all_ms_languages
+
+_InterlockedIncrement16
+    .param_str = "ssD*"
+    .language = .all_ms_languages
+
+_InterlockedIncrement
+    .param_str = "NiNiD*"
+    .language = .all_ms_languages
+
+_InterlockedOr8
+    .param_str = "ccD*c"
+    .language = .all_ms_languages
+
+_InterlockedOr16
+    .param_str = "ssD*s"
+    .language = .all_ms_languages
+
+_InterlockedOr
+    .param_str = "NiNiD*Ni"
+    .language = .all_ms_languages
+
+_InterlockedXor8
+    .param_str = "ccD*c"
+    .language = .all_ms_languages
+
+_InterlockedXor16
+    .param_str = "ssD*s"
+    .language = .all_ms_languages
+
+_InterlockedXor
+    .param_str = "NiNiD*Ni"
+    .language = .all_ms_languages
+
+__builtin_invoke
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true, .const_evaluable = true }
+
+isalnum
+    .param_str = "ii"
+    .header = .ctype
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .pure = true }
+
+__builtin_is_aligned
+    .param_str = "bvC*z"
+    .attributes = .{ .@"const" = true, .custom_typecheck = true, .const_evaluable = true }
+
+isalpha
+    .param_str = "ii"
+    .header = .ctype
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .pure = true }
+
+isblank
+    .param_str = "ii"
+    .header = .ctype
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .pure = true }
+
+iscntrl
+    .param_str = "ii"
+    .header = .ctype
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .pure = true }
+
+isdigit
+    .param_str = "ii"
+    .header = .ctype
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .pure = true }
+
+__builtin_isfpclass
+    .param_str = "i."
+    .attributes = .{ .@"const" = true, .custom_typecheck = true, .const_evaluable = true }
+
+__builtin_isfinite
+    .param_str = "i."
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .@"const" = true, .custom_typecheck = true, .const_evaluable = true }
+
+isgraph
+    .param_str = "ii"
+    .header = .ctype
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .pure = true }
+
+__builtin_isgreater
+    .param_str = "i."
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .@"const" = true, .custom_typecheck = true, .const_evaluable = true }
+
+__builtin_isgreaterequal
+    .param_str = "i."
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .@"const" = true, .custom_typecheck = true, .const_evaluable = true }
+
+__builtin_isinf
+    .param_str = "i."
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .@"const" = true, .custom_typecheck = true, .const_evaluable = true }
+
+__builtin_isinf_sign
+    .param_str = "i."
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .@"const" = true, .custom_typecheck = true, .const_evaluable = true }
+
+__builtin_isless
+    .param_str = "i."
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .@"const" = true, .custom_typecheck = true, .const_evaluable = true }
+
+__builtin_islessequal
+    .param_str = "i."
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .@"const" = true, .custom_typecheck = true, .const_evaluable = true }
+
+__builtin_islessgreater
+    .param_str = "i."
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .@"const" = true, .custom_typecheck = true, .const_evaluable = true }
+
+islower
+    .param_str = "ii"
+    .header = .ctype
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .pure = true }
+
+__builtin_isnan
+    .param_str = "i."
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .@"const" = true, .custom_typecheck = true, .const_evaluable = true }
+
+__builtin_isnormal
+    .param_str = "i."
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .@"const" = true, .custom_typecheck = true, .const_evaluable = true }
+
+isprint
+    .param_str = "ii"
+    .header = .ctype
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .pure = true }
+
+ispunct
+    .param_str = "ii"
+    .header = .ctype
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .pure = true }
+
+__builtin_issignaling
+    .param_str = "i."
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .@"const" = true, .custom_typecheck = true, .const_evaluable = true }
+
+isspace
+    .param_str = "ii"
+    .header = .ctype
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .pure = true }
+
+__builtin_issubnormal
+    .param_str = "i."
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .@"const" = true, .custom_typecheck = true, .const_evaluable = true }
+
+__builtin_isunordered
+    .param_str = "i."
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .@"const" = true, .custom_typecheck = true, .const_evaluable = true }
+
+isupper
+    .param_str = "ii"
+    .header = .ctype
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .pure = true }
+
+isxdigit
+    .param_str = "ii"
+    .header = .ctype
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .pure = true }
+
+__builtin_iszero
+    .param_str = "i."
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .@"const" = true, .custom_typecheck = true, .const_evaluable = true }
+
+__iso_volatile_load8
+    .param_str = "ccCD*"
+    .language = .all_ms_languages
+
+__iso_volatile_load16
+    .param_str = "ssCD*"
+    .language = .all_ms_languages
+
+__iso_volatile_load32
+    .param_str = "iiCD*"
+    .language = .all_ms_languages
+
+__iso_volatile_load64
+    .param_str = "LLiLLiCD*"
+    .language = .all_ms_languages
+
+__iso_volatile_store8
+    .param_str = "vcD*c"
+    .language = .all_ms_languages
+
+__iso_volatile_store16
+    .param_str = "vsD*s"
+    .language = .all_ms_languages
+
+__iso_volatile_store32
+    .param_str = "viD*i"
+    .language = .all_ms_languages
+
+__iso_volatile_store64
+    .param_str = "vLLiD*LLi"
+    .language = .all_ms_languages
+
+__builtin_llrintf128
+    .param_str = "LLiLLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_llroundf128
+    .param_str = "LLiLLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_launder
+    .param_str = "v*v*"
+    .attributes = .{ .custom_typecheck = true, .const_evaluable = true }
+
+__builtin_ldexpf
+    .param_str = "ffi"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+ldexpf
+    .param_str = "ffi"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_ldexp
+    .param_str = "ddi"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+ldexp
+    .param_str = "ddi"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_ldexpl
+    .param_str = "LdLdi"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+ldexpl
+    .param_str = "LdLdi"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_ldexpf16
+    .param_str = "hhi"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_ldexpf128
+    .param_str = "LLdLLdi"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_lgammaf
+    .param_str = "ff"
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+lgammaf
+    .param_str = "ff"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true }
+
+__builtin_lgamma
+    .param_str = "dd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+lgamma
+    .param_str = "dd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true }
+
+__builtin_lgammal
+    .param_str = "LdLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+lgammal
+    .param_str = "LdLd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true }
+
+__builtin_lgammaf128
+    .param_str = "LLdLLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+__builtin_llrintf
+    .param_str = "LLif"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+llrintf
+    .param_str = "LLif"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_llrint
+    .param_str = "LLid"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+llrint
+    .param_str = "LLid"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_llrintl
+    .param_str = "LLiLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+llrintl
+    .param_str = "LLiLd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_llroundf
+    .param_str = "LLif"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+llroundf
+    .param_str = "LLif"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_llround
+    .param_str = "LLid"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+llround
+    .param_str = "LLid"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_llroundl
+    .param_str = "LLiLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+llroundl
+    .param_str = "LLiLd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_logf
+    .param_str = "ff"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+logf
+    .param_str = "ff"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_log
+    .param_str = "dd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+log
+    .param_str = "dd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_logl
+    .param_str = "LdLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+logl
+    .param_str = "LdLd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_log1pf
+    .param_str = "ff"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+log1pf
+    .param_str = "ff"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_log1p
+    .param_str = "dd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+log1p
+    .param_str = "dd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_log1pl
+    .param_str = "LdLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+log1pl
+    .param_str = "LdLd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_log1pf128
+    .param_str = "LLdLLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_log2f
+    .param_str = "ff"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+log2f
+    .param_str = "ff"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_log2
+    .param_str = "dd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+log2
+    .param_str = "dd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_log2l
+    .param_str = "LdLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+log2l
+    .param_str = "LdLd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_log2f16
+    .param_str = "hh"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_log2f128
+    .param_str = "LLdLLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_log10f
+    .param_str = "ff"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+log10f
+    .param_str = "ff"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_log10
+    .param_str = "dd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+log10
+    .param_str = "dd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_log10l
+    .param_str = "LdLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+log10l
+    .param_str = "LdLd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_log10f16
+    .param_str = "hh"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_log10f128
+    .param_str = "LLdLLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_logf16
+    .param_str = "hh"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_logf128
+    .param_str = "LLdLLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_logbf
+    .param_str = "ff"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+logbf
+    .param_str = "ff"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_logb
+    .param_str = "dd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+logb
+    .param_str = "dd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_logbl
+    .param_str = "LdLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+logbl
+    .param_str = "LdLd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_logbf128
+    .param_str = "LLdLLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+longjmp
+    .param_str = "vJi"
+    .header = .setjmp
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true }
+
+__builtin_lrintf
+    .param_str = "Lif"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+lrintf
+    .param_str = "Lif"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_lrint
+    .param_str = "Lid"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+lrint
+    .param_str = "Lid"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_lrintl
+    .param_str = "LiLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+lrintl
+    .param_str = "LiLd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_lrintf128
+    .param_str = "LiLLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+_lrotl
+    .param_str = "ULiULii"
+    .language = .all_ms_languages
+    .attributes = .{ .const_evaluable = true }
+
+_lrotr
+    .param_str = "ULiULii"
+    .language = .all_ms_languages
+    .attributes = .{ .const_evaluable = true }
+
+__builtin_lroundf
+    .param_str = "Lif"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+lroundf
+    .param_str = "Lif"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_lround
+    .param_str = "Lid"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+lround
+    .param_str = "Lid"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_lroundl
+    .param_str = "LiLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+lroundl
+    .param_str = "LiLd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_lroundf128
+    .param_str = "LiLLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__annotation
+    .param_str = "wC*."
+    .language = .all_ms_languages
+
+__assume
+    .param_str = "vb"
+    .language = .all_ms_languages
+    .attributes = .{ .const_evaluable = true }
+
+_byteswap_ushort
+    .param_str = "UsUs"
+    .header = .stdlib
+    .language = .all_ms_languages
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true }
+
+_byteswap_ulong
+    .param_str = "UNiUNi"
+    .header = .stdlib
+    .language = .all_ms_languages
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true }
+
+_byteswap_uint64
+    .param_str = "ULLiULLi"
+    .header = .stdlib
+    .language = .all_ms_languages
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true }
+
+__lzcnt16
+    .param_str = "UsUs"
+    .language = .all_ms_languages
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
+
+__lzcnt
+    .param_str = "UiUi"
+    .language = .all_ms_languages
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
+
+__lzcnt64
+    .param_str = "UWiUWi"
+    .language = .all_ms_languages
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
+
+__popcnt16
+    .param_str = "UsUs"
+    .language = .all_ms_languages
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
+
+__popcnt
+    .param_str = "UiUi"
+    .language = .all_ms_languages
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
+
+__popcnt64
+    .param_str = "UWiUWi"
+    .language = .all_ms_languages
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
+
+_ReturnAddress
+    .param_str = "v*"
+    .language = .all_ms_languages
+
+__va_start
+    .param_str = "vc**."
+    .language = .all_ms_languages
+    .attributes = .{ .custom_typecheck = true }
+
+malloc
+    .param_str = "v*z"
+    .header = .stdlib
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true }
+
+__builtin_matrix_column_major_load
+    .param_str = "v."
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .custom_typecheck = true }
+
+__builtin_matrix_column_major_store
+    .param_str = "v."
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .custom_typecheck = true }
+
+__builtin_matrix_transpose
+    .param_str = "v."
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .custom_typecheck = true }
+
+memalign
+    .param_str = "v*zz"
+    .header = .malloc
+    .language = .all_gnu_languages
+    .attributes = .{ .lib_function_without_prefix = true }
+
+__builtin_memchr
+    .param_str = "v*vC*iz"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_evaluable = true }
+
+memchr
+    .param_str = "v*vC*iz"
+    .header = .string
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_evaluable = true }
+
+memcmp
+    .param_str = "ivC*vC*z"
+    .header = .string
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_evaluable = true }
+
+__builtin_memcpy
+    .param_str = "v*v*vC*z"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_evaluable = true }
+
+memcpy
+    .param_str = "v*v*vC*z"
+    .header = .string
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_evaluable = true }
+
+__builtin_memmove
+    .param_str = "v*v*vC*z"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_evaluable = true }
+
+memmove
+    .param_str = "v*v*vC*z"
+    .header = .string
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_evaluable = true }
+
+__builtin_memset
+    .param_str = "v*v*iz"
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+memset
+    .param_str = "v*v*iz"
+    .header = .string
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true }
+
+memccpy
+    .param_str = "v*v*vC*iz"
+    .header = .string
+    .language = .all_gnu_languages
+    .attributes = .{ .lib_function_without_prefix = true }
+
+__builtin___memccpy_chk
+    .param_str = "v*v*vC*izz"
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+__builtin___memcpy_chk
+    .param_str = "v*v*vC*zz"
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+__builtin___memmove_chk
+    .param_str = "v*v*vC*zz"
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+mempcpy
+    .param_str = "v*v*vC*z"
+    .header = .string
+    .language = .all_gnu_languages
+    .attributes = .{ .lib_function_without_prefix = true }
+
+__builtin___mempcpy_chk
+    .param_str = "v*v*vC*zz"
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+__builtin___memset_chk
+    .param_str = "v*v*izz"
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+__builtin_modff
+    .param_str = "fff*"
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+modff
+    .param_str = "fff*"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true }
+
+__builtin_modf
+    .param_str = "ddd*"
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+modf
+    .param_str = "ddd*"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true }
+
+__builtin_modfl
+    .param_str = "LdLdLd*"
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+modfl
+    .param_str = "LdLdLd*"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true }
+
+__builtin_modff128
+    .param_str = "LLdLLdLLd*"
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+__builtin_mul_overflow
+    .param_str = "b."
+    .attributes = .{ .custom_typecheck = true, .const_evaluable = true }
+
+__builtin_nanf
+    .param_str = "fcC*"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_evaluable = true, .pure = true }
+
+nanf
+    .param_str = "fcC*"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .pure = true }
+
+__builtin_nan
+    .param_str = "dcC*"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_evaluable = true, .pure = true }
+
+nan
+    .param_str = "dcC*"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .pure = true }
+
+__builtin_nanl
+    .param_str = "LdcC*"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_evaluable = true, .pure = true }
+
+nanl
+    .param_str = "LdcC*"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .pure = true }
+
+__builtin_nanf16
+    .param_str = "xcC*"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .pure = true, .const_evaluable = true }
+
+__builtin_nanf128
+    .param_str = "LLdcC*"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .pure = true, .const_evaluable = true }
+
+__builtin_nansf
+    .param_str = "fcC*"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .pure = true, .const_evaluable = true }
+
+__builtin_nans
+    .param_str = "dcC*"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .pure = true, .const_evaluable = true }
+
+__builtin_nansl
+    .param_str = "LdcC*"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .pure = true, .const_evaluable = true }
+
+__builtin_nansf16
+    .param_str = "xcC*"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .pure = true, .const_evaluable = true }
+
+__builtin_nansf128
+    .param_str = "LLdcC*"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .pure = true, .const_evaluable = true }
+
+__builtin_nearbyintf
+    .param_str = "ff"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .@"const" = true }
+
+nearbyintf
+    .param_str = "ff"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true }
+
+__builtin_nearbyint
+    .param_str = "dd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .@"const" = true }
+
+nearbyint
+    .param_str = "dd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true }
+
+__builtin_nearbyintl
+    .param_str = "LdLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .@"const" = true }
+
+nearbyintl
+    .param_str = "LdLd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true }
+
+__builtin_nearbyintf128
+    .param_str = "LLdLLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .@"const" = true }
+
+__builtin_nextafterf
+    .param_str = "fff"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+nextafterf
+    .param_str = "fff"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_nextafter
+    .param_str = "ddd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+nextafter
+    .param_str = "ddd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_nextafterl
+    .param_str = "LdLdLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+nextafterl
+    .param_str = "LdLdLd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_nextafterf128
+    .param_str = "LLdLLdLLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_nexttowardf
+    .param_str = "ffLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+nexttowardf
+    .param_str = "ffLd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_nexttoward
+    .param_str = "ddLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+nexttoward
+    .param_str = "ddLd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_nexttowardl
+    .param_str = "LdLdLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+nexttowardl
+    .param_str = "LdLdLd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_nexttowardf128
+    .param_str = "LLdLLdLLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_nondeterministic_value
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__builtin_nontemporal_load
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__builtin_nontemporal_store
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__noop
+    .param_str = "i."
+    .language = .all_ms_languages
+    .attributes = .{ .const_evaluable = true }
+
+__builtin_os_log_format
+    .param_str = "v*v*cC*."
+    .attributes = .{ .custom_typecheck = true }
+
+__builtin_os_log_format_buffer_size
+    .param_str = "zcC*."
+    .attributes = .{ .eval_args = false, .custom_typecheck = true, .const_evaluable = true }
+
+__exp10f
+    .param_str = "ff"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__exp10
+    .param_str = "dd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__finitef
+    .param_str = "if"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true }
+
+__finite
+    .param_str = "id"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true }
+
+__finitel
+    .param_str = "iLd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true }
+
+__builtin_objc_memmove_collectable
+    .param_str = "v*v*vC*z"
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+__builtin_object_size
+    .param_str = "zvC*i"
+    .attributes = .{ .eval_args = false, .const_evaluable = true }
+
+__builtin_parity
+    .param_str = "iUi"
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
+
+__builtin_parityl
+    .param_str = "iULi"
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
+
+__builtin_parityll
+    .param_str = "iULLi"
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
+
+__builtin_popcount
+    .param_str = "iUi"
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
+
+__builtin_popcountl
+    .param_str = "iULi"
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
+
+__builtin_popcountll
+    .param_str = "iULLi"
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
+
+__builtin_popcountg
+    .param_str = "i."
+    .attributes = .{ .@"const" = true, .const_evaluable = true, .custom_typecheck = true }
+
+__builtin_powf
+    .param_str = "fff"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+powf
+    .param_str = "fff"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_pow
+    .param_str = "ddd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+pow
+    .param_str = "ddd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_powl
+    .param_str = "LdLdLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+powl
+    .param_str = "LdLdLd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_powf16
+    .param_str = "hhh"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_powf128
+    .param_str = "LLdLLdLLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_powif
+    .param_str = "ffi"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .@"const" = true }
+
+__builtin_powi
+    .param_str = "ddi"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .@"const" = true }
+
+__builtin_powil
+    .param_str = "LdLdi"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .@"const" = true }
+
+__builtin_prefetch
+    .param_str = "vvC*."
+    .attributes = .{ .@"const" = true }
+
+printf
+    .param_str = "icC*."
+    .header = .stdio
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true }
+
+__builtin___printf_chk
+    .param_str = "iicC*R."
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+__builtin_ptrauth_auth
+    .param_str = "v*v*iv*"
+    .attributes = .{ .custom_typecheck = true }
+
+__builtin_ptrauth_auth_and_resign
+    .param_str = "v*v*iv*iv*"
+    .attributes = .{ .custom_typecheck = true }
+
+__builtin_ptrauth_blend_discriminator
+    .param_str = "zv*i"
+    .attributes = .{ .custom_typecheck = true, .@"const" = true }
+
+__builtin_ptrauth_sign_constant
+    .param_str = "v*v*iv*"
+    .attributes = .{ .custom_typecheck = true, .@"const" = true, .const_evaluable = true }
+
+__builtin_ptrauth_sign_generic_data
+    .param_str = "zv*v*"
+    .attributes = .{ .custom_typecheck = true, .@"const" = true }
+
+__builtin_ptrauth_sign_unauthenticated
+    .param_str = "v*v*iv*"
+    .attributes = .{ .custom_typecheck = true, .@"const" = true }
+
+__builtin_ptrauth_string_discriminator
+    .param_str = "zcC*"
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
+
+__builtin_ptrauth_strip
+    .param_str = "v*v*i"
+    .attributes = .{ .custom_typecheck = true, .@"const" = true }
+
+__builtin_readcyclecounter
+    .param_str = "ULLi"
+
+__builtin_readsteadycounter
+    .param_str = "ULLi"
+
+realloc
+    .param_str = "v*v*z"
+    .header = .stdlib
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true }
+
+__builtin_reduce_add
+    .param_str = "v."
+    .attributes = .{ .@"const" = true, .custom_typecheck = true, .const_evaluable = true }
+
+__builtin_reduce_and
+    .param_str = "v."
+    .attributes = .{ .@"const" = true, .custom_typecheck = true, .const_evaluable = true }
+
+__builtin_reduce_max
+    .param_str = "v."
+    .attributes = .{ .@"const" = true, .custom_typecheck = true, .const_evaluable = true }
+
+__builtin_reduce_maximum
+    .param_str = "v."
+    .attributes = .{ .@"const" = true, .custom_typecheck = true }
+
+__builtin_reduce_min
+    .param_str = "v."
+    .attributes = .{ .@"const" = true, .custom_typecheck = true, .const_evaluable = true }
+
+__builtin_reduce_minimum
+    .param_str = "v."
+    .attributes = .{ .@"const" = true, .custom_typecheck = true }
+
+__builtin_reduce_mul
+    .param_str = "v."
+    .attributes = .{ .@"const" = true, .custom_typecheck = true, .const_evaluable = true }
+
+__builtin_reduce_or
+    .param_str = "v."
+    .attributes = .{ .@"const" = true, .custom_typecheck = true, .const_evaluable = true }
+
+__builtin_reduce_xor
+    .param_str = "v."
+    .attributes = .{ .@"const" = true, .custom_typecheck = true, .const_evaluable = true }
+
+__builtin_remainderf
+    .param_str = "fff"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+remainderf
+    .param_str = "fff"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_remainder
+    .param_str = "ddd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+remainder
+    .param_str = "ddd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_remainderl
+    .param_str = "LdLdLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+remainderl
+    .param_str = "LdLdLd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_remainderf128
+    .param_str = "LLdLLdLLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_remquof
+    .param_str = "fffi*"
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+remquof
+    .param_str = "fffi*"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true }
+
+__builtin_remquo
+    .param_str = "dddi*"
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+remquo
+    .param_str = "dddi*"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true }
+
+__builtin_remquol
+    .param_str = "LdLdLdi*"
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+remquol
+    .param_str = "LdLdLdi*"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true }
+
+__builtin_remquof128
+    .param_str = "LLdLLdLLdi*"
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+__builtin_rindex
+    .param_str = "c*cC*i"
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+rindex
+    .param_str = "c*cC*i"
+    .header = .strings
+    .language = .all_gnu_languages
+    .attributes = .{ .lib_function_without_prefix = true }
+
+__builtin_rintf
+    .param_str = "ff"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_fp_exceptions = true }
+
+rintf
+    .param_str = "ff"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_fp_exceptions = true }
+
+__builtin_rint
+    .param_str = "dd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_fp_exceptions = true }
+
+rint
+    .param_str = "dd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_fp_exceptions = true }
+
+__builtin_rintl
+    .param_str = "LdLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_fp_exceptions = true }
+
+rintl
+    .param_str = "LdLd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_fp_exceptions = true }
+
+__builtin_rintf16
+    .param_str = "hh"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .@"const" = true }
+
+__builtin_rintf128
+    .param_str = "LLdLLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .@"const" = true }
+
+__builtin_rotateleft8
+    .param_str = "UcUcUc"
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
+
+__builtin_rotateleft16
+    .param_str = "UsUsUs"
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
+
+__builtin_rotateleft32
+    .param_str = "UZiUZiUZi"
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
+
+__builtin_rotateleft64
+    .param_str = "UWiUWiUWi"
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
+
+__builtin_rotateright8
+    .param_str = "UcUcUc"
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
+
+__builtin_rotateright16
+    .param_str = "UsUsUs"
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
+
+__builtin_rotateright32
+    .param_str = "UZiUZiUZi"
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
+
+__builtin_rotateright64
+    .param_str = "UWiUWiUWi"
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
+
+_rotl
+    .param_str = "UiUii"
+    .language = .all_ms_languages
+    .attributes = .{ .const_evaluable = true }
+
+_rotl8
+    .param_str = "UcUcUc"
+    .language = .all_ms_languages
+    .attributes = .{ .const_evaluable = true }
+
+_rotl16
+    .param_str = "UsUsUc"
+    .language = .all_ms_languages
+    .attributes = .{ .const_evaluable = true }
+
+_rotl64
+    .param_str = "UWiUWii"
+    .language = .all_ms_languages
+    .attributes = .{ .const_evaluable = true }
+
+_rotr
+    .param_str = "UiUii"
+    .language = .all_ms_languages
+    .attributes = .{ .const_evaluable = true }
+
+_rotr8
+    .param_str = "UcUcUc"
+    .language = .all_ms_languages
+    .attributes = .{ .const_evaluable = true }
+
+_rotr16
+    .param_str = "UsUsUc"
+    .language = .all_ms_languages
+    .attributes = .{ .const_evaluable = true }
+
+_rotr64
+    .param_str = "UWiUWii"
+    .language = .all_ms_languages
+    .attributes = .{ .const_evaluable = true }
+
+__builtin_roundf
+    .param_str = "ff"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .@"const" = true }
+
+roundf
+    .param_str = "ff"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true }
+
+__builtin_round
+    .param_str = "dd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .@"const" = true }
+
+round
+    .param_str = "dd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true }
+
+__builtin_roundl
+    .param_str = "LdLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .@"const" = true }
+
+roundl
+    .param_str = "LdLd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true }
+
+__builtin_roundevenf
+    .param_str = "ff"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .@"const" = true }
+
+roundevenf
+    .param_str = "ff"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true }
+
+__builtin_roundeven
+    .param_str = "dd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .@"const" = true }
+
+roundeven
+    .param_str = "dd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true }
+
+__builtin_roundevenl
+    .param_str = "LdLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .@"const" = true }
+
+roundevenl
+    .param_str = "LdLd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true }
+
+__builtin_roundf16
+    .param_str = "hh"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .@"const" = true }
+
+__builtin_roundf128
+    .param_str = "LLdLLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .@"const" = true }
+
+__builtin_roundevenf16
+    .param_str = "hh"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .@"const" = true }
+
+__builtin_roundevenf128
+    .param_str = "LLdLLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .@"const" = true }
+
+__builtin___snprintf_chk
+    .param_str = "ic*RzizcC*R."
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+__builtin_sprintf
+    .param_str = "ic*RcC*R."
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+sprintf
+    .param_str = "ic*RcC*R."
+    .header = .stdio
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true }
+
+__builtin___sprintf_chk
+    .param_str = "ic*RizcC*R."
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+__builtin_sscanf
+    .param_str = "icC*RcC*R."
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+sscanf
+    .param_str = "icC*RcC*R."
+    .header = .stdio
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true }
+
+__builtin_sadd_overflow
+    .param_str = "biCiCi*"
+    .attributes = .{ .const_evaluable = true }
+
+__builtin_saddl_overflow
+    .param_str = "bLiCLiCLi*"
+    .attributes = .{ .const_evaluable = true }
+
+__builtin_saddll_overflow
+    .param_str = "bLLiCLLiCLLi*"
+    .attributes = .{ .const_evaluable = true }
+
+savectx
+    .param_str = "iSJ"
+    .header = .setjmp
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .returns_twice = true }
+
+__builtin_scalblnf
+    .param_str = "ffLi"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+scalblnf
+    .param_str = "ffLi"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_scalbln
+    .param_str = "ddLi"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+scalbln
+    .param_str = "ddLi"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_scalblnl
+    .param_str = "LdLdLi"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+scalblnl
+    .param_str = "LdLdLi"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_scalbnf
+    .param_str = "ffi"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+scalbnf
+    .param_str = "ffi"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_scalbn
+    .param_str = "ddi"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+scalbn
+    .param_str = "ddi"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_scalbnl
+    .param_str = "LdLdi"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+scalbnl
+    .param_str = "LdLdi"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_scanf
+    .param_str = "icC*R."
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+scanf
+    .param_str = "icC*R."
+    .header = .stdio
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true }
+
+__builtin_scalblnf128
+    .param_str = "LLdLLdLi"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_scalbnf128
+    .param_str = "LLdLLdi"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__scoped_atomic_thread_fence
+    .param_str = "vii"
+
+setjmp
+    .param_str = "iJ"
+    .header = .setjmp
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .returns_twice = true }
+
+_setjmp
+    .param_str = "iJ"
+    .header = .setjmp
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .returns_twice = true }
+
+_setjmpex
+    .param_str = "iJ"
+    .header = .setjmpex
+    .language = .all_ms_languages
+    .attributes = .{ .lib_function_without_prefix = true, .returns_twice = true }
+
+siglongjmp
+    .param_str = "vSJi"
+    .header = .setjmp
+    .language = .all_gnu_languages
+    .attributes = .{ .lib_function_without_prefix = true }
+
+sigsetjmp
+    .param_str = "iSJi"
+    .header = .setjmp
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .returns_twice = true }
+
+__sigsetjmp
+    .param_str = "iSJi"
+    .header = .setjmp
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .returns_twice = true }
+
+__builtin_signbit
+    .param_str = "i."
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .@"const" = true, .custom_typecheck = true, .const_evaluable = true }
+
+__builtin_signbitf
+    .param_str = "if"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .@"const" = true, .const_evaluable = true }
+
+__builtin_signbitl
+    .param_str = "iLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .@"const" = true, .const_evaluable = true }
+
+__builtin_sinf
+    .param_str = "ff"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+sinf
+    .param_str = "ff"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_sin
+    .param_str = "dd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+sin
+    .param_str = "dd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_sinl
+    .param_str = "LdLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+sinl
+    .param_str = "LdLd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_sinf16
+    .param_str = "hh"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_sinf128
+    .param_str = "LLdLLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_sincosf
+    .param_str = "vff*f*"
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+sincosf
+    .param_str = "vff*f*"
+    .header = .math
+    .language = .all_gnu_languages
+    .attributes = .{ .lib_function_without_prefix = true }
+
+__builtin_sincos
+    .param_str = "vdd*d*"
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+sincos
+    .param_str = "vdd*d*"
+    .header = .math
+    .language = .all_gnu_languages
+    .attributes = .{ .lib_function_without_prefix = true }
+
+__builtin_sincosl
+    .param_str = "vLdLd*Ld*"
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+sincosl
+    .param_str = "vLdLd*Ld*"
+    .header = .math
+    .language = .all_gnu_languages
+    .attributes = .{ .lib_function_without_prefix = true }
+
+__builtin_sincosf16
+    .param_str = "vhh*h*"
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+__builtin_sincosf128
+    .param_str = "vLLdLLd*LLd*"
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+__builtin_sincospif
+    .param_str = "vff*f*"
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+__builtin_sincospi
+    .param_str = "vdd*d*"
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+__builtin_sincospil
+    .param_str = "vLdLd*Ld*"
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+__builtin_sinhf
+    .param_str = "ff"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+sinhf
+    .param_str = "ff"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_sinh
+    .param_str = "dd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+sinh
+    .param_str = "dd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_sinhl
+    .param_str = "LdLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+sinhl
+    .param_str = "LdLd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_sinhf16
+    .param_str = "hh"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_sinhf128
+    .param_str = "LLdLLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__sinpif
+    .param_str = "ff"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__sinpi
+    .param_str = "dd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_smul_overflow
+    .param_str = "biCiCi*"
+    .attributes = .{ .const_evaluable = true }
+
+__builtin_smull_overflow
+    .param_str = "bLiCLiCLi*"
+    .attributes = .{ .const_evaluable = true }
+
+__builtin_smulll_overflow
+    .param_str = "bLLiCLLiCLLi*"
+    .attributes = .{ .const_evaluable = true }
+
+__builtin_snprintf
+    .param_str = "ic*RzcC*R."
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+snprintf
+    .param_str = "ic*RzcC*R."
+    .header = .stdio
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true }
+
+__builtin_sqrtf
+    .param_str = "ff"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+sqrtf
+    .param_str = "ff"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_sqrt
+    .param_str = "dd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+sqrt
+    .param_str = "dd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_sqrtl
+    .param_str = "LdLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+sqrtl
+    .param_str = "LdLd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_sqrtf16
+    .param_str = "hh"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_sqrtf128
+    .param_str = "LLdLLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_ssub_overflow
+    .param_str = "biCiCi*"
+    .attributes = .{ .const_evaluable = true }
+
+__builtin_ssubl_overflow
+    .param_str = "bLiCLiCLi*"
+    .attributes = .{ .const_evaluable = true }
+
+__builtin_ssubll_overflow
+    .param_str = "bLLiCLLiCLLi*"
+    .attributes = .{ .const_evaluable = true }
+
+__builtin_stpcpy
+    .param_str = "c*c*cC*"
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+stpcpy
+    .param_str = "c*c*cC*"
+    .header = .string
+    .language = .all_gnu_languages
+    .attributes = .{ .lib_function_without_prefix = true }
+
+__builtin___stpcpy_chk
+    .param_str = "c*c*cC*z"
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+__builtin_stpncpy
+    .param_str = "c*c*cC*z"
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+stpncpy
+    .param_str = "c*c*cC*z"
+    .header = .string
+    .language = .all_gnu_languages
+    .attributes = .{ .lib_function_without_prefix = true }
+
+__builtin___stpncpy_chk
+    .param_str = "c*c*cC*zz"
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+__builtin_strcasecmp
+    .param_str = "icC*cC*"
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+strcasecmp
+    .param_str = "icC*cC*"
+    .header = .strings
+    .language = .all_gnu_languages
+    .attributes = .{ .lib_function_without_prefix = true }
+
+__builtin_strcat
+    .param_str = "c*c*cC*"
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+strcat
+    .param_str = "c*c*cC*"
+    .header = .string
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true }
+
+__builtin_strchr
+    .param_str = "c*cC*i"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_evaluable = true }
+
+strchr
+    .param_str = "c*cC*i"
+    .header = .string
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_evaluable = true }
+
+__builtin_strcmp
+    .param_str = "icC*cC*"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_evaluable = true }
+
+strcmp
+    .param_str = "icC*cC*"
+    .header = .string
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_evaluable = true }
+
+__builtin_strcpy
+    .param_str = "c*c*cC*"
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+strcpy
+    .param_str = "c*c*cC*"
+    .header = .string
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true }
+
+__builtin_strdup
+    .param_str = "c*cC*"
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+strdup
+    .param_str = "c*cC*"
+    .header = .string
+    .language = .all_gnu_languages
+    .attributes = .{ .lib_function_without_prefix = true }
+
+strerror
+    .param_str = "c*i"
+    .header = .string
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true }
+
+__builtin_strlen
+    .param_str = "zcC*"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_evaluable = true }
+
+strlen
+    .param_str = "zcC*"
+    .header = .string
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_evaluable = true }
+
+__builtin_strncat
+    .param_str = "c*c*cC*z"
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+strncat
+    .param_str = "c*c*cC*z"
+    .header = .string
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true }
+
+__builtin_strncmp
+    .param_str = "icC*cC*z"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_evaluable = true }
+
+strncmp
+    .param_str = "icC*cC*z"
+    .header = .string
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_evaluable = true }
+
+__builtin_strncpy
+    .param_str = "c*c*cC*z"
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+strncpy
+    .param_str = "c*c*cC*z"
+    .header = .string
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true }
+
+__builtin_strspn
+    .param_str = "zcC*cC*"
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+strspn
+    .param_str = "zcC*cC*"
+    .header = .string
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true }
+
+__builtin_strstr
+    .param_str = "c*cC*cC*"
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+strstr
+    .param_str = "c*cC*cC*"
+    .header = .string
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true }
+
+strtod
+    .param_str = "dcC*c**"
+    .header = .stdlib
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true }
+
+strtof
+    .param_str = "fcC*c**"
+    .header = .stdlib
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true }
+
+strtol
+    .param_str = "LicC*c**i"
+    .header = .stdlib
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true }
+
+strtoll
+    .param_str = "LLicC*c**i"
+    .header = .stdlib
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true }
+
+strtold
+    .param_str = "LdcC*c**"
+    .header = .stdlib
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true }
+
+strtoul
+    .param_str = "ULicC*c**i"
+    .header = .stdlib
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true }
+
+strtoull
+    .param_str = "ULLicC*c**i"
+    .header = .stdlib
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true }
+
+strtok
+    .param_str = "c*c*cC*"
+    .header = .string
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true }
+
+strcspn
+    .param_str = "zcC*cC*"
+    .header = .string
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true }
+
+__builtin___strcat_chk
+    .param_str = "c*c*cC*z"
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+__builtin___strcpy_chk
+    .param_str = "c*c*cC*z"
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+strlcat
+    .param_str = "zc*cC*z"
+    .header = .string
+    .language = .all_gnu_languages
+    .attributes = .{ .lib_function_without_prefix = true }
+
+strlcpy
+    .param_str = "zc*cC*z"
+    .header = .string
+    .language = .all_gnu_languages
+    .attributes = .{ .lib_function_without_prefix = true }
+
+__builtin___strlcat_chk
+    .param_str = "zc*cC*zz"
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+__builtin___strlcpy_chk
+    .param_str = "zc*cC*zz"
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+__builtin_strncasecmp
+    .param_str = "icC*cC*z"
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+strncasecmp
+    .param_str = "icC*cC*z"
+    .header = .strings
+    .language = .all_gnu_languages
+    .attributes = .{ .lib_function_without_prefix = true }
+
+__builtin_strndup
+    .param_str = "c*cC*z"
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+strndup
+    .param_str = "c*cC*z"
+    .header = .string
+    .language = .all_gnu_languages
+    .attributes = .{ .lib_function_without_prefix = true }
+
+__builtin___strncat_chk
+    .param_str = "c*c*cC*zz"
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+__builtin___strncpy_chk
+    .param_str = "c*c*cC*zz"
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+__builtin_strpbrk
+    .param_str = "c*cC*cC*"
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+strpbrk
+    .param_str = "c*cC*cC*"
+    .header = .string
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true }
+
+__builtin_strrchr
+    .param_str = "c*cC*i"
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+strrchr
+    .param_str = "c*cC*i"
+    .header = .string
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true }
+
+strxfrm
+    .param_str = "zc*cC*z"
+    .header = .string
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true }
+
+__builtin_sub_overflow
+    .param_str = "b."
+    .attributes = .{ .custom_typecheck = true, .const_evaluable = true }
+
+__builtin_subcb
+    .param_str = "UcUcCUcCUcCUc*"
+    .attributes = .{ .const_evaluable = true }
+
+__builtin_subcs
+    .param_str = "UsUsCUsCUsCUs*"
+    .attributes = .{ .const_evaluable = true }
+
+__builtin_subc
+    .param_str = "UiUiCUiCUiCUi*"
+    .attributes = .{ .const_evaluable = true }
+
+__builtin_subcl
+    .param_str = "ULiULiCULiCULiCULi*"
+    .attributes = .{ .const_evaluable = true }
+
+__builtin_subcll
+    .param_str = "ULLiULLiCULLiCULLiCULLi*"
+    .attributes = .{ .const_evaluable = true }
+
+__sync_lock_test_and_set_1
+    .param_str = "ccD*c."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_lock_test_and_set_2
+    .param_str = "ssD*s."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_lock_test_and_set_4
+    .param_str = "iiD*i."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_lock_test_and_set_8
+    .param_str = "LLiLLiD*LLi."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_lock_test_and_set_16
+    .param_str = "LLLiLLLiD*LLLi."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_val_compare_and_swap_1
+    .param_str = "ccD*cc."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_val_compare_and_swap_2
+    .param_str = "ssD*ss."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_val_compare_and_swap_4
+    .param_str = "iiD*ii."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_val_compare_and_swap_8
+    .param_str = "LLiLLiD*LLiLLi."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_val_compare_and_swap_16
+    .param_str = "LLLiLLLiD*LLLiLLLi."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_add_and_fetch
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_add_and_fetch_1
+    .param_str = "ccD*c."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_add_and_fetch_2
+    .param_str = "ssD*s."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_add_and_fetch_4
+    .param_str = "iiD*i."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_add_and_fetch_8
+    .param_str = "LLiLLiD*LLi."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_add_and_fetch_16
+    .param_str = "LLLiLLLiD*LLLi."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_and_and_fetch
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_and_and_fetch_1
+    .param_str = "ccD*c."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_and_and_fetch_2
+    .param_str = "ssD*s."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_and_and_fetch_4
+    .param_str = "iiD*i."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_and_and_fetch_8
+    .param_str = "LLiLLiD*LLi."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_and_and_fetch_16
+    .param_str = "LLLiLLLiD*LLLi."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_bool_compare_and_swap
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_bool_compare_and_swap_1
+    .param_str = "bcD*cc."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_bool_compare_and_swap_2
+    .param_str = "bsD*ss."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_bool_compare_and_swap_4
+    .param_str = "biD*ii."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_bool_compare_and_swap_8
+    .param_str = "bLLiD*LLiLLi."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_bool_compare_and_swap_16
+    .param_str = "bLLLiD*LLLiLLLi."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_fetch_and_add
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_fetch_and_add_1
+    .param_str = "ccD*c."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_fetch_and_add_2
+    .param_str = "ssD*s."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_fetch_and_add_4
+    .param_str = "iiD*i."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_fetch_and_add_8
+    .param_str = "LLiLLiD*LLi."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_fetch_and_add_16
+    .param_str = "LLLiLLLiD*LLLi."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_fetch_and_and
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_fetch_and_and_1
+    .param_str = "ccD*c."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_fetch_and_and_2
+    .param_str = "ssD*s."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_fetch_and_and_4
+    .param_str = "iiD*i."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_fetch_and_and_8
+    .param_str = "LLiLLiD*LLi."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_fetch_and_and_16
+    .param_str = "LLLiLLLiD*LLLi."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_fetch_and_max
+    .param_str = "iiD*i"
+
+__sync_fetch_and_min
+    .param_str = "iiD*i"
+
+__sync_fetch_and_nand
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_fetch_and_nand_1
+    .param_str = "ccD*c."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_fetch_and_nand_2
+    .param_str = "ssD*s."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_fetch_and_nand_4
+    .param_str = "iiD*i."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_fetch_and_nand_8
+    .param_str = "LLiLLiD*LLi."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_fetch_and_nand_16
+    .param_str = "LLLiLLLiD*LLLi."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_fetch_and_or
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_fetch_and_or_1
+    .param_str = "ccD*c."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_fetch_and_or_2
+    .param_str = "ssD*s."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_fetch_and_or_4
+    .param_str = "iiD*i."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_fetch_and_or_8
+    .param_str = "LLiLLiD*LLi."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_fetch_and_or_16
+    .param_str = "LLLiLLLiD*LLLi."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_fetch_and_sub
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_fetch_and_sub_1
+    .param_str = "ccD*c."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_fetch_and_sub_2
+    .param_str = "ssD*s."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_fetch_and_sub_4
+    .param_str = "iiD*i."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_fetch_and_sub_8
+    .param_str = "LLiLLiD*LLi."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_fetch_and_sub_16
+    .param_str = "LLLiLLLiD*LLLi."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_fetch_and_umax
+    .param_str = "UiUiD*Ui"
+
+__sync_fetch_and_umin
+    .param_str = "UiUiD*Ui"
+
+__sync_fetch_and_xor
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_fetch_and_xor_1
+    .param_str = "ccD*c."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_fetch_and_xor_2
+    .param_str = "ssD*s."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_fetch_and_xor_4
+    .param_str = "iiD*i."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_fetch_and_xor_8
+    .param_str = "LLiLLiD*LLi."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_fetch_and_xor_16
+    .param_str = "LLLiLLLiD*LLLi."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_lock_release
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_lock_release_1
+    .param_str = "vcD*."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_lock_release_2
+    .param_str = "vsD*."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_lock_release_4
+    .param_str = "viD*."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_lock_release_8
+    .param_str = "vLLiD*."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_lock_release_16
+    .param_str = "vLLLiD*."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_lock_test_and_set
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_nand_and_fetch
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_nand_and_fetch_1
+    .param_str = "ccD*c."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_nand_and_fetch_2
+    .param_str = "ssD*s."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_nand_and_fetch_4
+    .param_str = "iiD*i."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_nand_and_fetch_8
+    .param_str = "LLiLLiD*LLi."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_nand_and_fetch_16
+    .param_str = "LLLiLLLiD*LLLi."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_or_and_fetch
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_or_and_fetch_1
+    .param_str = "ccD*c."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_or_and_fetch_2
+    .param_str = "ssD*s."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_or_and_fetch_4
+    .param_str = "iiD*i."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_or_and_fetch_8
+    .param_str = "LLiLLiD*LLi."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_or_and_fetch_16
+    .param_str = "LLLiLLLiD*LLLi."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_sub_and_fetch
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_sub_and_fetch_1
+    .param_str = "ccD*c."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_sub_and_fetch_2
+    .param_str = "ssD*s."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_sub_and_fetch_4
+    .param_str = "iiD*i."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_sub_and_fetch_8
+    .param_str = "LLiLLiD*LLi."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_sub_and_fetch_16
+    .param_str = "LLLiLLLiD*LLLi."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_swap
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_swap_1
+    .param_str = "ccD*c."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_swap_2
+    .param_str = "ssD*s."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_swap_4
+    .param_str = "iiD*i."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_swap_8
+    .param_str = "LLiLLiD*LLi."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_swap_16
+    .param_str = "LLLiLLLiD*LLLi."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_synchronize
+    .param_str = "v"
+
+__sync_val_compare_and_swap
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_xor_and_fetch
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_xor_and_fetch_1
+    .param_str = "ccD*c."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_xor_and_fetch_2
+    .param_str = "ssD*s."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_xor_and_fetch_4
+    .param_str = "iiD*i."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_xor_and_fetch_8
+    .param_str = "LLiLLiD*LLi."
+    .attributes = .{ .custom_typecheck = true }
+
+__sync_xor_and_fetch_16
+    .param_str = "LLLiLLLiD*LLLi."
+    .attributes = .{ .custom_typecheck = true }
+
+__builtin_tanf
+    .param_str = "ff"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+tanf
+    .param_str = "ff"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_tan
+    .param_str = "dd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+tan
+    .param_str = "dd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_tanl
+    .param_str = "LdLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+tanl
+    .param_str = "LdLd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_tanf16
+    .param_str = "hh"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_tanf128
+    .param_str = "LLdLLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_tanhf
+    .param_str = "ff"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+tanhf
+    .param_str = "ff"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_tanh
+    .param_str = "dd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+tanh
+    .param_str = "dd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_tanhl
+    .param_str = "LdLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+tanhl
+    .param_str = "LdLd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_tanhf16
+    .param_str = "hh"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_tanhf128
+    .param_str = "LLdLLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__tanpif
+    .param_str = "ff"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__tanpi
+    .param_str = "dd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_tgammaf
+    .param_str = "ff"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+tgammaf
+    .param_str = "ff"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_tgamma
+    .param_str = "dd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+tgamma
+    .param_str = "dd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_tgammal
+    .param_str = "LdLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+tgammal
+    .param_str = "LdLd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_tgammaf128
+    .param_str = "LLdLLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
+
+__builtin_thread_pointer
+    .param_str = "v*"
+    .attributes = .{ .@"const" = true }
+
+tolower
+    .param_str = "ii"
+    .header = .ctype
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .pure = true }
+
+toupper
+    .param_str = "ii"
+    .header = .ctype
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .pure = true }
+
+__builtin_trap
+    .param_str = "v"
+
+__builtin_truncf
+    .param_str = "ff"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .@"const" = true }
+
+truncf
+    .param_str = "ff"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true }
+
+__builtin_trunc
+    .param_str = "dd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .@"const" = true }
+
+trunc
+    .param_str = "dd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true }
+
+__builtin_truncl
+    .param_str = "LdLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .@"const" = true }
+
+truncl
+    .param_str = "LdLd"
+    .header = .math
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true }
+
+__builtin_truncf16
+    .param_str = "hh"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .@"const" = true }
+
+__builtin_truncf128
+    .param_str = "LLdLLd"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .@"const" = true }
+
+__builtin_uadd_overflow
+    .param_str = "bUiCUiCUi*"
+    .attributes = .{ .const_evaluable = true }
+
+__builtin_uaddl_overflow
+    .param_str = "bULiCULiCULi*"
+    .attributes = .{ .const_evaluable = true }
+
+__builtin_uaddll_overflow
+    .param_str = "bULLiCULLiCULLi*"
+    .attributes = .{ .const_evaluable = true }
+
+__builtin_umul_overflow
+    .param_str = "bUiCUiCUi*"
+    .attributes = .{ .const_evaluable = true }
+
+__builtin_umull_overflow
+    .param_str = "bULiCULiCULi*"
+    .attributes = .{ .const_evaluable = true }
+
+__builtin_umulll_overflow
+    .param_str = "bULLiCULLiCULLi*"
+    .attributes = .{ .const_evaluable = true }
+
+__builtin_unpredictable
+    .param_str = "LiLi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_unreachable
+    .param_str = "v"
+
+__builtin_unwind_init
+    .param_str = "v"
+
+__builtin_usub_overflow
+    .param_str = "bUiCUiCUi*"
+    .attributes = .{ .const_evaluable = true }
+
+__builtin_usubl_overflow
+    .param_str = "bULiCULiCULi*"
+    .attributes = .{ .const_evaluable = true }
+
+__builtin_usubll_overflow
+    .param_str = "bULLiCULLiCULLi*"
+    .attributes = .{ .const_evaluable = true }
+
+__builtin___vfprintf_chk
+    .param_str = "iP*RicC*Ra"
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+__builtin_vfscanf
+    .param_str = "iP*RcC*Ra"
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+vfscanf
+    .param_str = "iP*RcC*Ra"
+    .header = .stdio
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true }
+
+vfork
+    .param_str = "p"
+    .header = .unistd
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .returns_twice = true }
+
+__builtin_vprintf
+    .param_str = "icC*Ra"
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+vprintf
+    .param_str = "icC*Ra"
+    .header = .stdio
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true }
+
+__builtin___vprintf_chk
+    .param_str = "iicC*Ra"
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+__builtin___vsnprintf_chk
+    .param_str = "ic*RzizcC*Ra"
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+__builtin___vsprintf_chk
+    .param_str = "ic*RizcC*Ra"
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+__builtin_vsscanf
+    .param_str = "icC*RcC*Ra"
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+vsscanf
+    .param_str = "icC*RcC*Ra"
+    .header = .stdio
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true }
+
+__builtin_vscanf
+    .param_str = "icC*Ra"
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+vscanf
+    .param_str = "icC*Ra"
+    .header = .stdio
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true }
+
+__builtin_va_copy
+    .param_str = "vAA"
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+va_copy
+    .param_str = "vAA"
+    .header = .stdarg
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true }
+
+__builtin_va_end
+    .param_str = "vA"
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+va_end
+    .param_str = "vA"
+    .header = .stdarg
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true }
+
+va_start
+    .param_str = "vA."
+    .header = .stdarg
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true }
+
+__builtin_verbose_trap
+    .param_str = "vcC*cC*"
+
+__builtin_vfprintf
+    .param_str = "iP*RcC*Ra"
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+vfprintf
+    .param_str = "iP*RcC*Ra"
+    .header = .stdio
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true }
+
+__builtin_vsprintf
+    .param_str = "ic*RcC*Ra"
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+vsprintf
+    .param_str = "ic*RcC*Ra"
+    .header = .stdio
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true }
+
+__builtin_vsnprintf
+    .param_str = "ic*RzcC*Ra"
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+vsnprintf
+    .param_str = "ic*RzcC*Ra"
+    .header = .stdio
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true }
+
+__builtin_wmemchr
+    .param_str = "w*wC*wz"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_evaluable = true }
+
+wmemchr
+    .param_str = "w*wC*wz"
+    .header = .wchar
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_evaluable = true }
+
+__builtin_wmemcmp
+    .param_str = "iwC*wC*z"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_evaluable = true }
+
+wmemcmp
+    .param_str = "iwC*wC*z"
+    .header = .wchar
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_evaluable = true }
+
+__builtin_wmemcpy
+    .param_str = "w*w*wC*z"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_evaluable = true }
+
+wmemcpy
+    .param_str = "w*w*wC*z"
+    .header = .wchar
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_evaluable = true }
+
+__builtin_wmemmove
+    .param_str = "w*w*wC*z"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .const_evaluable = true }
+
+wmemmove
+    .param_str = "w*w*wC*z"
+    .header = .wchar
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .const_evaluable = true }
+
+__warn_memset_zero_len
+    .param_str = "v"
+    .attributes = .{ .pure = true }
+
+__builtin_wcschr
+    .param_str = "w*wC*w"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .pure = true, .const_evaluable = true }
+
+wcschr
+    .param_str = "w*wC*w"
+    .header = .wchar
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .pure = true, .const_evaluable = true }
+
+__builtin_wcscmp
+    .param_str = "iwC*wC*"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .pure = true, .const_evaluable = true }
+
+wcscmp
+    .param_str = "iwC*wC*"
+    .header = .wchar
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .pure = true, .const_evaluable = true }
+
+__builtin_wcslen
+    .param_str = "zwC*"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .pure = true, .const_evaluable = true }
+
+wcslen
+    .param_str = "zwC*"
+    .header = .wchar
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .pure = true, .const_evaluable = true }
+
+__builtin_wcsncmp
+    .param_str = "iwC*wC*z"
+    .attributes = .{ .lib_function_with_builtin_prefix = true, .pure = true, .const_evaluable = true }
+
+wcsncmp
+    .param_str = "iwC*wC*z"
+    .header = .wchar
+    .language = .all_languages
+    .attributes = .{ .lib_function_without_prefix = true, .pure = true, .const_evaluable = true }
+
+__xray_customevent
+    .param_str = "vcC*z"
+
+__xray_typedevent
+    .param_str = "vzcC*z"

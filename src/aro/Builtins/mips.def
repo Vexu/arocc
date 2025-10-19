@@ -1,0 +1,2598 @@
+# Generated from clang/include/clang/Basic/BuiltinsMips.def
+
+__builtin_mips_absq_s_ph
+    .param_str = "V2sV2s"
+
+__builtin_mips_absq_s_qb
+    .param_str = "V4ScV4Sc"
+
+__builtin_mips_absq_s_w
+    .param_str = "ii"
+
+__builtin_mips_addq_ph
+    .param_str = "V2sV2sV2s"
+
+__builtin_mips_addq_s_ph
+    .param_str = "V2sV2sV2s"
+
+__builtin_mips_addq_s_w
+    .param_str = "iii"
+
+__builtin_mips_addqh_ph
+    .param_str = "V2sV2sV2s"
+    .attributes = .{ .@"const" = true }
+
+__builtin_mips_addqh_r_ph
+    .param_str = "V2sV2sV2s"
+    .attributes = .{ .@"const" = true }
+
+__builtin_mips_addqh_r_w
+    .param_str = "iii"
+    .attributes = .{ .@"const" = true }
+
+__builtin_mips_addqh_w
+    .param_str = "iii"
+    .attributes = .{ .@"const" = true }
+
+__builtin_mips_addsc
+    .param_str = "iii"
+
+__builtin_mips_addu_ph
+    .param_str = "V2sV2sV2s"
+
+__builtin_mips_addu_qb
+    .param_str = "V4ScV4ScV4Sc"
+
+__builtin_mips_addu_s_ph
+    .param_str = "V2sV2sV2s"
+
+__builtin_mips_addu_s_qb
+    .param_str = "V4ScV4ScV4Sc"
+
+__builtin_mips_adduh_qb
+    .param_str = "V4ScV4ScV4Sc"
+    .attributes = .{ .@"const" = true }
+
+__builtin_mips_adduh_r_qb
+    .param_str = "V4ScV4ScV4Sc"
+    .attributes = .{ .@"const" = true }
+
+__builtin_mips_addwc
+    .param_str = "iii"
+
+__builtin_mips_append
+    .param_str = "iiiIi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_mips_balign
+    .param_str = "iiiIi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_mips_bitrev
+    .param_str = "ii"
+    .attributes = .{ .@"const" = true }
+
+__builtin_mips_bposge32
+    .param_str = "i"
+
+__builtin_mips_cmp_eq_ph
+    .param_str = "vV2sV2s"
+
+__builtin_mips_cmp_le_ph
+    .param_str = "vV2sV2s"
+
+__builtin_mips_cmp_lt_ph
+    .param_str = "vV2sV2s"
+
+__builtin_mips_cmpgdu_eq_qb
+    .param_str = "iV4ScV4Sc"
+
+__builtin_mips_cmpgdu_le_qb
+    .param_str = "iV4ScV4Sc"
+
+__builtin_mips_cmpgdu_lt_qb
+    .param_str = "iV4ScV4Sc"
+
+__builtin_mips_cmpgu_eq_qb
+    .param_str = "iV4ScV4Sc"
+
+__builtin_mips_cmpgu_le_qb
+    .param_str = "iV4ScV4Sc"
+
+__builtin_mips_cmpgu_lt_qb
+    .param_str = "iV4ScV4Sc"
+
+__builtin_mips_cmpu_eq_qb
+    .param_str = "vV4ScV4Sc"
+
+__builtin_mips_cmpu_le_qb
+    .param_str = "vV4ScV4Sc"
+
+__builtin_mips_cmpu_lt_qb
+    .param_str = "vV4ScV4Sc"
+
+__builtin_mips_dpa_w_ph
+    .param_str = "LLiLLiV2sV2s"
+    .attributes = .{ .@"const" = true }
+
+__builtin_mips_dpaq_s_w_ph
+    .param_str = "LLiLLiV2sV2s"
+
+__builtin_mips_dpaq_sa_l_w
+    .param_str = "LLiLLiii"
+
+__builtin_mips_dpaqx_s_w_ph
+    .param_str = "LLiLLiV2sV2s"
+
+__builtin_mips_dpaqx_sa_w_ph
+    .param_str = "LLiLLiV2sV2s"
+
+__builtin_mips_dpau_h_qbl
+    .param_str = "LLiLLiV4ScV4Sc"
+    .attributes = .{ .@"const" = true }
+
+__builtin_mips_dpau_h_qbr
+    .param_str = "LLiLLiV4ScV4Sc"
+    .attributes = .{ .@"const" = true }
+
+__builtin_mips_dpax_w_ph
+    .param_str = "LLiLLiV2sV2s"
+    .attributes = .{ .@"const" = true }
+
+__builtin_mips_dps_w_ph
+    .param_str = "LLiLLiV2sV2s"
+    .attributes = .{ .@"const" = true }
+
+__builtin_mips_dpsq_s_w_ph
+    .param_str = "LLiLLiV2sV2s"
+
+__builtin_mips_dpsq_sa_l_w
+    .param_str = "LLiLLiii"
+
+__builtin_mips_dpsqx_s_w_ph
+    .param_str = "LLiLLiV2sV2s"
+
+__builtin_mips_dpsqx_sa_w_ph
+    .param_str = "LLiLLiV2sV2s"
+
+__builtin_mips_dpsu_h_qbl
+    .param_str = "LLiLLiV4ScV4Sc"
+    .attributes = .{ .@"const" = true }
+
+__builtin_mips_dpsu_h_qbr
+    .param_str = "LLiLLiV4ScV4Sc"
+    .attributes = .{ .@"const" = true }
+
+__builtin_mips_dpsx_w_ph
+    .param_str = "LLiLLiV2sV2s"
+    .attributes = .{ .@"const" = true }
+
+__builtin_mips_extp
+    .param_str = "iLLii"
+
+__builtin_mips_extpdp
+    .param_str = "iLLii"
+
+__builtin_mips_extr_r_w
+    .param_str = "iLLii"
+
+__builtin_mips_extr_rs_w
+    .param_str = "iLLii"
+
+__builtin_mips_extr_s_h
+    .param_str = "iLLii"
+
+__builtin_mips_extr_w
+    .param_str = "iLLii"
+
+__builtin_mips_insv
+    .param_str = "iii"
+
+__builtin_mips_lbux
+    .param_str = "iv*i"
+
+__builtin_mips_lhx
+    .param_str = "iv*i"
+
+__builtin_mips_lwx
+    .param_str = "iv*i"
+
+__builtin_mips_madd
+    .param_str = "LLiLLiii"
+    .attributes = .{ .@"const" = true }
+
+__builtin_mips_maddu
+    .param_str = "LLiLLiUiUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_mips_maq_s_w_phl
+    .param_str = "LLiLLiV2sV2s"
+
+__builtin_mips_maq_s_w_phr
+    .param_str = "LLiLLiV2sV2s"
+
+__builtin_mips_maq_sa_w_phl
+    .param_str = "LLiLLiV2sV2s"
+
+__builtin_mips_maq_sa_w_phr
+    .param_str = "LLiLLiV2sV2s"
+
+__builtin_mips_modsub
+    .param_str = "iii"
+    .attributes = .{ .@"const" = true }
+
+__builtin_mips_msub
+    .param_str = "LLiLLiii"
+    .attributes = .{ .@"const" = true }
+
+__builtin_mips_msubu
+    .param_str = "LLiLLiUiUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_mips_mthlip
+    .param_str = "LLiLLii"
+
+__builtin_mips_mul_ph
+    .param_str = "V2sV2sV2s"
+
+__builtin_mips_mul_s_ph
+    .param_str = "V2sV2sV2s"
+
+__builtin_mips_muleq_s_w_phl
+    .param_str = "iV2sV2s"
+
+__builtin_mips_muleq_s_w_phr
+    .param_str = "iV2sV2s"
+
+__builtin_mips_muleu_s_ph_qbl
+    .param_str = "V2sV4ScV2s"
+
+__builtin_mips_muleu_s_ph_qbr
+    .param_str = "V2sV4ScV2s"
+
+__builtin_mips_mulq_rs_ph
+    .param_str = "V2sV2sV2s"
+
+__builtin_mips_mulq_rs_w
+    .param_str = "iii"
+
+__builtin_mips_mulq_s_ph
+    .param_str = "V2sV2sV2s"
+
+__builtin_mips_mulq_s_w
+    .param_str = "iii"
+
+__builtin_mips_mulsa_w_ph
+    .param_str = "LLiLLiV2sV2s"
+    .attributes = .{ .@"const" = true }
+
+__builtin_mips_mulsaq_s_w_ph
+    .param_str = "LLiLLiV2sV2s"
+
+__builtin_mips_mult
+    .param_str = "LLiii"
+    .attributes = .{ .@"const" = true }
+
+__builtin_mips_multu
+    .param_str = "LLiUiUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_mips_packrl_ph
+    .param_str = "V2sV2sV2s"
+    .attributes = .{ .@"const" = true }
+
+__builtin_mips_pick_ph
+    .param_str = "V2sV2sV2s"
+
+__builtin_mips_pick_qb
+    .param_str = "V4ScV4ScV4Sc"
+
+__builtin_mips_preceq_w_phl
+    .param_str = "iV2s"
+    .attributes = .{ .@"const" = true }
+
+__builtin_mips_preceq_w_phr
+    .param_str = "iV2s"
+    .attributes = .{ .@"const" = true }
+
+__builtin_mips_precequ_ph_qbl
+    .param_str = "V2sV4Sc"
+    .attributes = .{ .@"const" = true }
+
+__builtin_mips_precequ_ph_qbla
+    .param_str = "V2sV4Sc"
+    .attributes = .{ .@"const" = true }
+
+__builtin_mips_precequ_ph_qbr
+    .param_str = "V2sV4Sc"
+    .attributes = .{ .@"const" = true }
+
+__builtin_mips_precequ_ph_qbra
+    .param_str = "V2sV4Sc"
+    .attributes = .{ .@"const" = true }
+
+__builtin_mips_preceu_ph_qbl
+    .param_str = "V2sV4Sc"
+    .attributes = .{ .@"const" = true }
+
+__builtin_mips_preceu_ph_qbla
+    .param_str = "V2sV4Sc"
+    .attributes = .{ .@"const" = true }
+
+__builtin_mips_preceu_ph_qbr
+    .param_str = "V2sV4Sc"
+    .attributes = .{ .@"const" = true }
+
+__builtin_mips_preceu_ph_qbra
+    .param_str = "V2sV4Sc"
+    .attributes = .{ .@"const" = true }
+
+__builtin_mips_precr_qb_ph
+    .param_str = "V4ScV2sV2s"
+
+__builtin_mips_precr_sra_ph_w
+    .param_str = "V2siiIi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_mips_precr_sra_r_ph_w
+    .param_str = "V2siiIi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_mips_precrq_ph_w
+    .param_str = "V2sii"
+    .attributes = .{ .@"const" = true }
+
+__builtin_mips_precrq_qb_ph
+    .param_str = "V4ScV2sV2s"
+    .attributes = .{ .@"const" = true }
+
+__builtin_mips_precrq_rs_ph_w
+    .param_str = "V2sii"
+
+__builtin_mips_precrqu_s_qb_ph
+    .param_str = "V4ScV2sV2s"
+
+__builtin_mips_prepend
+    .param_str = "iiiIi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_mips_raddu_w_qb
+    .param_str = "iV4Sc"
+    .attributes = .{ .@"const" = true }
+
+__builtin_mips_rddsp
+    .param_str = "iIi"
+
+__builtin_mips_repl_ph
+    .param_str = "V2si"
+    .attributes = .{ .@"const" = true }
+
+__builtin_mips_repl_qb
+    .param_str = "V4Sci"
+    .attributes = .{ .@"const" = true }
+
+__builtin_mips_shilo
+    .param_str = "LLiLLii"
+    .attributes = .{ .@"const" = true }
+
+__builtin_mips_shll_ph
+    .param_str = "V2sV2si"
+
+__builtin_mips_shll_qb
+    .param_str = "V4ScV4Sci"
+
+__builtin_mips_shll_s_ph
+    .param_str = "V2sV2si"
+
+__builtin_mips_shll_s_w
+    .param_str = "iii"
+
+__builtin_mips_shra_ph
+    .param_str = "V2sV2si"
+    .attributes = .{ .@"const" = true }
+
+__builtin_mips_shra_qb
+    .param_str = "V4ScV4Sci"
+    .attributes = .{ .@"const" = true }
+
+__builtin_mips_shra_r_ph
+    .param_str = "V2sV2si"
+    .attributes = .{ .@"const" = true }
+
+__builtin_mips_shra_r_qb
+    .param_str = "V4ScV4Sci"
+    .attributes = .{ .@"const" = true }
+
+__builtin_mips_shra_r_w
+    .param_str = "iii"
+    .attributes = .{ .@"const" = true }
+
+__builtin_mips_shrl_ph
+    .param_str = "V2sV2si"
+    .attributes = .{ .@"const" = true }
+
+__builtin_mips_shrl_qb
+    .param_str = "V4ScV4Sci"
+    .attributes = .{ .@"const" = true }
+
+__builtin_mips_subq_ph
+    .param_str = "V2sV2sV2s"
+
+__builtin_mips_subq_s_ph
+    .param_str = "V2sV2sV2s"
+
+__builtin_mips_subq_s_w
+    .param_str = "iii"
+
+__builtin_mips_subqh_ph
+    .param_str = "V2sV2sV2s"
+    .attributes = .{ .@"const" = true }
+
+__builtin_mips_subqh_r_ph
+    .param_str = "V2sV2sV2s"
+    .attributes = .{ .@"const" = true }
+
+__builtin_mips_subqh_r_w
+    .param_str = "iii"
+    .attributes = .{ .@"const" = true }
+
+__builtin_mips_subqh_w
+    .param_str = "iii"
+    .attributes = .{ .@"const" = true }
+
+__builtin_mips_subu_ph
+    .param_str = "V2sV2sV2s"
+
+__builtin_mips_subu_qb
+    .param_str = "V4ScV4ScV4Sc"
+
+__builtin_mips_subu_s_ph
+    .param_str = "V2sV2sV2s"
+
+__builtin_mips_subu_s_qb
+    .param_str = "V4ScV4ScV4Sc"
+
+__builtin_mips_subuh_qb
+    .param_str = "V4ScV4ScV4Sc"
+    .attributes = .{ .@"const" = true }
+
+__builtin_mips_subuh_r_qb
+    .param_str = "V4ScV4ScV4Sc"
+    .attributes = .{ .@"const" = true }
+
+__builtin_mips_wrdsp
+    .param_str = "viIi"
+
+__builtin_msa_add_a_b
+    .param_str = "V16ScV16ScV16Sc"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_add_a_d
+    .param_str = "V2SLLiV2SLLiV2SLLi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_add_a_h
+    .param_str = "V8SsV8SsV8Ss"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_add_a_w
+    .param_str = "V4SiV4SiV4Si"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_adds_a_b
+    .param_str = "V16ScV16ScV16Sc"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_adds_a_d
+    .param_str = "V2SLLiV2SLLiV2SLLi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_adds_a_h
+    .param_str = "V8SsV8SsV8Ss"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_adds_a_w
+    .param_str = "V4SiV4SiV4Si"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_adds_s_b
+    .param_str = "V16ScV16ScV16Sc"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_adds_s_d
+    .param_str = "V2SLLiV2SLLiV2SLLi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_adds_s_h
+    .param_str = "V8SsV8SsV8Ss"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_adds_s_w
+    .param_str = "V4SiV4SiV4Si"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_adds_u_b
+    .param_str = "V16UcV16UcV16Uc"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_adds_u_d
+    .param_str = "V2ULLiV2ULLiV2ULLi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_adds_u_h
+    .param_str = "V8UsV8UsV8Us"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_adds_u_w
+    .param_str = "V4UiV4UiV4Ui"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_addv_b
+    .param_str = "V16cV16cV16c"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_addv_d
+    .param_str = "V2LLiV2LLiV2LLi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_addv_h
+    .param_str = "V8sV8sV8s"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_addv_w
+    .param_str = "V4iV4iV4i"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_addvi_b
+    .param_str = "V16cV16cIUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_addvi_d
+    .param_str = "V2LLiV2LLiIUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_addvi_h
+    .param_str = "V8sV8sIUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_addvi_w
+    .param_str = "V4iV4iIUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_and_v
+    .param_str = "V16UcV16UcV16Uc"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_andi_b
+    .param_str = "V16UcV16UcIUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_asub_s_b
+    .param_str = "V16ScV16ScV16Sc"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_asub_s_d
+    .param_str = "V2SLLiV2SLLiV2SLLi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_asub_s_h
+    .param_str = "V8SsV8SsV8Ss"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_asub_s_w
+    .param_str = "V4SiV4SiV4Si"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_asub_u_b
+    .param_str = "V16UcV16UcV16Uc"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_asub_u_d
+    .param_str = "V2ULLiV2ULLiV2ULLi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_asub_u_h
+    .param_str = "V8UsV8UsV8Us"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_asub_u_w
+    .param_str = "V4UiV4UiV4Ui"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_ave_s_b
+    .param_str = "V16ScV16ScV16Sc"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_ave_s_d
+    .param_str = "V2SLLiV2SLLiV2SLLi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_ave_s_h
+    .param_str = "V8SsV8SsV8Ss"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_ave_s_w
+    .param_str = "V4SiV4SiV4Si"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_ave_u_b
+    .param_str = "V16UcV16UcV16Uc"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_ave_u_d
+    .param_str = "V2ULLiV2ULLiV2ULLi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_ave_u_h
+    .param_str = "V8UsV8UsV8Us"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_ave_u_w
+    .param_str = "V4UiV4UiV4Ui"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_aver_s_b
+    .param_str = "V16ScV16ScV16Sc"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_aver_s_d
+    .param_str = "V2SLLiV2SLLiV2SLLi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_aver_s_h
+    .param_str = "V8SsV8SsV8Ss"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_aver_s_w
+    .param_str = "V4SiV4SiV4Si"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_aver_u_b
+    .param_str = "V16UcV16UcV16Uc"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_aver_u_d
+    .param_str = "V2ULLiV2ULLiV2ULLi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_aver_u_h
+    .param_str = "V8UsV8UsV8Us"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_aver_u_w
+    .param_str = "V4UiV4UiV4Ui"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_bclr_b
+    .param_str = "V16UcV16UcV16Uc"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_bclr_d
+    .param_str = "V2ULLiV2ULLiV2ULLi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_bclr_h
+    .param_str = "V8UsV8UsV8Us"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_bclr_w
+    .param_str = "V4UiV4UiV4Ui"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_bclri_b
+    .param_str = "V16UcV16UcIUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_bclri_d
+    .param_str = "V2ULLiV2ULLiIUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_bclri_h
+    .param_str = "V8UsV8UsIUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_bclri_w
+    .param_str = "V4UiV4UiIUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_binsl_b
+    .param_str = "V16UcV16UcV16UcV16Uc"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_binsl_d
+    .param_str = "V2ULLiV2ULLiV2ULLiV2ULLi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_binsl_h
+    .param_str = "V8UsV8UsV8UsV8Us"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_binsl_w
+    .param_str = "V4UiV4UiV4UiV4Ui"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_binsli_b
+    .param_str = "V16UcV16UcV16UcIUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_binsli_d
+    .param_str = "V2ULLiV2ULLiV2ULLiIUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_binsli_h
+    .param_str = "V8UsV8UsV8UsIUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_binsli_w
+    .param_str = "V4UiV4UiV4UiIUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_binsr_b
+    .param_str = "V16UcV16UcV16UcV16Uc"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_binsr_d
+    .param_str = "V2ULLiV2ULLiV2ULLiV2ULLi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_binsr_h
+    .param_str = "V8UsV8UsV8UsV8Us"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_binsr_w
+    .param_str = "V4UiV4UiV4UiV4Ui"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_binsri_b
+    .param_str = "V16UcV16UcV16UcIUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_binsri_d
+    .param_str = "V2ULLiV2ULLiV2ULLiIUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_binsri_h
+    .param_str = "V8UsV8UsV8UsIUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_binsri_w
+    .param_str = "V4UiV4UiV4UiIUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_bmnz_v
+    .param_str = "V16UcV16UcV16UcV16Uc"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_bmnzi_b
+    .param_str = "V16UcV16UcV16UcIUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_bmz_v
+    .param_str = "V16UcV16UcV16UcV16Uc"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_bmzi_b
+    .param_str = "V16UcV16UcV16UcIUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_bneg_b
+    .param_str = "V16UcV16UcV16Uc"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_bneg_d
+    .param_str = "V2ULLiV2ULLiV2ULLi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_bneg_h
+    .param_str = "V8UsV8UsV8Us"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_bneg_w
+    .param_str = "V4UiV4UiV4Ui"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_bnegi_b
+    .param_str = "V16UcV16UcIUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_bnegi_d
+    .param_str = "V2ULLiV2ULLiIUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_bnegi_h
+    .param_str = "V8UsV8UsIUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_bnegi_w
+    .param_str = "V4UiV4UiIUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_bnz_b
+    .param_str = "iV16Uc"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_bnz_d
+    .param_str = "iV2ULLi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_bnz_h
+    .param_str = "iV8Us"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_bnz_v
+    .param_str = "iV16Uc"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_bnz_w
+    .param_str = "iV4Ui"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_bsel_v
+    .param_str = "V16UcV16UcV16UcV16Uc"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_bseli_b
+    .param_str = "V16UcV16UcV16UcIUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_bset_b
+    .param_str = "V16UcV16UcV16Uc"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_bset_d
+    .param_str = "V2ULLiV2ULLiV2ULLi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_bset_h
+    .param_str = "V8UsV8UsV8Us"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_bset_w
+    .param_str = "V4UiV4UiV4Ui"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_bseti_b
+    .param_str = "V16UcV16UcIUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_bseti_d
+    .param_str = "V2ULLiV2ULLiIUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_bseti_h
+    .param_str = "V8UsV8UsIUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_bseti_w
+    .param_str = "V4UiV4UiIUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_bz_b
+    .param_str = "iV16Uc"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_bz_d
+    .param_str = "iV2ULLi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_bz_h
+    .param_str = "iV8Us"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_bz_v
+    .param_str = "iV16Uc"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_bz_w
+    .param_str = "iV4Ui"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_ceq_b
+    .param_str = "V16ScV16ScV16Sc"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_ceq_d
+    .param_str = "V2SLLiV2SLLiV2SLLi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_ceq_h
+    .param_str = "V8SsV8SsV8Ss"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_ceq_w
+    .param_str = "V4SiV4SiV4Si"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_ceqi_b
+    .param_str = "V16ScV16ScISi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_ceqi_d
+    .param_str = "V2SLLiV2SLLiISi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_ceqi_h
+    .param_str = "V8SsV8SsISi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_ceqi_w
+    .param_str = "V4SiV4SiISi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_cfcmsa
+    .param_str = "iIi"
+
+__builtin_msa_cle_s_b
+    .param_str = "V16ScV16ScV16Sc"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_cle_s_d
+    .param_str = "V2SLLiV2SLLiV2SLLi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_cle_s_h
+    .param_str = "V8SsV8SsV8Ss"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_cle_s_w
+    .param_str = "V4SiV4SiV4Si"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_cle_u_b
+    .param_str = "V16ScV16UcV16Uc"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_cle_u_d
+    .param_str = "V2SLLiV2ULLiV2ULLi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_cle_u_h
+    .param_str = "V8SsV8UsV8Us"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_cle_u_w
+    .param_str = "V4SiV4UiV4Ui"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_clei_s_b
+    .param_str = "V16ScV16ScISi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_clei_s_d
+    .param_str = "V2SLLiV2SLLiISi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_clei_s_h
+    .param_str = "V8SsV8SsISi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_clei_s_w
+    .param_str = "V4SiV4SiISi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_clei_u_b
+    .param_str = "V16ScV16UcIUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_clei_u_d
+    .param_str = "V2SLLiV2ULLiIUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_clei_u_h
+    .param_str = "V8SsV8UsIUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_clei_u_w
+    .param_str = "V4SiV4UiIUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_clt_s_b
+    .param_str = "V16ScV16ScV16Sc"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_clt_s_d
+    .param_str = "V2SLLiV2SLLiV2SLLi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_clt_s_h
+    .param_str = "V8SsV8SsV8Ss"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_clt_s_w
+    .param_str = "V4SiV4SiV4Si"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_clt_u_b
+    .param_str = "V16ScV16UcV16Uc"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_clt_u_d
+    .param_str = "V2SLLiV2ULLiV2ULLi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_clt_u_h
+    .param_str = "V8SsV8UsV8Us"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_clt_u_w
+    .param_str = "V4SiV4UiV4Ui"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_clti_s_b
+    .param_str = "V16ScV16ScISi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_clti_s_d
+    .param_str = "V2SLLiV2SLLiISi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_clti_s_h
+    .param_str = "V8SsV8SsISi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_clti_s_w
+    .param_str = "V4SiV4SiISi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_clti_u_b
+    .param_str = "V16ScV16UcIUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_clti_u_d
+    .param_str = "V2SLLiV2ULLiIUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_clti_u_h
+    .param_str = "V8SsV8UsIUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_clti_u_w
+    .param_str = "V4SiV4UiIUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_copy_s_b
+    .param_str = "iV16ScIUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_copy_s_d
+    .param_str = "LLiV2SLLiIUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_copy_s_h
+    .param_str = "iV8SsIUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_copy_s_w
+    .param_str = "iV4SiIUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_copy_u_b
+    .param_str = "iV16UcIUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_copy_u_d
+    .param_str = "LLiV2ULLiIUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_copy_u_h
+    .param_str = "iV8UsIUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_copy_u_w
+    .param_str = "iV4UiIUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_ctcmsa
+    .param_str = "vIii"
+
+__builtin_msa_div_s_b
+    .param_str = "V16ScV16ScV16Sc"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_div_s_d
+    .param_str = "V2SLLiV2SLLiV2SLLi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_div_s_h
+    .param_str = "V8SsV8SsV8Ss"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_div_s_w
+    .param_str = "V4SiV4SiV4Si"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_div_u_b
+    .param_str = "V16UcV16UcV16Uc"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_div_u_d
+    .param_str = "V2ULLiV2ULLiV2ULLi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_div_u_h
+    .param_str = "V8UsV8UsV8Us"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_div_u_w
+    .param_str = "V4UiV4UiV4Ui"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_dotp_s_d
+    .param_str = "V2SLLiV4SiV4Si"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_dotp_s_h
+    .param_str = "V8SsV16ScV16Sc"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_dotp_s_w
+    .param_str = "V4SiV8SsV8Ss"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_dotp_u_d
+    .param_str = "V2ULLiV4UiV4Ui"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_dotp_u_h
+    .param_str = "V8UsV16UcV16Uc"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_dotp_u_w
+    .param_str = "V4UiV8UsV8Us"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_dpadd_s_d
+    .param_str = "V2SLLiV2SLLiV4SiV4Si"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_dpadd_s_h
+    .param_str = "V8SsV8SsV16ScV16Sc"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_dpadd_s_w
+    .param_str = "V4SiV4SiV8SsV8Ss"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_dpadd_u_d
+    .param_str = "V2ULLiV2ULLiV4UiV4Ui"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_dpadd_u_h
+    .param_str = "V8UsV8UsV16UcV16Uc"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_dpadd_u_w
+    .param_str = "V4UiV4UiV8UsV8Us"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_dpsub_s_d
+    .param_str = "V2SLLiV2SLLiV4SiV4Si"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_dpsub_s_h
+    .param_str = "V8SsV8SsV16ScV16Sc"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_dpsub_s_w
+    .param_str = "V4SiV4SiV8SsV8Ss"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_dpsub_u_d
+    .param_str = "V2ULLiV2ULLiV4UiV4Ui"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_dpsub_u_h
+    .param_str = "V8UsV8UsV16UcV16Uc"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_dpsub_u_w
+    .param_str = "V4UiV4UiV8UsV8Us"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_fadd_d
+    .param_str = "V2dV2dV2d"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_fadd_w
+    .param_str = "V4fV4fV4f"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_fcaf_d
+    .param_str = "V2LLiV2dV2d"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_fcaf_w
+    .param_str = "V4iV4fV4f"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_fceq_d
+    .param_str = "V2LLiV2dV2d"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_fceq_w
+    .param_str = "V4iV4fV4f"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_fclass_d
+    .param_str = "V2LLiV2d"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_fclass_w
+    .param_str = "V4iV4f"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_fcle_d
+    .param_str = "V2LLiV2dV2d"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_fcle_w
+    .param_str = "V4iV4fV4f"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_fclt_d
+    .param_str = "V2LLiV2dV2d"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_fclt_w
+    .param_str = "V4iV4fV4f"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_fcne_d
+    .param_str = "V2LLiV2dV2d"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_fcne_w
+    .param_str = "V4iV4fV4f"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_fcor_d
+    .param_str = "V2LLiV2dV2d"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_fcor_w
+    .param_str = "V4iV4fV4f"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_fcueq_d
+    .param_str = "V2LLiV2dV2d"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_fcueq_w
+    .param_str = "V4iV4fV4f"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_fcule_d
+    .param_str = "V2LLiV2dV2d"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_fcule_w
+    .param_str = "V4iV4fV4f"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_fcult_d
+    .param_str = "V2LLiV2dV2d"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_fcult_w
+    .param_str = "V4iV4fV4f"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_fcun_d
+    .param_str = "V2LLiV2dV2d"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_fcun_w
+    .param_str = "V4iV4fV4f"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_fcune_d
+    .param_str = "V2LLiV2dV2d"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_fcune_w
+    .param_str = "V4iV4fV4f"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_fdiv_d
+    .param_str = "V2dV2dV2d"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_fdiv_w
+    .param_str = "V4fV4fV4f"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_fexdo_h
+    .param_str = "V8hV4fV4f"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_fexdo_w
+    .param_str = "V4fV2dV2d"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_fexp2_d
+    .param_str = "V2dV2dV2LLi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_fexp2_w
+    .param_str = "V4fV4fV4i"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_fexupl_d
+    .param_str = "V2dV4f"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_fexupl_w
+    .param_str = "V4fV8h"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_fexupr_d
+    .param_str = "V2dV4f"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_fexupr_w
+    .param_str = "V4fV8h"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_ffint_s_d
+    .param_str = "V2dV2SLLi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_ffint_s_w
+    .param_str = "V4fV4Si"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_ffint_u_d
+    .param_str = "V2dV2ULLi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_ffint_u_w
+    .param_str = "V4fV4Ui"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_ffql_d
+    .param_str = "V2dV4Si"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_ffql_w
+    .param_str = "V4fV8Ss"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_ffqr_d
+    .param_str = "V2dV4Si"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_ffqr_w
+    .param_str = "V4fV8Ss"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_fill_b
+    .param_str = "V16Sci"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_fill_d
+    .param_str = "V2SLLiLLi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_fill_h
+    .param_str = "V8Ssi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_fill_w
+    .param_str = "V4Sii"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_flog2_d
+    .param_str = "V2dV2d"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_flog2_w
+    .param_str = "V4fV4f"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_fmadd_d
+    .param_str = "V2dV2dV2dV2d"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_fmadd_w
+    .param_str = "V4fV4fV4fV4f"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_fmax_a_d
+    .param_str = "V2dV2dV2d"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_fmax_a_w
+    .param_str = "V4fV4fV4f"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_fmax_d
+    .param_str = "V2dV2dV2d"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_fmax_w
+    .param_str = "V4fV4fV4f"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_fmin_a_d
+    .param_str = "V2dV2dV2d"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_fmin_a_w
+    .param_str = "V4fV4fV4f"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_fmin_d
+    .param_str = "V2dV2dV2d"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_fmin_w
+    .param_str = "V4fV4fV4f"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_fmsub_d
+    .param_str = "V2dV2dV2dV2d"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_fmsub_w
+    .param_str = "V4fV4fV4fV4f"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_fmul_d
+    .param_str = "V2dV2dV2d"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_fmul_w
+    .param_str = "V4fV4fV4f"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_frcp_d
+    .param_str = "V2dV2d"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_frcp_w
+    .param_str = "V4fV4f"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_frint_d
+    .param_str = "V2dV2d"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_frint_w
+    .param_str = "V4fV4f"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_frsqrt_d
+    .param_str = "V2dV2d"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_frsqrt_w
+    .param_str = "V4fV4f"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_fsaf_d
+    .param_str = "V2LLiV2dV2d"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_fsaf_w
+    .param_str = "V4iV4fV4f"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_fseq_d
+    .param_str = "V2LLiV2dV2d"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_fseq_w
+    .param_str = "V4iV4fV4f"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_fsle_d
+    .param_str = "V2LLiV2dV2d"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_fsle_w
+    .param_str = "V4iV4fV4f"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_fslt_d
+    .param_str = "V2LLiV2dV2d"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_fslt_w
+    .param_str = "V4iV4fV4f"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_fsne_d
+    .param_str = "V2LLiV2dV2d"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_fsne_w
+    .param_str = "V4iV4fV4f"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_fsor_d
+    .param_str = "V2LLiV2dV2d"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_fsor_w
+    .param_str = "V4iV4fV4f"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_fsqrt_d
+    .param_str = "V2dV2d"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_fsqrt_w
+    .param_str = "V4fV4f"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_fsub_d
+    .param_str = "V2dV2dV2d"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_fsub_w
+    .param_str = "V4fV4fV4f"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_fsueq_d
+    .param_str = "V2LLiV2dV2d"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_fsueq_w
+    .param_str = "V4iV4fV4f"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_fsule_d
+    .param_str = "V2LLiV2dV2d"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_fsule_w
+    .param_str = "V4iV4fV4f"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_fsult_d
+    .param_str = "V2LLiV2dV2d"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_fsult_w
+    .param_str = "V4iV4fV4f"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_fsun_d
+    .param_str = "V2LLiV2dV2d"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_fsun_w
+    .param_str = "V4iV4fV4f"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_fsune_d
+    .param_str = "V2LLiV2dV2d"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_fsune_w
+    .param_str = "V4iV4fV4f"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_ftint_s_d
+    .param_str = "V2SLLiV2d"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_ftint_s_w
+    .param_str = "V4SiV4f"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_ftint_u_d
+    .param_str = "V2ULLiV2d"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_ftint_u_w
+    .param_str = "V4UiV4f"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_ftq_h
+    .param_str = "V4UiV4fV4f"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_ftq_w
+    .param_str = "V2ULLiV2dV2d"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_ftrunc_s_d
+    .param_str = "V2SLLiV2d"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_ftrunc_s_w
+    .param_str = "V4SiV4f"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_ftrunc_u_d
+    .param_str = "V2ULLiV2d"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_ftrunc_u_w
+    .param_str = "V4UiV4f"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_hadd_s_d
+    .param_str = "V2SLLiV4SiV4Si"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_hadd_s_h
+    .param_str = "V8SsV16ScV16Sc"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_hadd_s_w
+    .param_str = "V4SiV8SsV8Ss"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_hadd_u_d
+    .param_str = "V2ULLiV4UiV4Ui"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_hadd_u_h
+    .param_str = "V8UsV16UcV16Uc"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_hadd_u_w
+    .param_str = "V4UiV8UsV8Us"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_hsub_s_d
+    .param_str = "V2SLLiV4SiV4Si"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_hsub_s_h
+    .param_str = "V8SsV16ScV16Sc"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_hsub_s_w
+    .param_str = "V4SiV8SsV8Ss"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_hsub_u_d
+    .param_str = "V2ULLiV4UiV4Ui"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_hsub_u_h
+    .param_str = "V8UsV16UcV16Uc"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_hsub_u_w
+    .param_str = "V4UiV8UsV8Us"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_ilvev_b
+    .param_str = "V16cV16cV16c"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_ilvev_d
+    .param_str = "V2LLiV2LLiV2LLi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_ilvev_h
+    .param_str = "V8sV8sV8s"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_ilvev_w
+    .param_str = "V4iV4iV4i"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_ilvl_b
+    .param_str = "V16cV16cV16c"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_ilvl_d
+    .param_str = "V2LLiV2LLiV2LLi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_ilvl_h
+    .param_str = "V8sV8sV8s"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_ilvl_w
+    .param_str = "V4iV4iV4i"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_ilvod_b
+    .param_str = "V16cV16cV16c"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_ilvod_d
+    .param_str = "V2LLiV2LLiV2LLi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_ilvod_h
+    .param_str = "V8sV8sV8s"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_ilvod_w
+    .param_str = "V4iV4iV4i"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_ilvr_b
+    .param_str = "V16cV16cV16c"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_ilvr_d
+    .param_str = "V2LLiV2LLiV2LLi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_ilvr_h
+    .param_str = "V8sV8sV8s"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_ilvr_w
+    .param_str = "V4iV4iV4i"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_insert_b
+    .param_str = "V16ScV16ScIUii"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_insert_d
+    .param_str = "V2SLLiV2SLLiIUiLLi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_insert_h
+    .param_str = "V8SsV8SsIUii"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_insert_w
+    .param_str = "V4SiV4SiIUii"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_insve_b
+    .param_str = "V16ScV16ScIUiV16Sc"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_insve_d
+    .param_str = "V2SLLiV2SLLiIUiV2SLLi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_insve_h
+    .param_str = "V8SsV8SsIUiV8Ss"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_insve_w
+    .param_str = "V4SiV4SiIUiV4Si"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_ld_b
+    .param_str = "V16Scv*Ii"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_ld_d
+    .param_str = "V2SLLiv*Ii"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_ld_h
+    .param_str = "V8Ssv*Ii"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_ld_w
+    .param_str = "V4Siv*Ii"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_ldi_b
+    .param_str = "V16cIi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_ldi_d
+    .param_str = "V2LLiIi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_ldi_h
+    .param_str = "V8sIi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_ldi_w
+    .param_str = "V4iIi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_ldr_d
+    .param_str = "V2SLLiv*Ii"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_ldr_w
+    .param_str = "V4Siv*Ii"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_madd_q_h
+    .param_str = "V8SsV8SsV8SsV8Ss"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_madd_q_w
+    .param_str = "V4SiV4SiV4SiV4Si"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_maddr_q_h
+    .param_str = "V8SsV8SsV8SsV8Ss"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_maddr_q_w
+    .param_str = "V4SiV4SiV4SiV4Si"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_maddv_b
+    .param_str = "V16ScV16ScV16ScV16Sc"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_maddv_d
+    .param_str = "V2SLLiV2SLLiV2SLLiV2SLLi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_maddv_h
+    .param_str = "V8SsV8SsV8SsV8Ss"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_maddv_w
+    .param_str = "V4SiV4SiV4SiV4Si"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_max_a_b
+    .param_str = "V16ScV16ScV16Sc"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_max_a_d
+    .param_str = "V2SLLiV2SLLiV2SLLi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_max_a_h
+    .param_str = "V8SsV8SsV8Ss"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_max_a_w
+    .param_str = "V4SiV4SiV4Si"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_max_s_b
+    .param_str = "V16ScV16ScV16Sc"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_max_s_d
+    .param_str = "V2SLLiV2SLLiV2SLLi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_max_s_h
+    .param_str = "V8SsV8SsV8Ss"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_max_s_w
+    .param_str = "V4SiV4SiV4Si"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_max_u_b
+    .param_str = "V16UcV16UcV16Uc"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_max_u_d
+    .param_str = "V2ULLiV2ULLiV2ULLi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_max_u_h
+    .param_str = "V8UsV8UsV8Us"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_max_u_w
+    .param_str = "V4UiV4UiV4Ui"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_maxi_s_b
+    .param_str = "V16ScV16ScIi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_maxi_s_d
+    .param_str = "V2SLLiV2SLLiIi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_maxi_s_h
+    .param_str = "V8SsV8SsIi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_maxi_s_w
+    .param_str = "V4SiV4SiIi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_maxi_u_b
+    .param_str = "V16UcV16UcIi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_maxi_u_d
+    .param_str = "V2ULLiV2ULLiIi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_maxi_u_h
+    .param_str = "V8UsV8UsIi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_maxi_u_w
+    .param_str = "V4UiV4UiIi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_min_a_b
+    .param_str = "V16ScV16ScV16Sc"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_min_a_d
+    .param_str = "V2SLLiV2SLLiV2SLLi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_min_a_h
+    .param_str = "V8SsV8SsV8Ss"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_min_a_w
+    .param_str = "V4SiV4SiV4Si"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_min_s_b
+    .param_str = "V16ScV16ScV16Sc"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_min_s_d
+    .param_str = "V2SLLiV2SLLiV2SLLi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_min_s_h
+    .param_str = "V8SsV8SsV8Ss"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_min_s_w
+    .param_str = "V4SiV4SiV4Si"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_min_u_b
+    .param_str = "V16UcV16UcV16Uc"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_min_u_d
+    .param_str = "V2ULLiV2ULLiV2ULLi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_min_u_h
+    .param_str = "V8UsV8UsV8Us"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_min_u_w
+    .param_str = "V4UiV4UiV4Ui"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_mini_s_b
+    .param_str = "V16ScV16ScIi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_mini_s_d
+    .param_str = "V2SLLiV2SLLiIi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_mini_s_h
+    .param_str = "V8SsV8SsIi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_mini_s_w
+    .param_str = "V4SiV4SiIi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_mini_u_b
+    .param_str = "V16UcV16UcIi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_mini_u_d
+    .param_str = "V2ULLiV2ULLiIi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_mini_u_h
+    .param_str = "V8UsV8UsIi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_mini_u_w
+    .param_str = "V4UiV4UiIi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_mod_s_b
+    .param_str = "V16ScV16ScV16Sc"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_mod_s_d
+    .param_str = "V2SLLiV2SLLiV2SLLi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_mod_s_h
+    .param_str = "V8SsV8SsV8Ss"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_mod_s_w
+    .param_str = "V4SiV4SiV4Si"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_mod_u_b
+    .param_str = "V16UcV16UcV16Uc"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_mod_u_d
+    .param_str = "V2ULLiV2ULLiV2ULLi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_mod_u_h
+    .param_str = "V8UsV8UsV8Us"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_mod_u_w
+    .param_str = "V4UiV4UiV4Ui"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_move_v
+    .param_str = "V16ScV16Sc"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_msub_q_h
+    .param_str = "V8SsV8SsV8SsV8Ss"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_msub_q_w
+    .param_str = "V4SiV4SiV4SiV4Si"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_msubr_q_h
+    .param_str = "V8SsV8SsV8SsV8Ss"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_msubr_q_w
+    .param_str = "V4SiV4SiV4SiV4Si"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_msubv_b
+    .param_str = "V16ScV16ScV16ScV16Sc"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_msubv_d
+    .param_str = "V2SLLiV2SLLiV2SLLiV2SLLi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_msubv_h
+    .param_str = "V8SsV8SsV8SsV8Ss"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_msubv_w
+    .param_str = "V4SiV4SiV4SiV4Si"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_mul_q_h
+    .param_str = "V8SsV8SsV8Ss"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_mul_q_w
+    .param_str = "V4SiV4SiV4Si"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_mulr_q_h
+    .param_str = "V8SsV8SsV8Ss"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_mulr_q_w
+    .param_str = "V4SiV4SiV4Si"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_mulv_b
+    .param_str = "V16ScV16ScV16Sc"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_mulv_d
+    .param_str = "V2SLLiV2SLLiV2SLLi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_mulv_h
+    .param_str = "V8SsV8SsV8Ss"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_mulv_w
+    .param_str = "V4SiV4SiV4Si"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_nloc_b
+    .param_str = "V16ScV16Sc"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_nloc_d
+    .param_str = "V2SLLiV2SLLi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_nloc_h
+    .param_str = "V8SsV8Ss"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_nloc_w
+    .param_str = "V4SiV4Si"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_nlzc_b
+    .param_str = "V16ScV16Sc"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_nlzc_d
+    .param_str = "V2SLLiV2SLLi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_nlzc_h
+    .param_str = "V8SsV8Ss"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_nlzc_w
+    .param_str = "V4SiV4Si"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_nor_v
+    .param_str = "V16UcV16UcV16Uc"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_nori_b
+    .param_str = "V16UcV16cIUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_or_v
+    .param_str = "V16UcV16UcV16Uc"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_ori_b
+    .param_str = "V16UcV16UcIUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_pckev_b
+    .param_str = "V16cV16cV16c"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_pckev_d
+    .param_str = "V2LLiV2LLiV2LLi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_pckev_h
+    .param_str = "V8sV8sV8s"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_pckev_w
+    .param_str = "V4iV4iV4i"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_pckod_b
+    .param_str = "V16cV16cV16c"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_pckod_d
+    .param_str = "V2LLiV2LLiV2LLi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_pckod_h
+    .param_str = "V8sV8sV8s"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_pckod_w
+    .param_str = "V4iV4iV4i"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_pcnt_b
+    .param_str = "V16ScV16Sc"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_pcnt_d
+    .param_str = "V2SLLiV2SLLi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_pcnt_h
+    .param_str = "V8SsV8Ss"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_pcnt_w
+    .param_str = "V4SiV4Si"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_sat_s_b
+    .param_str = "V16ScV16ScIUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_sat_s_d
+    .param_str = "V2SLLiV2SLLiIUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_sat_s_h
+    .param_str = "V8SsV8SsIUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_sat_s_w
+    .param_str = "V4SiV4SiIUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_sat_u_b
+    .param_str = "V16UcV16UcIUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_sat_u_d
+    .param_str = "V2ULLiV2ULLiIUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_sat_u_h
+    .param_str = "V8UsV8UsIUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_sat_u_w
+    .param_str = "V4UiV4UiIUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_shf_b
+    .param_str = "V16cV16cIUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_shf_h
+    .param_str = "V8sV8sIUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_shf_w
+    .param_str = "V4iV4iIUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_sld_b
+    .param_str = "V16cV16cV16cUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_sld_d
+    .param_str = "V2LLiV2LLiV2LLiUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_sld_h
+    .param_str = "V8sV8sV8sUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_sld_w
+    .param_str = "V4iV4iV4iUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_sldi_b
+    .param_str = "V16cV16cV16cIUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_sldi_d
+    .param_str = "V2LLiV2LLiV2LLiIUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_sldi_h
+    .param_str = "V8sV8sV8sIUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_sldi_w
+    .param_str = "V4iV4iV4iIUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_sll_b
+    .param_str = "V16cV16cV16c"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_sll_d
+    .param_str = "V2LLiV2LLiV2LLi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_sll_h
+    .param_str = "V8sV8sV8s"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_sll_w
+    .param_str = "V4iV4iV4i"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_slli_b
+    .param_str = "V16cV16cIUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_slli_d
+    .param_str = "V2LLiV2LLiIUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_slli_h
+    .param_str = "V8sV8sIUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_slli_w
+    .param_str = "V4iV4iIUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_splat_b
+    .param_str = "V16cV16cUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_splat_d
+    .param_str = "V2LLiV2LLiUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_splat_h
+    .param_str = "V8sV8sUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_splat_w
+    .param_str = "V4iV4iUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_splati_b
+    .param_str = "V16cV16cIUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_splati_d
+    .param_str = "V2LLiV2LLiIUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_splati_h
+    .param_str = "V8sV8sIUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_splati_w
+    .param_str = "V4iV4iIUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_sra_b
+    .param_str = "V16cV16cV16c"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_sra_d
+    .param_str = "V2LLiV2LLiV2LLi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_sra_h
+    .param_str = "V8sV8sV8s"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_sra_w
+    .param_str = "V4iV4iV4i"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_srai_b
+    .param_str = "V16cV16cIUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_srai_d
+    .param_str = "V2LLiV2LLiIUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_srai_h
+    .param_str = "V8sV8sIUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_srai_w
+    .param_str = "V4iV4iIUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_srar_b
+    .param_str = "V16cV16cV16c"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_srar_d
+    .param_str = "V2LLiV2LLiV2LLi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_srar_h
+    .param_str = "V8sV8sV8s"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_srar_w
+    .param_str = "V4iV4iV4i"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_srari_b
+    .param_str = "V16cV16cIUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_srari_d
+    .param_str = "V2LLiV2LLiIUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_srari_h
+    .param_str = "V8sV8sIUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_srari_w
+    .param_str = "V4iV4iIUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_srl_b
+    .param_str = "V16cV16cV16c"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_srl_d
+    .param_str = "V2LLiV2LLiV2LLi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_srl_h
+    .param_str = "V8sV8sV8s"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_srl_w
+    .param_str = "V4iV4iV4i"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_srli_b
+    .param_str = "V16cV16cIUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_srli_d
+    .param_str = "V2LLiV2LLiIUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_srli_h
+    .param_str = "V8sV8sIUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_srli_w
+    .param_str = "V4iV4iIUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_srlr_b
+    .param_str = "V16cV16cV16c"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_srlr_d
+    .param_str = "V2LLiV2LLiV2LLi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_srlr_h
+    .param_str = "V8sV8sV8s"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_srlr_w
+    .param_str = "V4iV4iV4i"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_srlri_b
+    .param_str = "V16cV16cIUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_srlri_d
+    .param_str = "V2LLiV2LLiIUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_srlri_h
+    .param_str = "V8sV8sIUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_srlri_w
+    .param_str = "V4iV4iIUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_st_b
+    .param_str = "vV16Scv*Ii"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_st_d
+    .param_str = "vV2SLLiv*Ii"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_st_h
+    .param_str = "vV8Ssv*Ii"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_st_w
+    .param_str = "vV4Siv*Ii"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_str_d
+    .param_str = "vV2SLLiv*Ii"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_str_w
+    .param_str = "vV4Siv*Ii"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_subs_s_b
+    .param_str = "V16ScV16ScV16Sc"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_subs_s_d
+    .param_str = "V2SLLiV2SLLiV2SLLi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_subs_s_h
+    .param_str = "V8SsV8SsV8Ss"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_subs_s_w
+    .param_str = "V4SiV4SiV4Si"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_subs_u_b
+    .param_str = "V16UcV16UcV16Uc"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_subs_u_d
+    .param_str = "V2ULLiV2ULLiV2ULLi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_subs_u_h
+    .param_str = "V8UsV8UsV8Us"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_subs_u_w
+    .param_str = "V4UiV4UiV4Ui"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_subsus_u_b
+    .param_str = "V16UcV16UcV16Sc"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_subsus_u_d
+    .param_str = "V2ULLiV2ULLiV2SLLi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_subsus_u_h
+    .param_str = "V8UsV8UsV8Ss"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_subsus_u_w
+    .param_str = "V4UiV4UiV4Si"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_subsuu_s_b
+    .param_str = "V16ScV16UcV16Uc"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_subsuu_s_d
+    .param_str = "V2SLLiV2ULLiV2ULLi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_subsuu_s_h
+    .param_str = "V8SsV8UsV8Us"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_subsuu_s_w
+    .param_str = "V4SiV4UiV4Ui"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_subv_b
+    .param_str = "V16cV16cV16c"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_subv_d
+    .param_str = "V2LLiV2LLiV2LLi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_subv_h
+    .param_str = "V8sV8sV8s"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_subv_w
+    .param_str = "V4iV4iV4i"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_subvi_b
+    .param_str = "V16cV16cIUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_subvi_d
+    .param_str = "V2LLiV2LLiIUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_subvi_h
+    .param_str = "V8sV8sIUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_subvi_w
+    .param_str = "V4iV4iIUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_vshf_b
+    .param_str = "V16cV16cV16cV16c"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_vshf_d
+    .param_str = "V2LLiV2LLiV2LLiV2LLi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_vshf_h
+    .param_str = "V8sV8sV8sV8s"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_vshf_w
+    .param_str = "V4iV4iV4iV4i"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_xor_v
+    .param_str = "V16cV16cV16c"
+    .attributes = .{ .@"const" = true }
+
+__builtin_msa_xori_b
+    .param_str = "V16cV16cIUi"
+    .attributes = .{ .@"const" = true }
