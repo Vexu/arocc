@@ -213,6 +213,7 @@ pub const usage =
     \\  --embed-dir=<dir>       Add directory to `#embed` search path
     \\  --emulate=[clang|gcc|msvc]
     \\                          Select which C compiler to emulate (default clang)
+    \\  --vendor=<vendor>       Specify vendor component of LLVM-style target triple
     \\  -mabicalls              Enable SVR4-style position-independent code (Mips only)
     \\  -mno-abicalls           Disable SVR4-style position-independent code (Mips only)
     \\  -mcmodel=<code-model>   Generate code for the given code model
@@ -645,6 +646,11 @@ pub fn parseArgs(
             } else if (option(arg, "--target=")) |triple| {
                 d.raw_target_triple = triple;
                 emulate = null;
+            } else if (option(arg, "--vendor=")) |vendor| {
+                d.comp.vendor = Compilation.Vendor.parse(vendor) orelse blk: {
+                    try d.warn("unrecognized vendor: '{s}'", .{vendor});
+                    break :blk .unknown;
+                };
             } else if (mem.eql(u8, arg, "--verbose-ast")) {
                 d.verbose_ast = true;
             } else if (mem.eql(u8, arg, "--verbose-pp")) {

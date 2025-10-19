@@ -144,6 +144,7 @@ system_framework_dirs: std.ArrayList([]const u8) = .empty,
 /// Allocated into `gpa`, but keys are externally managed.
 embed_dirs: std.ArrayList([]const u8) = .empty,
 target: std.Target = @import("builtin").target,
+vendor: Vendor = .unknown,
 cmodel: std.builtin.CodeModel = .default,
 pragma_handlers: std.StringArrayHashMapUnmanaged(*Pragma) = .empty,
 langopts: LangOpts = .{},
@@ -2077,6 +2078,47 @@ pub const CharUnitSize = enum(u32) {
             .@"2" => u16,
             .@"4" => u32,
         };
+    }
+};
+
+pub const Vendor = enum {
+    apple,
+    pc,
+    scei,
+    sie,
+    freescale,
+    ibm,
+    imagination_technologies,
+    mips,
+    nvidia,
+    csr,
+    amd,
+    mesa,
+    suse,
+    open_embedded,
+    intel,
+    unknown,
+
+    const vendor_strings = std.StaticStringMap(Vendor).initComptime(.{
+        .{ "apple", .apple },
+        .{ "pc", .pc },
+        .{ "scei", .scei },
+        .{ "sie", .scei },
+        .{ "fsl", .freescale },
+        .{ "ibm", .ibm },
+        .{ "img", .imagination_technologies },
+        .{ "mti", .mips },
+        .{ "nvidia", .nvidia },
+        .{ "csr", .csr },
+        .{ "amd", .amd },
+        .{ "mesa", .mesa },
+        .{ "suse", .suse },
+        .{ "oe", .open_embedded },
+        .{ "intel", .intel },
+    });
+
+    pub fn parse(candidate: []const u8) ?Vendor {
+        return vendor_strings.get(candidate);
     }
 };
 
