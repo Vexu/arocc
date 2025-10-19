@@ -1,0 +1,823 @@
+# Generated from clang/include/clang/Basic/BuiltinsX86_64.td
+
+_BitScanForward64
+    .param_str = "UcUNi*ULLi"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_BitScanReverse64
+    .param_str = "UcUNi*ULLi"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedCompareExchange128
+    .param_str = "UcLLiD*LLiLLiLLi*"
+    .header = .intrin
+    .language = .all_ms_languages
+
+__faststorefence
+    .param_str = "v"
+    .header = .intrin
+    .language = .all_ms_languages
+
+__mulh
+    .param_str = "LLiLLiLLi"
+    .header = .intrin
+    .language = .all_ms_languages
+    .attributes = .{ .@"const" = true }
+
+__shiftleft128
+    .param_str = "ULLiULLiULLiUc"
+    .header = .intrin
+    .language = .all_ms_languages
+    .attributes = .{ .@"const" = true }
+
+__shiftright128
+    .param_str = "ULLiULLiULLiUc"
+    .header = .intrin
+    .language = .all_ms_languages
+    .attributes = .{ .@"const" = true }
+
+__umulh
+    .param_str = "ULLiULLiULLi"
+    .header = .intrin
+    .language = .all_ms_languages
+    .attributes = .{ .@"const" = true }
+
+_mul128
+    .param_str = "LLiLLiLLiLLi*"
+    .header = .intrin
+    .language = .all_ms_languages
+    .attributes = .{ .@"const" = true }
+
+_umul128
+    .param_str = "ULLiULLiULLiULLi*"
+    .header = .intrin
+    .language = .all_ms_languages
+    .attributes = .{ .@"const" = true }
+
+__builtin_ia32_aadd64
+    .param_str = "vv*SOi"
+    .features = "raoint"
+
+__builtin_ia32_aand64
+    .param_str = "vv*SOi"
+    .features = "raoint"
+
+__builtin_ia32_addcarryx_u64
+    .param_str = "UcUcUOiUOiUOi*"
+    .attributes = .{ .const_evaluable = true }
+
+__builtin_ia32_aor64
+    .param_str = "vv*SOi"
+    .features = "raoint"
+
+__builtin_ia32_axor64
+    .param_str = "vv*SOi"
+    .features = "raoint"
+
+__builtin_ia32_bextr_u64
+    .param_str = "UOiUOiUOi"
+    .features = "bmi"
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
+
+__builtin_ia32_bextri_u64
+    .param_str = "UOiUOiIUOi"
+    .features = "tbm"
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
+
+__builtin_ia32_bzhi_di
+    .param_str = "UOiUOiUOi"
+    .features = "bmi2"
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
+
+__builtin_ia32_clui
+    .param_str = "v"
+    .features = "uintr"
+
+__builtin_ia32_cmpccxadd32
+    .param_str = "Siv*SiSiIi"
+    .features = "cmpccxadd"
+
+__builtin_ia32_cmpccxadd64
+    .param_str = "SOiSOi*SOiSOiIi"
+    .features = "cmpccxadd"
+
+__builtin_ia32_crc32di
+    .param_str = "UOiUOiUOi"
+    .features = "crc32"
+    .attributes = .{ .@"const" = true }
+
+__builtin_ia32_cvtsd2si64
+    .param_str = "OiV2d"
+    .features = "sse2"
+    .attributes = .{ .@"const" = true }
+
+__builtin_ia32_cvtsi2sd64
+    .param_str = "V2dV2dOiIi"
+    .features = "avx512f"
+    .attributes = .{ .@"const" = true }
+
+__builtin_ia32_cvtsi2ss64
+    .param_str = "V4fV4fOiIi"
+    .features = "avx512f"
+    .attributes = .{ .@"const" = true }
+
+__builtin_ia32_cvtss2si64
+    .param_str = "OiV4f"
+    .features = "sse"
+    .attributes = .{ .@"const" = true }
+
+__builtin_ia32_cvttsd2si64
+    .param_str = "OiV2d"
+    .features = "sse2"
+    .attributes = .{ .@"const" = true }
+
+__builtin_ia32_cvttss2si64
+    .param_str = "OiV4f"
+    .features = "sse"
+    .attributes = .{ .@"const" = true }
+
+__builtin_ia32_cvtusi2sd64
+    .param_str = "V2dV2dUOiIi"
+    .features = "avx512f"
+    .attributes = .{ .@"const" = true }
+
+__builtin_ia32_cvtusi2ss64
+    .param_str = "V4fV4fUOiIi"
+    .features = "avx512f"
+    .attributes = .{ .@"const" = true }
+
+__builtin_ia32_directstore_u64
+    .param_str = "vULi*ULi"
+    .features = "movdiri"
+
+__builtin_ia32_fxrstor64
+    .param_str = "vv*"
+    .features = "fxsr"
+
+__builtin_ia32_fxsave64
+    .param_str = "vv*"
+    .features = "fxsr"
+
+__builtin_ia32_incsspq
+    .param_str = "vUOi"
+    .features = "shstk"
+
+__builtin_ia32_lwpins64
+    .param_str = "UcUOiUiIUi"
+    .features = "lwp"
+
+__builtin_ia32_lwpval64
+    .param_str = "vUOiUiIUi"
+    .features = "lwp"
+
+__builtin_ia32_lzcnt_u64
+    .param_str = "UOiUOi"
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
+
+__builtin_ia32_movnti64
+    .param_str = "vOi*Oi"
+    .features = "sse2"
+
+__builtin_ia32_movrsdi
+    .param_str = "SOivC*"
+    .features = "movrs"
+
+__builtin_ia32_movrshi
+    .param_str = "SsvC*"
+    .features = "movrs"
+
+__builtin_ia32_movrsqi
+    .param_str = "ScvC*"
+    .features = "movrs"
+
+__builtin_ia32_movrssi
+    .param_str = "SivC*"
+    .features = "movrs"
+
+__builtin_ia32_pdep_di
+    .param_str = "UOiUOiUOi"
+    .features = "bmi2"
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
+
+__builtin_ia32_pext_di
+    .param_str = "UOiUOiUOi"
+    .features = "bmi2"
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
+
+__builtin_ia32_prefetchi
+    .param_str = "vvC*Ui"
+    .features = "prefetchi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_ia32_ptwrite64
+    .param_str = "vUOi"
+    .features = "ptwrite"
+
+__builtin_ia32_rdfsbase32
+    .param_str = "Ui"
+    .features = "fsgsbase"
+
+__builtin_ia32_rdfsbase64
+    .param_str = "UOi"
+    .features = "fsgsbase"
+
+__builtin_ia32_rdgsbase32
+    .param_str = "Ui"
+    .features = "fsgsbase"
+
+__builtin_ia32_rdgsbase64
+    .param_str = "UOi"
+    .features = "fsgsbase"
+
+__builtin_ia32_rdrand64_step
+    .param_str = "UiUOi*"
+    .features = "rdrnd"
+
+__builtin_ia32_rdseed64_step
+    .param_str = "UiUOi*"
+    .features = "rdseed"
+
+__builtin_ia32_rdsspq
+    .param_str = "UOiUOi"
+    .features = "shstk"
+
+__builtin_ia32_readeflags_u64
+    .param_str = "UOi"
+
+__builtin_ia32_senduipi
+    .param_str = "vUWi"
+    .features = "uintr"
+
+__builtin_ia32_stui
+    .param_str = "v"
+    .features = "uintr"
+
+__builtin_ia32_subborrow_u64
+    .param_str = "UcUcUOiUOiUOi*"
+    .attributes = .{ .const_evaluable = true }
+
+__builtin_ia32_t2rpntlvwz0
+    .param_str = "vIUcvC*z"
+    .features = "amx_transpose"
+
+__builtin_ia32_t2rpntlvwz0_internal
+    .param_str = "vUsUsUsV256i*V256i*vC*z"
+    .features = "amx_transpose"
+
+__builtin_ia32_t2rpntlvwz0rs
+    .param_str = "vIUcvC*z"
+    .features = "amx_movrs,amx_transpose"
+
+__builtin_ia32_t2rpntlvwz0rs_internal
+    .param_str = "vUsUsUsV256i*V256i*vC*z"
+    .features = "amx_movrs,amx_transpose"
+
+__builtin_ia32_t2rpntlvwz0rst1
+    .param_str = "vIUcvC*z"
+    .features = "amx_movrs,amx_transpose"
+
+__builtin_ia32_t2rpntlvwz0rst1_internal
+    .param_str = "vUsUsUsV256i*V256i*vC*z"
+    .features = "amx_movrs,amx_transpose"
+
+__builtin_ia32_t2rpntlvwz0t1
+    .param_str = "vIUcvC*z"
+    .features = "amx_transpose"
+
+__builtin_ia32_t2rpntlvwz0t1_internal
+    .param_str = "vUsUsUsV256i*V256i*vC*z"
+    .features = "amx_transpose"
+
+__builtin_ia32_t2rpntlvwz1
+    .param_str = "vIUcvC*z"
+    .features = "amx_transpose"
+
+__builtin_ia32_t2rpntlvwz1_internal
+    .param_str = "vUsUsUsV256i*V256i*vC*z"
+    .features = "amx_transpose"
+
+__builtin_ia32_t2rpntlvwz1rs
+    .param_str = "vIUcvC*z"
+    .features = "amx_movrs,amx_transpose"
+
+__builtin_ia32_t2rpntlvwz1rs_internal
+    .param_str = "vUsUsUsV256i*V256i*vC*z"
+    .features = "amx_movrs,amx_transpose"
+
+__builtin_ia32_t2rpntlvwz1rst1
+    .param_str = "vIUcvC*z"
+    .features = "amx_movrs,amx_transpose"
+
+__builtin_ia32_t2rpntlvwz1rst1_internal
+    .param_str = "vUsUsUsV256i*V256i*vC*z"
+    .features = "amx_movrs,amx_transpose"
+
+__builtin_ia32_t2rpntlvwz1t1
+    .param_str = "vIUcvC*z"
+    .features = "amx_transpose"
+
+__builtin_ia32_t2rpntlvwz1t1_internal
+    .param_str = "vUsUsUsV256i*V256i*vC*z"
+    .features = "amx_transpose"
+
+__builtin_ia32_tcmmimfp16ps
+    .param_str = "vIUcIUcIUc"
+    .features = "amx_complex"
+
+__builtin_ia32_tcmmimfp16ps_internal
+    .param_str = "V256iUsUsUsV256iV256iV256i"
+    .features = "amx_complex"
+
+__builtin_ia32_tcmmrlfp16ps
+    .param_str = "vIUcIUcIUc"
+    .features = "amx_complex"
+
+__builtin_ia32_tcmmrlfp16ps_internal
+    .param_str = "V256iUsUsUsV256iV256iV256i"
+    .features = "amx_complex"
+
+__builtin_ia32_tconjtcmmimfp16ps
+    .param_str = "vIUcIUcIUc"
+    .features = "amx_complex,amx_transpose"
+
+__builtin_ia32_tconjtcmmimfp16ps_internal
+    .param_str = "V256iUsUsUsV256iV256iV256i"
+    .features = "amx_complex,amx_transpose"
+
+__builtin_ia32_tconjtfp16
+    .param_str = "vIUcIUc"
+    .features = "amx_complex,amx_transpose"
+
+__builtin_ia32_tconjtfp16_internal
+    .param_str = "V256iUsUsV256i"
+    .features = "amx_complex,amx_transpose"
+
+__builtin_ia32_tcvtrowd2ps
+    .param_str = "V16fIUcUi"
+    .features = "amx_avx512,avx10_2"
+
+__builtin_ia32_tcvtrowd2ps_internal
+    .param_str = "V16fUsUsV256iUi"
+    .features = "amx_avx512,avx10_2"
+
+__builtin_ia32_tcvtrowps2bf16h
+    .param_str = "V32yIUcUi"
+    .features = "amx_avx512,avx10_2"
+
+__builtin_ia32_tcvtrowps2bf16h_internal
+    .param_str = "V32yUsUsV256iUi"
+    .features = "amx_avx512,avx10_2"
+
+__builtin_ia32_tcvtrowps2bf16l
+    .param_str = "V32yIUcUi"
+    .features = "amx_avx512,avx10_2"
+
+__builtin_ia32_tcvtrowps2bf16l_internal
+    .param_str = "V32yUsUsV256iUi"
+    .features = "amx_avx512,avx10_2"
+
+__builtin_ia32_tcvtrowps2phh
+    .param_str = "V32xIUcUi"
+    .features = "amx_avx512,avx10_2"
+
+__builtin_ia32_tcvtrowps2phh_internal
+    .param_str = "V32xUsUsV256iUi"
+    .features = "amx_avx512,avx10_2"
+
+__builtin_ia32_tcvtrowps2phl
+    .param_str = "V32xIUcUi"
+    .features = "amx_avx512,avx10_2"
+
+__builtin_ia32_tcvtrowps2phl_internal
+    .param_str = "V32xUsUsV256iUi"
+    .features = "amx_avx512,avx10_2"
+
+__builtin_ia32_tdpbf8ps
+    .param_str = "vIUcUIcUIc"
+    .features = "amx_fp8"
+
+__builtin_ia32_tdpbf8ps_internal
+    .param_str = "V256iUsUsUsV256iV256iV256i"
+    .features = "amx_fp8"
+
+__builtin_ia32_tdpbf16ps
+    .param_str = "vIUcIUcIUc"
+    .features = "amx_bf16"
+
+__builtin_ia32_tdpbf16ps_internal
+    .param_str = "V256iUsUsUsV256iV256iV256i"
+    .features = "amx_bf16"
+
+__builtin_ia32_tdpbhf8ps
+    .param_str = "vIUcUIcUIc"
+    .features = "amx_fp8"
+
+__builtin_ia32_tdpbhf8ps_internal
+    .param_str = "V256iUsUsUsV256iV256iV256i"
+    .features = "amx_fp8"
+
+__builtin_ia32_tdpbssd
+    .param_str = "vIUcIUcIUc"
+    .features = "amx_int8"
+
+__builtin_ia32_tdpbssd_internal
+    .param_str = "V256iUsUsUsV256iV256iV256i"
+    .features = "amx_int8"
+
+__builtin_ia32_tdpbsud
+    .param_str = "vIUcIUcIUc"
+    .features = "amx_int8"
+
+__builtin_ia32_tdpbsud_internal
+    .param_str = "V256iUsUsUsV256iV256iV256i"
+    .features = "amx_int8"
+
+__builtin_ia32_tdpbusd
+    .param_str = "vIUcIUcIUc"
+    .features = "amx_int8"
+
+__builtin_ia32_tdpbusd_internal
+    .param_str = "V256iUsUsUsV256iV256iV256i"
+    .features = "amx_int8"
+
+__builtin_ia32_tdpbuud
+    .param_str = "vIUcIUcIUc"
+    .features = "amx_int8"
+
+__builtin_ia32_tdpbuud_internal
+    .param_str = "V256iUsUsUsV256iV256iV256i"
+    .features = "amx_int8"
+
+__builtin_ia32_tdpfp16ps
+    .param_str = "vIUcIUcIUc"
+    .features = "amx_fp16"
+
+__builtin_ia32_tdpfp16ps_internal
+    .param_str = "V256iUsUsUsV256iV256iV256i"
+    .features = "amx_fp16"
+
+__builtin_ia32_tdphbf8ps
+    .param_str = "vIUcUIcUIc"
+    .features = "amx_fp8"
+
+__builtin_ia32_tdphbf8ps_internal
+    .param_str = "V256iUsUsUsV256iV256iV256i"
+    .features = "amx_fp8"
+
+__builtin_ia32_tdphf8ps
+    .param_str = "vIUcUIcUIc"
+    .features = "amx_fp8"
+
+__builtin_ia32_tdphf8ps_internal
+    .param_str = "V256iUsUsUsV256iV256iV256i"
+    .features = "amx_fp8"
+
+__builtin_ia32_testui
+    .param_str = "Uc"
+    .features = "uintr"
+
+__builtin_ia32_tile_loadconfig
+    .param_str = "vvC*"
+    .features = "amx_tile"
+
+__builtin_ia32_tile_loadconfig_internal
+    .param_str = "vvC*"
+    .features = "amx_tile"
+
+__builtin_ia32_tile_storeconfig
+    .param_str = "vvC*"
+    .features = "amx_tile"
+
+__builtin_ia32_tileloadd64
+    .param_str = "vIUcvC*z"
+    .features = "amx_tile"
+
+__builtin_ia32_tileloadd64_internal
+    .param_str = "V256iUsUsvC*z"
+    .features = "amx_tile"
+
+__builtin_ia32_tileloaddrs64
+    .param_str = "vIUcvC*z"
+    .features = "amx_movrs"
+
+__builtin_ia32_tileloaddrs64_internal
+    .param_str = "V256iUsUsvC*z"
+    .features = "amx_movrs"
+
+__builtin_ia32_tileloaddrst164
+    .param_str = "vIUcvC*z"
+    .features = "amx_movrs"
+
+__builtin_ia32_tileloaddrst164_internal
+    .param_str = "V256iUsUsvC*z"
+    .features = "amx_movrs"
+
+__builtin_ia32_tileloaddt164
+    .param_str = "vIUcvC*z"
+    .features = "amx_tile"
+
+__builtin_ia32_tileloaddt164_internal
+    .param_str = "V256iUsUsvC*z"
+    .features = "amx_tile"
+
+__builtin_ia32_tilemovrow
+    .param_str = "V16iIUcUi"
+    .features = "amx_avx512,avx10_2"
+
+__builtin_ia32_tilemovrow_internal
+    .param_str = "V16iUsUsV256iUi"
+    .features = "amx_avx512,avx10_2"
+
+__builtin_ia32_tilerelease
+    .param_str = "v"
+    .features = "amx_tile"
+
+__builtin_ia32_tilestored64
+    .param_str = "vIUcv*z"
+    .features = "amx_tile"
+
+__builtin_ia32_tilestored64_internal
+    .param_str = "vUsUsv*zV256i"
+    .features = "amx_tile"
+
+__builtin_ia32_tilezero
+    .param_str = "vUc"
+    .features = "amx_tile"
+
+__builtin_ia32_tilezero_internal
+    .param_str = "V256iUsUs"
+    .features = "amx_tile"
+
+__builtin_ia32_tmmultf32ps
+    .param_str = "vIUcIUcIUc"
+    .features = "amx_tf32"
+
+__builtin_ia32_tmmultf32ps_internal
+    .param_str = "V256iUsUsUsV256iV256iV256i"
+    .features = "amx_tf32"
+
+__builtin_ia32_ttcmmimfp16ps
+    .param_str = "vIUcIUcIUc"
+    .features = "amx_complex,amx_transpose"
+
+__builtin_ia32_ttcmmimfp16ps_internal
+    .param_str = "V256iUsUsUsV256iV256iV256i"
+    .features = "amx_complex,amx_transpose"
+
+__builtin_ia32_ttcmmrlfp16ps
+    .param_str = "vIUcIUcIUc"
+    .features = "amx_complex,amx_transpose"
+
+__builtin_ia32_ttcmmrlfp16ps_internal
+    .param_str = "V256iUsUsUsV256iV256iV256i"
+    .features = "amx_complex,amx_transpose"
+
+__builtin_ia32_ttdpbf16ps
+    .param_str = "vIUcIUcIUc"
+    .features = "amx_bf16,amx_transpose"
+
+__builtin_ia32_ttdpbf16ps_internal
+    .param_str = "V256iUsUsUsV256iV256iV256i"
+    .features = "amx_bf16,amx_transpose"
+
+__builtin_ia32_ttdpfp16ps
+    .param_str = "vIUcIUcIUc"
+    .features = "amx_fp16,amx_transpose"
+
+__builtin_ia32_ttdpfp16ps_internal
+    .param_str = "V256iUsUsUsV256iV256iV256i"
+    .features = "amx_fp16,amx_transpose"
+
+__builtin_ia32_ttmmultf32ps
+    .param_str = "vIUcIUcIUc"
+    .features = "amx_tf32,amx_transpose"
+
+__builtin_ia32_ttmmultf32ps_internal
+    .param_str = "V256iUsUsUsV256iV256iV256i"
+    .features = "amx_tf32,amx_transpose"
+
+__builtin_ia32_ttransposed
+    .param_str = "vIUcIUc"
+    .features = "amx_transpose"
+
+__builtin_ia32_ttransposed_internal
+    .param_str = "V256iUsUsV256i"
+    .features = "amx_transpose"
+
+__builtin_ia32_tzcnt_u64
+    .param_str = "UOiUOi"
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
+
+__builtin_ia32_urdmsr
+    .param_str = "UOiUOi"
+    .features = "usermsr"
+
+__builtin_ia32_uwrmsr
+    .param_str = "vUOiUOi"
+    .features = "usermsr"
+
+__builtin_ia32_vcvtsd2si64
+    .param_str = "OiV2dIi"
+    .features = "avx512f"
+    .attributes = .{ .@"const" = true }
+
+__builtin_ia32_vcvtsd2usi64
+    .param_str = "UOiV2dIi"
+    .features = "avx512f"
+    .attributes = .{ .@"const" = true }
+
+__builtin_ia32_vcvtsh2si64
+    .param_str = "OiV8xIi"
+    .features = "avx512fp16"
+    .attributes = .{ .@"const" = true }
+
+__builtin_ia32_vcvtsh2usi64
+    .param_str = "UOiV8xIi"
+    .features = "avx512fp16"
+    .attributes = .{ .@"const" = true }
+
+__builtin_ia32_vcvtsi642sh
+    .param_str = "V8xV8xOiIi"
+    .features = "avx512fp16"
+    .attributes = .{ .@"const" = true }
+
+__builtin_ia32_vcvtss2si64
+    .param_str = "OiV4fIi"
+    .features = "avx512f"
+    .attributes = .{ .@"const" = true }
+
+__builtin_ia32_vcvtss2usi64
+    .param_str = "UOiV4fIi"
+    .features = "avx512f"
+    .attributes = .{ .@"const" = true }
+
+__builtin_ia32_vcvttsd2si64
+    .param_str = "OiV2dIi"
+    .features = "avx512f"
+    .attributes = .{ .@"const" = true }
+
+__builtin_ia32_vcvttsd2sis64
+    .param_str = "OiV2dIi"
+    .features = "avx10_2"
+    .attributes = .{ .@"const" = true }
+
+__builtin_ia32_vcvttsd2usi64
+    .param_str = "UOiV2dIi"
+    .features = "avx512f"
+    .attributes = .{ .@"const" = true }
+
+__builtin_ia32_vcvttsd2usis64
+    .param_str = "UOiV2dIi"
+    .features = "avx10_2"
+    .attributes = .{ .@"const" = true }
+
+__builtin_ia32_vcvttsh2si64
+    .param_str = "OiV8xIi"
+    .features = "avx512fp16"
+    .attributes = .{ .@"const" = true }
+
+__builtin_ia32_vcvttsh2usi64
+    .param_str = "UOiV8xIi"
+    .features = "avx512fp16"
+    .attributes = .{ .@"const" = true }
+
+__builtin_ia32_vcvttss2si64
+    .param_str = "OiV4fIi"
+    .features = "avx512f"
+    .attributes = .{ .@"const" = true }
+
+__builtin_ia32_vcvttss2sis64
+    .param_str = "OiV4fIi"
+    .features = "avx10_2"
+    .attributes = .{ .@"const" = true }
+
+__builtin_ia32_vcvttss2usi64
+    .param_str = "UOiV4fIi"
+    .features = "avx512f"
+    .attributes = .{ .@"const" = true }
+
+__builtin_ia32_vcvttss2usis64
+    .param_str = "UOiV4fIi"
+    .features = "avx10_2"
+    .attributes = .{ .@"const" = true }
+
+__builtin_ia32_vcvtusi642sh
+    .param_str = "V8xV8xUOiIi"
+    .features = "avx512fp16"
+    .attributes = .{ .@"const" = true }
+
+__builtin_ia32_vec_ext_v4di
+    .param_str = "OiV4OiIi"
+    .features = "avx"
+    .attributes = .{ .@"const" = true }
+
+__builtin_ia32_vec_set_v2di
+    .param_str = "V2OiV2OiOiIi"
+    .features = "sse4_1"
+    .attributes = .{ .@"const" = true }
+
+__builtin_ia32_vec_set_v4di
+    .param_str = "V4OiV4OiOiIi"
+    .features = "avx"
+    .attributes = .{ .@"const" = true }
+
+__builtin_ia32_vmovrsb128
+    .param_str = "V16cV16cC*"
+    .features = "movrs,avx10_2"
+
+__builtin_ia32_vmovrsb256
+    .param_str = "V32cV32cC*"
+    .features = "movrs,avx10_2"
+
+__builtin_ia32_vmovrsb512
+    .param_str = "V64cV64cC*"
+    .features = "movrs,avx10_2"
+
+__builtin_ia32_vmovrsd128
+    .param_str = "V4iV4iC*"
+    .features = "movrs,avx10_2"
+
+__builtin_ia32_vmovrsd256
+    .param_str = "V8iV8iC*"
+    .features = "movrs,avx10_2"
+
+__builtin_ia32_vmovrsd512
+    .param_str = "V16iV16iC*"
+    .features = "movrs,avx10_2"
+
+__builtin_ia32_vmovrsq128
+    .param_str = "V2OiV2OiC*"
+    .features = "movrs,avx10_2"
+
+__builtin_ia32_vmovrsq256
+    .param_str = "V4OiV4OiC*"
+    .features = "movrs,avx10_2"
+
+__builtin_ia32_vmovrsq512
+    .param_str = "V8OiV8OiC*"
+    .features = "movrs,avx10_2"
+
+__builtin_ia32_vmovrsw128
+    .param_str = "V8sV8sC*"
+    .features = "movrs,avx10_2"
+
+__builtin_ia32_vmovrsw256
+    .param_str = "V16sV16sC*"
+    .features = "movrs,avx10_2"
+
+__builtin_ia32_vmovrsw512
+    .param_str = "V32sV32sC*"
+    .features = "movrs,avx10_2"
+
+__builtin_ia32_wrfsbase32
+    .param_str = "vUi"
+    .features = "fsgsbase"
+
+__builtin_ia32_wrfsbase64
+    .param_str = "vUOi"
+    .features = "fsgsbase"
+
+__builtin_ia32_wrgsbase32
+    .param_str = "vUi"
+    .features = "fsgsbase"
+
+__builtin_ia32_wrgsbase64
+    .param_str = "vUOi"
+    .features = "fsgsbase"
+
+__builtin_ia32_writeeflags_u64
+    .param_str = "vUOi"
+
+__builtin_ia32_wrssq
+    .param_str = "vUOiv*"
+    .features = "shstk"
+
+__builtin_ia32_wrussq
+    .param_str = "vUOiv*"
+    .features = "shstk"
+
+__builtin_ia32_xrstor64
+    .param_str = "vv*UOi"
+    .features = "xsave"
+
+__builtin_ia32_xrstors64
+    .param_str = "vv*UOi"
+    .features = "xsaves"
+
+__builtin_ia32_xsave64
+    .param_str = "vv*UOi"
+    .features = "xsave"
+
+__builtin_ia32_xsavec64
+    .param_str = "vv*UOi"
+    .features = "xsavec"
+
+__builtin_ia32_xsaveopt64
+    .param_str = "vv*UOi"
+    .features = "xsaveopt"
+
+__builtin_ia32_xsaves64
+    .param_str = "vv*UOi"
+    .features = "xsaves"

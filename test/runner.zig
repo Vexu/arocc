@@ -579,7 +579,7 @@ fn checkExpectedErrors(pp: *aro.Preprocessor, buf: *std.ArrayListUnmanaged(u8), 
         {
             var allocating: std.Io.Writer.Allocating = .fromArrayList(pp.comp.gpa, buf);
             defer buf.* = allocating.toArrayList();
-            std.debug.assert((try std.zig.string_literal.parseWrite(&allocating.writer, pp.tokSlice(macro.tokens[0]))) == .success);
+            std.debug.assert((try std.zig.string_literal.parseWrite(&allocating.writer, pp.tokSlice(str))) == .success);
         }
         try buf.append(pp.comp.gpa, '\n');
         const expected_error = buf.items[start..];

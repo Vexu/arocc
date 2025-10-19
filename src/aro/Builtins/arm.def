@@ -1,0 +1,1126 @@
+# Generated from clang/include/clang/Basic/BuiltinsARM.def
+
+_BitScanForward
+    .param_str = "UcUNi*UNi"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_BitScanForward64
+    .param_str = "UcUNi*ULLi"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_BitScanReverse
+    .param_str = "UcUNi*UNi"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_BitScanReverse64
+    .param_str = "UcUNi*ULLi"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedAnd16_acq
+    .param_str = "ssD*s"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedAnd16_nf
+    .param_str = "ssD*s"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedAnd16_rel
+    .param_str = "ssD*s"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedAnd64
+    .param_str = "LLiLLiD*LLi"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedAnd64_acq
+    .param_str = "LLiLLiD*LLi"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedAnd64_nf
+    .param_str = "LLiLLiD*LLi"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedAnd64_rel
+    .param_str = "LLiLLiD*LLi"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedAnd8_acq
+    .param_str = "ccD*c"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedAnd8_nf
+    .param_str = "ccD*c"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedAnd8_rel
+    .param_str = "ccD*c"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedAnd_acq
+    .param_str = "NiNiD*Ni"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedAnd_nf
+    .param_str = "NiNiD*Ni"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedAnd_rel
+    .param_str = "NiNiD*Ni"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedCompareExchange16_acq
+    .param_str = "ssD*ss"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedCompareExchange16_nf
+    .param_str = "ssD*ss"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedCompareExchange16_rel
+    .param_str = "ssD*ss"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedCompareExchange64_acq
+    .param_str = "LLiLLiD*LLiLLi"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedCompareExchange64_nf
+    .param_str = "LLiLLiD*LLiLLi"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedCompareExchange64_rel
+    .param_str = "LLiLLiD*LLiLLi"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedCompareExchange8_acq
+    .param_str = "ccD*cc"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedCompareExchange8_nf
+    .param_str = "ccD*cc"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedCompareExchange8_rel
+    .param_str = "ccD*cc"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedCompareExchangePointer_acq
+    .param_str = "v*v*D*v*v*"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedCompareExchangePointer_rel
+    .param_str = "v*v*D*v*v*"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedCompareExchange_acq
+    .param_str = "NiNiD*NiNi"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedCompareExchange_nf
+    .param_str = "NiNiD*NiNi"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedCompareExchange_rel
+    .param_str = "NiNiD*NiNi"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedDecrement16_acq
+    .param_str = "ssD*"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedDecrement16_nf
+    .param_str = "ssD*"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedDecrement16_rel
+    .param_str = "ssD*"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedDecrement64
+    .param_str = "LLiLLiD*"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedDecrement64_acq
+    .param_str = "LLiLLiD*"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedDecrement64_nf
+    .param_str = "LLiLLiD*"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedDecrement64_rel
+    .param_str = "LLiLLiD*"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedDecrement_acq
+    .param_str = "NiNiD*"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedDecrement_nf
+    .param_str = "NiNiD*"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedDecrement_rel
+    .param_str = "NiNiD*"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedExchange16_acq
+    .param_str = "ssD*s"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedExchange16_nf
+    .param_str = "ssD*s"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedExchange16_rel
+    .param_str = "ssD*s"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedExchange64
+    .param_str = "LLiLLiD*LLi"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedExchange64_acq
+    .param_str = "LLiLLiD*LLi"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedExchange64_nf
+    .param_str = "LLiLLiD*LLi"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedExchange64_rel
+    .param_str = "LLiLLiD*LLi"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedExchange8_acq
+    .param_str = "ccD*c"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedExchange8_nf
+    .param_str = "ccD*c"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedExchange8_rel
+    .param_str = "ccD*c"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedExchangeAdd16_acq
+    .param_str = "ssD*s"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedExchangeAdd16_nf
+    .param_str = "ssD*s"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedExchangeAdd16_rel
+    .param_str = "ssD*s"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedExchangeAdd64
+    .param_str = "LLiLLiD*LLi"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedExchangeAdd64_acq
+    .param_str = "LLiLLiD*LLi"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedExchangeAdd64_nf
+    .param_str = "LLiLLiD*LLi"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedExchangeAdd64_rel
+    .param_str = "LLiLLiD*LLi"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedExchangeAdd8_acq
+    .param_str = "ccD*c"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedExchangeAdd8_nf
+    .param_str = "ccD*c"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedExchangeAdd8_rel
+    .param_str = "ccD*c"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedExchangeAdd_acq
+    .param_str = "NiNiD*Ni"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedExchangeAdd_nf
+    .param_str = "NiNiD*Ni"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedExchangeAdd_rel
+    .param_str = "NiNiD*Ni"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedExchangePointer_acq
+    .param_str = "v*v*D*v*"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedExchangePointer_nf
+    .param_str = "v*v*D*v*"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedExchangePointer_rel
+    .param_str = "v*v*D*v*"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedExchangeSub64
+    .param_str = "LLiLLiD*LLi"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedExchange_acq
+    .param_str = "NiNiD*Ni"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedExchange_nf
+    .param_str = "NiNiD*Ni"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedExchange_rel
+    .param_str = "NiNiD*Ni"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedIncrement16_acq
+    .param_str = "ssD*"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedIncrement16_nf
+    .param_str = "ssD*"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedIncrement16_rel
+    .param_str = "ssD*"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedIncrement64
+    .param_str = "LLiLLiD*"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedIncrement64_acq
+    .param_str = "LLiLLiD*"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedIncrement64_nf
+    .param_str = "LLiLLiD*"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedIncrement64_rel
+    .param_str = "LLiLLiD*"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedIncrement_acq
+    .param_str = "NiNiD*"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedIncrement_nf
+    .param_str = "NiNiD*"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedIncrement_rel
+    .param_str = "NiNiD*"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedOr16_acq
+    .param_str = "ssD*s"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedOr16_nf
+    .param_str = "ssD*s"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedOr16_rel
+    .param_str = "ssD*s"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedOr64
+    .param_str = "LLiLLiD*LLi"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedOr64_acq
+    .param_str = "LLiLLiD*LLi"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedOr64_nf
+    .param_str = "LLiLLiD*LLi"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedOr64_rel
+    .param_str = "LLiLLiD*LLi"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedOr8_acq
+    .param_str = "ccD*c"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedOr8_nf
+    .param_str = "ccD*c"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedOr8_rel
+    .param_str = "ccD*c"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedOr_acq
+    .param_str = "NiNiD*Ni"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedOr_nf
+    .param_str = "NiNiD*Ni"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedOr_rel
+    .param_str = "NiNiD*Ni"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedXor16_acq
+    .param_str = "ssD*s"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedXor16_nf
+    .param_str = "ssD*s"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedXor16_rel
+    .param_str = "ssD*s"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedXor64
+    .param_str = "LLiLLiD*LLi"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedXor64_acq
+    .param_str = "LLiLLiD*LLi"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedXor64_nf
+    .param_str = "LLiLLiD*LLi"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedXor64_rel
+    .param_str = "LLiLLiD*LLi"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedXor8_acq
+    .param_str = "ccD*c"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedXor8_nf
+    .param_str = "ccD*c"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedXor8_rel
+    .param_str = "ccD*c"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedXor_acq
+    .param_str = "NiNiD*Ni"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedXor_nf
+    .param_str = "NiNiD*Ni"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedXor_rel
+    .param_str = "NiNiD*Ni"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_MoveFromCoprocessor
+    .param_str = "UiIUiIUiIUiIUiIUi"
+    .language = .all_ms_languages
+
+_MoveFromCoprocessor2
+    .param_str = "UiIUiIUiIUiIUiIUi"
+    .language = .all_ms_languages
+
+_MoveToCoprocessor
+    .param_str = "vUiIUiIUiIUiIUiIUi"
+    .language = .all_ms_languages
+
+_MoveToCoprocessor2
+    .param_str = "vUiIUiIUiIUiIUiIUi"
+    .language = .all_ms_languages
+
+__builtin_arm_cdp
+    .param_str = "vUIiUIiUIiUIiUIiUIi"
+
+__builtin_arm_cdp2
+    .param_str = "vUIiUIiUIiUIiUIiUIi"
+
+__builtin_arm_clrex
+    .param_str = "v"
+
+__builtin_arm_cls
+    .param_str = "UiZUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_arm_cls64
+    .param_str = "UiWUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_arm_clz
+    .param_str = "UiZUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_arm_clz64
+    .param_str = "UiWUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_arm_cmse_TT
+    .param_str = "Uiv*"
+
+__builtin_arm_cmse_TTA
+    .param_str = "Uiv*"
+
+__builtin_arm_cmse_TTAT
+    .param_str = "Uiv*"
+
+__builtin_arm_cmse_TTT
+    .param_str = "Uiv*"
+
+__builtin_arm_crc32b
+    .param_str = "UiUiUc"
+    .attributes = .{ .@"const" = true }
+    .features = "crc"
+
+__builtin_arm_crc32cb
+    .param_str = "UiUiUc"
+    .attributes = .{ .@"const" = true }
+    .features = "crc"
+
+__builtin_arm_crc32cd
+    .param_str = "UiUiLLUi"
+    .attributes = .{ .@"const" = true }
+    .features = "crc"
+
+__builtin_arm_crc32ch
+    .param_str = "UiUiUs"
+    .attributes = .{ .@"const" = true }
+    .features = "crc"
+
+__builtin_arm_crc32cw
+    .param_str = "UiUiUi"
+    .attributes = .{ .@"const" = true }
+    .features = "crc"
+
+__builtin_arm_crc32d
+    .param_str = "UiUiLLUi"
+    .attributes = .{ .@"const" = true }
+    .features = "crc"
+
+__builtin_arm_crc32h
+    .param_str = "UiUiUs"
+    .attributes = .{ .@"const" = true }
+    .features = "crc"
+
+__builtin_arm_crc32w
+    .param_str = "UiUiUi"
+    .attributes = .{ .@"const" = true }
+    .features = "crc"
+
+__builtin_arm_dbg
+    .param_str = "vUi"
+
+__builtin_arm_dmb
+    .param_str = "vUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_arm_dsb
+    .param_str = "vUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_arm_get_fpscr
+    .param_str = "Ui"
+    .attributes = .{ .@"const" = true }
+
+__builtin_arm_isb
+    .param_str = "vUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_arm_ldaex
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__builtin_arm_ldc
+    .param_str = "vUIiUIivC*"
+
+__builtin_arm_ldc2
+    .param_str = "vUIiUIivC*"
+
+__builtin_arm_ldc2l
+    .param_str = "vUIiUIivC*"
+
+__builtin_arm_ldcl
+    .param_str = "vUIiUIivC*"
+
+__builtin_arm_ldrex
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__builtin_arm_ldrexd
+    .param_str = "LLUiv*"
+
+__builtin_arm_mcr
+    .param_str = "vUIiUIiUiUIiUIiUIi"
+
+__builtin_arm_mcr2
+    .param_str = "vUIiUIiUiUIiUIiUIi"
+
+__builtin_arm_mcrr
+    .param_str = "vUIiUIiLLUiUIi"
+
+__builtin_arm_mcrr2
+    .param_str = "vUIiUIiLLUiUIi"
+
+__builtin_arm_mrc
+    .param_str = "UiUIiUIiUIiUIiUIi"
+
+__builtin_arm_mrc2
+    .param_str = "UiUIiUIiUIiUIiUIi"
+
+__builtin_arm_mrrc
+    .param_str = "LLUiUIiUIiUIi"
+
+__builtin_arm_mrrc2
+    .param_str = "LLUiUIiUIiUIi"
+
+__builtin_arm_nop
+    .param_str = "v"
+
+__builtin_arm_prefetch
+    .param_str = "vvC*UiUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_arm_qadd
+    .param_str = "iii"
+    .attributes = .{ .@"const" = true }
+
+__builtin_arm_qadd16
+    .param_str = "iii"
+    .attributes = .{ .@"const" = true }
+
+__builtin_arm_qadd8
+    .param_str = "iii"
+    .attributes = .{ .@"const" = true }
+
+__builtin_arm_qasx
+    .param_str = "iii"
+    .attributes = .{ .@"const" = true }
+
+__builtin_arm_qdbl
+    .param_str = "ii"
+    .attributes = .{ .@"const" = true }
+
+__builtin_arm_qsax
+    .param_str = "iii"
+    .attributes = .{ .@"const" = true }
+
+__builtin_arm_qsub
+    .param_str = "iii"
+    .attributes = .{ .@"const" = true }
+
+__builtin_arm_qsub16
+    .param_str = "iii"
+    .attributes = .{ .@"const" = true }
+
+__builtin_arm_qsub8
+    .param_str = "iii"
+    .attributes = .{ .@"const" = true }
+
+__builtin_arm_rbit
+    .param_str = "UiUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_arm_rsr
+    .param_str = "UicC*"
+    .attributes = .{ .@"const" = true }
+
+__builtin_arm_rsr64
+    .param_str = "LLUicC*"
+    .attributes = .{ .@"const" = true }
+
+__builtin_arm_rsrp
+    .param_str = "v*cC*"
+    .attributes = .{ .@"const" = true }
+
+__builtin_arm_sadd16
+    .param_str = "iii"
+    .attributes = .{ .@"const" = true }
+
+__builtin_arm_sadd8
+    .param_str = "iii"
+    .attributes = .{ .@"const" = true }
+
+__builtin_arm_sasx
+    .param_str = "iii"
+    .attributes = .{ .@"const" = true }
+
+__builtin_arm_sel
+    .param_str = "iii"
+    .attributes = .{ .@"const" = true }
+
+__builtin_arm_set_fpscr
+    .param_str = "vUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_arm_sev
+    .param_str = "v"
+
+__builtin_arm_sevl
+    .param_str = "v"
+
+__builtin_arm_shadd16
+    .param_str = "iii"
+    .attributes = .{ .@"const" = true }
+
+__builtin_arm_shadd8
+    .param_str = "iii"
+    .attributes = .{ .@"const" = true }
+
+__builtin_arm_shasx
+    .param_str = "iii"
+    .attributes = .{ .@"const" = true }
+
+__builtin_arm_shsax
+    .param_str = "iii"
+    .attributes = .{ .@"const" = true }
+
+__builtin_arm_shsub16
+    .param_str = "iii"
+    .attributes = .{ .@"const" = true }
+
+__builtin_arm_shsub8
+    .param_str = "iii"
+    .attributes = .{ .@"const" = true }
+
+__builtin_arm_smlabb
+    .param_str = "iiii"
+    .attributes = .{ .@"const" = true }
+
+__builtin_arm_smlabt
+    .param_str = "iiii"
+    .attributes = .{ .@"const" = true }
+
+__builtin_arm_smlad
+    .param_str = "iiii"
+    .attributes = .{ .@"const" = true }
+
+__builtin_arm_smladx
+    .param_str = "iiii"
+    .attributes = .{ .@"const" = true }
+
+__builtin_arm_smlald
+    .param_str = "LLiiiLLi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_arm_smlaldx
+    .param_str = "LLiiiLLi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_arm_smlatb
+    .param_str = "iiii"
+    .attributes = .{ .@"const" = true }
+
+__builtin_arm_smlatt
+    .param_str = "iiii"
+    .attributes = .{ .@"const" = true }
+
+__builtin_arm_smlawb
+    .param_str = "iiii"
+    .attributes = .{ .@"const" = true }
+
+__builtin_arm_smlawt
+    .param_str = "iiii"
+    .attributes = .{ .@"const" = true }
+
+__builtin_arm_smlsd
+    .param_str = "iiii"
+    .attributes = .{ .@"const" = true }
+
+__builtin_arm_smlsdx
+    .param_str = "iiii"
+    .attributes = .{ .@"const" = true }
+
+__builtin_arm_smlsld
+    .param_str = "LLiiiLLi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_arm_smlsldx
+    .param_str = "LLiiiLLi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_arm_smuad
+    .param_str = "iii"
+    .attributes = .{ .@"const" = true }
+
+__builtin_arm_smuadx
+    .param_str = "iii"
+    .attributes = .{ .@"const" = true }
+
+__builtin_arm_smulbb
+    .param_str = "iii"
+    .attributes = .{ .@"const" = true }
+
+__builtin_arm_smulbt
+    .param_str = "iii"
+    .attributes = .{ .@"const" = true }
+
+__builtin_arm_smultb
+    .param_str = "iii"
+    .attributes = .{ .@"const" = true }
+
+__builtin_arm_smultt
+    .param_str = "iii"
+    .attributes = .{ .@"const" = true }
+
+__builtin_arm_smulwb
+    .param_str = "iii"
+    .attributes = .{ .@"const" = true }
+
+__builtin_arm_smulwt
+    .param_str = "iii"
+    .attributes = .{ .@"const" = true }
+
+__builtin_arm_smusd
+    .param_str = "iii"
+    .attributes = .{ .@"const" = true }
+
+__builtin_arm_smusdx
+    .param_str = "iii"
+    .attributes = .{ .@"const" = true }
+
+__builtin_arm_ssat
+    .param_str = "iiUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_arm_ssat16
+    .param_str = "iii"
+    .attributes = .{ .@"const" = true }
+
+__builtin_arm_ssax
+    .param_str = "iii"
+    .attributes = .{ .@"const" = true }
+
+__builtin_arm_ssub16
+    .param_str = "iii"
+    .attributes = .{ .@"const" = true }
+
+__builtin_arm_ssub8
+    .param_str = "iii"
+    .attributes = .{ .@"const" = true }
+
+__builtin_arm_stc
+    .param_str = "vUIiUIiv*"
+
+__builtin_arm_stc2
+    .param_str = "vUIiUIiv*"
+
+__builtin_arm_stc2l
+    .param_str = "vUIiUIiv*"
+
+__builtin_arm_stcl
+    .param_str = "vUIiUIiv*"
+
+__builtin_arm_stlex
+    .param_str = "i."
+    .attributes = .{ .custom_typecheck = true }
+
+__builtin_arm_strex
+    .param_str = "i."
+    .attributes = .{ .custom_typecheck = true }
+
+__builtin_arm_strexd
+    .param_str = "iLLUiv*"
+
+__builtin_arm_sxtab16
+    .param_str = "iii"
+    .attributes = .{ .@"const" = true }
+
+__builtin_arm_sxtb16
+    .param_str = "ii"
+    .attributes = .{ .@"const" = true }
+
+__builtin_arm_uadd16
+    .param_str = "UiUiUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_arm_uadd8
+    .param_str = "UiUiUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_arm_uasx
+    .param_str = "UiUiUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_arm_uhadd16
+    .param_str = "UiUiUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_arm_uhadd8
+    .param_str = "UiUiUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_arm_uhasx
+    .param_str = "UiUiUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_arm_uhsax
+    .param_str = "UiUiUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_arm_uhsub16
+    .param_str = "UiUiUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_arm_uhsub8
+    .param_str = "UiUiUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_arm_uqadd16
+    .param_str = "UiUiUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_arm_uqadd8
+    .param_str = "UiUiUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_arm_uqasx
+    .param_str = "UiUiUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_arm_uqsax
+    .param_str = "UiUiUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_arm_uqsub16
+    .param_str = "UiUiUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_arm_uqsub8
+    .param_str = "UiUiUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_arm_usad8
+    .param_str = "UiUiUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_arm_usada8
+    .param_str = "UiUiUiUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_arm_usat
+    .param_str = "UiiUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_arm_usat16
+    .param_str = "iii"
+    .attributes = .{ .@"const" = true }
+
+__builtin_arm_usax
+    .param_str = "UiUiUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_arm_usub16
+    .param_str = "UiUiUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_arm_usub8
+    .param_str = "UiUiUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_arm_uxtab16
+    .param_str = "iii"
+    .attributes = .{ .@"const" = true }
+
+__builtin_arm_uxtb16
+    .param_str = "ii"
+    .attributes = .{ .@"const" = true }
+
+__builtin_arm_vcvtr_d
+    .param_str = "fdi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_arm_vcvtr_f
+    .param_str = "ffi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_arm_wfe
+    .param_str = "v"
+
+__builtin_arm_wfi
+    .param_str = "v"
+
+__builtin_arm_wsr
+    .param_str = "vcC*Ui"
+    .attributes = .{ .@"const" = true }
+
+__builtin_arm_wsr64
+    .param_str = "vcC*LLUi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_arm_wsrp
+    .param_str = "vcC*vC*"
+    .attributes = .{ .@"const" = true }
+
+__builtin_arm_yield
+    .param_str = "v"
+
+__builtin_sponentry
+    .param_str = "v*"
+    .attributes = .{ .@"const" = true }
+
+__clear_cache
+    .param_str = "vv*v*"
+
+__dmb
+    .param_str = "vUi"
+    .header = .arm_acle
+    .attributes = .{ .@"const" = true }
+
+__dsb
+    .param_str = "vUi"
+    .header = .arm_acle
+    .attributes = .{ .@"const" = true }
+
+__emit
+    .param_str = "vIUiC"
+    .language = .all_ms_languages
+
+__isb
+    .param_str = "vUi"
+    .header = .arm_acle
+    .attributes = .{ .@"const" = true }
+
+__ldrexd
+    .param_str = "WiWiCD*"
+    .language = .all_ms_languages
+
+__sev
+    .param_str = "v"
+    .header = .arm_acle
+
+__sevl
+    .param_str = "v"
+    .header = .arm_acle
+
+__wfe
+    .param_str = "v"
+    .header = .arm_acle
+
+__wfi
+    .param_str = "v"
+    .header = .arm_acle
+
+__yield
+    .param_str = "v"
+    .header = .arm_acle

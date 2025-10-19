@@ -4,6 +4,7 @@ const Allocator = mem.Allocator;
 const assert = std.debug.assert;
 
 const Attribute = @import("Attribute.zig");
+const Builtins = @import("Builtins.zig");
 const Compilation = @import("Compilation.zig");
 const Error = Compilation.Error;
 const Diagnostics = @import("Diagnostics.zig");
@@ -1664,7 +1665,7 @@ fn handleBuiltinMacro(pp: *Preprocessor, builtin: Macro.Builtin.Func, param_toks
                     features.hasFeature(pp.comp, ident_str)
                 else
                     features.hasExtension(pp.comp, ident_str),
-                .has_builtin => pp.comp.hasBuiltin(ident_str),
+                .has_builtin => Builtins.fromName(pp.comp, ident_str) != null,
                 .is_target_arch => pp.comp.isTargetArch(ident_str),
                 .is_target_os => pp.comp.isTargetOs(ident_str),
                 .is_target_vendor => pp.comp.isTargetVendor(ident_str),

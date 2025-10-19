@@ -1,59 +1,9 @@
 const std = @import("std");
 const Step = std.Build.Step;
 const Allocator = std.mem.Allocator;
-const GeneratedFile = std.Build.GeneratedFile;
 
-const GenerateDef = @This();
-
-step: Step,
-path: []const u8,
-name: []const u8,
-kind: Options.Kind,
-needs_large_dafsa_node: bool,
-generated_file: GeneratedFile,
-
-pub const base_id: Step.Id = .custom;
-
-pub const Options = struct {
-    name: []const u8,
-    src_prefix: []const u8 = "src/aro",
-    kind: Kind = .dafsa,
-    needs_large_dafsa_node: bool = false,
-
-    pub const Kind = enum { dafsa, named };
-};
-
-pub fn create(owner: *std.Build, options: Options) std.Build.Module.Import {
-    const self = owner.allocator.create(GenerateDef) catch @panic("OOM");
-    const path = owner.pathJoin(&.{ options.src_prefix, options.name });
-
-    const name = owner.fmt("GenerateDef {s}", .{options.name});
-    self.* = .{
-        .step = Step.init(.{
-            .id = base_id,
-            .name = name,
-            .owner = owner,
-            .makeFn = make,
-        }),
-        .path = path,
-        .name = options.name,
-        .kind = options.kind,
-        .needs_large_dafsa_node = options.needs_large_dafsa_node,
-        .generated_file = .{ .step = &self.step },
-    };
-    const module = self.step.owner.createModule(.{
-        .root_source_file = .{ .generated = .{ .file = &self.generated_file } },
-    });
-    return .{
-        .module = module,
-        .name = self.name,
-    };
-}
-
-fn make(step: *Step, options: std.Build.Step.MakeOptions) !void {
-    _ = options;
-    const b = step.owner;
-    const self: *GenerateDef = @fieldParentPtr("step", step);
+pub fn generateDef(b: *std.Build, input_name: []const u8) !std.Build.Module.Import {
+    const path = b.pathJoin(&.{ "src/aro", input_name });
     const arena = b.allocator;
 
     var man = b.graph.cache.obtain();
@@ -63,48 +13,35 @@ fn make(step: *Step, options: std.Build.Step.MakeOptions) !void {
     // random bytes when GenerateDef implementation is modified in a
     // non-backwards-compatible way.
     man.hash.add(@as(u32, 0xDCC14144));
+    _ = try man.addFilePath(.initCwd(path), null);
 
-    const contents = try b.build_root.handle.readFileAlloc(self.path, arena, .unlimited);
-    man.hash.addBytes(contents);
-
-    const out_name = b.fmt("{s}.zig", .{std.fs.path.stem(self.path)});
-    if (try step.cacheHit(&man)) {
+    const out_name = b.fmt("{s}.zig", .{std.fs.path.stem(path)});
+    if (man.hit() catch |err| std.debug.panic("failed to check cache {s}", .{@errorName(err)})) {
         const digest = man.final();
-        self.generated_file.path = try b.cache_root.join(arena, &.{
+        const output_path = try b.cache_root.join(arena, &.{
             "o", &digest, out_name,
         });
-        return;
+        return .{
+            .module = b.createModule(.{
+                .root_source_file = .{
+                    .cwd_relative = output_path,
+                },
+            }),
+            .name = input_name,
+        };
     }
 
     const digest = man.final();
-
     const sub_path = try std.fs.path.join(arena, &.{ "o", &digest, out_name });
     const sub_path_dirname = std.fs.path.dirname(sub_path).?;
 
     b.cache_root.handle.makePath(sub_path_dirname) catch |err| {
-        return step.fail("unable to make path '{f}{s}': {s}", .{
+        std.debug.panic("unable to make path '{f}{s}': {s}", .{
             b.cache_root, sub_path_dirname, @errorName(err),
         });
     };
 
-    const output = try self.generate(contents);
-    b.cache_root.handle.writeFile(.{ .sub_path = sub_path, .data = output }) catch |err| {
-        return step.fail("unable to write file '{f}{s}': {s}", .{
-            b.cache_root, sub_path, @errorName(err),
-        });
-    };
-
-    self.generated_file.path = try b.cache_root.join(arena, &.{sub_path});
-    try man.writeManifest();
-}
-
-const Value = struct {
-    name: []const u8,
-    properties: []const []const u8,
-};
-
-fn generate(self: *GenerateDef, input: []const u8) ![]const u8 {
-    const arena = self.step.owner.allocator;
+    const input = try b.build_root.handle.readFileAlloc(path, arena, .unlimited);
 
     var values: std.StringArrayHashMapUnmanaged([]const []const u8) = .empty;
     var properties: std.ArrayList([]const u8) = .empty;
@@ -121,7 +58,7 @@ fn generate(self: *GenerateDef, input: []const u8) ![]const u8 {
         }
         if (line[0] == '.') {
             if (value_name == null) {
-                return self.step.fail("property not attached to a value:\n\"{s}\"", .{line});
+                std.debug.panic("property not attached to a value:\n\"{s}\"", .{line});
             }
             try properties.append(arena, line);
             continue;
@@ -129,22 +66,22 @@ fn generate(self: *GenerateDef, input: []const u8) ![]const u8 {
 
         if (value_name) |name| {
             const old = try values.fetchPut(arena, name, try properties.toOwnedSlice(arena));
-            if (old != null) return self.step.fail("duplicate value \"{s}\"", .{name});
+            if (old != null) std.debug.panic("duplicate value \"{s}\"", .{name});
         }
         value_name = line;
     }
 
     if (value_name) |name| {
         const old = try values.fetchPut(arena, name, try properties.toOwnedSlice(arena));
-        if (old != null) return self.step.fail("duplicate value \"{s}\"", .{name});
+        if (old != null) std.debug.panic("duplicate value \"{s}\"", .{name});
     }
 
-    {
+    const output = blk: {
         const sorted_list = try arena.dupe([]const u8, values.keys());
         defer arena.free(sorted_list);
         std.mem.sort([]const u8, sorted_list, {}, struct {
-            pub fn lessThan(_: void, a: []const u8, b: []const u8) bool {
-                return std.mem.lessThan(u8, a, b);
+            pub fn lessThan(_: void, a_str: []const u8, b_str: []const u8) bool {
+                return std.mem.lessThan(u8, a_str, b_str);
             }
         }.lessThan);
 
@@ -171,7 +108,7 @@ fn generate(self: *GenerateDef, input: []const u8) ![]const u8 {
                 const index = builder.getUniqueIndex(name).?;
                 const result = try index_set.getOrPut(index);
                 if (result.found_existing) {
-                    return self.step.fail("clobbered {}, name={s}\n", .{ index, name });
+                    std.debug.panic("clobbered {}, name={s}\n", .{ index, name });
                 }
             }
         }
@@ -187,42 +124,9 @@ fn generate(self: *GenerateDef, input: []const u8) ![]const u8 {
             \\pub fn with(comptime Properties: type) type {{
             \\return struct {{
             \\
-        , .{self.path});
+        , .{path});
         for (headers.items) |line| {
             try writer.print("{s}\n", .{line});
-        }
-        if (self.kind == .named) {
-            try writer.writeAll("pub const Tag = enum {\n");
-            for (values.keys()) |property| {
-                try writer.print("    {f},\n", .{std.zig.fmtIdFlags(property, .{ .allow_primitive = true })});
-            }
-            try writer.writeAll(
-                \\
-                \\    pub fn property(tag: Tag) Properties {
-                \\        return named_data[@intFromEnum(tag)];
-                \\    }
-                \\
-                \\    const named_data = [_]Properties{
-                \\
-            );
-            for (values.values()) |val_props| {
-                try writer.writeAll("        .{");
-                for (val_props, 0..) |val_prop, j| {
-                    if (j != 0) try writer.writeByte(',');
-                    try writer.writeByte(' ');
-                    try writer.writeAll(val_prop);
-                }
-                try writer.writeAll(" },\n");
-            }
-            try writer.writeAll(
-                \\    };
-                \\};
-                \\};
-                \\}
-                \\
-            );
-
-            return allocating.toOwnedSlice();
         }
 
         var values_array = try arena.alloc(Value, values.count());
@@ -236,9 +140,6 @@ fn generate(self: *GenerateDef, input: []const u8) ![]const u8 {
 
         try writer.writeAll(
             \\
-            \\tag: Tag,
-            \\properties: Properties,
-            \\
             \\/// Integer starting at 0 derived from the unique index,
             \\/// corresponds with the data array index.
             \\pub const Tag = enum(u16) {
@@ -249,9 +150,7 @@ fn generate(self: *GenerateDef, input: []const u8) ![]const u8 {
         try writer.writeAll(
             \\};
             \\
-            \\const Self = @This();
-            \\
-            \\pub fn fromName(name: []const u8) ?@This() {
+            \\pub fn fromName(name: []const u8) ?Properties {
             \\    const data_index = tagFromName(name) orelse return null;
             \\    return data[@intFromEnum(data_index)];
             \\}
@@ -261,7 +160,7 @@ fn generate(self: *GenerateDef, input: []const u8) ![]const u8 {
             \\    return @enumFromInt(unique_index - 1);
             \\}
             \\
-            \\pub fn fromTag(tag: Tag) @This() {
+            \\pub fn fromTag(tag: Tag) Properties {
             \\    return data[@intFromEnum(tag)];
             \\}
             \\
@@ -385,65 +284,30 @@ fn generate(self: *GenerateDef, input: []const u8) ![]const u8 {
             \\
             \\
         );
-        if (self.needs_large_dafsa_node) {
-            try writer.writeAll(
-                \\/// We're 1 bit shy of being able to fit this in a u32:
-                \\/// - char only contains 0-9, a-z, A-Z, and _, so it could use a enum(u6) with a way to convert <-> u8
-                \\///   (note: this would have a performance cost that may make the u32 not worth it)
-                \\/// - number has a max value of > 2047 and < 4095 (the first _ node has the largest number),
-                \\///   so it could fit into a u12
-                \\/// - child_index currently has a max of > 4095 and < 8191, so it could fit into a u13
-                \\///
-                \\/// with the end_of_word/end_of_list 2 bools, that makes 33 bits total
-                \\const Node = packed struct(u64) {
-                \\    char: u8,
-                \\    /// Nodes are numbered with "an integer which gives the number of words that
-                \\    /// would be accepted by the automaton starting from that state." This numbering
-                \\    /// allows calculating "a one-to-one correspondence between the integers 1 to L
-                \\    /// (L is the number of words accepted by the automaton) and the words themselves."
-                \\    ///
-                \\    /// Essentially, this allows us to have a minimal perfect hashing scheme such that
-                \\    /// it's possible to store & lookup the properties of each builtin using a separate array.
-                \\    number: u16,
-                \\    /// If true, this node is the end of a valid builtin.
-                \\    /// Note: This does not necessarily mean that this node does not have child nodes.
-                \\    end_of_word: bool,
-                \\    /// If true, this node is the end of a sibling list.
-                \\    /// If false, then (index + 1) will contain the next sibling.
-                \\    end_of_list: bool,
-                \\    /// Padding bits to get to u64, unsure if there's some way to use these to improve something.
-                \\    _extra: u22 = 0,
-                \\    /// Index of the first child of this node.
-                \\    child_index: u16,
-                \\};
-                \\
-                \\
-            );
-        } else {
-            try writer.writeAll(
-                \\const Node = packed struct(u32) {
-                \\    char: u8,
-                \\    /// Nodes are numbered with "an integer which gives the number of words that
-                \\    /// would be accepted by the automaton starting from that state." This numbering
-                \\    /// allows calculating "a one-to-one correspondence between the integers 1 to L
-                \\    /// (L is the number of words accepted by the automaton) and the words themselves."
-                \\    ///
-                \\    /// Essentially, this allows us to have a minimal perfect hashing scheme such that
-                \\    /// it's possible to store & lookup the properties of each name using a separate array.
-                \\    number: u8,
-                \\    /// If true, this node is the end of a valid name.
-                \\    /// Note: This does not necessarily mean that this node does not have child nodes.
-                \\    end_of_word: bool,
-                \\    /// If true, this node is the end of a sibling list.
-                \\    /// If false, then (index + 1) will contain the next sibling.
-                \\    end_of_list: bool,
-                \\    /// Index of the first child of this node.
-                \\    child_index: u14,
-                \\};
-                \\
-                \\
-            );
-        }
+
+        try writer.writeAll(
+            \\const Node = packed struct {
+            \\    char: u8,
+            \\    /// Nodes are numbered with "an integer which gives the number of words that
+            \\    /// would be accepted by the automaton starting from that state." This numbering
+            \\    /// allows calculating "a one-to-one correspondence between the integers 1 to L
+            \\    /// (L is the number of words accepted by the automaton) and the words themselves."
+            \\    ///
+            \\    /// Essentially, this allows us to have a minimal perfect hashing scheme such that
+            \\    /// it's possible to store & lookup the properties of each builtin using a separate array.
+            \\    number: std.math.IntFittingRange(0, data.len),
+            \\    /// If true, this node is the end of a valid builtin.
+            \\    /// Note: This does not necessarily mean that this node does not have child nodes.
+            \\    end_of_word: bool,
+            \\    /// If true, this node is the end of a sibling list.
+            \\    /// If false, then (index + 1) will contain the next sibling.
+            \\    end_of_list: bool,
+            \\    /// Index of the first child of this node.
+            \\    child_index: u16,
+            \\};
+            \\
+            \\
+        );
         try builder.writeDafsa(writer);
         try writeData(writer, values_array);
         try writer.writeAll(
@@ -452,23 +316,46 @@ fn generate(self: *GenerateDef, input: []const u8) ![]const u8 {
             \\
         );
 
-        return allocating.toOwnedSlice();
-    }
+        break :blk try allocating.toOwnedSlice();
+    };
+
+    b.cache_root.handle.writeFile(.{ .sub_path = sub_path, .data = output }) catch |err| {
+        std.debug.panic("unable to write file '{f}{s}': {s}", .{
+            b.cache_root, sub_path, @errorName(err),
+        });
+    };
+
+    try man.writeManifest();
+
+    const output_path = try b.cache_root.join(arena, &.{sub_path});
+    return .{
+        .module = b.createModule(.{
+            .root_source_file = .{
+                .cwd_relative = output_path,
+            },
+        }),
+        .name = input_name,
+    };
 }
+
+const Value = struct {
+    name: []const u8,
+    properties: []const []const u8,
+};
 
 fn writeData(writer: *std.Io.Writer, values: []const Value) !void {
     try writer.writeAll("pub const data = blk: {\n");
     try writer.print("    @setEvalBranchQuota({d});\n", .{values.len * 9});
-    try writer.writeAll("    break :blk [_]@This(){\n");
+    try writer.writeAll("    break :blk [_]Properties{\n");
     for (values) |value| {
-        try writer.print("        .{{ .tag = .{f}, .properties = .{{", .{std.zig.fmtId(value.name)});
+        try writer.writeAll("        .{");
         for (value.properties, 0..) |property, j| {
             if (j != 0) try writer.writeByte(',');
             try writer.writeByte(' ');
             try writer.writeAll(property);
         }
         if (value.properties.len != 0) try writer.writeByte(' ');
-        try writer.writeAll("} },\n");
+        try writer.writeAll("},\n");
     }
     try writer.writeAll("    };\n");
     try writer.writeAll("};\n");
@@ -495,7 +382,7 @@ const DafsaBuilder = struct {
 
         const root = try arena.allocator().create(Node);
         root.* = .{};
-        return DafsaBuilder{
+        return .{
             .root = root,
             .allocator = allocator,
             .arena = arena.state,
