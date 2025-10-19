@@ -2027,9 +2027,8 @@ pub fn getSourceMTimeUncached(comp: *const Compilation, source_id: Source.Id) ?u
 }
 
 pub fn isTargetArch(comp: *const Compilation, query: []const u8) bool {
-    _ = comp;
-    _ = query;
-    return true;
+    const query_arch = std.meta.stringToEnum(std.Target.Cpu.Arch, query) orelse return false;
+    return query_arch == comp.target.cpu.arch;
 }
 
 pub fn isTargetOs(comp: *const Compilation, os: []const u8) !bool {
@@ -2061,9 +2060,8 @@ pub fn isTargetVendor(comp: *const Compilation, query: []const u8) bool {
 }
 
 pub fn isTargetEnvironment(comp: *const Compilation, query: []const u8) bool {
-    _ = comp;
-    _ = query;
-    return true;
+    const query_abi = std.meta.stringToEnum(std.Target.Abi, query) orelse return false;
+    return query_abi == comp.target.abi;
 }
 
 pub const CharUnitSize = enum(u32) {
