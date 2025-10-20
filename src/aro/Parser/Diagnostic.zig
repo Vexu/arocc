@@ -2199,6 +2199,16 @@ pub const nontemporal_address_type: Diagnostic = .{
     .kind = .@"error",
 };
 
+pub const atomic_address_pointer: Diagnostic = .{
+    .fmt = "address argument to atomic builtin must be a pointer ('{qt}' invalid)",
+    .kind = .@"error",
+};
+
+pub const atomic_address_type: Diagnostic = .{
+    .fmt = "address argument to atomic builtin must be a pointer to an integer or a pointer types ('{qt}' invalid)",
+    .kind = .@"error",
+};
+
 pub const argument_types_differ: Diagnostic = .{
     .fmt = "arguments are of different types ({qt} vs {qt})",
     .kind = .@"error",
