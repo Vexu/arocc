@@ -6,6 +6,47 @@ const LangOpts = @import("LangOpts.zig");
 const TargetSet = @import("Builtins/Properties.zig").TargetSet;
 const QualType = @import("TypeStore.zig").QualType;
 
+pub const Vendor = enum {
+    apple,
+    pc,
+    scei,
+    sie,
+    freescale,
+    ibm,
+    imagination_technologies,
+    mips,
+    nvidia,
+    csr,
+    amd,
+    mesa,
+    suse,
+    open_embedded,
+    intel,
+    unknown,
+
+    const vendor_strings = std.StaticStringMap(Vendor).initComptime(.{
+        .{ "apple", .apple },
+        .{ "pc", .pc },
+        .{ "scei", .scei },
+        .{ "sie", .scei },
+        .{ "fsl", .freescale },
+        .{ "ibm", .ibm },
+        .{ "img", .imagination_technologies },
+        .{ "mti", .mips },
+        .{ "nvidia", .nvidia },
+        .{ "csr", .csr },
+        .{ "amd", .amd },
+        .{ "mesa", .mesa },
+        .{ "suse", .suse },
+        .{ "oe", .open_embedded },
+        .{ "intel", .intel },
+    });
+
+    pub fn parse(candidate: []const u8) ?Vendor {
+        return vendor_strings.get(candidate);
+    }
+};
+
 /// intmax_t for this target
 pub fn intMaxType(target: std.Target) QualType {
     switch (target.cpu.arch) {
@@ -375,6 +416,47 @@ pub fn isCygwinMinGW(target: std.Target) bool {
 
 pub fn isPS(target: std.Target) bool {
     return (target.os.tag == .ps4 or target.os.tag == .ps5) and target.cpu.arch == .x86_64;
+}
+
+fn toLower(src: []const u8, dest: []u8) ?[]const u8 {
+    if (src.len > dest.len) return null;
+    for (src, dest[0..src.len]) |a, *b| {
+        b.* = std.ascii.toLower(a);
+    }
+    return dest[0..src.len];
+}
+
+pub fn isArch(target: std.Target, query: []const u8) bool {
+    var buf: [64]u8 = undefined;
+    const lower = toLower(query, &buf) orelse return false;
+    const query_arch = std.meta.stringToEnum(std.Target.Cpu.Arch, lower) orelse return false;
+    return query_arch == target.cpu.arch;
+}
+
+pub fn isOs(target: std.Target, query: []const u8) bool {
+    var buf: [64]u8 = undefined;
+    const lower = toLower(query, &buf) orelse return false;
+    const query_os = std.meta.stringToEnum(std.Target.Os.Tag, lower) orelse return false;
+
+    if (query_os.isDarwin()) {
+        // clang treats all darwin OS's as equivalent
+        return target.os.tag.isDarwin();
+    }
+    return query_os == target.os.tag;
+}
+
+pub fn isVendor(vendor: Vendor, query: []const u8) bool {
+    var buf: [64]u8 = undefined;
+    const lower = toLower(query, &buf) orelse return false;
+    const query_vendor = Vendor.parse(lower) orelse return false;
+    return query_vendor == vendor;
+}
+
+pub fn isEnvironment(target: std.Target, query: []const u8) bool {
+    var buf: [64]u8 = undefined;
+    const lower = toLower(query, &buf) orelse return false;
+    const query_abi = std.meta.stringToEnum(std.Target.Abi, lower) orelse return false;
+    return query_abi == target.abi;
 }
 
 pub fn builtinEnabled(target: std.Target, enabled_for: TargetSet) bool {

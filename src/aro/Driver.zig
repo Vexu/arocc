@@ -99,6 +99,10 @@ aro_name: []const u8 = "",
 
 /// Value of -target passed via CLI
 raw_target_triple: ?[]const u8 = null,
+/// Value of --vendor= passed via CLI
+raw_target_vendor: ?[]const u8 = null,
+/// Value of -darwin-target-variant-triple passed via CLI
+raw_darwin_variant_target_triple: ?[]const u8 = null,
 
 /// Value of -mcpu passed via CLI
 raw_cpu: ?[]const u8 = null,
@@ -162,6 +166,8 @@ pub const usage =
     \\
     \\Compile options:
     \\  -c, --compile           Only run preprocess, compile, and assemble steps
+    \\  -darwin-target-variant-triple
+    \\                          Specify the darwin target variant triple
     \\  -fapple-kext            Use Apple's kernel extensions ABI
     \\  -fchar8_t               Enable char8_t (enabled by default in C23 and later)
     \\  -fno-char8_t            Disable char8_t (disabled by default for pre-C23)
@@ -213,6 +219,7 @@ pub const usage =
     \\  --embed-dir=<dir>       Add directory to `#embed` search path
     \\  --emulate=[clang|gcc|msvc]
     \\                          Select which C compiler to emulate (default clang)
+    \\  --vendor=<vendor>       Specify vendor component of LLVM-style target triple
     \\  -mabicalls              Enable SVR4-style position-independent code (Mips only)
     \\  -mno-abicalls           Disable SVR4-style position-independent code (Mips only)
     \\  -mcmodel=<code-model>   Generate code for the given code model
@@ -334,6 +341,13 @@ pub fn parseArgs(
                 d.system_defines = .no_system_defines;
             } else if (mem.eql(u8, arg, "-c") or mem.eql(u8, arg, "--compile")) {
                 d.only_compile = true;
+            } else if (mem.eql(u8, arg, "-darwin-target-variant-triple")) {
+                i += 1;
+                if (i >= args.len) {
+                    try d.err("expected argument after -darwin-target-variant-triple", .{});
+                    continue;
+                }
+                d.raw_darwin_variant_target_triple = args[i];
             } else if (mem.eql(u8, arg, "-dD")) {
                 d.debug_dump_letters.d = true;
             } else if (mem.eql(u8, arg, "-dM")) {
@@ -645,6 +659,8 @@ pub fn parseArgs(
             } else if (option(arg, "--target=")) |triple| {
                 d.raw_target_triple = triple;
                 emulate = null;
+            } else if (option(arg, "--vendor=")) |vendor| {
+                d.raw_target_vendor = vendor;
             } else if (mem.eql(u8, arg, "--verbose-ast")) {
                 d.verbose_ast = true;
             } else if (mem.eql(u8, arg, "--verbose-pp")) {
@@ -757,29 +773,20 @@ pub fn parseArgs(
         }
     }
     {
-        var diags: std.Target.Query.ParseOptions.Diagnostics = .{};
-        const opts: std.Target.Query.ParseOptions = .{
-            .arch_os_abi = d.raw_target_triple orelse "native",
-            .cpu_features = d.raw_cpu,
-            .diagnostics = &diags,
-        };
-        const query = std.Target.Query.parse(opts) catch |er| switch (er) {
-            error.UnknownCpuModel => {
-                return d.fatal("unknown CPU: '{s}'", .{diags.cpu_name.?});
-            },
-            error.UnknownCpuFeature => {
-                return d.fatal("unknown CPU feature: '{s}'", .{diags.unknown_feature_name.?});
-            },
-            error.UnknownArchitecture => {
-                return d.fatal("unknown architecture: '{s}'", .{diags.unknown_architecture_name.?});
-            },
-            else => |e| return d.fatal("unable to parse target query '{s}': {s}", .{
-                opts.arch_os_abi, @errorName(e),
-            }),
-        };
-        d.comp.target = std.zig.system.resolveTargetQuery(query) catch |e| {
-            return d.fatal("unable to resolve target: {s}", .{errorDescription(e)});
-        };
+        d.comp.target = try d.parseTarget(d.raw_target_triple orelse "native", d.raw_cpu);
+        if (d.raw_darwin_variant_target_triple) |darwin_triple| {
+            d.comp.darwin_target_variant = try d.parseTarget(darwin_triple, null);
+        }
+        if (d.raw_target_vendor) |vendor_str| {
+            d.comp.vendor = target_util.Vendor.parse(vendor_str) orelse blk: {
+                try d.warn("unknown vendor: {s}", .{vendor_str});
+                break :blk .unknown;
+            };
+        } else if (d.raw_target_triple == null) {
+            if (d.comp.target.os.tag.isDarwin()) {
+                d.comp.vendor = .apple;
+            }
+        }
     }
     if (emulate != null or d.raw_target_triple != null) {
         d.comp.langopts.setEmulatedCompiler(emulate orelse target_util.systemCompiler(d.comp.target));
@@ -866,6 +873,32 @@ pub fn unsupportedOptionForTarget(d: *Driver, target: std.Target, opt: []const u
         "unsupported option '{s}' for target '{s}-{s}-{s}'",
         .{ opt, @tagName(target.cpu.arch), @tagName(target.os.tag), @tagName(target.abi) },
     );
+}
+
+fn parseTarget(d: *Driver, arch_os_abi: []const u8, cpu_features: ?[]const u8) Compilation.Error!std.Target {
+    var diags: std.Target.Query.ParseOptions.Diagnostics = .{};
+    const opts: std.Target.Query.ParseOptions = .{
+        .arch_os_abi = arch_os_abi,
+        .cpu_features = cpu_features,
+        .diagnostics = &diags,
+    };
+    const query = std.Target.Query.parse(opts) catch |er| switch (er) {
+        error.UnknownCpuModel => {
+            return d.fatal("unknown CPU: '{s}'", .{diags.cpu_name.?});
+        },
+        error.UnknownCpuFeature => {
+            return d.fatal("unknown CPU feature: '{s}'", .{diags.unknown_feature_name.?});
+        },
+        error.UnknownArchitecture => {
+            return d.fatal("unknown architecture: '{s}'", .{diags.unknown_architecture_name.?});
+        },
+        else => |e| return d.fatal("unable to parse target query '{s}': {s}", .{
+            opts.arch_os_abi, @errorName(e),
+        }),
+    };
+    return std.zig.system.resolveTargetQuery(query) catch |e| {
+        return d.fatal("unable to resolve target: {s}", .{errorDescription(e)});
+    };
 }
 
 pub fn fatal(d: *Driver, comptime fmt: []const u8, args: anytype) error{ FatalError, OutOfMemory } {

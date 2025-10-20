@@ -144,6 +144,8 @@ system_framework_dirs: std.ArrayList([]const u8) = .empty,
 /// Allocated into `gpa`, but keys are externally managed.
 embed_dirs: std.ArrayList([]const u8) = .empty,
 target: std.Target = @import("builtin").target,
+darwin_target_variant: ?std.Target = null,
+vendor: target_util.Vendor = .unknown,
 cmodel: std.builtin.CodeModel = .default,
 pragma_handlers: std.StringArrayHashMapUnmanaged(*Pragma) = .empty,
 langopts: LangOpts = .{},
@@ -2023,6 +2025,38 @@ pub fn getSourceMTimeUncached(comp: *const Compilation, source_id: Source.Id) ?u
     } else |_| {
         return null;
     }
+}
+
+pub fn isTargetArch(comp: *const Compilation, query: []const u8) bool {
+    return target_util.isArch(comp.target, query);
+}
+
+pub fn isTargetOs(comp: *const Compilation, query: []const u8) !bool {
+    return target_util.isOs(comp.target, query);
+}
+
+pub fn isTargetVendor(comp: *const Compilation, query: []const u8) bool {
+    return target_util.isVendor(comp.vendor, query);
+}
+
+pub fn isTargetEnvironment(comp: *const Compilation, query: []const u8) bool {
+    return target_util.isEnvironment(comp.target, query);
+}
+
+pub fn isTargetVariantOs(comp: *const Compilation, query: []const u8) bool {
+    if (comp.target.os.tag.isDarwin()) {
+        const variant_target = comp.darwin_target_variant orelse return false;
+        return target_util.isOs(variant_target, query);
+    }
+    return false;
+}
+
+pub fn isTargetVariantEnvironment(comp: *const Compilation, query: []const u8) bool {
+    if (comp.target.os.tag.isDarwin()) {
+        const variant_target = comp.darwin_target_variant orelse return false;
+        return target_util.isEnvironment(variant_target, query);
+    }
+    return false;
 }
 
 pub const CharUnitSize = enum(u32) {

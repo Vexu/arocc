@@ -89,6 +89,12 @@ pub const Macro = struct {
             pragma_operator,
             ms_identifier,
             ms_pragma,
+            is_target_arch,
+            is_target_vendor,
+            is_target_os,
+            is_target_environment,
+            is_target_variant_os,
+            is_target_variant_environment,
         };
         obj: Object,
         func: Func,
@@ -286,6 +292,15 @@ pub fn addBuiltinMacros(pp: *Preprocessor) !void {
     try pp.addBuiltinMacro("__has_embed", .{ .func = .has_embed });
     try pp.addBuiltinMacro("__is_identifier", .{ .func = .is_identifier });
     try pp.addBuiltinMacro("_Pragma", .{ .func = .pragma_operator });
+
+    if (pp.comp.langopts.emulate == .clang) {
+        try pp.addBuiltinMacro("__is_target_arch", .{ .func = .is_target_arch });
+        try pp.addBuiltinMacro("__is_target_vendor", .{ .func = .is_target_vendor });
+        try pp.addBuiltinMacro("__is_target_os", .{ .func = .is_target_os });
+        try pp.addBuiltinMacro("__is_target_environment", .{ .func = .is_target_environment });
+        try pp.addBuiltinMacro("__is_target_variant_os", .{ .func = .is_target_variant_os });
+        try pp.addBuiltinMacro("__is_target_variant_environment", .{ .func = .is_target_variant_environment });
+    }
 
     if (pp.comp.langopts.ms_extensions) {
         try pp.addBuiltinMacro("__identifier", .{ .func = .ms_identifier });
@@ -1610,6 +1625,12 @@ fn handleBuiltinMacro(pp: *Preprocessor, builtin: Macro.Builtin.Func, param_toks
         .has_feature,
         .has_extension,
         .has_builtin,
+        .is_target_arch,
+        .is_target_os,
+        .is_target_vendor,
+        .is_target_environment,
+        .is_target_variant_os,
+        .is_target_variant_environment,
         => {
             var invalid: ?TokenWithExpansionLocs = null;
             var identifier: ?TokenWithExpansionLocs = null;
@@ -1644,6 +1665,12 @@ fn handleBuiltinMacro(pp: *Preprocessor, builtin: Macro.Builtin.Func, param_toks
                 else
                     features.hasExtension(pp.comp, ident_str),
                 .has_builtin => pp.comp.hasBuiltin(ident_str),
+                .is_target_arch => pp.comp.isTargetArch(ident_str),
+                .is_target_os => pp.comp.isTargetOs(ident_str),
+                .is_target_vendor => pp.comp.isTargetVendor(ident_str),
+                .is_target_environment => pp.comp.isTargetEnvironment(ident_str),
+                .is_target_variant_os => pp.comp.isTargetVariantOs(ident_str),
+                .is_target_variant_environment => pp.comp.isTargetVariantEnvironment(ident_str),
                 else => unreachable,
             };
         },
@@ -1826,8 +1853,23 @@ fn expandFuncMacro(
                 .has_include,
                 .has_include_next,
                 .is_identifier,
+                .is_target_arch,
+                .is_target_os,
+                .is_target_vendor,
+                .is_target_environment,
+                .is_target_variant_os,
+                .is_target_variant_environment,
                 => |kind| {
-                    const arg = expanded_args.items[0];
+                    const arg = switch (kind) {
+                        .is_target_arch,
+                        .is_target_os,
+                        .is_target_vendor,
+                        .is_target_environment,
+                        .is_target_variant_os,
+                        .is_target_variant_environment,
+                        => args.items[0],
+                        else => expanded_args.items[0],
+                    };
                     const result = if (arg.len == 0) blk: {
                         try pp.err(macro_tok, .expected_arguments, .{ 1, 0 });
                         break :blk false;
