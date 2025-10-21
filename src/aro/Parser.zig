@@ -5806,7 +5806,9 @@ const CallExpr = union(enum) {
             .builtin => |builtin| switch (builtin.expanded.tag) {
                 .common => |tag| switch (tag) {
                     .__c11_atomic_thread_fence,
+                    .__atomic_thread_fence,
                     .__c11_atomic_signal_fence,
+                    .__atomic_signal_fence,
                     .__c11_atomic_is_lock_free,
                     .__builtin_isinf,
                     .__builtin_isinf_sign,
@@ -5843,6 +5845,7 @@ const CallExpr = union(enum) {
 
                     .__builtin_complex,
                     .__c11_atomic_load,
+                    .__atomic_load_n,
                     .__c11_atomic_init,
                     .__builtin_elementwise_add_sat,
                     .__builtin_elementwise_copysign,
@@ -5854,7 +5857,9 @@ const CallExpr = union(enum) {
                     => 2,
 
                     .__c11_atomic_store,
+                    .__atomic_store,
                     .__c11_atomic_exchange,
+                    .__atomic_exchange,
                     .__c11_atomic_fetch_add,
                     .__c11_atomic_fetch_sub,
                     .__c11_atomic_fetch_or,
@@ -5876,6 +5881,7 @@ const CallExpr = union(enum) {
                     .__builtin_sub_overflow,
                     .__builtin_mul_overflow,
                     .__builtin_elementwise_fma,
+                    .__atomic_exchange_n,
                     => 3,
 
                     .__c11_atomic_compare_exchange_strong,
@@ -5936,6 +5942,8 @@ const CallExpr = union(enum) {
                 .__atomic_fetch_nand,
                 .__atomic_nand_fetch,
                 .__c11_atomic_fetch_nand,
+
+                .__atomic_exchange_n,
                 => {
                     if (args.len != 3) return .invalid; // wrong number of arguments; already an error
                     const second_param = args[2];
@@ -6020,6 +6028,7 @@ const CallExpr = union(enum) {
                 .__sync_swap,
                 .__sync_xor_and_fetch,
                 .__sync_val_compare_and_swap,
+                .__atomic_load_n,
                 => {
                     if (args.len < 1) return .invalid; // not enough arguments; already an error
                     const first_param = args[0];
