@@ -2184,10 +2184,22 @@ fn typeSpec(p: *Parser, builder: *TypeStore.Builder) Error!bool {
             .keyword_fp16 => try builder.combine(.fp16, p.tok_i),
             .keyword_bf16 => try builder.combine(.bf16, p.tok_i),
             .keyword_float16 => try builder.combine(.float16, p.tok_i),
+            .keyword_float32 => try builder.combine(.float32, p.tok_i),
+            .keyword_float64 => try builder.combine(.float64, p.tok_i),
+            .keyword_float32x => try builder.combine(.float32x, p.tok_i),
+            .keyword_float64x => try builder.combine(.float64x, p.tok_i),
+            .keyword_float128x => {
+                try p.err(p.tok_i, .type_not_supported_on_target, .{p.tok_ids[p.tok_i].lexeme().?});
+                return error.ParsingFailed;
+            },
+            .keyword_dfloat32 => try builder.combine(.dfloat32, p.tok_i),
+            .keyword_dfloat64 => try builder.combine(.dfloat64, p.tok_i),
+            .keyword_dfloat128 => try builder.combine(.dfloat128, p.tok_i),
+            .keyword_dfloat64x => try builder.combine(.dfloat64x, p.tok_i),
             .keyword_float => try builder.combine(.float, p.tok_i),
             .keyword_double => try builder.combine(.double, p.tok_i),
             .keyword_complex => try builder.combine(.complex, p.tok_i),
-            .keyword_float128_1, .keyword_float128_2 => {
+            .keyword_float128, .keyword_float128_1 => {
                 if (!p.comp.hasFloat128()) {
                     try p.err(p.tok_i, .type_not_supported_on_target, .{p.tok_ids[p.tok_i].lexeme().?});
                 }
@@ -6769,8 +6781,14 @@ pub const Result = struct {
         if (a_float and b_float) {
             const a_complex = a.qt.is(p.comp, .complex);
             const b_complex = b.qt.is(p.comp, .complex);
+            const a_rank = a.qt.floatRank(p.comp);
+            const b_rank = b.qt.floatRank(p.comp);
+            if ((a_rank >= QualType.decimal_float_rank) != (b_rank >= QualType.decimal_float_rank)) {
+                try p.err(tok, .mixing_decimal_floats, .{});
+                return;
+            }
 
-            const res_qt = if (a.qt.floatRank(p.comp) > b.qt.floatRank(p.comp))
+            const res_qt = if (a_rank > b_rank)
                 (if (!a_complex and b_complex)
                     try a.qt.toComplex(p.comp)
                 else
@@ -10028,9 +10046,18 @@ fn parseFloat(p: *Parser, buf: []const u8, suffix: NumberSuffix, tok_i: TokenInd
         .None, .I => .double,
         .F, .IF => .float,
         .F16, .IF16 => .float16,
+        .BF16 => .bf16,
         .L, .IL => .long_double,
         .W, .IW => p.comp.float80Type().?,
         .Q, .IQ, .F128, .IF128 => .float128,
+        .F32, .IF32 => .float32,
+        .F64, .IF64 => .float64,
+        .F32x, .IF32x => .float32x,
+        .F64x, .IF64x => .float64x,
+        .D32 => .dfloat32,
+        .D64 => .dfloat64,
+        .D128 => .dfloat128,
+        .D64x => .dfloat64x,
         else => unreachable,
     };
     const val = try Value.intern(p.comp, key: {
