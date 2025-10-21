@@ -193,6 +193,10 @@ pub fn main() !void {
     var initial_comp = aro.Compilation.init(gpa, arena, &diagnostics, std.fs.cwd());
     defer initial_comp.deinit();
 
+    // Intentional reduntant and mixed-separator path for Windows-specific tests
+    const cases_mixed_include_dir = try std.fs.path.join(arena, &.{ args[1], "include//mixed" });
+    try initial_comp.include_dirs.append(gpa, cases_mixed_include_dir);
+
     const cases_include_dir = try std.fs.path.join(arena, &.{ args[1], "include" });
     try initial_comp.include_dirs.append(gpa, cases_include_dir);
     try initial_comp.embed_dirs.append(gpa, cases_include_dir);
@@ -200,6 +204,12 @@ pub fn main() !void {
     const cases_next_include_dir = try std.fs.path.join(arena, &.{ args[1], "include", "next" });
     try initial_comp.include_dirs.append(gpa, cases_next_include_dir);
     try initial_comp.embed_dirs.append(gpa, cases_next_include_dir);
+
+    const cases_system_include_dir = try std.fs.path.join(arena, &.{ args[1], "include_system" });
+    try initial_comp.system_include_dirs.append(gpa, cases_system_include_dir);
+
+    const cases_system_next_include_dir = try std.fs.path.join(arena, &.{ args[1], "include_system", "next" });
+    try initial_comp.system_include_dirs.append(gpa, cases_system_next_include_dir);
 
     const cases_frameworks_dir = try std.fs.path.join(arena, &.{ args[1], "frameworks" });
     try initial_comp.framework_dirs.append(gpa, cases_frameworks_dir);
