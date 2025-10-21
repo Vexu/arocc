@@ -389,11 +389,12 @@ fn expectToken(p: *Parser, expected: Token.Id) Error!TokenIndex {
 pub fn tokSlice(p: *Parser, tok: TokenIndex) []const u8 {
     if (p.tok_ids[tok].lexeme()) |some| return some;
     const loc = p.pp.tokens.items(.loc)[tok];
-    var tmp_tokenizer = Tokenizer{
+    var tmp_tokenizer: Tokenizer = .{
         .buf = p.comp.getSource(loc.id).buf,
         .langopts = p.comp.langopts,
         .index = loc.byte_offset,
         .source = .generated,
+        .splice_locs = &.{},
     };
     const res = tmp_tokenizer.next();
     return tmp_tokenizer.buf[res.start..res.end];
