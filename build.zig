@@ -1,12 +1,40 @@
 const std = @import("std");
 const Build = std.Build;
-const generateDef = @import("build/generate_def.zig").generateDef;
 
 const aro_version = std.SemanticVersion{
     .major = 0,
     .minor = 0,
     .patch = 0,
 };
+
+fn generateDef(b: *Build, input_name: []const u8) Build.Module.Import {
+    const cache = struct {
+        var exe: ?*Build.Step.Compile = null;
+    };
+    const exe = cache.exe orelse b.addExecutable(.{
+        .name = "generate-def",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("build/generate_def.zig"),
+            .target = b.graph.host,
+            .single_threaded = true,
+        }),
+    });
+    cache.exe = exe;
+
+    const input_path = b.pathJoin(&.{ "src/aro", input_name });
+    const output_name = b.fmt("{s}.zig", .{std.fs.path.stem(input_name)});
+
+    const run_step = b.addRunArtifact(exe);
+    run_step.addFileArg(b.path(input_path));
+    const output_file = run_step.addOutputFileArg(output_name);
+
+    return .{
+        .module = b.createModule(.{
+            .root_source_file = output_file,
+        }),
+        .name = input_name,
+    };
+}
 
 fn addFuzzStep(b: *Build, target: std.Build.ResolvedTarget, afl_clang_lto_path: []const u8, aro_module: *std.Build.Module) !void {
     const fuzz_step = b.step("fuzz", "Build executable for fuzz testing.");
@@ -159,23 +187,23 @@ pub fn build(b: *Build) !void {
                 .name = "backend",
                 .module = aro_backend,
             },
-            try generateDef(b, "Builtins/aarch64.def"),
-            try generateDef(b, "Builtins/amdgcn.def"),
-            try generateDef(b, "Builtins/arm.def"),
-            try generateDef(b, "Builtins/bpf.def"),
-            try generateDef(b, "Builtins/common.def"),
-            try generateDef(b, "Builtins/hexagon.def"),
-            try generateDef(b, "Builtins/loongarch.def"),
-            try generateDef(b, "Builtins/mips.def"),
-            try generateDef(b, "Builtins/nvptx.def"),
-            try generateDef(b, "Builtins/powerpc.def"),
-            try generateDef(b, "Builtins/riscv.def"),
-            try generateDef(b, "Builtins/s390x.def"),
-            try generateDef(b, "Builtins/ve.def"),
-            try generateDef(b, "Builtins/x86_64.def"),
-            try generateDef(b, "Builtins/x86.def"),
-            try generateDef(b, "Builtins/xcore.def"),
-            try generateDef(b, "Attribute/names.def"),
+            generateDef(b, "Builtins/aarch64.def"),
+            generateDef(b, "Builtins/amdgcn.def"),
+            generateDef(b, "Builtins/arm.def"),
+            generateDef(b, "Builtins/bpf.def"),
+            generateDef(b, "Builtins/common.def"),
+            generateDef(b, "Builtins/hexagon.def"),
+            generateDef(b, "Builtins/loongarch.def"),
+            generateDef(b, "Builtins/mips.def"),
+            generateDef(b, "Builtins/nvptx.def"),
+            generateDef(b, "Builtins/powerpc.def"),
+            generateDef(b, "Builtins/riscv.def"),
+            generateDef(b, "Builtins/s390x.def"),
+            generateDef(b, "Builtins/ve.def"),
+            generateDef(b, "Builtins/x86_64.def"),
+            generateDef(b, "Builtins/x86.def"),
+            generateDef(b, "Builtins/xcore.def"),
+            generateDef(b, "Attribute/names.def"),
         },
     });
     const assembly_backend = b.addModule("assembly_backend", .{
