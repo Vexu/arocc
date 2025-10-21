@@ -241,6 +241,23 @@ pub fn build(b: *Build) !void {
         exe.root_module.linkSystemLibrary("advapi32", .{});
     }
 
+    b.step("run", "Run arocc").dependOn(step: {
+        const run_cmd = b.addRunArtifact(exe);
+        run_cmd.step.dependOn(b.getInstallStep());
+        if (b.args) |args| {
+            run_cmd.addArgs(args);
+        }
+        break :step &run_cmd.step;
+    });
+
+    const fmt_dirs: []const []const u8 = &.{ "build", "build.zig", "src", "test" };
+
+    b.step("fmt", "Modify source files in place to have conforming formatting")
+        .dependOn(&b.addFmt(.{ .paths = fmt_dirs }).step);
+
+    const test_fmt_step = b.step("test-fmt", "Check source files having conforming formatting");
+    test_fmt_step.dependOn(&b.addFmt(.{ .paths = fmt_dirs, .check = true }).step);
+
     // tracy integration
     if (tracy) |tracy_path| {
         const client_cpp = std.fs.path.join(
@@ -339,6 +356,7 @@ pub fn build(b: *Build) !void {
     };
 
     const tests_step = b.step("test", "Run all tests");
+    tests_step.dependOn(test_fmt_step);
     tests_step.dependOn(unit_tests_step);
     tests_step.dependOn(integration_tests_step);
     tests_step.dependOn(record_tests_step);

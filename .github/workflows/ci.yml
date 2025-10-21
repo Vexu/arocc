@@ -26,10 +26,6 @@ jobs:
         with:
           version: master
 
-      - name: Fmt
-        run: zig fmt . --check
-        if: matrix.os == 'ubuntu-latest'
-
       - name: Build
         run: zig build
 
