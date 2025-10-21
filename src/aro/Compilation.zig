@@ -789,7 +789,9 @@ fn generateSystemDefines(comp: *Compilation, w: *std.Io.Writer) !void {
         else => {},
     }
 
-    if (ptr_width == 64 and comp.target.cTypeBitSize(.long) == 32) {
+    if (ptr_width == 64 and comp.target.cTypeBitSize(.long) == 64 and
+        comp.target.cTypeBitSize(.int) == 32)
+    {
         try define(w, "_LP64");
         try define(w, "__LP64__");
     } else if (ptr_width == 32 and comp.target.cTypeBitSize(.long) == 32 and

@@ -166,7 +166,7 @@ pub const Macro = struct {
         return mem.eql(u8, pp.tokSlice(a), pp.tokSlice(b));
     }
 
-    fn isBuiltin(m: *const Macro) bool {
+    pub fn isBuiltin(m: *const Macro) bool {
         return m.builtin_kind != null;
     }
 };

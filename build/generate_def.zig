@@ -1,47 +1,27 @@
 const std = @import("std");
-const Step = std.Build.Step;
 const Allocator = std.mem.Allocator;
 
-pub fn generateDef(b: *std.Build, input_name: []const u8) !std.Build.Module.Import {
-    const path = b.pathJoin(&.{ "src/aro", input_name });
-    const arena = b.allocator;
+pub fn main() !void {
+    var debug_allocator: std.heap.DebugAllocator(.{ .stack_trace_frames = 0 }) = .{};
+    defer _ = debug_allocator.deinit();
+    const gpa = debug_allocator.allocator();
 
-    var man = b.graph.cache.obtain();
-    defer man.deinit();
+    var arena_allocator = std.heap.ArenaAllocator.init(gpa);
+    defer arena_allocator.deinit();
+    const arena = arena_allocator.allocator();
 
-    // Random bytes to make GenerateDef unique. Refresh this with new
-    // random bytes when GenerateDef implementation is modified in a
-    // non-backwards-compatible way.
-    man.hash.add(@as(u32, 0xDCC14144));
-    _ = try man.addFilePath(.initCwd(path), null);
-
-    const out_name = b.fmt("{s}.zig", .{std.fs.path.stem(path)});
-    if (man.hit() catch |err| std.debug.panic("failed to check cache {s}", .{@errorName(err)})) {
-        const digest = man.final();
-        const output_path = try b.cache_root.join(arena, &.{
-            "o", &digest, out_name,
-        });
-        return .{
-            .module = b.createModule(.{
-                .root_source_file = .{
-                    .cwd_relative = output_path,
-                },
-            }),
-            .name = input_name,
-        };
+    const args = try std.process.argsAlloc(arena);
+    if (args.len != 3) {
+        const stderr = std.debug.lockStderrWriter(&.{});
+        stderr.print("Usage: {s} <input-file> <output-path>", .{args[0]}) catch {};
+        std.process.exit(1);
     }
 
-    const digest = man.final();
-    const sub_path = try std.fs.path.join(arena, &.{ "o", &digest, out_name });
-    const sub_path_dirname = std.fs.path.dirname(sub_path).?;
+    const input_path = args[1];
+    const output_path = args[2];
 
-    b.cache_root.handle.makePath(sub_path_dirname) catch |err| {
-        std.debug.panic("unable to make path '{f}{s}': {s}", .{
-            b.cache_root, sub_path_dirname, @errorName(err),
-        });
-    };
-
-    const input = try b.build_root.handle.readFileAlloc(path, arena, .unlimited);
+    const input = try std.fs.cwd().readFileAlloc(input_path, gpa, .unlimited);
+    defer gpa.free(input);
 
     var values: std.StringArrayHashMapUnmanaged([]const []const u8) = .empty;
     var properties: std.ArrayList([]const u8) = .empty;
@@ -76,266 +56,249 @@ pub fn generateDef(b: *std.Build, input_name: []const u8) !std.Build.Module.Impo
         if (old != null) std.debug.panic("duplicate value \"{s}\"", .{name});
     }
 
-    const output = blk: {
-        const sorted_list = try arena.dupe([]const u8, values.keys());
-        defer arena.free(sorted_list);
-        std.mem.sort([]const u8, sorted_list, {}, struct {
-            pub fn lessThan(_: void, a_str: []const u8, b_str: []const u8) bool {
-                return std.mem.lessThan(u8, a_str, b_str);
-            }
-        }.lessThan);
-
-        var longest_name: usize = 0;
-        var shortest_name: usize = std.math.maxInt(usize);
-
-        var builder = try DafsaBuilder.init(arena);
-        defer builder.deinit();
-        for (sorted_list) |name| {
-            try builder.insert(name);
-            longest_name = @max(name.len, longest_name);
-            shortest_name = @min(name.len, shortest_name);
+    const sorted_list = try arena.dupe([]const u8, values.keys());
+    defer arena.free(sorted_list);
+    std.mem.sort([]const u8, sorted_list, {}, struct {
+        pub fn lessThan(_: void, a_str: []const u8, b_str: []const u8) bool {
+            return std.mem.lessThan(u8, a_str, b_str);
         }
-        try builder.finish();
-        builder.calcNumbers();
+    }.lessThan);
 
-        // As a sanity check, confirm that the minimal perfect hashing doesn't
-        // have any collisions
-        {
-            var index_set = std.AutoHashMap(usize, void).init(arena);
-            defer index_set.deinit();
+    var longest_name: usize = 0;
+    var shortest_name: usize = std.math.maxInt(usize);
 
-            for (values.keys()) |name| {
-                const index = builder.getUniqueIndex(name).?;
-                const result = try index_set.getOrPut(index);
-                if (result.found_existing) {
-                    std.debug.panic("clobbered {}, name={s}\n", .{ index, name });
-                }
+    var builder = try DafsaBuilder.init(arena);
+    defer builder.deinit();
+    for (sorted_list) |name| {
+        try builder.insert(name);
+        longest_name = @max(name.len, longest_name);
+        shortest_name = @min(name.len, shortest_name);
+    }
+    try builder.finish();
+    builder.calcNumbers();
+
+    // As a sanity check, confirm that the minimal perfect hashing doesn't
+    // have any collisions
+    {
+        var index_set = std.AutoHashMap(usize, void).init(arena);
+        defer index_set.deinit();
+
+        for (values.keys()) |name| {
+            const index = builder.getUniqueIndex(name).?;
+            const result = try index_set.getOrPut(index);
+            if (result.found_existing) {
+                std.debug.panic("clobbered {}, name={s}\n", .{ index, name });
             }
         }
+    }
 
-        var allocating: std.Io.Writer.Allocating = .init(arena);
-        const writer = &allocating.writer;
+    const output_file = try std.fs.cwd().createFile(output_path, .{});
+    defer output_file.close();
 
-        try writer.print(
-            \\//! Autogenerated by GenerateDef from {s}, do not edit
-            \\
-            \\const std = @import("std");
-            \\
-            \\pub fn with(comptime Properties: type) type {{
-            \\return struct {{
-            \\
-        , .{path});
-        for (headers.items) |line| {
-            try writer.print("{s}\n", .{line});
-        }
+    var output_buf: [4196]u8 = undefined;
+    var output_writer = output_file.writer(&output_buf);
+    const writer = &output_writer.interface;
 
-        var values_array = try arena.alloc(Value, values.count());
-        defer arena.free(values_array);
+    try writer.print(
+        \\//! Autogenerated by GenerateDef from {s}, do not edit
+        \\
+        \\const std = @import("std");
+        \\
+        \\pub fn with(comptime Properties: type) type {{
+        \\return struct {{
+        \\
+    , .{input_path});
+    for (headers.items) |line| {
+        try writer.print("{s}\n", .{line});
+    }
 
-        for (values.keys(), values.values()) |name, props| {
-            const unique_index = builder.getUniqueIndex(name).?;
-            const data_index = unique_index - 1;
-            values_array[data_index] = .{ .name = name, .properties = props };
-        }
+    var values_array = try arena.alloc(Value, values.count());
+    defer arena.free(values_array);
 
-        try writer.writeAll(
-            \\
-            \\/// Integer starting at 0 derived from the unique index,
-            \\/// corresponds with the data array index.
-            \\pub const Tag = enum(u16) {
-        );
-        for (values_array) |value| {
-            try writer.print("    {f},\n", .{std.zig.fmtId(value.name)});
-        }
-        try writer.writeAll(
-            \\};
-            \\
-            \\pub fn fromName(name: []const u8) ?Properties {
-            \\    const data_index = tagFromName(name) orelse return null;
-            \\    return data[@intFromEnum(data_index)];
-            \\}
-            \\
-            \\pub fn tagFromName(name: []const u8) ?Tag {
-            \\    const unique_index = uniqueIndex(name) orelse return null;
-            \\    return @enumFromInt(unique_index - 1);
-            \\}
-            \\
-            \\pub fn fromTag(tag: Tag) Properties {
-            \\    return data[@intFromEnum(tag)];
-            \\}
-            \\
-            \\pub fn nameFromTagIntoBuf(tag: Tag, name_buf: []u8) []u8 {
-            \\    std.debug.assert(name_buf.len >= longest_name);
-            \\    const unique_index = @intFromEnum(tag) + 1;
-            \\    return nameFromUniqueIndex(unique_index, name_buf);
-            \\}
-            \\
-            \\pub fn nameFromTag(tag: Tag) NameBuf {
-            \\    var name_buf: NameBuf = undefined;
-            \\    const unique_index = @intFromEnum(tag) + 1;
-            \\    const name = nameFromUniqueIndex(unique_index, &name_buf.buf);
-            \\    name_buf.len = @intCast(name.len);
-            \\    return name_buf;
-            \\}
-            \\
-            \\pub const NameBuf = struct {
-            \\    buf: [longest_name]u8 = undefined,
-            \\    len: std.math.IntFittingRange(0, longest_name),
-            \\
-            \\    pub fn span(self: *const NameBuf) []const u8 {
-            \\        return self.buf[0..self.len];
-            \\    }
-            \\};
-            \\
-            \\pub fn exists(name: []const u8) bool {
-            \\    if (name.len < shortest_name or name.len > longest_name) return false;
-            \\
-            \\    var index: u16 = 0;
-            \\    for (name) |c| {
-            \\        index = findInList(dafsa[index].child_index, c) orelse return false;
-            \\    }
-            \\    return dafsa[index].end_of_word;
-            \\}
-            \\
-            \\
-        );
-        try writer.print("pub const shortest_name = {};\n", .{shortest_name});
-        try writer.print("pub const longest_name = {};\n\n", .{longest_name});
-        try writer.writeAll(
-            \\/// Search siblings of `first_child_index` for the `char`
-            \\/// If found, returns the index of the node within the `dafsa` array.
-            \\/// Otherwise, returns `null`.
-            \\pub fn findInList(first_child_index: u16, char: u8) ?u16 {
-            \\
-        );
-        try writer.print("    @setEvalBranchQuota({d});\n", .{values.count() * 2});
-        try writer.writeAll(
-            \\    var index = first_child_index;
-            \\    while (true) {
-            \\        if (dafsa[index].char == char) return index;
-            \\        if (dafsa[index].end_of_list) return null;
-            \\        index += 1;
-            \\    }
-            \\    unreachable;
-            \\}
-            \\
-            \\/// Returns a unique (minimal perfect hash) index (starting at 1) for the `name`,
-            \\/// or null if the name was not found.
-            \\pub fn uniqueIndex(name: []const u8) ?u16 {
-            \\    if (name.len < shortest_name or name.len > longest_name) return null;
-            \\
-            \\    var index: u16 = 0;
-            \\    var node_index: u16 = 0;
-            \\
-            \\    for (name) |c| {
-            \\        const child_index = findInList(dafsa[node_index].child_index, c) orelse return null;
-            \\        var sibling_index = dafsa[node_index].child_index;
-            \\        while (true) {
-            \\            const sibling_c = dafsa[sibling_index].char;
-            \\            std.debug.assert(sibling_c != 0);
-            \\            if (sibling_c < c) {
-            \\                index += dafsa[sibling_index].number;
-            \\            }
-            \\            if (dafsa[sibling_index].end_of_list) break;
-            \\            sibling_index += 1;
-            \\        }
-            \\        node_index = child_index;
-            \\        if (dafsa[node_index].end_of_word) index += 1;
-            \\    }
-            \\
-            \\    if (!dafsa[node_index].end_of_word) return null;
-            \\
-            \\    return index;
-            \\}
-            \\
-            \\/// Returns a slice of `buf` with the name associated with the given `index`.
-            \\/// This function should only be called with an `index` that
-            \\/// is already known to exist within the `dafsa`, e.g. an index
-            \\/// returned from `uniqueIndex`.
-            \\pub fn nameFromUniqueIndex(index: u16, buf: []u8) []u8 {
-            \\    std.debug.assert(index >= 1 and index <= data.len);
-            \\
-            \\    var node_index: u16 = 0;
-            \\    var count: u16 = index;
-            \\    var w = std.Io.Writer.fixed(buf);
-            \\
-            \\    while (true) {
-            \\        var sibling_index = dafsa[node_index].child_index;
-            \\        while (true) {
-            \\            if (dafsa[sibling_index].number > 0 and dafsa[sibling_index].number < count) {
-            \\                count -= dafsa[sibling_index].number;
-            \\            } else {
-            \\                w.writeByte(dafsa[sibling_index].char) catch unreachable;
-            \\                node_index = sibling_index;
-            \\                if (dafsa[node_index].end_of_word) {
-            \\                    count -= 1;
-            \\                }
-            \\                break;
-            \\            }
-            \\
-            \\            if (dafsa[sibling_index].end_of_list) break;
-            \\            sibling_index += 1;
-            \\        }
-            \\        if (count == 0) break;
-            \\    }
-            \\
-            \\    return w.buffered();
-            \\}
-            \\
-            \\
-        );
+    for (values.keys(), values.values()) |name, props| {
+        const unique_index = builder.getUniqueIndex(name).?;
+        const data_index = unique_index - 1;
+        values_array[data_index] = .{ .name = name, .properties = props };
+    }
 
-        try writer.writeAll(
-            \\const Node = packed struct {
-            \\    char: u8,
-            \\    /// Nodes are numbered with "an integer which gives the number of words that
-            \\    /// would be accepted by the automaton starting from that state." This numbering
-            \\    /// allows calculating "a one-to-one correspondence between the integers 1 to L
-            \\    /// (L is the number of words accepted by the automaton) and the words themselves."
-            \\    ///
-            \\    /// Essentially, this allows us to have a minimal perfect hashing scheme such that
-            \\    /// it's possible to store & lookup the properties of each builtin using a separate array.
-            \\    number: std.math.IntFittingRange(0, data.len),
-            \\    /// If true, this node is the end of a valid builtin.
-            \\    /// Note: This does not necessarily mean that this node does not have child nodes.
-            \\    end_of_word: bool,
-            \\    /// If true, this node is the end of a sibling list.
-            \\    /// If false, then (index + 1) will contain the next sibling.
-            \\    end_of_list: bool,
-            \\    /// Index of the first child of this node.
-            \\    child_index: u16,
-            \\};
-            \\
-            \\
-        );
-        try builder.writeDafsa(writer);
-        try writeData(writer, values_array);
-        try writer.writeAll(
-            \\};
-            \\}
-            \\
-        );
+    try writer.writeAll(
+        \\
+        \\/// Integer starting at 0 derived from the unique index,
+        \\/// corresponds with the data array index.
+        \\pub const Tag = enum(u16) {
+    );
+    for (values_array) |value| {
+        try writer.print("    {f},\n", .{std.zig.fmtId(value.name)});
+    }
+    try writer.writeAll(
+        \\};
+        \\
+        \\pub fn fromName(name: []const u8) ?Properties {
+        \\    const data_index = tagFromName(name) orelse return null;
+        \\    return data[@intFromEnum(data_index)];
+        \\}
+        \\
+        \\pub fn tagFromName(name: []const u8) ?Tag {
+        \\    const unique_index = uniqueIndex(name) orelse return null;
+        \\    return @enumFromInt(unique_index - 1);
+        \\}
+        \\
+        \\pub fn fromTag(tag: Tag) Properties {
+        \\    return data[@intFromEnum(tag)];
+        \\}
+        \\
+        \\pub fn nameFromTagIntoBuf(tag: Tag, name_buf: []u8) []u8 {
+        \\    std.debug.assert(name_buf.len >= longest_name);
+        \\    const unique_index = @intFromEnum(tag) + 1;
+        \\    return nameFromUniqueIndex(unique_index, name_buf);
+        \\}
+        \\
+        \\pub fn nameFromTag(tag: Tag) NameBuf {
+        \\    var name_buf: NameBuf = undefined;
+        \\    const unique_index = @intFromEnum(tag) + 1;
+        \\    const name = nameFromUniqueIndex(unique_index, &name_buf.buf);
+        \\    name_buf.len = @intCast(name.len);
+        \\    return name_buf;
+        \\}
+        \\
+        \\pub const NameBuf = struct {
+        \\    buf: [longest_name]u8 = undefined,
+        \\    len: std.math.IntFittingRange(0, longest_name),
+        \\
+        \\    pub fn span(self: *const NameBuf) []const u8 {
+        \\        return self.buf[0..self.len];
+        \\    }
+        \\};
+        \\
+        \\pub fn exists(name: []const u8) bool {
+        \\    if (name.len < shortest_name or name.len > longest_name) return false;
+        \\
+        \\    var index: u16 = 0;
+        \\    for (name) |c| {
+        \\        index = findInList(dafsa[index].child_index, c) orelse return false;
+        \\    }
+        \\    return dafsa[index].end_of_word;
+        \\}
+        \\
+        \\
+    );
+    try writer.print("pub const shortest_name = {};\n", .{shortest_name});
+    try writer.print("pub const longest_name = {};\n\n", .{longest_name});
+    try writer.writeAll(
+        \\/// Search siblings of `first_child_index` for the `char`
+        \\/// If found, returns the index of the node within the `dafsa` array.
+        \\/// Otherwise, returns `null`.
+        \\pub fn findInList(first_child_index: u16, char: u8) ?u16 {
+        \\
+    );
+    try writer.print("    @setEvalBranchQuota({d});\n", .{values.count() * 2});
+    try writer.writeAll(
+        \\    var index = first_child_index;
+        \\    while (true) {
+        \\        if (dafsa[index].char == char) return index;
+        \\        if (dafsa[index].end_of_list) return null;
+        \\        index += 1;
+        \\    }
+        \\    unreachable;
+        \\}
+        \\
+        \\/// Returns a unique (minimal perfect hash) index (starting at 1) for the `name`,
+        \\/// or null if the name was not found.
+        \\pub fn uniqueIndex(name: []const u8) ?u16 {
+        \\    if (name.len < shortest_name or name.len > longest_name) return null;
+        \\
+        \\    var index: u16 = 0;
+        \\    var node_index: u16 = 0;
+        \\
+        \\    for (name) |c| {
+        \\        const child_index = findInList(dafsa[node_index].child_index, c) orelse return null;
+        \\        var sibling_index = dafsa[node_index].child_index;
+        \\        while (true) {
+        \\            const sibling_c = dafsa[sibling_index].char;
+        \\            std.debug.assert(sibling_c != 0);
+        \\            if (sibling_c < c) {
+        \\                index += dafsa[sibling_index].number;
+        \\            }
+        \\            if (dafsa[sibling_index].end_of_list) break;
+        \\            sibling_index += 1;
+        \\        }
+        \\        node_index = child_index;
+        \\        if (dafsa[node_index].end_of_word) index += 1;
+        \\    }
+        \\
+        \\    if (!dafsa[node_index].end_of_word) return null;
+        \\
+        \\    return index;
+        \\}
+        \\
+        \\/// Returns a slice of `buf` with the name associated with the given `index`.
+        \\/// This function should only be called with an `index` that
+        \\/// is already known to exist within the `dafsa`, e.g. an index
+        \\/// returned from `uniqueIndex`.
+        \\pub fn nameFromUniqueIndex(index: u16, buf: []u8) []u8 {
+        \\    std.debug.assert(index >= 1 and index <= data.len);
+        \\
+        \\    var node_index: u16 = 0;
+        \\    var count: u16 = index;
+        \\    var w = std.Io.Writer.fixed(buf);
+        \\
+        \\    while (true) {
+        \\        var sibling_index = dafsa[node_index].child_index;
+        \\        while (true) {
+        \\            if (dafsa[sibling_index].number > 0 and dafsa[sibling_index].number < count) {
+        \\                count -= dafsa[sibling_index].number;
+        \\            } else {
+        \\                w.writeByte(dafsa[sibling_index].char) catch unreachable;
+        \\                node_index = sibling_index;
+        \\                if (dafsa[node_index].end_of_word) {
+        \\                    count -= 1;
+        \\                }
+        \\                break;
+        \\            }
+        \\
+        \\            if (dafsa[sibling_index].end_of_list) break;
+        \\            sibling_index += 1;
+        \\        }
+        \\        if (count == 0) break;
+        \\    }
+        \\
+        \\    return w.buffered();
+        \\}
+        \\
+        \\
+    );
 
-        break :blk try allocating.toOwnedSlice();
-    };
-
-    b.cache_root.handle.writeFile(.{ .sub_path = sub_path, .data = output }) catch |err| {
-        std.debug.panic("unable to write file '{f}{s}': {s}", .{
-            b.cache_root, sub_path, @errorName(err),
-        });
-    };
-
-    try man.writeManifest();
-
-    const output_path = try b.cache_root.join(arena, &.{sub_path});
-    return .{
-        .module = b.createModule(.{
-            .root_source_file = .{
-                .cwd_relative = output_path,
-            },
-        }),
-        .name = input_name,
-    };
+    try writer.writeAll(
+        \\const Node = packed struct {
+        \\    char: u8,
+        \\    /// Nodes are numbered with "an integer which gives the number of words that
+        \\    /// would be accepted by the automaton starting from that state." This numbering
+        \\    /// allows calculating "a one-to-one correspondence between the integers 1 to L
+        \\    /// (L is the number of words accepted by the automaton) and the words themselves."
+        \\    ///
+        \\    /// Essentially, this allows us to have a minimal perfect hashing scheme such that
+        \\    /// it's possible to store & lookup the properties of each builtin using a separate array.
+        \\    number: std.math.IntFittingRange(0, data.len),
+        \\    /// If true, this node is the end of a valid builtin.
+        \\    /// Note: This does not necessarily mean that this node does not have child nodes.
+        \\    end_of_word: bool,
+        \\    /// If true, this node is the end of a sibling list.
+        \\    /// If false, then (index + 1) will contain the next sibling.
+        \\    end_of_list: bool,
+        \\    /// Index of the first child of this node.
+        \\    child_index: u16,
+        \\};
+        \\
+        \\
+    );
+    try builder.writeDafsa(writer);
+    try writeData(writer, values_array);
+    try writer.writeAll(
+        \\};
+        \\}
+        \\
+    );
+    try writer.flush();
 }
 
 const Value = struct {

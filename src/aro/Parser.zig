@@ -5769,6 +5769,26 @@ const CallExpr = union(enum) {
                 .__builtin_nondeterministic_value => return p.checkElementwiseArg(param_tok, arg, arg_idx, .both),
                 .__builtin_nontemporal_load => return p.checkNonTemporalArg(param_tok, arg, arg_idx, .load),
                 .__builtin_nontemporal_store => return p.checkNonTemporalArg(param_tok, arg, arg_idx, .store),
+
+                .__sync_lock_release => return p.checkSyncArg(param_tok, arg, arg_idx, 1),
+                .__sync_fetch_and_add,
+                .__sync_fetch_and_and,
+                .__sync_fetch_and_nand,
+                .__sync_fetch_and_or,
+                .__sync_fetch_and_sub,
+                .__sync_fetch_and_xor,
+                .__sync_add_and_fetch,
+                .__sync_and_and_fetch,
+                .__sync_nand_and_fetch,
+                .__sync_or_and_fetch,
+                .__sync_sub_and_fetch,
+                .__sync_xor_and_fetch,
+                .__sync_swap,
+                .__sync_lock_test_and_set,
+                => return p.checkSyncArg(param_tok, arg, arg_idx, 2),
+                .__sync_bool_compare_and_swap,
+                .__sync_val_compare_and_swap,
+                => return p.checkSyncArg(param_tok, arg, arg_idx, 3),
                 else => {},
             },
             else => {},
@@ -5872,7 +5892,7 @@ const CallExpr = union(enum) {
         };
     }
 
-    fn returnType(self: CallExpr, p: *Parser, func_qt: QualType) !QualType {
+    fn returnType(self: CallExpr, p: *Parser, args: []const Node.Index, func_qt: QualType) !QualType {
         if (self == .standard) {
             return if (func_qt.get(p.comp, .func)) |func_ty| func_ty.return_type else .invalid;
         }
@@ -5881,13 +5901,13 @@ const CallExpr = union(enum) {
         return switch (builtin.expanded.tag) {
             .common => |tag| switch (tag) {
                 .__c11_atomic_exchange => {
-                    if (p.list_buf.items.len != 4) return .invalid; // wrong number of arguments; already an error
-                    const second_param = p.list_buf.items[2];
+                    if (args.len != 4) return .invalid; // wrong number of arguments; already an error
+                    const second_param = args[2];
                     return second_param.qt(&p.tree);
                 },
                 .__c11_atomic_load => {
-                    if (p.list_buf.items.len != 3) return .invalid; // wrong number of arguments; already an error
-                    const first_param = p.list_buf.items[1];
+                    if (args.len != 3) return .invalid; // wrong number of arguments; already an error
+                    const first_param = args[1];
                     const qt = first_param.qt(&p.tree);
                     if (!qt.isPointer(p.comp)) return .invalid;
                     return qt.childType(p.comp);
@@ -5917,25 +5937,26 @@ const CallExpr = union(enum) {
                 .__atomic_nand_fetch,
                 .__c11_atomic_fetch_nand,
                 => {
-                    if (p.list_buf.items.len != 3) return .invalid; // wrong number of arguments; already an error
-                    const second_param = p.list_buf.items[2];
+                    if (args.len != 3) return .invalid; // wrong number of arguments; already an error
+                    const second_param = args[2];
                     return second_param.qt(&p.tree);
                 },
                 .__builtin_complex => {
-                    if (p.list_buf.items.len < 1) return .invalid; // not enough arguments; already an error
-                    const last_param = p.list_buf.items[p.list_buf.items.len - 1];
+                    if (args.len < 1) return .invalid; // not enough arguments; already an error
+                    const last_param = args[args.len - 1];
                     return try last_param.qt(&p.tree).toComplex(p.comp);
                 },
                 .__atomic_compare_exchange,
                 .__atomic_compare_exchange_n,
                 .__c11_atomic_is_lock_free,
+                .__sync_bool_compare_and_swap,
                 => .bool,
 
                 .__c11_atomic_compare_exchange_strong,
                 .__c11_atomic_compare_exchange_weak,
                 => {
-                    if (p.list_buf.items.len != 6) return .invalid; // wrong number of arguments
-                    const third_param = p.list_buf.items[3];
+                    if (args.len != 6) return .invalid; // wrong number of arguments
+                    const third_param = args[3];
                     return third_param.qt(&p.tree);
                 },
 
@@ -5967,8 +5988,8 @@ const CallExpr = union(enum) {
                 .__builtin_elementwise_popcount,
                 .__builtin_nondeterministic_value,
                 => {
-                    if (p.list_buf.items.len < 1) return .invalid; // not enough arguments; already an error
-                    const last_param = p.list_buf.items[p.list_buf.items.len - 1];
+                    if (args.len < 1) return .invalid; // not enough arguments; already an error
+                    const last_param = args[args.len - 1];
                     return last_param.qt(&p.tree);
                 },
                 .__builtin_nontemporal_load,
@@ -5980,9 +6001,29 @@ const CallExpr = union(enum) {
                 .__builtin_reduce_max,
                 .__builtin_reduce_min,
                 => {
-                    if (p.list_buf.items.len < 1) return .invalid; // not enough arguments; already an error
-                    const last_param = p.list_buf.items[p.list_buf.items.len - 1];
+                    if (args.len < 1) return .invalid; // not enough arguments; already an error
+                    const last_param = args[args.len - 1];
                     return last_param.qt(&p.tree).childType(p.comp);
+                },
+                .__sync_add_and_fetch,
+                .__sync_and_and_fetch,
+                .__sync_fetch_and_add,
+                .__sync_fetch_and_and,
+                .__sync_fetch_and_nand,
+                .__sync_fetch_and_or,
+                .__sync_fetch_and_sub,
+                .__sync_fetch_and_xor,
+                .__sync_lock_test_and_set,
+                .__sync_nand_and_fetch,
+                .__sync_or_and_fetch,
+                .__sync_sub_and_fetch,
+                .__sync_swap,
+                .__sync_xor_and_fetch,
+                .__sync_val_compare_and_swap,
+                => {
+                    if (args.len < 1) return .invalid; // not enough arguments; already an error
+                    const first_param = args[0];
+                    return first_param.qt(&p.tree).childType(p.comp);
                 },
                 else => func_ty.return_type,
             },
@@ -5992,7 +6033,7 @@ const CallExpr = union(enum) {
 
     fn finish(self: CallExpr, p: *Parser, func_qt: QualType, list_buf_top: usize, l_paren: TokenIndex) Error!Result {
         const args = p.list_buf.items[list_buf_top..];
-        const return_qt = try self.returnType(p, func_qt);
+        const return_qt = try self.returnType(p, args, func_qt);
         switch (self) {
             .standard => |func_node| return .{
                 .qt = return_qt,
@@ -9149,6 +9190,34 @@ fn checkNonTemporalArg(
         };
         try prev_arg.coerce(p, base_qt, prev_idx.tok(&p.tree), .{ .arg = null });
         p.list_buf.items[p.list_buf.items.len - 1] = prev_arg.node;
+    }
+}
+
+fn checkSyncArg(
+    p: *Parser,
+    param_tok: TokenIndex,
+    arg: *Result,
+    idx: u32,
+    max_count: u8,
+) !void {
+    if (idx >= max_count) return;
+    if (idx == 0) {
+        const ptr_ty = arg.qt.get(p.comp, .pointer) orelse
+            return p.err(param_tok, .atomic_address_pointer, .{arg.qt});
+
+        const child_sk = ptr_ty.child.scalarKind(p.comp);
+        if (!((child_sk.isInt() and child_sk.isReal()) or child_sk.isPointer()))
+            return p.err(param_tok, .atomic_address_type, .{arg.qt});
+    } else {
+        const first_idx = p.list_buf.items[p.list_buf.items.len - idx];
+        const ptr_ty = first_idx.qt(&p.tree).get(p.comp, .pointer) orelse return;
+        const prev_qt = ptr_ty.child;
+        arg.coerceExtra(p, prev_qt, param_tok, .{ .arg = null }) catch |er| switch (er) {
+            error.CoercionFailed => {
+                try p.err(param_tok, .argument_types_differ, .{ prev_qt, arg.qt });
+            },
+            else => |e| return e,
+        };
     }
 }
 
