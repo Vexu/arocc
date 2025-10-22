@@ -275,7 +275,7 @@ fn detectDebian(tc: *const Toolchain) ?Tag {
     return scanForDebian(data);
 }
 
-pub fn detect(target: std.Target, tc: *const Toolchain) Tag {
+pub fn detect(target: *const std.Target, tc: *const Toolchain) Tag {
     if (target.os.tag != .linux) return .unknown;
 
     if (detectOsRelease(tc)) |tag| return tag;

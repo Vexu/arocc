@@ -10249,7 +10249,7 @@ fn fixedSizeInt(p: *Parser, base: u8, buf: []const u8, suffix: NumberSuffix, tok
         if (interned_val.compare(.lte, max_int, p.comp)) break;
     } else {
         if (p.comp.langopts.emulate == .gcc) {
-            if (target_util.hasInt128(p.comp.target)) {
+            if (target_util.hasInt128(&p.comp.target)) {
                 res.qt = .int128;
             } else {
                 res.qt = .long_long;

@@ -667,7 +667,7 @@ pub const QualType = packed struct(u32) {
                 else => comp.target.ptrBitWidth() / 8,
             },
 
-            .func => target_util.defaultFunctionAlignment(comp.target),
+            .func => target_util.defaultFunctionAlignment(&comp.target),
 
             .array => |array| continue :loop array.elem.base(comp).type,
             .vector => |vector| continue :loop vector.elem.base(comp).type,
@@ -1185,7 +1185,7 @@ pub const QualType = packed struct(u32) {
                 if (index <= aligned_index) break;
             }
             last_aligned_index = index;
-            const requested = if (attribute.args.aligned.alignment) |alignment| alignment.requested else target_util.defaultAlignment(comp.target);
+            const requested = if (attribute.args.aligned.alignment) |alignment| alignment.requested else target_util.defaultAlignment(&comp.target);
             if (max_requested == null or max_requested.? < requested) {
                 max_requested = requested;
             }
@@ -1202,7 +1202,7 @@ pub const QualType = packed struct(u32) {
 
     pub fn enumIsPacked(qt: QualType, comp: *const Compilation) bool {
         std.debug.assert(qt.is(comp, .@"enum"));
-        return comp.langopts.short_enums or target_util.packAllEnums(comp.target) or qt.hasAttribute(comp, .@"packed");
+        return comp.langopts.short_enums or target_util.packAllEnums(&comp.target) or qt.hasAttribute(comp, .@"packed");
     }
 
     pub fn shouldDesugar(qt: QualType, comp: *const Compilation) bool {
@@ -2106,10 +2106,10 @@ pub fn initNamedTypes(ts: *TypeStore, comp: *Compilation) !void {
         else => .int,
     };
 
-    ts.intmax = target_util.intMaxType(comp.target);
-    ts.intptr = target_util.intPtrType(comp.target);
-    ts.int16 = target_util.int16Type(comp.target);
-    ts.int64 = target_util.int64Type(comp.target);
+    ts.intmax = target_util.intMaxType(&comp.target);
+    ts.intptr = target_util.intPtrType(&comp.target);
+    ts.int16 = target_util.int16Type(&comp.target);
+    ts.int64 = target_util.int64Type(&comp.target);
     ts.uint_least16_t = comp.intLeastN(16, .unsigned);
     ts.uint_least32_t = comp.intLeastN(32, .unsigned);
 
@@ -2881,7 +2881,7 @@ pub const Builder = struct {
             else => {},
         }
 
-        if (new == .int128 and !target_util.hasInt128(b.parser.comp.target)) {
+        if (new == .int128 and !target_util.hasInt128(&b.parser.comp.target)) {
             try b.parser.err(source_tok, .type_not_supported_on_target, .{"__int128"});
         }
 

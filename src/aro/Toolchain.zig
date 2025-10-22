@@ -64,8 +64,8 @@ selected_multilib: Multilib = .{},
 
 inner: Inner = .{ .uninitialized = {} },
 
-pub fn getTarget(tc: *const Toolchain) std.Target {
-    return tc.driver.comp.target;
+pub fn getTarget(tc: *const Toolchain) *const std.Target {
+    return &tc.driver.comp.target;
 }
 
 fn getDefaultLinker(tc: *const Toolchain) []const u8 {

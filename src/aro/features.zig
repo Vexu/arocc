@@ -43,7 +43,7 @@ pub fn hasFeature(comp: *Compilation, ext: []const u8) bool {
         .c_atomic = comp.langopts.standard.atLeast(.c11),
         .c_generic_selections = comp.langopts.standard.atLeast(.c11),
         .c_static_assert = comp.langopts.standard.atLeast(.c11),
-        .c_thread_local = comp.langopts.standard.atLeast(.c11) and target_util.isTlsSupported(comp.target),
+        .c_thread_local = comp.langopts.standard.atLeast(.c11) and target_util.isTlsSupported(&comp.target),
     };
     inline for (@typeInfo(@TypeOf(list)).@"struct".fields) |f| {
         if (std.mem.eql(u8, f.name, ext)) return @field(list, f.name);
@@ -60,7 +60,7 @@ pub fn hasExtension(comp: *Compilation, ext: []const u8) bool {
         .c_atomic = true,
         .c_generic_selections = true,
         .c_static_assert = true,
-        .c_thread_local = target_util.isTlsSupported(comp.target),
+        .c_thread_local = target_util.isTlsSupported(&comp.target),
         // misc
         .overloadable_unmarked = false, // TODO
         .statement_attributes_with_gnu_syntax = true,

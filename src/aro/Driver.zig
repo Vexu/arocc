@@ -789,7 +789,7 @@ pub fn parseArgs(
         }
     }
     if (emulate != null or d.raw_target_triple != null) {
-        d.comp.langopts.setEmulatedCompiler(emulate orelse target_util.systemCompiler(d.comp.target));
+        d.comp.langopts.setEmulatedCompiler(emulate orelse target_util.systemCompiler(&d.comp.target));
         switch (d.comp.langopts.emulate) {
             .clang => try d.diagnostics.set("clang", .off),
             .gcc => try d.diagnostics.set("gnu", .off),
@@ -868,7 +868,7 @@ pub fn warn(d: *Driver, fmt: []const u8, args: anytype) Compilation.Error!void {
     try d.diagnostics.add(.{ .kind = .warning, .text = allocating.written(), .location = null });
 }
 
-pub fn unsupportedOptionForTarget(d: *Driver, target: std.Target, opt: []const u8) Compilation.Error!void {
+pub fn unsupportedOptionForTarget(d: *Driver, target: *const std.Target, opt: []const u8) Compilation.Error!void {
     try d.err(
         "unsupported option '{s}' for target '{s}-{s}-{s}'",
         .{ opt, @tagName(target.cpu.arch), @tagName(target.os.tag), @tagName(target.abi) },
@@ -1394,7 +1394,7 @@ fn exitWithCleanup(d: *Driver, code: u8) noreturn {
 pub fn getPICMode(d: *Driver, lastpic: []const u8) Compilation.Error!struct { backend.CodeGenOptions.PicLevel, bool } {
     const eqlIgnoreCase = std.ascii.eqlIgnoreCase;
 
-    const target = d.comp.target;
+    const target = &d.comp.target;
     const linker = d.use_linker orelse @import("system_defaults").linker;
     const is_bfd_linker = eqlIgnoreCase(linker, "bfd");
 
