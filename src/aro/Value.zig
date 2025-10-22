@@ -401,7 +401,7 @@ pub fn isZero(v: Value, comp: *const Compilation) bool {
     switch (v.ref()) {
         .zero => return true,
         .one => return false,
-        .null => return target_util.nullRepr(comp.target) == 0,
+        .null => return target_util.nullRepr(&comp.target) == 0,
         else => {},
     }
     const key = comp.interner.get(v.ref());

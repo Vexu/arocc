@@ -276,7 +276,7 @@ fn singleRun(gpa: std.mem.Allocator, test_dir: []const u8, test_case: TestCase, 
         return;
     };
 
-    comp.langopts.setEmulatedCompiler(aro.target_util.systemCompiler(comp.target));
+    comp.langopts.setEmulatedCompiler(aro.target_util.systemCompiler(&comp.target));
 
     var macro_buf: [1024]u8 = undefined;
     var macro_writer: std.Io.Writer = .fixed(&macro_buf);
@@ -396,7 +396,7 @@ fn setTarget(comp: *aro.Compilation, target: []const u8) !void {
     const compiler_split_index = std.mem.indexOf(u8, target, ":").?;
 
     comp.target = try getTarget(target[0..compiler_split_index]);
-    comp.langopts.emulate = aro.target_util.systemCompiler(comp.target);
+    comp.langopts.emulate = aro.target_util.systemCompiler(&comp.target);
 
     const expected_compiler_name = target[compiler_split_index + 1 ..];
     const set_name = @tagName(comp.langopts.emulate);

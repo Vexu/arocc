@@ -117,7 +117,7 @@ fn createType(desc: TypeDescription, it: *TypeDescription.TypeIterator, comp: *C
             .W => require_native_int64 = true,
             .N => {
                 std.debug.assert(desc.spec == .i);
-                if (!target_util.isLP64(comp.target)) {
+                if (!target_util.isLP64(&comp.target)) {
                     builder.combine(.long, 0) catch unreachable;
                 }
             },
