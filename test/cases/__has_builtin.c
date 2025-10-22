@@ -7,4 +7,12 @@
 #  endif
 #endif
 
+#if __has_builtin(__has_builtin)
+#  error should not have builtin __has_builtin
+#endif
+
+#if !__has_builtin(__is_target_arch)
+#  error should have builtin __is_target_arch
+#endif
+
 #define EXPECTED_ERRORS "__has_builtin.c:3:8: error: builtin exists"

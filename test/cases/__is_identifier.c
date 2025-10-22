@@ -30,5 +30,10 @@ _Static_assert(X == 1, "'foobar' should be an identifier");
 #error not enough arguments
 #endif
 
+#define FOO &
+#if !__is_identifier(FOO)
+#error FOO is an identifier
+#endif
+
 #define EXPECTED_ERRORS "__is_identifier.c:25:25: error: missing ')', after builtin feature-check macro" \
 	"__is_identifier.c:29:5: error: expected 1 argument(s) got 0"
