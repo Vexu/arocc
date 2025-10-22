@@ -1779,7 +1779,7 @@ fn handleBuiltinMacro(pp: *Preprocessor, builtin: Macro.Builtin.Func, param_toks
                 .is_target_arch => pp.comp.isTargetArch(ident_str),
                 .is_target_os => pp.comp.isTargetOs(ident_str),
                 .is_target_vendor => pp.comp.isTargetVendor(ident_str),
-                .is_target_environment => pp.comp.isTargetEnvironment(ident_str),
+                .is_target_environment => pp.comp.isTargetAbi(ident_str),
                 .is_target_variant_os => pp.comp.isTargetVariantOs(ident_str),
                 .is_target_variant_environment => pp.comp.isTargetVariantEnvironment(ident_str),
                 else => unreachable,

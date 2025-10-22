@@ -2031,19 +2031,19 @@ pub fn getSourceMTimeUncached(comp: *const Compilation, source_id: Source.Id) ?u
 }
 
 pub fn isTargetArch(comp: *const Compilation, query: []const u8) bool {
-    return target_util.isArch(&comp.target, query);
+    return target_util.parseArch(query) == comp.target.cpu.arch;
 }
 
-pub fn isTargetOs(comp: *const Compilation, query: []const u8) !bool {
+pub fn isTargetOs(comp: *const Compilation, query: []const u8) bool {
     return target_util.isOs(&comp.target, query);
 }
 
 pub fn isTargetVendor(comp: *const Compilation, query: []const u8) bool {
-    return target_util.isVendor(comp.vendor, query);
+    return target_util.parseVendor(query) == comp.vendor;
 }
 
-pub fn isTargetEnvironment(comp: *const Compilation, query: []const u8) bool {
-    return target_util.isEnvironment(&comp.target, query);
+pub fn isTargetAbi(comp: *const Compilation, query: []const u8) bool {
+    return target_util.parseAbi(query) == comp.target.abi;
 }
 
 pub fn isTargetVariantOs(comp: *const Compilation, query: []const u8) bool {
@@ -2057,7 +2057,7 @@ pub fn isTargetVariantOs(comp: *const Compilation, query: []const u8) bool {
 pub fn isTargetVariantEnvironment(comp: *const Compilation, query: []const u8) bool {
     if (comp.target.os.tag.isDarwin()) {
         const variant_target = &(comp.darwin_target_variant orelse return false);
-        return target_util.isEnvironment(variant_target, query);
+        return target_util.parseAbi(query) == variant_target.abi;
     }
     return false;
 }

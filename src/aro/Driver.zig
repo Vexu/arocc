@@ -99,8 +99,6 @@ aro_name: []const u8 = "",
 
 /// Value of -target passed via CLI
 raw_target_triple: ?[]const u8 = null,
-/// Value of --vendor= passed via CLI
-raw_target_vendor: ?[]const u8 = null,
 /// Value of -darwin-target-variant-triple passed via CLI
 raw_darwin_variant_target_triple: ?[]const u8 = null,
 
@@ -219,7 +217,6 @@ pub const usage =
     \\  --embed-dir=<dir>       Add directory to `#embed` search path
     \\  --emulate=[clang|gcc|msvc]
     \\                          Select which C compiler to emulate (default clang)
-    \\  --vendor=<vendor>       Specify vendor component of LLVM-style target triple
     \\  -mabicalls              Enable SVR4-style position-independent code (Mips only)
     \\  -mno-abicalls           Disable SVR4-style position-independent code (Mips only)
     \\  -mcmodel=<code-model>   Generate code for the given code model
@@ -659,8 +656,6 @@ pub fn parseArgs(
             } else if (option(arg, "--target=")) |triple| {
                 d.raw_target_triple = triple;
                 emulate = null;
-            } else if (option(arg, "--vendor=")) |vendor| {
-                d.raw_target_vendor = vendor;
             } else if (mem.eql(u8, arg, "--verbose-ast")) {
                 d.verbose_ast = true;
             } else if (mem.eql(u8, arg, "--verbose-pp")) {
@@ -777,12 +772,7 @@ pub fn parseArgs(
         if (d.raw_darwin_variant_target_triple) |darwin_triple| {
             d.comp.darwin_target_variant = try d.parseTarget(darwin_triple, null);
         }
-        if (d.raw_target_vendor) |vendor_str| {
-            d.comp.vendor = target_util.Vendor.parse(vendor_str) orelse blk: {
-                try d.warn("unknown vendor: {s}", .{vendor_str});
-                break :blk .unknown;
-            };
-        } else if (d.raw_target_triple == null) {
+        if (d.raw_target_triple == null) {
             if (d.comp.target.os.tag.isDarwin()) {
                 d.comp.vendor = .apple;
             }
@@ -875,29 +865,164 @@ pub fn unsupportedOptionForTarget(d: *Driver, target: *const std.Target, opt: []
     );
 }
 
-fn parseTarget(d: *Driver, arch_os_abi: []const u8, cpu_features: ?[]const u8) Compilation.Error!std.Target {
-    var diags: std.Target.Query.ParseOptions.Diagnostics = .{};
-    const opts: std.Target.Query.ParseOptions = .{
-        .arch_os_abi = arch_os_abi,
-        .cpu_features = cpu_features,
-        .diagnostics = &diags,
+fn parseTarget(d: *Driver, arch_os_abi: []const u8, opt_cpu_features: ?[]const u8) Compilation.Error!std.Target {
+    var query: std.Target.Query = .{
+        .dynamic_linker = .init(null),
     };
-    const query = std.Target.Query.parse(opts) catch |er| switch (er) {
-        error.UnknownCpuModel => {
-            return d.fatal("unknown CPU: '{s}'", .{diags.cpu_name.?});
-        },
-        error.UnknownCpuFeature => {
-            return d.fatal("unknown CPU feature: '{s}'", .{diags.unknown_feature_name.?});
-        },
-        error.UnknownArchitecture => {
-            return d.fatal("unknown architecture: '{s}'", .{diags.unknown_architecture_name.?});
-        },
-        else => |e| return d.fatal("unable to parse target query '{s}': {s}", .{
-            opts.arch_os_abi, @errorName(e),
-        }),
+
+    var it = mem.splitScalar(u8, arch_os_abi, '-');
+    const arch_name = it.first();
+    const arch_is_native = mem.eql(u8, arch_name, "native");
+    if (!arch_is_native) {
+        query.cpu_arch = target_util.parseArch(arch_name) orelse {
+            return d.fatal("unknown architecture: '{s}'", .{arch_name});
+        };
+    }
+    const arch = query.cpu_arch orelse @import("builtin").cpu.arch;
+
+    const opt_os_text = blk: {
+        const opt_os_or_vendor = it.next();
+        if (opt_os_or_vendor) |os_or_vendor| {
+            if (target_util.parseVendor(os_or_vendor)) |vendor| {
+                d.comp.vendor = vendor;
+                break :blk it.next();
+            }
+        }
+        break :blk opt_os_or_vendor;
     };
-    return std.zig.system.resolveTargetQuery(d.comp.io, query) catch |e| {
+
+    if (opt_os_text) |os_text| {
+        d.parseOs(&query, os_text) catch |er| switch (er) {
+            error.InvalidOperatingSystemVersion => return d.fatal("invalid operating system version in '{s}'", .{os_text}),
+            else => |e| return e,
+        };
+    } else if (!arch_is_native) {
+        return d.fatal("target missing operating system '{s}'", .{arch_os_abi});
+    }
+
+    const opt_abi_text = it.next();
+    if (opt_abi_text) |abi_text| {
+        var abi_it = mem.splitScalar(u8, abi_text, '.');
+        const abi = target_util.parseAbi(abi_it.first()) orelse
+            return d.fatal("unknown abi '{s}'", .{abi_it.first()});
+        query.abi = abi;
+
+        const abi_ver_text = abi_it.rest();
+        if (abi_it.next() != null) {
+            if (abi.isGnu()) {
+                query.glibc_version = std.Target.Query.parseVersion(abi_ver_text) catch |er| switch (er) {
+                    error.Overflow, error.InvalidVersion => return d.fatal("invalid abi version: '{s}'", .{abi_ver_text}),
+                };
+            } else if (abi.isAndroid()) {
+                query.android_api_level = std.fmt.parseUnsigned(u32, abi_ver_text, 10) catch |er| switch (er) {
+                    error.Overflow, error.InvalidCharacter => return d.fatal("invalid Android api version: '{s}'", .{abi_ver_text}),
+                };
+            } else {
+                return d.fatal("invalid abi version: '{s}'", .{abi_ver_text});
+            }
+        }
+    }
+
+    if (it.next() != null) {
+        return d.fatal("unexpected extra field in target: '{s}'", .{arch_os_abi});
+    }
+
+    if (opt_cpu_features) |cpu_features| {
+        const all_features = arch.allFeaturesList();
+        var index: usize = 0;
+        while (index < cpu_features.len and
+            cpu_features[index] != '+' and
+            cpu_features[index] != '-')
+        {
+            index += 1;
+        }
+        const cpu_name = cpu_features[0..index];
+
+        const add_set = &query.cpu_features_add;
+        const sub_set = &query.cpu_features_sub;
+        if (mem.eql(u8, cpu_name, "native")) {
+            query.cpu_model = .native;
+        } else if (mem.eql(u8, cpu_name, "baseline")) {
+            query.cpu_model = .baseline;
+        } else {
+            query.cpu_model = .{ .explicit = arch.parseCpuModel(cpu_name) catch |er| switch (er) {
+                error.UnknownCpuModel => return d.fatal("unknown CPU model: '{s}'", .{cpu_name}),
+            } };
+        }
+
+        while (index < cpu_features.len) {
+            const op = cpu_features[index];
+            const set = switch (op) {
+                '+' => add_set,
+                '-' => sub_set,
+                else => unreachable,
+            };
+            index += 1;
+            const start = index;
+            while (index < cpu_features.len and
+                cpu_features[index] != '+' and
+                cpu_features[index] != '-')
+            {
+                index += 1;
+            }
+            const feature_name = cpu_features[start..index];
+            for (all_features, 0..) |feature, feat_index_usize| {
+                const feat_index: std.Target.Cpu.Feature.Set.Index = @intCast(feat_index_usize);
+                if (mem.eql(u8, feature_name, feature.name)) {
+                    set.addFeature(feat_index);
+                    break;
+                }
+            } else {
+                return d.fatal("unknown CPU feature: '{s}'", .{feature_name});
+            }
+        }
+    }
+
+    return std.zig.system.resolveTargetQuery(d.comp.io, query) catch |e|
         return d.fatal("unable to resolve target: {s}", .{errorDescription(e)});
+}
+
+fn parseOs(d: *Driver, result: *std.Target.Query, text: []const u8) !void {
+    var it = mem.splitScalar(u8, text, '.');
+    const os_name = it.first();
+    const os_is_native = mem.eql(u8, os_name, "native");
+    if (!os_is_native) {
+        result.os_tag = target_util.parseOs(os_name) orelse
+            return d.fatal("unknown OS: '{s}'", .{os_name});
+    }
+    const tag = result.os_tag orelse @import("builtin").os.tag;
+
+    const version_text = it.rest();
+    if (version_text.len > 0) switch (tag.versionRangeTag()) {
+        .none => return error.InvalidOperatingSystemVersion,
+        .semver, .hurd, .linux => {
+            var range_it = mem.splitSequence(u8, version_text, "...");
+            result.os_version_min = .{
+                .semver = std.Target.Query.parseVersion(range_it.first()) catch |er| switch (er) {
+                    error.Overflow => return error.InvalidOperatingSystemVersion,
+                    error.InvalidVersion => return error.InvalidOperatingSystemVersion,
+                },
+            };
+            if (range_it.next()) |v| {
+                result.os_version_max = .{
+                    .semver = std.Target.Query.parseVersion(v) catch |er| switch (er) {
+                        error.Overflow => return error.InvalidOperatingSystemVersion,
+                        error.InvalidVersion => return error.InvalidOperatingSystemVersion,
+                    },
+                };
+            }
+        },
+        .windows => {
+            var range_it = mem.splitSequence(u8, version_text, "...");
+            result.os_version_min = .{
+                .windows = try .parse(range_it.first()),
+            };
+            if (range_it.next()) |v| {
+                result.os_version_max = .{
+                    .windows = try .parse(v),
+                };
+            }
+        },
     };
 }
 
