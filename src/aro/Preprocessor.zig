@@ -66,6 +66,16 @@ const IfContext = struct {
 
 pub const Macro = struct {
     const Builtin = union(enum) {
+        /// For some reason in clang __has_builtin() for these evaluates to 1
+        const has_builtin_special_cases = std.StaticStringMap(void).initComptime(.{
+            .{"__is_target_arch"},
+            .{"__is_target_vendor"},
+            .{"__is_target_os"},
+            .{"__is_target_environment"},
+            .{"__is_target_variant_os"},
+            .{"__is_target_variant_environment"},
+        });
+
         const Object = enum {
             file,
             line,
@@ -96,6 +106,33 @@ pub const Macro = struct {
             is_target_environment,
             is_target_variant_os,
             is_target_variant_environment,
+
+            fn shouldExpandArgs(func: Func) bool {
+                return switch (func) {
+                    .has_attribute,
+                    .has_c_attribute,
+                    .has_declspec_attribute,
+                    .has_warning,
+                    .has_include,
+                    .has_include_next,
+                    .has_embed,
+                    .pragma_operator,
+                    .ms_identifier,
+                    .ms_pragma,
+                    => true,
+                    .is_target_arch,
+                    .is_target_os,
+                    .is_target_vendor,
+                    .is_target_environment,
+                    .is_target_variant_os,
+                    .is_target_variant_environment,
+                    .has_builtin,
+                    .is_identifier,
+                    .has_feature,
+                    .has_extension,
+                    => false,
+                };
+            }
         };
         obj: Object,
         func: Func,
@@ -168,6 +205,12 @@ pub const Macro = struct {
 
     pub fn isBuiltin(m: *const Macro) bool {
         return m.builtin_kind != null;
+    }
+
+    /// Asserts that m.builtin_kind is .func if not null
+    fn shouldExpandArgs(m: *const Macro) bool {
+        const builtin_kind = m.builtin_kind orelse return true;
+        return builtin_kind.func.shouldExpandArgs();
     }
 };
 
@@ -1665,7 +1708,7 @@ fn handleBuiltinMacro(pp: *Preprocessor, builtin: Macro.Builtin.Func, param_toks
                     features.hasFeature(pp.comp, ident_str)
                 else
                     features.hasExtension(pp.comp, ident_str),
-                .has_builtin => Builtins.fromName(pp.comp, ident_str) != null,
+                .has_builtin => Builtins.fromName(pp.comp, ident_str) != null or (pp.comp.langopts.emulate == .clang and Macro.Builtin.has_builtin_special_cases.has(ident_str)),
                 .is_target_arch => pp.comp.isTargetArch(ident_str),
                 .is_target_os => pp.comp.isTargetOs(ident_str),
                 .is_target_vendor => pp.comp.isTargetVendor(ident_str),
@@ -1861,16 +1904,7 @@ fn expandFuncMacro(
                 .is_target_variant_os,
                 .is_target_variant_environment,
                 => |kind| {
-                    const arg = switch (kind) {
-                        .is_target_arch,
-                        .is_target_os,
-                        .is_target_vendor,
-                        .is_target_environment,
-                        .is_target_variant_os,
-                        .is_target_variant_environment,
-                        => args.items[0],
-                        else => expanded_args.items[0],
-                    };
+                    const arg = expanded_args.items[0];
                     const result = if (arg.len == 0) blk: {
                         try pp.err(macro_tok, .expected_arguments, .{ 1, 0 });
                         break :blk false;
@@ -2502,13 +2536,17 @@ fn expandMacroExhaustive(
                     var expanded_args: MacroArguments = .empty;
                     defer deinitMacroArguments(gpa, &expanded_args);
                     try expanded_args.ensureTotalCapacity(gpa, args.items.len);
+                    const should_expand_args = macro.shouldExpandArgs();
                     for (args.items) |arg| {
                         var expand_buf: ExpandBuf = .empty;
                         errdefer expand_buf.deinit(gpa);
                         try expand_buf.appendSlice(gpa, arg);
 
-                        try pp.expandMacroExhaustive(tokenizer, &expand_buf, 0, expand_buf.items.len, false, eval_ctx);
-
+                        if (should_expand_args) {
+                            try pp.expandMacroExhaustive(tokenizer, &expand_buf, 0, expand_buf.items.len, false, eval_ctx);
+                        }
+                        // Even if not expanding the arguments, still append to expanded_args so expansion locations will
+                        // get cleaned up.
                         expanded_args.appendAssumeCapacity(try expand_buf.toOwnedSlice(gpa));
                     }
 

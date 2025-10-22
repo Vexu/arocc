@@ -7,4 +7,9 @@
 #  endif
 #endif
 
+#define FOO aligned
+#if !__has_attribute(FOO)
+#  error should have attribute aligned
+#endif
+
 #define EXPECTED_ERRORS "__has_attribute.c:3:8: error: attribute exists"
