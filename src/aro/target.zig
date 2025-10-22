@@ -428,14 +428,75 @@ fn toLower(src: []const u8, dest: []u8) ?[]const u8 {
 pub fn isArch(target: std.Target, query: []const u8) bool {
     var buf: [64]u8 = undefined;
     const lower = toLower(query, &buf) orelse return false;
-    const query_arch = std.meta.stringToEnum(std.Target.Cpu.Arch, lower) orelse return false;
+    const query_arch = std.meta.stringToEnum(std.Target.Cpu.Arch, lower) orelse
+        std.StaticStringMap(std.Target.Cpu.Arch).initComptime(.{
+            .{ "i386", .x86 },
+            .{ "i486", .x86 },
+            .{ "i586", .x86 },
+            .{ "i686", .x86 },
+            .{ "i786", .x86 },
+            .{ "i886", .x86 },
+            .{ "i986", .x86 },
+            .{ "amd64", .x86_64 },
+            .{ "x86_64h", .x86_64 },
+            .{ "powerpcspe", .powerpc },
+            .{ "ppc", .powerpc },
+            .{ "ppc32", .powerpc },
+            .{ "ppcle", .powerpcle },
+            .{ "ppc32le", .powerpcle },
+            .{ "ppu", .powerpc64 },
+            .{ "ppc64", .powerpc64 },
+            .{ "ppc64le", .powerpc64le },
+            .{ "xscale", .arm },
+            .{ "xscaleeb", .armeb },
+            .{ "arm64", .aarch64 },
+            .{ "arm64e", .aarch64 },
+            .{ "arm64ec", .aarch64 },
+            .{ "mipseb", .mips },
+            .{ "mipsallegrex", .mips },
+            .{ "mipsisa32r6", .mips },
+            .{ "mipsr6", .mips },
+            .{ "mipsallegrexel", .mipsel },
+            .{ "mipsisa32r6el", .mipsel },
+            .{ "mipsr6el", .mipsel },
+            .{ "mips64eb", .mips64 },
+            .{ "mipsn32", .mips64 },
+            .{ "mipsisa64r6", .mips64 },
+            .{ "mips64r6", .mips64 },
+            .{ "mipsn32r6", .mips64 },
+            .{ "mipsn32el", .mips64el },
+            .{ "mipsisa64r6el", .mips64el },
+            .{ "mips64r6el", .mips64el },
+            .{ "mipsn32r6el", .mips64el },
+            .{ "systemz", .s390x },
+            .{ "sparcv9", .sparc64 },
+            .{ "spirv32", .spirv32 },
+            .{ "spirv32v1.0", .spirv32 },
+            .{ "spirv32v1.1", .spirv32 },
+            .{ "spirv32v1.2", .spirv32 },
+            .{ "spirv32v1.3", .spirv32 },
+            .{ "spirv32v1.4", .spirv32 },
+            .{ "spirv32v1.5", .spirv32 },
+            .{ "spirv32v1.6", .spirv32 },
+            .{ "spirv64v1.0", .spirv64 },
+            .{ "spirv64v1.1", .spirv64 },
+            .{ "spirv64v1.2", .spirv64 },
+            .{ "spirv64v1.3", .spirv64 },
+            .{ "spirv64v1.4", .spirv64 },
+            .{ "spirv64v1.5", .spirv64 },
+            .{ "spirv64v1.6", .spirv64 },
+        }).get(lower) orelse return false;
     return query_arch == target.cpu.arch;
 }
 
 pub fn isOs(target: std.Target, query: []const u8) bool {
     var buf: [64]u8 = undefined;
     const lower = toLower(query, &buf) orelse return false;
-    const query_os = std.meta.stringToEnum(std.Target.Os.Tag, lower) orelse return false;
+    const query_os = std.meta.stringToEnum(std.Target.Os.Tag, lower) orelse
+        std.StaticStringMap(std.Target.Os.Tag).initComptime(.{
+            .{ "win32", .windows },
+            .{ "xros", .visionos },
+        }).get(lower) orelse return false;
 
     if (query_os.isDarwin()) {
         // clang treats all darwin OS's as equivalent
