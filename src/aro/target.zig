@@ -425,10 +425,10 @@ fn toLower(src: []const u8, dest: []u8) ?[]const u8 {
     return dest[0..src.len];
 }
 
-pub fn isArch(target: *const std.Target, query: []const u8) bool {
+pub fn parseArch(query: []const u8) ?std.Target.Cpu.Arch {
     var buf: [64]u8 = undefined;
-    const lower = toLower(query, &buf) orelse return false;
-    const query_arch = std.meta.stringToEnum(std.Target.Cpu.Arch, lower) orelse
+    const lower = toLower(query, &buf) orelse return null;
+    return std.meta.stringToEnum(std.Target.Cpu.Arch, lower) orelse
         std.StaticStringMap(std.Target.Cpu.Arch).initComptime(.{
             .{ "i386", .x86 },
             .{ "i486", .x86 },
@@ -485,38 +485,39 @@ pub fn isArch(target: *const std.Target, query: []const u8) bool {
             .{ "spirv64v1.4", .spirv64 },
             .{ "spirv64v1.5", .spirv64 },
             .{ "spirv64v1.6", .spirv64 },
-        }).get(lower) orelse return false;
-    return query_arch == target.cpu.arch;
+        }).get(lower) orelse return null;
 }
 
-pub fn isOs(target: *const std.Target, query: []const u8) bool {
+pub fn parseOs(query: []const u8) ?std.Target.Os.Tag {
     var buf: [64]u8 = undefined;
-    const lower = toLower(query, &buf) orelse return false;
-    const query_os = std.meta.stringToEnum(std.Target.Os.Tag, lower) orelse
+    const lower = toLower(query, &buf) orelse return null;
+    return std.meta.stringToEnum(std.Target.Os.Tag, lower) orelse
         std.StaticStringMap(std.Target.Os.Tag).initComptime(.{
             .{ "win32", .windows },
             .{ "xros", .visionos },
-        }).get(lower) orelse return false;
+        }).get(lower) orelse return null;
+}
 
-    if (query_os.isDarwin()) {
+pub fn isOs(target: *const std.Target, query: []const u8) bool {
+    const parsed = parseOs(query) orelse return false;
+
+    if (parsed.isDarwin()) {
         // clang treats all darwin OS's as equivalent
         return target.os.tag.isDarwin();
     }
-    return query_os == target.os.tag;
+    return parsed == target.os.tag;
 }
 
-pub fn isVendor(vendor: Vendor, query: []const u8) bool {
+pub fn parseVendor(query: []const u8) ?Vendor {
     var buf: [64]u8 = undefined;
-    const lower = toLower(query, &buf) orelse return false;
-    const query_vendor = Vendor.parse(lower) orelse return false;
-    return query_vendor == vendor;
+    const lower = toLower(query, &buf) orelse return null;
+    return Vendor.parse(lower);
 }
 
-pub fn isEnvironment(target: *const std.Target, query: []const u8) bool {
+pub fn parseAbi(query: []const u8) ?std.Target.Abi {
     var buf: [64]u8 = undefined;
-    const lower = toLower(query, &buf) orelse return false;
-    const query_abi = std.meta.stringToEnum(std.Target.Abi, lower) orelse return false;
-    return query_abi == target.abi;
+    const lower = toLower(query, &buf) orelse return null;
+    return std.meta.stringToEnum(std.Target.Abi, lower);
 }
 
 pub fn defaultFpEvalMethod(target: *const std.Target) LangOpts.FPEvalMethod {
