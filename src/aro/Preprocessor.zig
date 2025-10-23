@@ -3621,6 +3621,7 @@ fn prettyPrintMacrosOnly(pp: *Preprocessor, w: *std.Io.Writer) !void {
         try pp.prettyPrintMacro(w, macro.loc, .name_and_body);
         try w.writeByte('\n');
     }
+    try w.flush();
 }
 
 /// Pretty print tokens and try to preserve whitespace.

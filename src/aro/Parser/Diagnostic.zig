@@ -2440,3 +2440,8 @@ pub const declared_const_here: Diagnostic = .{
     .fmt = "variable '{s}' declared const here",
     .kind = .note,
 };
+
+pub const mixing_decimal_floats: Diagnostic = .{
+    .fmt = "cannot mix operands of decimal floating and other floating types",
+    .kind = .@"error",
+};
