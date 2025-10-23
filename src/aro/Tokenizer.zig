@@ -349,6 +349,9 @@ pub const Token = struct {
         /// completion of the preceding #include
         include_resume,
 
+        /// Virtual linemarker token output from preprocessor to represent actual linemarker in the source file
+        linemarker,
+
         /// A comment token if asked to preserve comments.
         comment,
 
@@ -551,6 +554,7 @@ pub const Token = struct {
             return switch (id) {
                 .include_start,
                 .include_resume,
+                .linemarker,
                 => unreachable,
 
                 .unterminated_comment,
@@ -1109,6 +1113,8 @@ index: u32 = 0,
 source: Source.Id,
 langopts: LangOpts,
 line: u32 = 1,
+splice_index: u32 = 0,
+splice_locs: []const u32,
 
 pub fn next(self: *Tokenizer) Token {
     var state: enum {
@@ -1892,6 +1898,12 @@ pub fn next(self: *Tokenizer) Token {
         }
     }
 
+    for (self.splice_locs[self.splice_index..]) |splice_offset| {
+        if (splice_offset > start) break;
+        self.line += 1;
+        self.splice_index += 1;
+    }
+
     return .{
         .id = id,
         .start = start,
@@ -2323,6 +2335,7 @@ test "Tokenizer fuzz test" {
                 .buf = source.buf,
                 .source = source.id,
                 .langopts = comp.langopts,
+                .splice_locs = &.{},
             };
             while (true) {
                 const prev_index = tokenizer.index;
@@ -2344,10 +2357,11 @@ fn expectTokensExtra(contents: []const u8, expected_tokens: []const Token.Id, la
         comp.langopts = provided;
     }
     const source = try comp.addSourceFromBuffer("path", contents);
-    var tokenizer = Tokenizer{
+    var tokenizer: Tokenizer = .{
         .buf = source.buf,
         .source = source.id,
         .langopts = comp.langopts,
+        .splice_locs = &.{},
     };
     var i: usize = 0;
     while (i < expected_tokens.len) {

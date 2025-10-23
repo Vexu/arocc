@@ -73,6 +73,11 @@ pub const line_invalid_filename: Diagnostic = .{
     .kind = .@"error",
 };
 
+pub const line_invalid_number: Diagnostic = .{
+    .fmt = "{s} directive requires a positive integer argument",
+    .kind = .@"error",
+};
+
 pub const unterminated_conditional_directive: Diagnostic = .{
     .fmt = "unterminated conditional directive",
     .kind = .@"error",
