@@ -275,7 +275,7 @@ fn detectDebian(fs: Filesystem) ?Tag {
     return scanForDebian(data);
 }
 
-pub fn detect(target: std.Target, fs: Filesystem) Tag {
+pub fn detect(target: *const std.Target, fs: Filesystem) Tag {
     if (target.os.tag != .linux) return .unknown;
 
     if (detectOsRelease(fs)) |tag| return tag;

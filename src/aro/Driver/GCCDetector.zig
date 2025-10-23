@@ -425,7 +425,7 @@ pub fn discover(self: *GCCDetector, tc: *Toolchain) !void {
 
     // Also include the multiarch variant if it's different.
     var biarch_buf: [64]u8 = undefined;
-    if (biarch_variant_target) |biarch_target| {
+    if (biarch_variant_target) |*biarch_target| {
         const biarch_triple_str = target_util.toLLVMTriple(biarch_target, &biarch_buf);
         if (!std.mem.eql(u8, biarch_triple_str, triple_str)) {
             candidate_triple_aliases.appendAssumeCapacity(biarch_triple_str);
@@ -488,7 +488,7 @@ pub fn discover(self: *GCCDetector, tc: *Toolchain) !void {
 fn findBiarchMultilibs(
     tc: *const Toolchain,
     result: *Multilib.Detected,
-    target: std.Target,
+    target: *const std.Target,
     path: [2][]const u8,
     needs_biarch_suffix: bool,
 ) !bool {
@@ -550,7 +550,7 @@ fn findBiarchMultilibs(
 fn scanGCCForMultilibs(
     self: *GCCDetector,
     tc: *const Toolchain,
-    target: std.Target,
+    target: *const std.Target,
     path: [2][]const u8,
     needs_biarch_suffix: bool,
 ) !bool {
@@ -576,7 +576,7 @@ fn scanGCCForMultilibs(
 fn scanLibDirForGCCTriple(
     self: *GCCDetector,
     tc: *const Toolchain,
-    target: std.Target,
+    target: *const std.Target,
     lib_dir: []const u8,
     candidate_triple: []const u8,
     needs_biarch_suffix: bool,

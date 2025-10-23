@@ -156,7 +156,7 @@ fn getStatic(self: *const Linux, d: *const Driver) bool {
     return d.static and !d.static_pie;
 }
 
-pub fn getDefaultLinker(self: *const Linux, target: std.Target) []const u8 {
+pub fn getDefaultLinker(self: *const Linux, target: *const std.Target) []const u8 {
     _ = self;
     if (target.abi.isAndroid()) {
         return "ld.lld";
@@ -195,7 +195,7 @@ pub fn buildLinkerArgs(self: *const Linux, tc: *const Toolchain, argv: *std.Arra
     try argv.append(gpa, "--eh-frame-hdr");
 
     // Todo: Driver should parse `-EL`/`-EB` for arm to set endianness for arm targets
-    if (target_util.ldEmulationOption(d.comp.target, null)) |emulation| {
+    if (target_util.ldEmulationOption(&d.comp.target, null)) |emulation| {
         try argv.appendSlice(gpa, &.{ "-m", emulation });
     } else {
         try d.err("Unknown target triple", .{});
@@ -319,7 +319,7 @@ pub fn buildLinkerArgs(self: *const Linux, tc: *const Toolchain, argv: *std.Arra
     // TODO add -T args
 }
 
-fn getMultiarchTriple(target: std.Target) ?[]const u8 {
+fn getMultiarchTriple(target: *const std.Target) ?[]const u8 {
     const is_android = target.abi.isAndroid();
     const is_mips_r6 = std.Target.mips.featureSetHas(target.cpu.features, .mips32r6);
     return switch (target.cpu.arch) {
@@ -345,7 +345,7 @@ fn getMultiarchTriple(target: std.Target) ?[]const u8 {
     };
 }
 
-fn getOSLibDir(target: std.Target) []const u8 {
+fn getOSLibDir(target: *const std.Target) []const u8 {
     switch (target.cpu.arch) {
         .x86,
         .powerpc,
