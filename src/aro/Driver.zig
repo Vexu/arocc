@@ -2,6 +2,7 @@ const std = @import("std");
 const mem = std.mem;
 const Allocator = mem.Allocator;
 const process = std.process;
+const testing = std.testing;
 
 const backend = @import("backend");
 const Assembly = backend.Assembly;
@@ -858,7 +859,7 @@ pub fn warn(d: *Driver, fmt: []const u8, args: anytype) Compilation.Error!void {
     try d.diagnostics.add(.{ .kind = .warning, .text = allocating.written(), .location = null });
 }
 
-pub fn unsupportedOptionForTarget(d: *Driver, target: *const std.Target, opt: []const u8) Compilation.Error!void {
+fn unsupportedOptionForTarget(d: *Driver, target: *const std.Target, opt: []const u8) Compilation.Error!void {
     try d.err(
         "unsupported option '{s}' for target '{s}-{s}-{s}'",
         .{ opt, @tagName(target.cpu.arch), @tagName(target.os.tag), @tagName(target.abi) },
@@ -892,9 +893,10 @@ fn parseTarget(d: *Driver, arch_os_abi: []const u8, opt_cpu_features: ?[]const u
     };
 
     if (opt_os_text) |os_text| {
-        d.parseOs(&query, os_text) catch |er| switch (er) {
-            error.InvalidOperatingSystemVersion => return d.fatal("invalid operating system version in '{s}'", .{os_text}),
-            else => |e| return e,
+        var version_str: []const u8 = undefined;
+        parseOs(&query, os_text, &version_str) catch |er| switch (er) {
+            error.UnknownOs => return d.fatal("unknown operating system '{s}'", .{os_text}),
+            error.InvalidOsVersion => return d.fatal("invalid operating system version '{s}'", .{version_str}),
         };
     } else if (!arch_is_native) {
         return d.fatal("target missing operating system '{s}'", .{arch_os_abi});
@@ -902,25 +904,12 @@ fn parseTarget(d: *Driver, arch_os_abi: []const u8, opt_cpu_features: ?[]const u
 
     const opt_abi_text = it.next();
     if (opt_abi_text) |abi_text| {
-        var abi_it = mem.splitScalar(u8, abi_text, '.');
-        const abi = target_util.parseAbi(abi_it.first()) orelse
-            return d.fatal("unknown abi '{s}'", .{abi_it.first()});
-        query.abi = abi;
-
-        const abi_ver_text = abi_it.rest();
-        if (abi_it.next() != null) {
-            if (abi.isGnu()) {
-                query.glibc_version = std.Target.Query.parseVersion(abi_ver_text) catch |er| switch (er) {
-                    error.Overflow, error.InvalidVersion => return d.fatal("invalid abi version: '{s}'", .{abi_ver_text}),
-                };
-            } else if (abi.isAndroid()) {
-                query.android_api_level = std.fmt.parseUnsigned(u32, abi_ver_text, 10) catch |er| switch (er) {
-                    error.Overflow, error.InvalidCharacter => return d.fatal("invalid Android api version: '{s}'", .{abi_ver_text}),
-                };
-            } else {
-                return d.fatal("invalid abi version: '{s}'", .{abi_ver_text});
-            }
-        }
+        var version_str: []const u8 = undefined;
+        parseAbi(&query, abi_text, &version_str) catch |er| switch (er) {
+            error.UnknownOs => return d.fatal("unknown ABI '{s}'", .{abi_text}),
+            error.InvalidAbiVersion => return d.fatal("invalid ABI version '{s}'", .{version_str}),
+            error.InvalidApiVersion => return d.fatal("invalid Android API version '{s}'", .{version_str}),
+        };
     }
 
     if (it.next() != null) {
@@ -982,32 +971,115 @@ fn parseTarget(d: *Driver, arch_os_abi: []const u8, opt_cpu_features: ?[]const u
         return d.fatal("unable to resolve target: {s}", .{errorDescription(e)});
 }
 
-fn parseOs(d: *Driver, result: *std.Target.Query, text: []const u8) !void {
-    var it = mem.splitScalar(u8, text, '.');
-    const os_name = it.first();
-    const os_is_native = mem.eql(u8, os_name, "native");
-    if (!os_is_native) {
-        result.os_tag = target_util.parseOs(os_name) orelse
-            return d.fatal("unknown OS: '{s}'", .{os_name});
-    }
-    const tag = result.os_tag orelse @import("builtin").os.tag;
+/// Parse ABI string in `<abi>(.?<version>)?` format.
+///
+/// Poplates `abi`, `glibc_version` and `android_api_level` fields of `result`.
+///
+/// If given `version_string` will be populated when `InvalidAbiVersion` or `InvalidApiVerson` is returned.
+pub fn parseAbi(result: *std.Target.Query, text: []const u8, version_string: ?*[]const u8) !void {
+    const abi, const version_text = for (text, 0..) |c, i| switch (c) {
+        '0'...'9' => {
+            if (target_util.parseAbi(text[0..i])) |abi| {
+                break .{ abi, text[i..] };
+            }
+        },
+        '.' => break .{
+            target_util.parseAbi(text[0..i]) orelse return error.UnknownOs, text[i + 1 ..],
+        },
+        else => {},
+    } else .{ target_util.parseAbi(text) orelse return error.UnknownOs, "" };
+    result.abi = abi;
+    if (version_string) |ptr| ptr.* = version_text;
 
-    const version_text = it.rest();
+    if (version_text.len != 0) {
+        if (abi.isGnu()) {
+            result.glibc_version = std.Target.Query.parseVersion(version_text) catch |er| switch (er) {
+                error.Overflow, error.InvalidVersion => return error.InvalidAbiVersion,
+            };
+        } else if (abi.isAndroid()) {
+            result.android_api_level = std.fmt.parseUnsigned(u32, version_text, 10) catch |er| switch (er) {
+                error.Overflow, error.InvalidCharacter => return error.InvalidApiVersion,
+            };
+        } else return error.InvalidAbiVersion;
+    }
+}
+
+test parseAbi {
+    const V = std.SemanticVersion;
+    var query: std.Target.Query = .{};
+    try parseAbi(&query, "gnuabin322.3", null);
+    try testing.expect(query.abi == .gnuabin32);
+    try testing.expectEqual(query.glibc_version, V{ .major = 2, .minor = 3, .patch = 0 });
+
+    try parseAbi(&query, "gnuabin32.2.3", null);
+    try testing.expect(query.abi == .gnuabin32);
+    try testing.expectEqual(query.glibc_version, V{ .major = 2, .minor = 3, .patch = 0 });
+
+    try parseAbi(&query, "android17", null);
+    try testing.expect(query.abi == .android);
+    try testing.expectEqual(query.android_api_level, 17);
+
+    try parseAbi(&query, "android.17", null);
+    try testing.expect(query.abi == .android);
+    try testing.expectEqual(query.android_api_level, 17);
+
+    try testing.expectError(error.InvalidAbiVersion, parseAbi(&query, "code162", null));
+    try testing.expect(query.abi == .code16);
+
+    try testing.expectError(error.InvalidAbiVersion, parseAbi(&query, "code16.2", null));
+    try testing.expect(query.abi == .code16);
+}
+
+/// Parse OS string with common aliases in `<os>(.?<version>(...<version>))?` format.
+///
+/// `native` <os> results in `builtin.os.tag`.
+///
+/// Poplates `os_tag`, `os_version_min` and `os_version_max` fields of `result`.
+///
+/// If given `version_string` will be populated when `InvalidOsVersion` is returned.
+pub fn parseOs(result: *std.Target.Query, text: []const u8, version_string: ?*[]const u8) !void {
+    const checkOs = struct {
+        fn checkOs(os_text: []const u8) ?std.Target.Os.Tag {
+            const os_is_native = mem.eql(u8, os_text, "native");
+            if (os_is_native) return @import("builtin").os.tag;
+            return target_util.parseOs(os_text);
+        }
+    }.checkOs;
+
+    var seen_digit = false;
+    const tag, const version_text = for (text, 0..) |c, i| switch (c) {
+        '0'...'9' => {
+            if (i == 0) continue;
+            if (checkOs(text[0..i])) |os| {
+                break .{ os, text[i..] };
+            }
+            seen_digit = true;
+        },
+        '.' => break .{
+            checkOs(text[0..i]) orelse return error.UnknownOs, text[i + 1 ..],
+        },
+        else => if (seen_digit) {
+            if (checkOs(text[0..i])) |os| {
+                break .{ os, text[i..] };
+            }
+        },
+    } else .{ checkOs(text) orelse return error.UnknownOs, "" };
+    result.os_tag = tag;
+    if (version_string) |ptr| ptr.* = version_text;
+
     if (version_text.len > 0) switch (tag.versionRangeTag()) {
-        .none => return error.InvalidOperatingSystemVersion,
+        .none => return error.InvalidOsVersion,
         .semver, .hurd, .linux => {
             var range_it = mem.splitSequence(u8, version_text, "...");
             result.os_version_min = .{
                 .semver = std.Target.Query.parseVersion(range_it.first()) catch |er| switch (er) {
-                    error.Overflow => return error.InvalidOperatingSystemVersion,
-                    error.InvalidVersion => return error.InvalidOperatingSystemVersion,
+                    error.Overflow, error.InvalidVersion => return error.InvalidOsVersion,
                 },
             };
             if (range_it.next()) |v| {
                 result.os_version_max = .{
                     .semver = std.Target.Query.parseVersion(v) catch |er| switch (er) {
-                        error.Overflow => return error.InvalidOperatingSystemVersion,
-                        error.InvalidVersion => return error.InvalidOperatingSystemVersion,
+                        error.Overflow, error.InvalidVersion => return error.InvalidOsVersion,
                     },
                 };
             }
@@ -1015,15 +1087,53 @@ fn parseOs(d: *Driver, result: *std.Target.Query, text: []const u8) !void {
         .windows => {
             var range_it = mem.splitSequence(u8, version_text, "...");
             result.os_version_min = .{
-                .windows = try .parse(range_it.first()),
+                .windows = std.Target.Os.WindowsVersion.parse(range_it.first()) catch |er| switch (er) {
+                    error.InvalidOperatingSystemVersion => return error.InvalidOsVersion,
+                },
             };
             if (range_it.next()) |v| {
                 result.os_version_max = .{
-                    .windows = try .parse(v),
+                    .windows = std.Target.Os.WindowsVersion.parse(v) catch |er| switch (er) {
+                        error.InvalidOperatingSystemVersion => return error.InvalidOsVersion,
+                    },
                 };
             }
         },
     };
+}
+
+test parseOs {
+    const V = std.Target.Query.OsVersion;
+    var query: std.Target.Query = .{};
+    try parseOs(&query, "3ds2.3", null);
+    try testing.expect(query.os_tag == .@"3ds");
+    try testing.expectEqual(query.os_version_min, V{ .semver = .{ .major = 2, .minor = 3, .patch = 0 } });
+
+    try parseOs(&query, "3ds.2.3", null);
+    try testing.expect(query.os_tag == .@"3ds");
+    try testing.expectEqual(query.os_version_min, V{ .semver = .{ .major = 2, .minor = 3, .patch = 0 } });
+
+    try testing.expectError(error.InvalidOsVersion, parseOs(&query, "ps33.3", null));
+    try testing.expect(query.os_tag == .ps3);
+
+    try testing.expectError(error.InvalidOsVersion, parseOs(&query, "ps3.3.3", null));
+    try testing.expect(query.os_tag == .ps3);
+
+    try parseOs(&query, "linux6.17", null);
+    try testing.expect(query.os_tag == .linux);
+    try testing.expectEqual(query.os_version_min, V{ .semver = .{ .major = 6, .minor = 17, .patch = 0 } });
+
+    try parseOs(&query, "linux.6.17", null);
+    try testing.expect(query.os_tag == .linux);
+    try testing.expectEqual(query.os_version_min, V{ .semver = .{ .major = 6, .minor = 17, .patch = 0 } });
+
+    try parseOs(&query, "win32win10", null);
+    try testing.expect(query.os_tag == .windows);
+    try testing.expectEqual(query.os_version_min, V{ .windows = .win10 });
+
+    try parseOs(&query, "win32.win10", null);
+    try testing.expect(query.os_tag == .windows);
+    try testing.expectEqual(query.os_version_min, V{ .windows = .win10 });
 }
 
 pub fn fatal(d: *Driver, comptime fmt: []const u8, args: anytype) error{ FatalError, OutOfMemory } {
