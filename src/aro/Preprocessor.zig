@@ -2374,6 +2374,7 @@ fn collectMacroFuncArguments(
         }
     }
 
+    std.debug.assert(cur_argument.items.len == 0);
     return args;
 }
 
@@ -2494,10 +2495,9 @@ fn expandMacroExhaustive(
                         else => |e| return e,
                     };
                     assert(r_paren.id == .r_paren);
-                    var free_arg_expansion_locs = false;
                     defer {
                         for (args.items) |item| {
-                            if (free_arg_expansion_locs) for (item) |tok| TokenWithExpansionLocs.free(tok.expansion_locs, gpa);
+                            for (item) |tok| TokenWithExpansionLocs.free(tok.expansion_locs, gpa);
                             gpa.free(item);
                         }
                         args.deinit(gpa);
@@ -2520,14 +2520,12 @@ fn expandMacroExhaustive(
 
                     // Validate argument count.
                     if (macro.var_args and args_count < macro.params.len) {
-                        free_arg_expansion_locs = true;
                         try pp.err(buf.items[idx], .expected_at_least_arguments, .{ macro.params.len, args_count });
                         idx += 1;
                         try pp.removeExpandedTokens(buf, idx, macro_scan_idx - idx + 1, &moving_end_idx);
                         continue;
                     }
                     if (!macro.var_args and args_count != macro.params.len) {
-                        free_arg_expansion_locs = true;
                         try pp.err(buf.items[idx], .expected_arguments, .{ macro.params.len, args_count });
                         idx += 1;
                         try pp.removeExpandedTokens(buf, idx, macro_scan_idx - idx + 1, &moving_end_idx);
@@ -2540,7 +2538,10 @@ fn expandMacroExhaustive(
                     for (args.items) |arg| {
                         var expand_buf: ExpandBuf = .empty;
                         errdefer expand_buf.deinit(gpa);
-                        try expand_buf.appendSlice(gpa, arg);
+                        try expand_buf.ensureUnusedCapacity(gpa, arg.len);
+                        for (arg) |tok| {
+                            expand_buf.appendAssumeCapacity(try tok.dupe(gpa));
+                        }
 
                         if (should_expand_args) {
                             try pp.expandMacroExhaustive(tokenizer, &expand_buf, 0, expand_buf.items.len, false, eval_ctx);
