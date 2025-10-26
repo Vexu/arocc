@@ -473,15 +473,6 @@ pub fn addIncludeResume(pp: *Preprocessor, source: Source.Id, offset: u32, line:
     } });
 }
 
-pub fn addLineMarker(pp: *Preprocessor, source: Source.Id, offset: u32, line: u32) !void {
-    if (pp.linemarkers == .none) return;
-    try pp.addToken(.{ .id = .linemarker, .loc = .{
-        .id = source,
-        .byte_offset = offset,
-        .line = line,
-    } });
-}
-
 fn invalidTokenDiagnostic(tok_id: Token.Id) Diagnostic {
     return switch (tok_id) {
         .unterminated_string_literal => .unterminated_string_literal_warning,
@@ -797,8 +788,12 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!TokenWithExpans
 
                         if (new_line) |line| tokenizer.line = line;
                         const slice = pp.tokSlice(name);
-                        tokenizer.source = try pp.comp.addSourceAlias(tokenizer.source, slice[1 .. slice.len - 1]);
-                        try pp.addLineMarker(tokenizer.source, tokenizer.index, tokenizer.line);
+                        tokenizer.source = try pp.comp.addSourceAlias(tokenizer.source, slice[1 .. slice.len - 1], .user);
+
+                        if (pp.linemarkers != .none) try pp.addToken(.{
+                            .id = .linemarker,
+                            .loc = .{ .id = tokenizer.source, .byte_offset = tok.start, .line = tokenizer.line },
+                        });
                     },
                     .pp_num => {
                         // # number "file" flags
@@ -810,20 +805,46 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!TokenWithExpans
                         if (name.id == .eof or name.id == .nl) continue;
                         if (name.id != .string_literal) try pp.err(name, .line_invalid_filename, .{});
 
-                        const flag_1 = tokenizer.nextNoWS();
-                        if (flag_1.id == .eof or flag_1.id == .nl) continue;
-                        const flag_2 = tokenizer.nextNoWS();
-                        if (flag_2.id == .eof or flag_2.id == .nl) continue;
-                        const flag_3 = tokenizer.nextNoWS();
-                        if (flag_3.id == .eof or flag_3.id == .nl) continue;
-                        const flag_4 = tokenizer.nextNoWS();
-                        if (flag_4.id == .eof or flag_4.id == .nl) continue;
-                        try pp.expectNl(&tokenizer);
+                        var marker_id: Token.Id = .linemarker;
+                        var source_kind: Source.Kind = .user;
+                        flags: for (0..4) |i| {
+                            const flag = tokenizer.nextNoWS();
+                            if (flag.id == .eof or flag.id == .nl) break :flags;
+                            const flag_str = pp.tokSlice(flag);
+
+                            if (flag_str.len == 1) switch (flag_str[0]) {
+                                '1' => if (i == 0) {
+                                    marker_id = .include_start;
+                                    continue;
+                                },
+                                '2' => if (i == 0) {
+                                    marker_id = .include_resume;
+                                    continue;
+                                },
+                                '3' => if (source_kind == .user) {
+                                    source_kind = .system;
+                                    continue;
+                                },
+                                '4' => if (source_kind == .system) {
+                                    source_kind = .extern_c_system;
+                                    continue;
+                                },
+                                else => {},
+                            };
+
+                            try pp.err(flag, .line_invalid_flag, .{flag_str});
+                            skipToNl(&tokenizer);
+                            break :flags;
+                        }
 
                         if (new_line) |line| tokenizer.line = line;
                         const slice = pp.tokSlice(name);
-                        tokenizer.source = try pp.comp.addSourceAlias(tokenizer.source, slice[1 .. slice.len - 1]);
-                        try pp.addLineMarker(tokenizer.source, tokenizer.index, tokenizer.line);
+                        tokenizer.source = try pp.comp.addSourceAlias(tokenizer.source, slice[1 .. slice.len - 1], source_kind);
+
+                        if (pp.linemarkers != .none) try pp.addToken(.{
+                            .id = marker_id,
+                            .loc = .{ .id = tokenizer.source, .byte_offset = tok.start, .line = tokenizer.line },
+                        });
                     },
                     .nl => {},
                     .eof => {

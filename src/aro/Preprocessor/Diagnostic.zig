@@ -78,6 +78,11 @@ pub const line_invalid_number: Diagnostic = .{
     .kind = .@"error",
 };
 
+pub const line_invalid_flag: Diagnostic = .{
+    .fmt = "invalid flag '{s}' in line marker directive",
+    .kind = .@"error",
+};
+
 pub const unterminated_conditional_directive: Diagnostic = .{
     .fmt = "unterminated conditional directive",
     .kind = .@"error",

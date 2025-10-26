@@ -1632,10 +1632,11 @@ pub fn addSourceFromFile(comp: *Compilation, file: std.fs.File, path: []const u8
     return comp.addSourceFromOwnedBuffer(path, contents, kind);
 }
 
-pub fn addSourceAlias(comp: *Compilation, source: Source.Id, new_path: []const u8) !Source.Id {
+pub fn addSourceAlias(comp: *Compilation, source: Source.Id, new_path: []const u8, new_kind: Source.Kind) !Source.Id {
     var aliased_source = comp.getSource(source);
     aliased_source.path = new_path;
     aliased_source.id = .{ .index = @enumFromInt(comp.source_aliases.items.len), .alias = true };
+    aliased_source.kind = new_kind;
     try comp.source_aliases.append(comp.gpa, aliased_source);
     return aliased_source.id;
 }
