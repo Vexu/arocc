@@ -404,7 +404,7 @@ pub fn expansionSlice(pp: *Preprocessor, tok: Tree.TokenIndex) []Source.Location
     const idx = std.sort.binarySearch(Tree.TokenIndex, indices, tok, S.orderTokenIndex) orelse return &.{};
     const locs = pp.expansion_entries.items(.locs)[idx];
     var i: usize = 0;
-    while (locs[i].id != .unused) : (i += 1) {}
+    while (locs[i].id.index != .unused) : (i += 1) {}
     return locs[0..i];
 }
 
@@ -438,7 +438,7 @@ pub fn preprocess(pp: *Preprocessor, source: Source) Error!TokenWithExpansionLoc
 pub fn tokenize(pp: *Preprocessor, source: Source) Error!Token {
     assert(pp.linemarkers == .none);
     assert(pp.preserve_whitespace == false);
-    var tokenizer = Tokenizer{
+    var tokenizer: Tokenizer = .{
         .buf = source.buf,
         .comp = pp.comp,
         .source = source.id,
@@ -484,10 +484,11 @@ fn invalidTokenDiagnostic(tok_id: Token.Id) Diagnostic {
 
 /// Return the name of the #ifndef guard macro that starts a source, if any.
 fn findIncludeGuard(pp: *Preprocessor, source: Source) ?[]const u8 {
-    var tokenizer = Tokenizer{
+    var tokenizer: Tokenizer = .{
         .buf = source.buf,
         .langopts = pp.comp.langopts,
         .source = source.id,
+        .splice_locs = &.{},
     };
     var hash = tokenizer.nextNoWS();
     while (hash.id == .nl) hash = tokenizer.nextNoWS();
@@ -504,10 +505,11 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!TokenWithExpans
     var guard_name = pp.findIncludeGuard(source);
 
     pp.preprocess_count += 1;
-    var tokenizer = Tokenizer{
+    var tokenizer: Tokenizer = .{
         .buf = source.buf,
         .langopts = pp.comp.langopts,
         .source = source.id,
+        .splice_locs = source.splice_locs,
     };
 
     // Estimate how many new tokens this source will contain.
@@ -775,31 +777,74 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!TokenWithExpans
                         // #line number "file"
                         const digits = tokenizer.nextNoWS();
                         if (digits.id != .pp_num) try pp.err(digits, .line_simple_digit, .{});
-                        // TODO: validate that the pp_num token is solely digits
+                        const new_line = std.fmt.parseInt(u32, pp.tokSlice(digits), 10) catch null;
+                        if (new_line == null) try pp.err(digits, .line_invalid_number, .{"#line"});
 
                         if (digits.id == .eof or digits.id == .nl) continue;
                         const name = tokenizer.nextNoWS();
                         if (name.id == .eof or name.id == .nl) continue;
                         if (name.id != .string_literal) try pp.err(name, .line_invalid_filename, .{});
                         try pp.expectNl(&tokenizer);
+
+                        if (new_line) |line| tokenizer.line = line;
+                        const slice = pp.tokSlice(name);
+                        tokenizer.source = try pp.comp.addSourceAlias(tokenizer.source, slice[1 .. slice.len - 1], .user);
+
+                        if (pp.linemarkers != .none) try pp.addToken(.{
+                            .id = .linemarker,
+                            .loc = .{ .id = tokenizer.source, .byte_offset = tok.start, .line = tokenizer.line },
+                        });
                     },
                     .pp_num => {
                         // # number "file" flags
-                        // TODO: validate that the pp_num token is solely digits
+                        const new_line = std.fmt.parseInt(u32, pp.tokSlice(directive), 10) catch null;
+                        if (new_line == null) try pp.err(directive, .line_invalid_number, .{"line marker"});
+
                         // if not, emit `GNU line marker directive requires a simple digit sequence`
                         const name = tokenizer.nextNoWS();
                         if (name.id == .eof or name.id == .nl) continue;
                         if (name.id != .string_literal) try pp.err(name, .line_invalid_filename, .{});
 
-                        const flag_1 = tokenizer.nextNoWS();
-                        if (flag_1.id == .eof or flag_1.id == .nl) continue;
-                        const flag_2 = tokenizer.nextNoWS();
-                        if (flag_2.id == .eof or flag_2.id == .nl) continue;
-                        const flag_3 = tokenizer.nextNoWS();
-                        if (flag_3.id == .eof or flag_3.id == .nl) continue;
-                        const flag_4 = tokenizer.nextNoWS();
-                        if (flag_4.id == .eof or flag_4.id == .nl) continue;
-                        try pp.expectNl(&tokenizer);
+                        var marker_id: Token.Id = .linemarker;
+                        var source_kind: Source.Kind = .user;
+                        flags: for (0..4) |i| {
+                            const flag = tokenizer.nextNoWS();
+                            if (flag.id == .eof or flag.id == .nl) break :flags;
+                            const flag_str = pp.tokSlice(flag);
+
+                            if (flag_str.len == 1) switch (flag_str[0]) {
+                                '1' => if (i == 0) {
+                                    marker_id = .include_start;
+                                    continue;
+                                },
+                                '2' => if (i == 0) {
+                                    marker_id = .include_resume;
+                                    continue;
+                                },
+                                '3' => if (source_kind == .user) {
+                                    source_kind = .system;
+                                    continue;
+                                },
+                                '4' => if (source_kind == .system) {
+                                    source_kind = .extern_c_system;
+                                    continue;
+                                },
+                                else => {},
+                            };
+
+                            try pp.err(flag, .line_invalid_flag, .{flag_str});
+                            skipToNl(&tokenizer);
+                            break :flags;
+                        }
+
+                        if (new_line) |line| tokenizer.line = line;
+                        const slice = pp.tokSlice(name);
+                        tokenizer.source = try pp.comp.addSourceAlias(tokenizer.source, slice[1 .. slice.len - 1], source_kind);
+
+                        if (pp.linemarkers != .none) try pp.addToken(.{
+                            .id = marker_id,
+                            .loc = .{ .id = tokenizer.source, .byte_offset = tok.start, .line = tokenizer.line },
+                        });
                     },
                     .nl => {},
                     .eof => {
@@ -1322,8 +1367,7 @@ fn expandObjMacro(pp: *Preprocessor, simple_macro: *const Macro) Error!ExpandBuf
                 },
                 .line => {
                     const start = pp.comp.generated_buf.items.len;
-                    const source = pp.comp.getSource(pp.expansion_source_loc.id);
-                    try pp.comp.generated_buf.print(gpa, "{d}\n", .{source.physicalLine(pp.expansion_source_loc)});
+                    try pp.comp.generated_buf.print(gpa, "{d}\n", .{pp.expansion_source_loc.line});
 
                     buf.appendAssumeCapacity(try pp.makeGeneratedToken(start, .pp_num, tok));
                 },
@@ -1460,12 +1504,13 @@ fn pragmaOperator(pp: *Preprocessor, arg_tok: TokenWithExpansionLocs, operator_l
 
     const start = pp.comp.generated_buf.items.len;
     try pp.comp.generated_buf.appendSlice(gpa, pp.char_buf.items);
-    var tmp_tokenizer = Tokenizer{
+    var tmp_tokenizer: Tokenizer = .{
         .buf = pp.comp.generated_buf.items,
         .langopts = pp.comp.langopts,
         .index = @intCast(start),
         .source = .generated,
         .line = pp.generated_line,
+        .splice_locs = &.{},
     };
     pp.generated_line += 1;
     const hash_tok = tmp_tokenizer.next();
@@ -1583,6 +1628,7 @@ fn stringify(pp: *Preprocessor, tokens: []const TokenWithExpansionLocs) !void {
         .source = .generated,
         .langopts = pp.comp.langopts,
         .line = 0,
+        .splice_locs = &.{},
     };
     const item = tokenizer.next();
     if (item.id == .unterminated_string_literal) {
@@ -1777,7 +1823,7 @@ fn getPasteArgs(args: []const TokenWithExpansionLocs) []const TokenWithExpansion
     for (args) |tok| {
         if (tok.id != .macro_ws) return args;
     }
-    return &[1]TokenWithExpansionLocs{.{
+    return comptime &[1]TokenWithExpansionLocs{.{
         .id = .placemarker,
         .loc = .{ .id = .generated, .byte_offset = 0, .line = 0 },
     }};
@@ -2233,6 +2279,7 @@ fn expandVaOpt(
         .source = raw.source,
         .langopts = pp.comp.langopts,
         .line = raw.line,
+        .splice_locs = source.splice_locs,
     };
     while (tokenizer.index < raw.end) {
         const tok = tokenizer.next();
@@ -2374,6 +2421,7 @@ fn collectMacroFuncArguments(
         }
     }
 
+    std.debug.assert(cur_argument.items.len == 0);
     return args;
 }
 
@@ -2494,10 +2542,9 @@ fn expandMacroExhaustive(
                         else => |e| return e,
                     };
                     assert(r_paren.id == .r_paren);
-                    var free_arg_expansion_locs = false;
                     defer {
                         for (args.items) |item| {
-                            if (free_arg_expansion_locs) for (item) |tok| TokenWithExpansionLocs.free(tok.expansion_locs, gpa);
+                            for (item) |tok| TokenWithExpansionLocs.free(tok.expansion_locs, gpa);
                             gpa.free(item);
                         }
                         args.deinit(gpa);
@@ -2520,14 +2567,12 @@ fn expandMacroExhaustive(
 
                     // Validate argument count.
                     if (macro.var_args and args_count < macro.params.len) {
-                        free_arg_expansion_locs = true;
                         try pp.err(buf.items[idx], .expected_at_least_arguments, .{ macro.params.len, args_count });
                         idx += 1;
                         try pp.removeExpandedTokens(buf, idx, macro_scan_idx - idx + 1, &moving_end_idx);
                         continue;
                     }
                     if (!macro.var_args and args_count != macro.params.len) {
-                        free_arg_expansion_locs = true;
                         try pp.err(buf.items[idx], .expected_arguments, .{ macro.params.len, args_count });
                         idx += 1;
                         try pp.removeExpandedTokens(buf, idx, macro_scan_idx - idx + 1, &moving_end_idx);
@@ -2540,7 +2585,10 @@ fn expandMacroExhaustive(
                     for (args.items) |arg| {
                         var expand_buf: ExpandBuf = .empty;
                         errdefer expand_buf.deinit(gpa);
-                        try expand_buf.appendSlice(gpa, arg);
+                        try expand_buf.ensureUnusedCapacity(gpa, arg.len);
+                        for (arg) |tok| {
+                            expand_buf.appendAssumeCapacity(try tok.dupe(gpa));
+                        }
 
                         if (should_expand_args) {
                             try pp.expandMacroExhaustive(tokenizer, &expand_buf, 0, expand_buf.items.len, false, eval_ctx);
@@ -2715,6 +2763,7 @@ fn expandedSliceExtra(pp: *const Preprocessor, tok: anytype, macro_ws_handling: 
         .langopts = pp.comp.langopts,
         .index = tok.loc.byte_offset,
         .source = .generated,
+        .splice_locs = &.{},
     };
     if (tok.id == .macro_string) {
         while (true) : (tmp_tokenizer.index += 1) {
@@ -2765,11 +2814,12 @@ fn pasteTokens(pp: *Preprocessor, lhs_toks: *ExpandBuf, rhs_toks: []const TokenW
     pp.comp.generated_buf.appendAssumeCapacity('\n');
 
     // Try to tokenize the result.
-    var tmp_tokenizer = Tokenizer{
+    var tmp_tokenizer: Tokenizer = .{
         .buf = pp.comp.generated_buf.items,
         .langopts = pp.comp.langopts,
         .index = @intCast(start),
         .source = .generated,
+        .splice_locs = &.{},
     };
     const pasted_token = tmp_tokenizer.nextNoWSComments();
     const next = tmp_tokenizer.nextNoWSComments();
@@ -3552,7 +3602,6 @@ fn printLinemarker(
             .extern_c_system => try w.writeAll(" 3 4"),
         }
     }
-    try w.writeByte('\n');
 }
 
 // After how many empty lines are needed to replace them with linemarkers.
@@ -3582,6 +3631,7 @@ fn prettyPrintMacro(pp: *Preprocessor, w: *std.Io.Writer, loc: Source.Location, 
         .langopts = pp.comp.langopts,
         .source = source.id,
         .index = loc.byte_offset,
+        .splice_locs = &.{},
     };
     var prev_ws = false; // avoid printing multiple whitespace if /* */ comments are within the macro def
     var saw_name = false; // do not print comments before the name token is seen.
@@ -3665,6 +3715,7 @@ pub fn prettyPrintTokens(pp: *Preprocessor, w: *std.Io.Writer, macro_dump_mode: 
                             const source = pp.comp.getSource(next.loc.id);
                             const line_col = source.lineCol(next.loc);
                             try pp.printLinemarker(w, line_col.line_no, source, .none);
+                            try w.writeByte('\n');
                             last_nl = true;
                         }
                         continue :outer;
@@ -3713,15 +3764,23 @@ pub fn prettyPrintTokens(pp: *Preprocessor, w: *std.Io.Writer, macro_dump_mode: 
                 const source = pp.comp.getSource(cur.loc.id);
 
                 try pp.printLinemarker(w, 1, source, .start);
+                try w.writeByte('\n');
                 last_nl = true;
             },
             .include_resume => {
                 const source = pp.comp.getSource(cur.loc.id);
-                const line_col = source.lineCol(cur.loc);
                 if (!last_nl) try w.writeAll("\n");
 
-                try pp.printLinemarker(w, line_col.line_no, source, .@"resume");
+                try pp.printLinemarker(w, cur.loc.line, source, .@"resume");
+                try w.writeByte('\n');
                 last_nl = true;
+            },
+            .linemarker => {
+                const source = pp.comp.getSource(cur.loc.id);
+                if (!last_nl) try w.writeAll("\n");
+
+                try pp.printLinemarker(w, cur.loc.line, source, .none);
+                last_nl = false;
             },
             .keyword_define, .keyword_undef => {
                 switch (macro_dump_mode) {

@@ -128,6 +128,7 @@ diagnostics: *Diagnostics,
 code_gen_options: CodeGenOptions = .default,
 environment: Environment = .{},
 sources: std.StringArrayHashMapUnmanaged(Source) = .empty,
+source_aliases: std.ArrayList(Source) = .empty,
 /// Allocated into `gpa`, but keys are externally managed.
 include_dirs: std.ArrayList([]const u8) = .empty,
 /// Allocated into `gpa`, but keys are externally managed.
@@ -194,6 +195,7 @@ pub fn deinit(comp: *Compilation) void {
         gpa.free(source.splice_locs);
     }
     comp.sources.deinit(gpa);
+    comp.source_aliases.deinit(gpa);
     comp.include_dirs.deinit(gpa);
     comp.iquote_include_dirs.deinit(gpa);
     comp.system_include_dirs.deinit(gpa);
@@ -1401,14 +1403,17 @@ pub fn addSystemIncludeDir(comp: *Compilation, path: []const u8) !void {
 }
 
 pub fn getSource(comp: *const Compilation, id: Source.Id) Source {
-    if (id == .generated) return .{
+    if (id.alias) {
+        return comp.source_aliases.items[@intFromEnum(id.index)];
+    }
+    if (id.index == .generated) return .{
         .path = "<scratch space>",
         .buf = comp.generated_buf.items,
         .id = .generated,
         .splice_locs = &.{},
         .kind = .user,
     };
-    return comp.sources.values()[@intFromEnum(id) - 2];
+    return comp.sources.values()[@intFromEnum(id.index)];
 }
 
 /// Creates a Source from `buf` and adds it to the Compilation
@@ -1428,7 +1433,7 @@ pub fn addSourceFromOwnedBuffer(comp: *Compilation, path: []const u8, buf: []u8,
     var splice_list: std.ArrayList(u32) = .empty;
     defer splice_list.deinit(comp.gpa);
 
-    const source_id: Source.Id = @enumFromInt(comp.sources.count() + 2);
+    const source_id: Source.Id = .{ .index = @enumFromInt(comp.sources.count()) };
 
     var i: u32 = 0;
     var backslash_loc: u32 = undefined;
@@ -1464,6 +1469,7 @@ pub fn addSourceFromOwnedBuffer(comp: *Compilation, path: []const u8, buf: []u8,
                             try comp.addNewlineEscapeError(path, buf, splice_list.items, i, line, kind);
                         }
                         state = if (state == .back_slash_cr) .cr else .back_slash_cr;
+                        line += 1;
                     },
                     .bom1, .bom2 => break, // invalid utf-8
                 }
@@ -1484,6 +1490,7 @@ pub fn addSourceFromOwnedBuffer(comp: *Compilation, path: []const u8, buf: []u8,
                         if (state == .trailing_ws) {
                             try comp.addNewlineEscapeError(path, buf, splice_list.items, i, line, kind);
                         }
+                        line += 1;
                     },
                     .bom1, .bom2 => break,
                 }
@@ -1623,6 +1630,15 @@ pub fn addSourceFromFile(comp: *Compilation, file: std.fs.File, path: []const u8
     const contents = try comp.getFileContents(file, .unlimited);
     errdefer comp.gpa.free(contents);
     return comp.addSourceFromOwnedBuffer(path, contents, kind);
+}
+
+pub fn addSourceAlias(comp: *Compilation, source: Source.Id, new_path: []const u8, new_kind: Source.Kind) !Source.Id {
+    var aliased_source = comp.getSource(source);
+    aliased_source.path = new_path;
+    aliased_source.id = .{ .index = @enumFromInt(comp.source_aliases.items.len), .alias = true };
+    aliased_source.kind = new_kind;
+    try comp.source_aliases.append(comp.gpa, aliased_source);
+    return aliased_source.id;
 }
 
 pub fn hasInclude(
@@ -1993,11 +2009,12 @@ pub fn pragmaEvent(comp: *Compilation, event: PragmaEvent) void {
 }
 
 pub fn locSlice(comp: *const Compilation, loc: Source.Location) []const u8 {
-    var tmp_tokenizer = Tokenizer{
+    var tmp_tokenizer: Tokenizer = .{
         .buf = comp.getSource(loc.id).buf,
         .langopts = comp.langopts,
         .index = loc.byte_offset,
         .source = .generated,
+        .splice_locs = &.{},
     };
     const tok = tmp_tokenizer.next();
     return tmp_tokenizer.buf[tok.start..tok.end];
