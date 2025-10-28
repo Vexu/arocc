@@ -1426,6 +1426,11 @@ fn decl(p: *Parser) Error!bool {
 
         if (p.eatToken(.comma) == null) break;
 
+        const attr_buf_top_declarator = p.attr_buf.len;
+        defer p.attr_buf.len = attr_buf_top_declarator;
+
+        try p.attributeSpecifierGnu();
+
         if (!warned_auto) {
             // TODO these are warnings in clang
             if (decl_spec.auto_type) |tok_i| {
@@ -1936,6 +1941,26 @@ fn gnuAttribute(p: *Parser) !bool {
     _ = try p.expectClosing(paren2, .r_paren);
     _ = try p.expectClosing(paren1, .r_paren);
     return true;
+}
+
+fn attributeSpecifierGnu(p: *Parser) Error!void {
+    while (true) {
+        if (try p.gnuAttribute()) continue;
+
+        const tok = p.tok_i;
+        const attr_buf_top_declarator = p.attr_buf.len;
+        defer p.attr_buf.len = attr_buf_top_declarator;
+
+        if (try p.c23Attribute()) {
+            try p.err(tok, .invalid_attribute_location, .{"an attribute list"});
+            continue;
+        }
+        if (try p.msvcAttribute()) {
+            try p.err(tok, .invalid_attribute_location, .{"a declspec attribute"});
+            continue;
+        }
+        break;
+    }
 }
 
 fn attributeSpecifier(p: *Parser) Error!void {
@@ -3516,7 +3541,7 @@ fn declarator(
         return d;
     } else if (p.eatToken(.l_paren)) |l_paren| blk: {
         // C23 and declspec attributes are not allowed here
-        while (try p.gnuAttribute()) {}
+        try p.attributeSpecifierGnu();
 
         // Parse Microsoft keyword type attributes.
         _ = try p.msTypeAttribute();
