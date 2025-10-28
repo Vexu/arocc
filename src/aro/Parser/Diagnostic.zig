@@ -1744,6 +1744,7 @@ pub const enum_fixed: Diagnostic = .{
     .fmt = "enumeration types with a fixed underlying type are a Clang extension",
     .kind = .off,
     .opt = .@"fixed-enum-extension",
+    .suppress_version = .c23,
     .extension = true,
 };
 
@@ -1764,6 +1765,29 @@ pub const enum_different_explicit_ty: Diagnostic = .{
 
 pub const enum_not_representable_fixed: Diagnostic = .{
     .fmt = "enumerator value is not representable in the underlying type {qt}",
+    .kind = .@"error",
+};
+
+pub const enum_forward_declaration: Diagnostic = .{
+    .fmt = "ISO C forbids forward references to 'enum' types",
+    .kind = .off,
+    .extension = true,
+};
+
+pub const enum_atomic_ignored: Diagnostic = .{
+    .fmt = "'_Atomic' qualifier ignored; operations involving the enumeration type will be non-atomic",
+    .kind = .@"error",
+    .opt = .@"underlying-atomic-qualifier-ignored",
+};
+
+pub const enum_qualifiers_ignored: Diagnostic = .{
+    .fmt = "qualifiers in enumeration underlying type ignored",
+    .kind = .warning,
+    .opt = .@"underlying-cv-qualifier-ignored",
+};
+
+pub const enum_invalid_underlying_type: Diagnostic = .{
+    .fmt = "non-integral type {qt} is an invalid underlying type",
     .kind = .@"error",
 };
 
@@ -2329,11 +2353,6 @@ pub const overflow_result_requires_ptr: Diagnostic = .{
 pub const attribute_todo: Diagnostic = .{
     .fmt = "TODO: implement '{s}' attribute for {s}",
     .kind = .warning,
-};
-
-pub const invalid_type_underlying_enum: Diagnostic = .{
-    .fmt = "non-integral type {qt} is an invalid underlying type",
-    .kind = .@"error",
 };
 
 pub const auto_type_self_initialized: Diagnostic = .{

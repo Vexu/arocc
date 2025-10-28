@@ -196,6 +196,8 @@ pub const Option = enum {
     @"date-time",
     @"variadic-macro-arguments-omitted",
     @"pragma-once-outside-header",
+    @"underlying-atomic-qualifier-ignored",
+    @"underlying-cv-qualifier-ignored",
 
     /// GNU extensions
     pub const gnu = [_]Option{

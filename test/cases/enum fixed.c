@@ -99,6 +99,10 @@ void more_pointers(void) {
     enum CharEnum: char signed *p3 = &y;
 }
 
+enum EA: _Atomic(int) const {
+    EA
+};
+
 #define EXPECTED_ERRORS "enum fixed.c:2:7: warning: enumeration types with a fixed underlying type are a Clang extension [-Wfixed-enum-extension]" \
     "enum fixed.c:4:6: error: enumeration previously declared with fixed underlying type" \
     "enum fixed.c:2:6: note: previous definition is here" \
@@ -117,4 +121,6 @@ void more_pointers(void) {
     "enum fixed.c:90:23: error: expected identifier or '('" \
     "enum fixed.c:97:31: warning: incompatible pointer types initializing 'enum SignedEnum: int *' from incompatible type 'unsigned int *' converts between pointers to integer types with different sign [-Wpointer-sign]" \
     "enum fixed.c:99:38: warning: incompatible pointer types initializing 'enum CharEnum: signed char *' from incompatible type 'unsigned int *' [-Wincompatible-pointer-types]" \
+    "enum fixed.c:102:10: error: '_Atomic' qualifier ignored; operations involving the enumeration type will be non-atomic [-Wunderlying-atomic-qualifier-ignored]" \
+    "enum fixed.c:102:10: warning: qualifiers in enumeration underlying type ignored [-Wunderlying-cv-qualifier-ignored]" \
 

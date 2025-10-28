@@ -2870,7 +2870,7 @@ fn enumSpec(p: *Parser) Error!QualType {
     try p.attributeSpecifier();
 
     const maybe_ident = try p.eatIdentifier();
-    const fixed_qt = if (p.eatToken(.colon)) |colon| fixed: {
+    const fixed_qt: ?QualType = if (p.eatToken(.colon)) |colon| fixed: {
         const ty_start = p.tok_i;
         const fixed = (try p.specQual()) orelse {
             if (p.record.kind != .invalid) {
@@ -2880,17 +2880,27 @@ fn enumSpec(p: *Parser) Error!QualType {
             }
             try p.err(p.tok_i, .expected_type, .{});
             try p.err(colon, .enum_fixed, .{});
-            break :fixed null;
+            break :fixed .int;
         };
 
-        const fixed_sk = fixed.scalarKind(p.comp);
-        if (fixed_sk == .@"enum" or !fixed_sk.isInt() or !fixed_sk.isReal()) {
-            try p.err(ty_start, .invalid_type_underlying_enum, .{fixed});
-            break :fixed null;
+        var final = fixed;
+        while (true) {
+            switch (final.base(p.comp).type) {
+                .int => {
+                    try p.err(colon, .enum_fixed, .{});
+                    if (final.isQualified()) try p.err(ty_start, .enum_qualifiers_ignored, .{});
+                    break :fixed final.unqualified();
+                },
+                .atomic => |atomic| {
+                    try p.err(ty_start, .enum_atomic_ignored, .{});
+                    final = atomic.withQualifiers(final);
+                },
+                else => {
+                    try p.err(ty_start, .enum_invalid_underlying_type, .{fixed});
+                    break :fixed .int;
+                },
+            }
         }
-
-        try p.err(colon, .enum_fixed, .{});
-        break :fixed fixed;
     } else null;
 
     const reserved_index = try p.tree.nodes.addOne(gpa);
@@ -2908,6 +2918,8 @@ fn enumSpec(p: *Parser) Error!QualType {
                 try p.checkEnumFixedTy(fixed_qt, ident, prev);
             return prev.qt;
         } else {
+            if (fixed_qt == null) try p.err(ident, .enum_forward_declaration, .{});
+
             const enum_qt = try p.comp.type_store.put(gpa, .{ .@"enum" = .{
                 .name = interned_name,
                 .tag = fixed_qt,
