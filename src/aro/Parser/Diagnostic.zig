@@ -2445,3 +2445,8 @@ pub const mixing_decimal_floats: Diagnostic = .{
     .fmt = "cannot mix operands of decimal floating and other floating types",
     .kind = .@"error",
 };
+
+pub const invalid_attribute_location: Diagnostic = .{
+    .fmt = "{s} cannot appear here",
+    .kind = .@"error",
+};

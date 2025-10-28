@@ -1,4 +1,4 @@
-//aro-args --target=x86_64-linux
+//aro-args --target=x86_64-linux -std=c23 -fdeclspec
 void cleanup_fn(void) {}
 void foo(void) {
     int __attribute__((access)) bar_1;
@@ -32,6 +32,10 @@ int __thiscall bar(int);
 int big __attribute__((vector_size(4294967296)));
 typedef float f2v __attribute__((vector_size(8.0i)));
 
+typedef struct {} A1, __declspec(deprecated) B1, C1;
+typedef struct {} A2, __attribute__((deprecated)) B2, C2;
+typedef struct {} A3, [[deprecated]] B3, C3;
+
 #define EXPECTED_ERRORS "attribute errors.c:4:24: error: 'access' attribute takes at least 2 argument(s)" \
     "attribute errors.c:5:31: warning: unknown `access` argument. Possible values are: 'read_only', 'read_write', 'write_only', 'none' [-Wignored-attributes]" \
     "attribute errors.c:6:24: warning: attribute 'access' ignored on variables [-Wignored-attributes]" \
@@ -54,4 +58,5 @@ typedef float f2v __attribute__((vector_size(8.0i)));
     "attribute errors.c:31:5: warning: '__thiscall' calling convention is not supported for this target [-Wignored-attributes]" \
     "attribute errors.c:32:36: error: attribute value '4294967296' out of range" \
     "attribute errors.c:33:46: error: attribute argument is invalid, expected an integer constant but got a complex floating point number" \
-
+    "attribute errors.c:35:23: error: a declspec attribute cannot appear here" \
+    "attribute errors.c:37:23: error: an attribute list cannot appear here" \
