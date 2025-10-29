@@ -3019,33 +3019,30 @@ fn enumSpec(p: *Parser) Error!QualType {
 
     if (fixed_qt == null) {
         // Coerce all fields to final type.
+        const tag_qt = enum_ty.tag.?;
+        const keep_int = e.num_positive_bits < Type.Int.int.bits(p.comp);
         for (enum_fields, field_nodes) |*field, field_node| {
-            if (field.qt.eql(.int, p.comp)) continue;
-
             const sym = p.syms.get(field.name, .vars) orelse continue;
             if (sym.kind != .enumeration) continue; // already an error
 
             var res: Result = .{ .node = undefined, .qt = field.qt, .val = sym.val };
-            const dest_ty: QualType = if (p.comp.fixedEnumTagType()) |some|
-                some
-            else if (try res.intFitsInType(p, .int))
+            const dest_qt: QualType = if (keep_int and try res.intFitsInType(p, .int))
                 .int
-            else if (!res.qt.eql(enum_ty.tag.?, p.comp))
-                enum_ty.tag.?
             else
-                continue;
+                tag_qt;
+            if (field.qt.eql(dest_qt, p.comp)) continue;
 
             const symbol = p.syms.getPtr(field.name, .vars);
-            _ = try symbol.val.intCast(dest_ty, p.comp);
+            _ = try symbol.val.intCast(dest_qt, p.comp);
             try p.tree.value_map.put(gpa, field_node, symbol.val);
 
-            symbol.qt = dest_ty;
-            field.qt = dest_ty;
-            res.qt = dest_ty;
+            symbol.qt = dest_qt;
+            field.qt = dest_qt;
+            res.qt = dest_qt;
 
             // Create a new enum_field node with the correct type.
             var new_field_node = field_node.get(&p.tree);
-            new_field_node.enum_field.qt = dest_ty;
+            new_field_node.enum_field.qt = dest_qt;
 
             if (new_field_node.enum_field.init) |some| {
                 res.node = some;

@@ -152,12 +152,13 @@ static_assert
   string_literal_expr: '[9]char' lvalue (value: "Unsigned")
 
 enum_decl: 'enum Large: long'
-  enum_field: 'int' (value: -1)
+  enum_field: 'long' (value: -1)
    name: J
    init:
-    negate_expr: 'int' (value: -1)
-     operand:
-      int_literal: 'int' (value: 1)
+    implicit cast: (int_cast) 'long'
+      negate_expr: 'int' (value: -1)
+       operand:
+        int_literal: 'int' (value: 1)
 
   enum_field: 'long' (value: 4294967295)
    name: K
@@ -198,16 +199,70 @@ static_assert
   string_literal_expr: '[5]char' lvalue (value: "Huge")
 
 enum_decl: 'enum EnumWithInits: long long'
-  enum_field: 'int' (value: -2)
+  enum_field: 'long long' (value: -2)
    name: Negative
    init:
-    negate_expr: 'int' (value: -2)
-     operand:
-      int_literal: 'int' (value: 2)
+    implicit cast: (int_cast) 'long long'
+      negate_expr: 'int' (value: -2)
+       operand:
+        int_literal: 'int' (value: 2)
 
   enum_field: 'long long' (value: -1)
    name: Positive
    init:
     implicit cast: (int_cast) 'long long'
       int_literal: 'unsigned long' (value: 18446744073709551615)
+
+enum_decl: 'enum E1: unsigned int'
+  enum_field: 'int' (value: 0)
+   name: bar
+   init:
+    int_literal: 'int' (value: 0)
+
+  enum_field: 'int' (value: 1)
+   name: baz
+   init:
+    int_literal: 'int' (value: 1)
+
+enum_decl: 'enum E2: unsigned long'
+  enum_field: 'unsigned long' (value: 0)
+   name: bar1
+   init:
+    implicit cast: (int_cast) 'unsigned long'
+      int_literal: 'int' (value: 0)
+
+  enum_field: 'unsigned long' (value: 18446744073709551615)
+   name: baz1
+   init:
+    negate_expr: 'unsigned long' (value: 18446744073709551615)
+     operand:
+      int_literal: 'unsigned long' (value: 1)
+
+enum_decl: 'enum E3: unsigned long'
+  enum_field: 'unsigned long' (value: 0)
+   name: bar2
+   init:
+    implicit cast: (int_cast) 'unsigned long'
+      int_literal: 'long' (value: 0)
+
+  enum_field: 'unsigned long' (value: 18446744073709551615)
+   name: baz2
+   init:
+    negate_expr: 'unsigned long' (value: 18446744073709551615)
+     operand:
+      int_literal: 'unsigned long' (value: 1)
+
+enum_decl: 'enum E4: unsigned int'
+  enum_field: 'unsigned int' (value: 0)
+   name: bar3
+   init:
+    implicit cast: (int_cast) 'unsigned int'
+      int_literal: 'long' (value: 0)
+
+  enum_field: 'unsigned int' (value: 4294967295)
+   name: baz3
+   init:
+    negate_expr: 'unsigned int' (value: 4294967295)
+     operand:
+      int_literal: 'unsigned int' (value: 1)
 
