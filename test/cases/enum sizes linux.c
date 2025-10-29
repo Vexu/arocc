@@ -53,3 +53,8 @@ enum EnumWithInits {
     Negative = -2,
     Positive = 0xFFFFFFFFFFFFFFFF,
 };
+
+enum E1 { bar = 0, baz = 1 };
+enum E2 { bar1 = 0, baz1 = -1LU };
+enum E3 { bar2 = 0L, baz2 = -1LU };
+enum E4 { bar3 = 0L, baz3 = -1U };

@@ -2870,7 +2870,7 @@ fn enumSpec(p: *Parser) Error!QualType {
     try p.attributeSpecifier();
 
     const maybe_ident = try p.eatIdentifier();
-    const fixed_qt = if (p.eatToken(.colon)) |colon| fixed: {
+    const fixed_qt: ?QualType = if (p.eatToken(.colon)) |colon| fixed: {
         const ty_start = p.tok_i;
         const fixed = (try p.specQual()) orelse {
             if (p.record.kind != .invalid) {
@@ -2880,17 +2880,27 @@ fn enumSpec(p: *Parser) Error!QualType {
             }
             try p.err(p.tok_i, .expected_type, .{});
             try p.err(colon, .enum_fixed, .{});
-            break :fixed null;
+            break :fixed .int;
         };
 
-        const fixed_sk = fixed.scalarKind(p.comp);
-        if (fixed_sk == .@"enum" or !fixed_sk.isInt() or !fixed_sk.isReal()) {
-            try p.err(ty_start, .invalid_type_underlying_enum, .{fixed});
-            break :fixed null;
+        var final = fixed;
+        while (true) {
+            switch (final.base(p.comp).type) {
+                .int => {
+                    try p.err(colon, .enum_fixed, .{});
+                    if (final.isQualified()) try p.err(ty_start, .enum_qualifiers_ignored, .{});
+                    break :fixed final.unqualified();
+                },
+                .atomic => |atomic| {
+                    try p.err(ty_start, .enum_atomic_ignored, .{});
+                    final = atomic.withQualifiers(final);
+                },
+                else => {
+                    try p.err(ty_start, .enum_invalid_underlying_type, .{fixed});
+                    break :fixed .int;
+                },
+            }
         }
-
-        try p.err(colon, .enum_fixed, .{});
-        break :fixed fixed;
     } else null;
 
     const reserved_index = try p.tree.nodes.addOne(gpa);
@@ -2908,6 +2918,8 @@ fn enumSpec(p: *Parser) Error!QualType {
                 try p.checkEnumFixedTy(fixed_qt, ident, prev);
             return prev.qt;
         } else {
+            if (fixed_qt == null) try p.err(ident, .enum_forward_declaration, .{});
+
             const enum_qt = try p.comp.type_store.put(gpa, .{ .@"enum" = .{
                 .name = interned_name,
                 .tag = fixed_qt,
@@ -3007,33 +3019,30 @@ fn enumSpec(p: *Parser) Error!QualType {
 
     if (fixed_qt == null) {
         // Coerce all fields to final type.
+        const tag_qt = enum_ty.tag.?;
+        const keep_int = e.num_positive_bits < Type.Int.int.bits(p.comp);
         for (enum_fields, field_nodes) |*field, field_node| {
-            if (field.qt.eql(.int, p.comp)) continue;
-
             const sym = p.syms.get(field.name, .vars) orelse continue;
             if (sym.kind != .enumeration) continue; // already an error
 
             var res: Result = .{ .node = undefined, .qt = field.qt, .val = sym.val };
-            const dest_ty: QualType = if (p.comp.fixedEnumTagType()) |some|
-                some
-            else if (try res.intFitsInType(p, .int))
+            const dest_qt: QualType = if (keep_int and try res.intFitsInType(p, .int))
                 .int
-            else if (!res.qt.eql(enum_ty.tag.?, p.comp))
-                enum_ty.tag.?
             else
-                continue;
+                tag_qt;
+            if (field.qt.eql(dest_qt, p.comp)) continue;
 
             const symbol = p.syms.getPtr(field.name, .vars);
-            _ = try symbol.val.intCast(dest_ty, p.comp);
+            _ = try symbol.val.intCast(dest_qt, p.comp);
             try p.tree.value_map.put(gpa, field_node, symbol.val);
 
-            symbol.qt = dest_ty;
-            field.qt = dest_ty;
-            res.qt = dest_ty;
+            symbol.qt = dest_qt;
+            field.qt = dest_qt;
+            res.qt = dest_qt;
 
             // Create a new enum_field node with the correct type.
             var new_field_node = field_node.get(&p.tree);
-            new_field_node.enum_field.qt = dest_ty;
+            new_field_node.enum_field.qt = dest_qt;
 
             if (new_field_node.enum_field.init) |some| {
                 res.node = some;
