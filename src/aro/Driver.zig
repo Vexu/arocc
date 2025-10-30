@@ -822,7 +822,7 @@ pub fn parseArgs(
         if (strip) break :debug .strip;
         if (debug) |explicit| break :debug explicit;
         break :debug switch (d.comp.target.ofmt) {
-            .elf, .goff, .macho, .wasm, .xcoff => .{ .dwarf = .@"32" },
+            .elf, .macho, .wasm => .{ .dwarf = .@"32" },
             .coff => .code_view,
             .c => switch (d.comp.target.os.tag) {
                 .windows, .uefi => .code_view,
@@ -896,7 +896,7 @@ fn parseTarget(d: *Driver, arch_os_abi: []const u8, cpu_features: ?[]const u8) C
             opts.arch_os_abi, @errorName(e),
         }),
     };
-    return std.zig.system.resolveTargetQuery(query) catch |e| {
+    return std.zig.system.resolveTargetQuery(d.comp.io, query) catch |e| {
         return d.fatal("unable to resolve target: {s}", .{errorDescription(e)});
     };
 }

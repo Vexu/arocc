@@ -289,7 +289,7 @@ pub fn systemCompiler(target: std.Target) LangOpts.Compiler {
         target.abi.isAndroid() or
         target.os.tag.isBSD() or
         target.os.tag == .fuchsia or
-        target.os.tag == .solaris or
+        target.os.tag == .illumos or
         target.os.tag == .haiku or
         target.cpu.arch == .hexagon)
     {
@@ -318,7 +318,7 @@ pub fn hasFloat128(target: std.Target) bool {
         .haiku,
         .linux,
         .openbsd,
-        .solaris,
+        .illumos,
         => target.cpu.arch.isX86(),
         else => false,
     };
@@ -459,7 +459,6 @@ pub fn isEnvironment(target: std.Target, query: []const u8) bool {
 }
 
 pub fn defaultFpEvalMethod(target: std.Target) LangOpts.FPEvalMethod {
-    if (target.os.tag == .aix) return .double;
     switch (target.cpu.arch) {
         .x86, .x86_64 => {
             if (target.ptrBitWidth() == 32 and target.os.tag == .netbsd) {
@@ -526,56 +525,66 @@ pub fn ldEmulationOption(target: std.Target, arm_endianness: ?std.builtin.Endian
 pub fn get32BitArchVariant(target: std.Target) ?std.Target {
     var copy = target;
     switch (target.cpu.arch) {
+        .alpha,
         .amdgcn,
         .avr,
-        .msp430,
-        .ve,
-        .bpfel,
         .bpfeb,
+        .bpfel,
+        .msp430,
         .s390x,
+        .ve,
         => return null,
 
         .arc,
+        .arceb,
         .arm,
         .armeb,
         .csky,
         .hexagon,
-        .m68k,
-        .mips,
-        .mipsel,
-        .powerpc,
-        .powerpcle,
-        .riscv32,
-        .riscv32be,
-        .sparc,
-        .thumb,
-        .thumbeb,
-        .x86,
-        .xcore,
-        .nvptx,
+        .hppa,
         .kalimba,
         .lanai,
-        .wasm32,
-        .spirv32,
         .loongarch32,
-        .xtensa,
-        .propeller,
+        .m68k,
+        .microblaze,
+        .microblazeel,
+        .mips,
+        .mipsel,
+        .nvptx,
         .or1k,
+        .powerpc,
+        .powerpcle,
+        .propeller,
+        .riscv32,
+        .riscv32be,
+        .sh,
+        .sheb,
+        .sparc,
+        .spirv32,
+        .thumb,
+        .thumbeb,
+        .wasm32,
+        .x86,
+        .xcore,
+        .xtensa,
+        .xtensaeb,
         => {}, // Already 32 bit
 
         .aarch64 => copy.cpu.arch = .arm,
         .aarch64_be => copy.cpu.arch = .armeb,
-        .nvptx64 => copy.cpu.arch = .nvptx,
-        .wasm64 => copy.cpu.arch = .wasm32,
-        .spirv64 => copy.cpu.arch = .spirv32,
+        .hppa64 => copy.cpu.arch = .hppa,
         .loongarch64 => copy.cpu.arch = .loongarch32,
         .mips64 => copy.cpu.arch = .mips,
         .mips64el => copy.cpu.arch = .mipsel,
+        .nvptx64 => copy.cpu.arch = .nvptx,
         .powerpc64 => copy.cpu.arch = .powerpc,
         .powerpc64le => copy.cpu.arch = .powerpcle,
         .riscv64 => copy.cpu.arch = .riscv32,
         .riscv64be => copy.cpu.arch = .riscv32be,
         .sparc64 => copy.cpu.arch = .sparc,
+        .spirv64 => copy.cpu.arch = .spirv32,
+        .wasm64 => copy.cpu.arch = .wasm32,
+        .x86_16 => copy.cpu.arch = .x86,
         .x86_64 => copy.cpu.arch = .x86,
     }
     return copy;
@@ -585,42 +594,51 @@ pub fn get64BitArchVariant(target: std.Target) ?std.Target {
     var copy = target;
     switch (target.cpu.arch) {
         .arc,
+        .arceb,
         .avr,
         .csky,
         .hexagon,
         .kalimba,
         .lanai,
         .m68k,
+        .microblaze,
+        .microblazeel,
         .msp430,
+        .or1k,
+        .propeller,
+        .sh,
+        .sheb,
         .xcore,
         .xtensa,
-        .propeller,
-        .or1k,
+        .xtensaeb,
         => return null,
 
-        .aarch64,
         .aarch64_be,
+        .aarch64,
+        .alpha,
         .amdgcn,
         .bpfeb,
         .bpfel,
-        .nvptx64,
-        .wasm64,
-        .spirv64,
+        .hppa64,
         .loongarch64,
         .mips64,
         .mips64el,
+        .nvptx64,
         .powerpc64,
         .powerpc64le,
         .riscv64,
         .riscv64be,
         .s390x,
         .sparc64,
+        .spirv64,
         .ve,
+        .wasm64,
         .x86_64,
         => {}, // Already 64 bit
 
         .arm => copy.cpu.arch = .aarch64,
         .armeb => copy.cpu.arch = .aarch64_be,
+        .hppa => copy.cpu.arch = .hppa64,
         .loongarch32 => copy.cpu.arch = .loongarch64,
         .mips => copy.cpu.arch = .mips64,
         .mipsel => copy.cpu.arch = .mips64el,
@@ -635,6 +653,7 @@ pub fn get64BitArchVariant(target: std.Target) ?std.Target {
         .thumbeb => copy.cpu.arch = .aarch64_be,
         .wasm32 => copy.cpu.arch = .wasm64,
         .x86 => copy.cpu.arch = .x86_64,
+        .x86_16 => copy.cpu.arch = .x86_64,
     }
     return copy;
 }
@@ -691,10 +710,20 @@ pub fn toLLVMTriple(target: std.Target, buf: []u8) []const u8 {
         .wasm32 => "wasm32",
         .wasm64 => "wasm64",
         .ve => "ve",
-        // Note: propeller1, kalimba and or1k are not supported in LLVM; this is the Zig arch name
+        // Note: these are not supported in LLVM; this is the Zig arch name
         .kalimba => "kalimba",
         .propeller => "propeller",
         .or1k => "or1k",
+        .alpha => "alpha",
+        .arceb => "arceb",
+        .hppa => "hppa",
+        .hppa64 => "hppa64",
+        .microblaze => "microblaze",
+        .microblazeel => "microblazeel",
+        .sh => "sh",
+        .sheb => "sheb",
+        .xtensaeb => "xtensaeb",
+        .x86_16 => "i86",
     };
     writer.writeAll(llvm_arch) catch unreachable;
     writer.writeByte('-') catch unreachable;
@@ -708,13 +737,10 @@ pub fn toLLVMTriple(target: std.Target, buf: []u8) []const u8 {
         .ps3 => "lv2",
         .netbsd => "netbsd",
         .openbsd => "openbsd",
-        .solaris => "solaris",
         .illumos => "illumos",
         .windows => "windows",
-        .zos => "zos",
         .haiku => "haiku",
         .rtems => "rtems",
-        .aix => "aix",
         .cuda => "cuda",
         .nvcl => "nvcl",
         .amdhsa => "amdhsa",
@@ -796,7 +822,6 @@ pub const DefaultPIStatus = enum { yes, no, depends_on_linker };
 
 pub fn isPIEDefault(target: std.Target) DefaultPIStatus {
     return switch (target.os.tag) {
-        .aix,
         .haiku,
 
         .macos,
@@ -809,7 +834,7 @@ pub fn isPIEDefault(target: std.Target) DefaultPIStatus {
         .dragonfly,
         .netbsd,
         .freebsd,
-        .solaris,
+        .illumos,
 
         .cuda,
         .amdhsa,
@@ -820,7 +845,6 @@ pub fn isPIEDefault(target: std.Target) DefaultPIStatus {
         .ps5,
 
         .hurd,
-        .zos,
         => .no,
 
         .openbsd,
@@ -865,7 +889,6 @@ pub fn isPIEDefault(target: std.Target) DefaultPIStatus {
 
 pub fn isPICdefault(target: std.Target) DefaultPIStatus {
     return switch (target.os.tag) {
-        .aix,
         .haiku,
 
         .macos,
@@ -885,14 +908,13 @@ pub fn isPICdefault(target: std.Target) DefaultPIStatus {
 
         .fuchsia,
         .cuda,
-        .zos,
         => .no,
 
         .dragonfly,
         .openbsd,
         .netbsd,
         .freebsd,
-        .solaris,
+        .illumos,
         .hurd,
         => {
             return switch (target.cpu.arch) {
@@ -944,21 +966,20 @@ pub fn isPICdefault(target: std.Target) DefaultPIStatus {
 
 pub fn isPICDefaultForced(target: std.Target) DefaultPIStatus {
     return switch (target.os.tag) {
-        .aix, .amdhsa, .amdpal, .mesa3d => .yes,
+        .amdhsa, .amdpal, .mesa3d => .yes,
 
         .haiku,
         .dragonfly,
         .openbsd,
         .netbsd,
         .freebsd,
-        .solaris,
+        .illumos,
         .cuda,
         .ps4,
         .ps5,
         .hurd,
         .linux,
         .fuchsia,
-        .zos,
         => .no,
 
         .windows => {

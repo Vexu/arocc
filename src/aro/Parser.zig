@@ -10579,7 +10579,7 @@ test "Node locations" {
     const arena = arena_state.allocator();
 
     var diagnostics: Diagnostics = .{ .output = .ignore };
-    var comp = Compilation.init(std.testing.allocator, arena, &diagnostics, std.fs.cwd());
+    var comp = Compilation.init(std.testing.allocator, arena, std.testing.io, &diagnostics, std.fs.cwd());
     defer comp.deinit();
 
     const file = try comp.addSourceFromBuffer("file.c",
