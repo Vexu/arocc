@@ -12,6 +12,7 @@ const DepFile = @import("DepFile.zig");
 const features = @import("features.zig");
 const Hideset = @import("Hideset.zig");
 const Parser = @import("Parser.zig");
+const Pragma = @import("Pragma.zig");
 const Source = @import("Source.zig");
 const text_literal = @import("text_literal.zig");
 const Tokenizer = @import("Tokenizer.zig");
@@ -3471,9 +3472,14 @@ pub fn ensureUnusedTokenCapacity(pp: *Preprocessor, capacity: usize) !void {
 
 /// Handle a pragma directive
 fn pragma(pp: *Preprocessor, tokenizer: *Tokenizer, pragma_tok: RawToken, expand_buf: *ExpandBuf) !void {
-    const name_tok = tokenizer.nextNoWS();
+    const name_tok = tokFromRaw(tokenizer.nextNoWS());
     if (name_tok.id == .nl or name_tok.id == .eof) return;
-    try expand_buf.appendSlice(pp.comp.gpa, &.{ tokFromRaw(pragma_tok), tokFromRaw(name_tok) });
+    try expand_buf.appendSlice(pp.comp.gpa, &.{ tokFromRaw(pragma_tok), name_tok });
+
+    const name = pp.expandedSlice(name_tok);
+    const prag: *const Pragma = pp.comp.getPragma(name) orelse &.do_nothing;
+
+    var i: Tree.TokenIndex = 0;
     while (true) {
         const next_tok = tokenizer.next();
         if (next_tok.id == .whitespace) continue;
@@ -3486,7 +3492,10 @@ fn pragma(pp: *Preprocessor, tokenizer: *Tokenizer, pragma_tok: RawToken, expand
         }
         const pos = expand_buf.items.len;
         try expand_buf.append(pp.comp.gpa, tokFromRaw(next_tok));
-        try pp.expandMacroExhaustive(tokenizer, expand_buf, pos, pos + 1, true, .no_pragma);
+        if (prag.shouldExpandTokenAtIndex(i)) {
+            try pp.expandMacroExhaustive(tokenizer, expand_buf, pos, pos + 1, true, .no_pragma);
+        }
+        i += 1;
 
         if (next_tok.id == .nl) break;
     }
