@@ -298,8 +298,8 @@ pub fn init(comp: *Compilation, source_epoch: SourceEpoch) Preprocessor {
 
 /// Initialize Preprocessor with builtin macros.
 pub fn initDefault(comp: *Compilation) !Preprocessor {
-    const source_epoch: SourceEpoch = comp.environment.sourceEpoch() catch |er| switch (er) {
-        error.InvalidEpoch => blk: {
+    const source_epoch: SourceEpoch = comp.environment.sourceEpoch(comp.io) catch |er| switch (er) {
+        error.InvalidEpoch, error.UnsupportedClock, error.Unexpected => blk: {
             const diagnostic: Diagnostic = .invalid_source_epoch;
             try comp.diagnostics.add(.{ .text = diagnostic.fmt, .kind = diagnostic.kind, .opt = diagnostic.opt, .location = null });
             break :blk .default;
@@ -3834,7 +3834,7 @@ test "Preserve pragma tokens sometimes" {
             defer arena.deinit();
 
             var diagnostics: Diagnostics = .{ .output = .ignore };
-            var comp = Compilation.init(gpa, arena.allocator(), &diagnostics, std.fs.cwd());
+            var comp = Compilation.init(gpa, arena.allocator(), std.testing.io, &diagnostics, std.fs.cwd());
             defer comp.deinit();
 
             try comp.addDefaultPragmaHandlers();
@@ -3901,7 +3901,7 @@ test "destringify" {
     var arena: std.heap.ArenaAllocator = .init(gpa);
     defer arena.deinit();
     var diagnostics: Diagnostics = .{ .output = .ignore };
-    var comp = Compilation.init(gpa, arena.allocator(), &diagnostics, std.fs.cwd());
+    var comp = Compilation.init(gpa, arena.allocator(), std.testing.io, &diagnostics, std.fs.cwd());
     defer comp.deinit();
     var pp = Preprocessor.init(&comp, .default);
     defer pp.deinit();
@@ -3964,7 +3964,7 @@ test "Include guards" {
             const arena = arena_state.allocator();
 
             var diagnostics: Diagnostics = .{ .output = .ignore };
-            var comp = Compilation.init(gpa, arena, &diagnostics, std.fs.cwd());
+            var comp = Compilation.init(gpa, arena, std.testing.io, &diagnostics, std.fs.cwd());
             defer comp.deinit();
             var pp = Preprocessor.init(&comp, .default);
             defer pp.deinit();

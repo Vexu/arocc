@@ -2326,7 +2326,7 @@ test "Tokenizer fuzz test" {
         fn testOne(_: @This(), input_bytes: []const u8) anyerror!void {
             var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
             defer arena.deinit();
-            var comp = Compilation.init(std.testing.allocator, arena.allocator(), undefined, std.fs.cwd());
+            var comp = Compilation.init(std.testing.allocator, arena.allocator(), std.testing.io, undefined, std.fs.cwd());
             defer comp.deinit();
 
             const source = try comp.addSourceFromBuffer("fuzz.c", input_bytes);
@@ -2351,7 +2351,7 @@ test "Tokenizer fuzz test" {
 fn expectTokensExtra(contents: []const u8, expected_tokens: []const Token.Id, langopts: ?LangOpts) !void {
     var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
     defer arena.deinit();
-    var comp = Compilation.init(std.testing.allocator, arena.allocator(), undefined, std.fs.cwd());
+    var comp = Compilation.init(std.testing.allocator, arena.allocator(), std.testing.io, undefined, std.fs.cwd());
     defer comp.deinit();
     if (langopts) |provided| {
         comp.langopts = provided;

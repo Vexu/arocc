@@ -190,7 +190,7 @@ pub fn main() !void {
     defer diagnostics.deinit();
 
     // prepare compiler
-    var initial_comp = aro.Compilation.init(gpa, arena, &diagnostics, std.fs.cwd());
+    var initial_comp = aro.Compilation.init(gpa, arena, std.testing.io, &diagnostics, std.fs.cwd());
     defer initial_comp.deinit();
 
     // Intentional reduntant and mixed-separator path for Windows-specific tests

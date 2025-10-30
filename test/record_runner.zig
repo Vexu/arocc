@@ -233,7 +233,7 @@ fn singleRun(gpa: std.mem.Allocator, test_dir: []const u8, test_case: TestCase, 
     };
     defer diagnostics.deinit();
 
-    var comp = aro.Compilation.init(gpa, arena.allocator(), &diagnostics, std.fs.cwd());
+    var comp = aro.Compilation.init(gpa, arena.allocator(), std.testing.io, &diagnostics, std.fs.cwd());
     defer comp.deinit();
 
     try comp.addDefaultPragmaHandlers();
@@ -389,7 +389,7 @@ fn getTarget(zig_target_string: []const u8) !std.Target {
         .arch_os_abi = w.buffered(),
         .cpu_features = model,
     });
-    return std.zig.system.resolveTargetQuery(query);
+    return std.zig.system.resolveTargetQuery(std.testing.io, query);
 }
 
 fn setTarget(comp: *aro.Compilation, target: []const u8) !void {

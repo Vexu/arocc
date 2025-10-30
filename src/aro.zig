@@ -31,7 +31,6 @@ test {
     _ = @import("aro/char_info.zig");
     _ = @import("aro/Compilation.zig");
     _ = @import("aro/Driver/Distro.zig");
-    _ = @import("aro/Driver/Filesystem.zig");
     _ = @import("aro/Driver/GCCVersion.zig");
     _ = @import("aro/InitList.zig");
     _ = @import("aro/LangOpts.zig");

@@ -1,11 +1,7 @@
 const std = @import("std");
 const Build = std.Build;
 
-const aro_version = std.SemanticVersion{
-    .major = 0,
-    .minor = 0,
-    .patch = 0,
-};
+const aro_version = std.SemanticVersion.parse(@import("build.zig.zon").version) catch unreachable;
 
 fn generateDef(b: *Build, input_name: []const u8) Build.Module.Import {
     const cache = struct {
