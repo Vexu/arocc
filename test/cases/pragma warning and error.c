@@ -29,6 +29,11 @@ foo(baz 2)
 #warning foo \
 bar
 
+#define FOO error
+// should be no error since FOO should not be expanded
+#pragma GCC FOO "foo"
+
+
 #define EXPECTED_ERRORS "pragma warning and error.c:3:13: error: pragma warning requires string literal" \
 	"pragma warning and error.c:5:13: error: pragma warning requires string literal" \
 	"pragma warning and error.c:7:13: warning: A warning [-W#pragma-messages]" \
