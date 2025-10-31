@@ -3,7 +3,7 @@ const std = @import("std");
 const Compilation = @import("Compilation.zig");
 const LangOpts = @import("LangOpts.zig");
 const Parser = @import("Parser.zig");
-const target_util = @import("target.zig");
+const Target = @import("Target.zig");
 const TypeStore = @import("TypeStore.zig");
 const QualType = TypeStore.QualType;
 const Builder = TypeStore.Builder;
@@ -117,7 +117,7 @@ fn createType(desc: TypeDescription, it: *TypeDescription.TypeIterator, comp: *C
             .W => require_native_int64 = true,
             .N => {
                 std.debug.assert(desc.spec == .i);
-                if (!target_util.isLP64(comp.target)) {
+                if (!comp.target.isLP64()) {
                     builder.combine(.long, 0) catch unreachable;
                 }
             },

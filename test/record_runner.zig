@@ -276,7 +276,7 @@ fn singleRun(gpa: std.mem.Allocator, test_dir: []const u8, test_case: TestCase, 
         return;
     };
 
-    comp.langopts.setEmulatedCompiler(aro.target_util.systemCompiler(comp.target));
+    comp.langopts.setEmulatedCompiler(comp.target.systemCompiler());
 
     var macro_buf: [1024]u8 = undefined;
     var macro_writer: std.Io.Writer = .fixed(&macro_buf);
@@ -375,7 +375,7 @@ fn printDiagnostics(diagnostics: *aro.Diagnostics) void {
 }
 
 /// Get Zig std.Target from string in the arch-cpu-os-abi format.
-fn getTarget(zig_target_string: []const u8) !std.Target {
+fn getTarget(zig_target_string: []const u8) !aro.Target {
     var buf: [128]u8 = undefined;
     var iter = std.mem.tokenizeScalar(u8, zig_target_string, '-');
     const arch = iter.next().?;
@@ -389,14 +389,14 @@ fn getTarget(zig_target_string: []const u8) !std.Target {
         .arch_os_abi = w.buffered(),
         .cpu_features = model,
     });
-    return std.zig.system.resolveTargetQuery(std.testing.io, query);
+    return .fromZigTarget(try std.zig.system.resolveTargetQuery(std.testing.io, query));
 }
 
 fn setTarget(comp: *aro.Compilation, target: []const u8) !void {
     const compiler_split_index = std.mem.indexOf(u8, target, ":").?;
 
     comp.target = try getTarget(target[0..compiler_split_index]);
-    comp.langopts.emulate = aro.target_util.systemCompiler(comp.target);
+    comp.langopts.emulate = comp.target.systemCompiler();
 
     const expected_compiler_name = target[compiler_split_index + 1 ..];
     const set_name = @tagName(comp.langopts.emulate);

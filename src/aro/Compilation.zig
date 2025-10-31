@@ -17,7 +17,7 @@ const Pragma = @import("Pragma.zig");
 const record_layout = @import("record_layout.zig");
 const Source = @import("Source.zig");
 const StringInterner = @import("StringInterner.zig");
-const target_util = @import("target.zig");
+const Target = @import("Target.zig");
 const Tokenizer = @import("Tokenizer.zig");
 const Token = Tokenizer.Token;
 const TypeStore = @import("TypeStore.zig");
@@ -147,9 +147,8 @@ framework_dirs: std.ArrayList([]const u8) = .empty,
 system_framework_dirs: std.ArrayList([]const u8) = .empty,
 /// Allocated into `gpa`, but keys are externally managed.
 embed_dirs: std.ArrayList([]const u8) = .empty,
-target: std.Target = @import("builtin").target,
-darwin_target_variant: ?std.Target = null,
-vendor: target_util.Vendor = .unknown,
+target: Target = .default,
+darwin_target_variant: ?Target = null,
 cmodel: std.builtin.CodeModel = .default,
 pragma_handlers: std.StringArrayHashMapUnmanaged(*Pragma) = .empty,
 langopts: LangOpts = .{},
@@ -185,7 +184,7 @@ pub fn initDefault(gpa: Allocator, arena: Allocator, io: Io, diagnostics: *Diagn
     };
     errdefer comp.deinit();
     try comp.addDefaultPragmaHandlers();
-    comp.langopts.setEmulatedCompiler(target_util.systemCompiler(comp.target));
+    comp.langopts.setEmulatedCompiler(comp.target.systemCompiler());
     return comp;
 }
 
@@ -248,7 +247,8 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
             , .{ name, name });
         }
     }.defineStd;
-    const ptr_width = comp.target.ptrBitWidth();
+    const target = &comp.target;
+    const ptr_width = target.ptrBitWidth();
     const is_gnu = comp.langopts.standard.isGNU();
 
     const gnuc_version = comp.langopts.gnuc_version orelse comp.langopts.emulate.defaultGccVersion();
@@ -287,7 +287,7 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
     }
 
     // os macros
-    switch (comp.target.os.tag) {
+    switch (target.os.tag) {
         .linux => try defineStd(w, "linux", is_gnu),
         .windows => {
             try define(w, "_WIN32");
@@ -295,7 +295,7 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
                 try define(w, "_WIN64");
             }
 
-            if (comp.target.abi.isGnu()) {
+            if (target.abi.isGnu()) {
                 try defineStd(w, "WIN32", is_gnu);
                 try defineStd(w, "WINNT", is_gnu);
                 if (ptr_width == 64) {
@@ -304,7 +304,7 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
                 }
                 try define(w, "__MSVCRT__");
                 try define(w, "__MINGW32__");
-            } else if (comp.target.abi == .cygnus) {
+            } else if (target.abi == .cygnus) {
                 try define(w, "__CYGWIN__");
                 if (ptr_width == 64) {
                     try define(w, "__CYGWIN64__");
@@ -313,7 +313,7 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
                 }
             }
 
-            if (comp.target.abi.isGnu() or comp.target.abi == .cygnus) {
+            if (target.abi.isGnu() or target.abi == .cygnus) {
                 // MinGW and Cygwin define __declspec(a) to __attribute((a)).
                 // Like Clang we make the define no op if -fdeclspec is enabled.
                 if (comp.langopts.declspec_attrs) {
@@ -335,7 +335,7 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
         },
         .uefi => try define(w, "__UEFI__"),
         .freebsd => {
-            const release = comp.target.os.version_range.semver.min.major;
+            const release = target.os.version_range.semver.min.major;
             const cc_version = release * 10_000 + 1;
             try w.print(
                 \\#define __FreeBSD__ {d}
@@ -372,7 +372,7 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
     }
 
     // unix and other additional os macros
-    switch (comp.target.os.tag) {
+    switch (target.os.tag) {
         .freebsd,
         .netbsd,
         .openbsd,
@@ -385,30 +385,30 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
         .ps4,
         .ps5,
         => try defineStd(w, "unix", is_gnu),
-        .windows => if (comp.target.abi.isGnu() or comp.target.abi == .cygnus) {
+        .windows => if (target.abi.isGnu() or target.abi == .cygnus) {
             try defineStd(w, "unix", is_gnu);
         },
         else => {},
     }
-    if (comp.target.abi.isAndroid()) {
+    if (target.abi.isAndroid()) {
         try define(w, "__ANDROID__");
     }
 
     // architecture macros
-    switch (comp.target.cpu.arch) {
+    switch (target.cpu.arch) {
         .x86, .x86_64 => {
             try w.print("#define __code_model_{s}__ 1\n", .{switch (comp.cmodel) {
                 .default => "small",
                 else => @tagName(comp.cmodel),
             }});
 
-            if (comp.target.cpu.arch == .x86_64) {
+            if (target.cpu.arch == .x86_64) {
                 try define(w, "__amd64__");
                 try define(w, "__amd64");
                 try define(w, "__x86_64__");
                 try define(w, "__x86_64");
 
-                if (comp.target.os.tag == .windows and comp.target.abi == .msvc) {
+                if (target.os.tag == .windows and target.abi == .msvc) {
                     try w.writeAll(
                         \\#define _M_X64 100
                         \\#define _M_AMD64 100
@@ -418,11 +418,11 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
             } else {
                 try defineStd(w, "i386", is_gnu);
 
-                if (comp.target.os.tag == .windows and comp.target.abi == .msvc) {
+                if (target.os.tag == .windows and target.abi == .msvc) {
                     try w.print("#define _M_IX86 {d}\n", .{blk: {
-                        if (comp.target.cpu.model == &std.Target.x86.cpu.i386) break :blk 300;
-                        if (comp.target.cpu.model == &std.Target.x86.cpu.i486) break :blk 400;
-                        if (comp.target.cpu.model == &std.Target.x86.cpu.i586) break :blk 500;
+                        if (target.cpu.model == &std.Target.x86.cpu.i386) break :blk 300;
+                        if (target.cpu.model == &std.Target.x86.cpu.i486) break :blk 400;
+                        if (target.cpu.model == &std.Target.x86.cpu.i586) break :blk 500;
                         break :blk @as(u32, 600);
                     }});
                 }
@@ -435,11 +435,11 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
                 \\
             );
 
-            if (comp.target.cpu.has(.x86, .sahf) or (comp.langopts.emulate == .clang and comp.target.cpu.arch == .x86)) {
+            if (target.cpu.has(.x86, .sahf) or (comp.langopts.emulate == .clang and target.cpu.arch == .x86)) {
                 try define(w, "__LAHF_SAHF__");
             }
 
-            const features = comp.target.cpu.features;
+            const features = target.cpu.features;
             for ([_]struct { std.Target.x86.Feature, []const u8 }{
                 .{ .aes, "__AES__" },
                 .{ .vaes, "__VAES__" },
@@ -571,10 +571,10 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
                 }
             }
 
-            if (comp.langopts.ms_extensions and comp.target.cpu.arch == .x86) {
-                const level = if (comp.target.cpu.has(.x86, .sse2))
+            if (comp.langopts.ms_extensions and target.cpu.arch == .x86) {
+                const level = if (target.cpu.has(.x86, .sse2))
                     "2"
-                else if (comp.target.cpu.has(.x86, .sse))
+                else if (target.cpu.has(.x86, .sse))
                     "1"
                 else
                     "0";
@@ -582,18 +582,18 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
                 try w.print("#define _M_IX86_FP {s}\n", .{level});
             }
 
-            if (comp.target.cpu.hasAll(.x86, &.{ .egpr, .push2pop2, .ppx, .ndd, .ccmp, .nf, .cf, .zu })) {
+            if (target.cpu.hasAll(.x86, &.{ .egpr, .push2pop2, .ppx, .ndd, .ccmp, .nf, .cf, .zu })) {
                 try define(w, "__APX_F__");
             }
 
-            if (comp.target.cpu.hasAll(.x86, &.{ .egpr, .inline_asm_use_gpr32 })) {
+            if (target.cpu.hasAll(.x86, &.{ .egpr, .inline_asm_use_gpr32 })) {
                 try define(w, "__APX_INLINE_ASM_USE_GPR32__");
             }
 
-            if (comp.target.cpu.has(.x86, .cx8)) {
+            if (target.cpu.has(.x86, .cx8)) {
                 try define(w, "__GCC_HAVE_SYNC_COMPARE_AND_SWAP_8");
             }
-            if (comp.target.cpu.has(.x86, .cx16) and comp.target.cpu.arch == .x86_64) {
+            if (target.cpu.has(.x86, .cx16) and target.cpu.arch == .x86_64) {
                 try define(w, "__GCC_HAVE_SYNC_COMPARE_AND_SWAP_8");
             }
 
@@ -636,7 +636,7 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
             try defineStd(w, "sparc", is_gnu);
             try define(w, "__sparc_v9__");
             try define(w, "__arch64__");
-            if (comp.target.os.tag != .illumos) {
+            if (target.os.tag != .illumos) {
                 try define(w, "__sparc64__");
                 try define(w, "__sparc_v9__");
                 try define(w, "__sparcv9__");
@@ -644,20 +644,20 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
         },
         .sparc => {
             try defineStd(w, "sparc", is_gnu);
-            if (comp.target.os.tag == .illumos) {
+            if (target.os.tag == .illumos) {
                 try define(w, "__sparcv8");
             }
         },
         .arm, .armeb, .thumb, .thumbeb => {
             try define(w, "__arm__");
             try define(w, "__arm");
-            if (comp.target.cpu.arch.isThumb()) {
+            if (target.cpu.arch.isThumb()) {
                 try define(w, "__thumb__");
             }
         },
         .aarch64, .aarch64_be => {
             try define(w, "__aarch64__");
-            if (comp.target.os.tag == .macos) {
+            if (target.os.tag == .macos) {
                 try define(w, "__AARCH64_SIMD__");
                 if (ptr_width == 32) {
                     try define(w, "__ARM64_ARCH_8_32__");
@@ -668,7 +668,7 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
                 try define(w, "__arm64");
                 try define(w, "__arm64__");
             }
-            if (comp.target.os.tag == .windows and comp.target.abi == .msvc) {
+            if (target.os.tag == .windows and target.abi == .msvc) {
                 try w.writeAll("#define _M_ARM64 1\n");
             }
 
@@ -684,56 +684,56 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
                 try w.writeAll("__ 1\n");
             }
 
-            if (comp.target.cpu.has(.aarch64, .fp_armv8)) {
+            if (target.cpu.has(.aarch64, .fp_armv8)) {
                 try w.writeAll("#define __ARM_FP 0xE\n");
             }
-            if (comp.target.cpu.has(.aarch64, .neon)) {
+            if (target.cpu.has(.aarch64, .neon)) {
                 try define(w, "__ARM_NEON");
                 try w.writeAll("#define __ARM_NEON_FP 0xE\n");
             }
-            if (comp.target.cpu.has(.aarch64, .bf16)) {
+            if (target.cpu.has(.aarch64, .bf16)) {
                 try define(w, "__ARM_FEATURE_BF16");
                 try define(w, "__ARM_FEATURE_BF16_VECTOR_ARITHMETIC");
                 try define(w, "__ARM_BF16_FORMAT_ALTERNATIVE");
                 try define(w, "__ARM_FEATURE_BF16_SCALAR_ARITHMETIC");
-                if (comp.target.cpu.has(.aarch64, .sve)) {
+                if (target.cpu.has(.aarch64, .sve)) {
                     try define(w, "__ARM_FEATURE_SVE_BF16");
                 }
             }
-            if (comp.target.cpu.hasAll(.aarch64, &.{ .sve2, .sve_aes })) {
+            if (target.cpu.hasAll(.aarch64, &.{ .sve2, .sve_aes })) {
                 try define(w, "__ARM_FEATURE_SVE2_AES");
             }
-            if (comp.target.cpu.hasAll(.aarch64, &.{ .sve2, .sve_bitperm })) {
+            if (target.cpu.hasAll(.aarch64, &.{ .sve2, .sve_bitperm })) {
                 try define(w, "__ARM_FEATURE_SVE2_BITPERM");
             }
-            if (comp.target.cpu.has(.aarch64, .sme)) {
+            if (target.cpu.has(.aarch64, .sme)) {
                 try define(w, "__ARM_FEATURE_SME");
                 try define(w, "__ARM_FEATURE_LOCALLY_STREAMING");
             }
-            if (comp.target.cpu.has(.aarch64, .fmv)) {
+            if (target.cpu.has(.aarch64, .fmv)) {
                 try define(w, "__HAVE_FUNCTION_MULTI_VERSIONING");
             }
-            if (comp.target.cpu.has(.aarch64, .sha3)) {
+            if (target.cpu.has(.aarch64, .sha3)) {
                 try define(w, "__ARM_FEATURE_SHA3");
                 try define(w, "__ARM_FEATURE_SHA512");
             }
-            if (comp.target.cpu.has(.aarch64, .sm4)) {
+            if (target.cpu.has(.aarch64, .sm4)) {
                 try define(w, "__ARM_FEATURE_SM3");
                 try define(w, "__ARM_FEATURE_SM4");
             }
-            if (!comp.target.cpu.has(.aarch64, .strict_align)) {
+            if (!target.cpu.has(.aarch64, .strict_align)) {
                 try define(w, "__ARM_FEATURE_UNALIGNED");
             }
-            if (comp.target.cpu.hasAll(.aarch64, &.{ .neon, .fullfp16 })) {
+            if (target.cpu.hasAll(.aarch64, &.{ .neon, .fullfp16 })) {
                 try define(w, "__ARM_FEATURE_FP16_VECTOR_ARITHMETIC");
             }
-            if (comp.target.cpu.has(.aarch64, .rcpc3)) {
+            if (target.cpu.has(.aarch64, .rcpc3)) {
                 try w.writeAll("#define __ARM_FEATURE_RCPC 3\n");
-            } else if (comp.target.cpu.has(.aarch64, .rcpc)) {
+            } else if (target.cpu.has(.aarch64, .rcpc)) {
                 try define(w, "__ARM_FEATURE_RCPC");
             }
 
-            const features = comp.target.cpu.features;
+            const features = target.cpu.features;
             for ([_]struct { std.Target.aarch64.Feature, []const u8 }{
                 .{ .sve, "SVE" },
                 .{ .sve2, "SVE2" },
@@ -782,7 +782,7 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
         .wasm32, .wasm64 => {
             try define(w, "__wasm");
             try define(w, "__wasm__");
-            if (comp.target.cpu.arch == .wasm32) {
+            if (target.cpu.arch == .wasm32) {
                 try define(w, "__wasm32");
                 try define(w, "__wasm32__");
             } else {
@@ -790,21 +790,21 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
                 try define(w, "__wasm64__");
             }
 
-            for (comp.target.cpu.arch.allFeaturesList()) |feature| {
-                if (!comp.target.cpu.features.isEnabled(feature.index)) continue;
+            for (target.cpu.arch.allFeaturesList()) |feature| {
+                if (!target.cpu.features.isEnabled(feature.index)) continue;
                 try w.print("#define __wasm_{s}__ 1\n", .{feature.name});
             }
         },
         else => {},
     }
 
-    if (ptr_width == 64 and comp.target.cTypeBitSize(.long) == 64 and
-        comp.target.cTypeBitSize(.int) == 32)
+    if (ptr_width == 64 and target.cTypeBitSize(.long) == 64 and
+        target.cTypeBitSize(.int) == 32)
     {
         try define(w, "_LP64");
         try define(w, "__LP64__");
-    } else if (ptr_width == 32 and comp.target.cTypeBitSize(.long) == 32 and
-        comp.target.cTypeBitSize(.int) == 32)
+    } else if (ptr_width == 32 and target.cTypeBitSize(.long) == 32 and
+        target.cTypeBitSize(.int) == 32)
     {
         try define(w, "_ILP32");
         try define(w, "__ILP32__");
@@ -820,7 +820,7 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
         \\#define __ORDER_PDP_ENDIAN__ 3412
         \\
     );
-    if (comp.target.cpu.arch.endian() == .little) try w.writeAll(
+    if (target.cpu.arch.endian() == .little) try w.writeAll(
         \\#define __BYTE_ORDER__ __ORDER_LITTLE_ENDIAN__
         \\#define __LITTLE_ENDIAN__ 1
         \\
@@ -830,13 +830,13 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
         \\
     );
 
-    switch (comp.target.ofmt) {
+    switch (target.ofmt) {
         .elf => try define(w, "__ELF__"),
         .macho => try define(w, "__MACH__"),
         else => {},
     }
 
-    if (comp.target.os.tag.isDarwin()) {
+    if (target.os.tag.isDarwin()) {
         try w.writeAll(
             \\#define __nonnull _Nonnull
             \\#define __null_unspecified _Null_unspecified
@@ -894,7 +894,7 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
     try comp.generateIntMaxAndWidth(w, "PTRDIFF", comp.type_store.ptrdiff);
     try comp.generateIntMaxAndWidth(w, "INTPTR", comp.type_store.intptr);
     try comp.generateIntMaxAndWidth(w, "UINTPTR", try comp.type_store.intptr.makeIntUnsigned(comp));
-    try comp.generateIntMaxAndWidth(w, "SIG_ATOMIC", target_util.sigAtomicType(comp.target));
+    try comp.generateIntMaxAndWidth(w, "SIG_ATOMIC", target.sigAtomicType());
 
     // int widths
     try w.print("#define __BITINT_MAXWIDTH__ {d}\n", .{bit_int_max_bits});
@@ -913,7 +913,7 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
     try comp.generateSizeofType(w, "__SIZEOF_WCHAR_T__", comp.type_store.wchar);
     // try comp.generateSizeofType(w, "__SIZEOF_WINT_T__", .void_pointer);
 
-    if (target_util.hasInt128(comp.target)) {
+    if (target.hasInt128()) {
         try comp.generateSizeofType(w, "__SIZEOF_INT128__", .int128);
     }
 
@@ -936,16 +936,16 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
     try comp.generateExactWidthTypes(w);
     try comp.generateFastAndLeastWidthTypes(w);
 
-    if (target_util.FPSemantics.halfPrecisionType(comp.target)) |half| {
+    if (Target.FPSemantics.halfPrecisionType(target)) |half| {
         try generateFloatMacros(w, "FLT16", half, "F16");
     }
-    try generateFloatMacros(w, "FLT", target_util.FPSemantics.forType(.float, comp.target), "F");
-    try generateFloatMacros(w, "DBL", target_util.FPSemantics.forType(.double, comp.target), "");
-    try generateFloatMacros(w, "LDBL", target_util.FPSemantics.forType(.longdouble, comp.target), "L");
+    try generateFloatMacros(w, "FLT", Target.FPSemantics.forType(.float, target), "F");
+    try generateFloatMacros(w, "DBL", Target.FPSemantics.forType(.double, target), "");
+    try generateFloatMacros(w, "LDBL", Target.FPSemantics.forType(.longdouble, target), "L");
 
     // TODO: clang treats __FLT_EVAL_METHOD__ as a special-cased macro because evaluating it within a scope
     // where `#pragma clang fp eval_method(X)` has been called produces an error diagnostic.
-    const flt_eval_method = comp.langopts.fp_eval_method orelse target_util.defaultFpEvalMethod(comp.target);
+    const flt_eval_method = comp.langopts.fp_eval_method orelse target.defaultFpEvalMethod();
     try w.print("#define __FLT_EVAL_METHOD__ {d}\n", .{@intFromEnum(flt_eval_method)});
 
     try w.writeAll(
@@ -1039,7 +1039,7 @@ fn writeBuiltinMacros(comp: *Compilation, system_defines_mode: SystemDefinesMode
     }
 }
 
-fn generateFloatMacros(w: *Io.Writer, prefix: []const u8, semantics: target_util.FPSemantics, ext: []const u8) !void {
+fn generateFloatMacros(w: *Io.Writer, prefix: []const u8, semantics: Target.FPSemantics, ext: []const u8) !void {
     const denormMin = semantics.chooseValue(
         []const u8,
         .{
@@ -1122,7 +1122,7 @@ fn generateTypeMacro(comp: *const Compilation, w: *Io.Writer, name: []const u8, 
 
 pub fn float80Type(comp: *const Compilation) ?QualType {
     if (comp.langopts.emulate != .gcc) return null;
-    return target_util.float80Type(comp.target);
+    return comp.target.float80Type();
 }
 
 /// Smallest integer type with at least N bits
@@ -1280,11 +1280,11 @@ fn generateExactWidthType(comp: *Compilation, w: *Io.Writer, original_qt: QualTy
 }
 
 pub fn hasFloat128(comp: *const Compilation) bool {
-    return target_util.hasFloat128(comp.target);
+    return comp.target.hasFloat128();
 }
 
 pub fn hasHalfPrecisionFloatABI(comp: *const Compilation) bool {
-    return comp.langopts.allow_half_args_and_returns or target_util.hasHalfPrecisionFloatABI(comp.target);
+    return comp.langopts.allow_half_args_and_returns or comp.target.hasHalfPrecisionFloatABI();
 }
 
 fn generateIntMax(comp: *const Compilation, w: *Io.Writer, name: []const u8, qt: QualType) !void {
@@ -2030,33 +2030,37 @@ pub fn getSourceMTimeUncached(comp: *const Compilation, source_id: Source.Id) ?u
 }
 
 pub fn isTargetArch(comp: *const Compilation, query: []const u8) bool {
-    return target_util.isArch(comp.target, query);
+    const arch, const opt_sub_arch = Target.parseArchName(query) orelse return false;
+    if (arch != comp.target.cpu.arch) return false;
+    const sub_arch = opt_sub_arch orelse return true;
+    const feature = sub_arch.toFeature(arch) orelse return true;
+    return comp.target.cpu.features.isEnabled(feature);
 }
 
-pub fn isTargetOs(comp: *const Compilation, query: []const u8) !bool {
-    return target_util.isOs(comp.target, query);
+pub fn isTargetOs(comp: *const Compilation, query: []const u8) bool {
+    return Target.isOs(&comp.target, query);
 }
 
 pub fn isTargetVendor(comp: *const Compilation, query: []const u8) bool {
-    return target_util.isVendor(comp.vendor, query);
+    return Target.parseVendorName(query) == comp.target.vendor;
 }
 
-pub fn isTargetEnvironment(comp: *const Compilation, query: []const u8) bool {
-    return target_util.isEnvironment(comp.target, query);
+pub fn isTargetAbi(comp: *const Compilation, query: []const u8) bool {
+    return Target.parseAbiName(query) == comp.target.abi;
 }
 
 pub fn isTargetVariantOs(comp: *const Compilation, query: []const u8) bool {
     if (comp.target.os.tag.isDarwin()) {
-        const variant_target = comp.darwin_target_variant orelse return false;
-        return target_util.isOs(variant_target, query);
+        const variant_target = &(comp.darwin_target_variant orelse return false);
+        return Target.isOs(variant_target, query);
     }
     return false;
 }
 
 pub fn isTargetVariantEnvironment(comp: *const Compilation, query: []const u8) bool {
     if (comp.target.os.tag.isDarwin()) {
-        const variant_target = comp.darwin_target_variant orelse return false;
-        return target_util.isEnvironment(variant_target, query);
+        const variant_target = &(comp.darwin_target_variant orelse return false);
+        return Target.parseAbiName(query) == variant_target.abi;
     }
     return false;
 }
