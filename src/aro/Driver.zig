@@ -865,12 +865,13 @@ fn parseTarget(d: *Driver, arch_os_abi: []const u8, opt_cpu_features: ?[]const u
         .dynamic_linker = .init(null),
     };
     var vendor: Target.Vendor = .unknown;
+    var opt_sub_arch: ?Target.SubArch = null;
 
     var it = mem.splitScalar(u8, arch_os_abi, '-');
     const arch_name = it.first();
     const arch_is_native = mem.eql(u8, arch_name, "native");
     if (!arch_is_native) {
-        query.cpu_arch = Target.parseArchName(arch_name) orelse {
+        query.cpu_arch, opt_sub_arch = Target.parseArchName(arch_name) orelse {
             return d.fatal("unknown architecture: '{s}'", .{arch_name});
         };
     }
@@ -893,8 +894,6 @@ fn parseTarget(d: *Driver, arch_os_abi: []const u8, opt_cpu_features: ?[]const u
             error.UnknownOs => return d.fatal("unknown operating system '{s}'", .{os_text}),
             error.InvalidOsVersion => return d.fatal("invalid operating system version '{s}'", .{version_str}),
         };
-    } else if (!arch_is_native) {
-        return d.fatal("target missing operating system '{s}'", .{arch_os_abi});
     }
 
     const opt_abi_text = it.next();
@@ -934,6 +933,12 @@ fn parseTarget(d: *Driver, arch_os_abi: []const u8, opt_cpu_features: ?[]const u
             } };
         }
 
+        if (opt_sub_arch) |sub_arch| {
+            if (sub_arch.toFeature(arch)) |feature| {
+                add_set.addFeature(feature);
+            }
+        }
+
         while (index < cpu_features.len) {
             const op = cpu_features[index];
             const set = switch (op) {
@@ -959,6 +964,10 @@ fn parseTarget(d: *Driver, arch_os_abi: []const u8, opt_cpu_features: ?[]const u
             } else {
                 return d.fatal("unknown CPU feature: '{s}'", .{feature_name});
             }
+        }
+    } else if (opt_sub_arch) |sub_arch| {
+        if (sub_arch.toFeature(arch)) |feature| {
+            query.cpu_features_add.addFeature(feature);
         }
     }
 

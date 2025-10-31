@@ -2030,7 +2030,11 @@ pub fn getSourceMTimeUncached(comp: *const Compilation, source_id: Source.Id) ?u
 }
 
 pub fn isTargetArch(comp: *const Compilation, query: []const u8) bool {
-    return Target.parseArchName(query) == comp.target.cpu.arch;
+    const arch, const opt_sub_arch = Target.parseArchName(query) orelse return false;
+    if (arch != comp.target.cpu.arch) return false;
+    const sub_arch = opt_sub_arch orelse return true;
+    const feature = sub_arch.toFeature(arch) orelse return true;
+    return comp.target.cpu.features.isEnabled(feature);
 }
 
 pub fn isTargetOs(comp: *const Compilation, query: []const u8) bool {

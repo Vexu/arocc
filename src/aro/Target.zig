@@ -53,6 +53,128 @@ pub const Vendor = enum {
     }
 };
 
+pub const SubArch = enum {
+    arm_v4t,
+    arm_v5,
+    arm_v5te,
+    arm_v6,
+    arm_v6k,
+    arm_v6m,
+    arm_v6t2,
+    arm_v7,
+    arm_v7em,
+    arm_v7k,
+    arm_v7m,
+    arm_v7s,
+    arm_v7ve,
+    arm_v8,
+    arm_v8_1a,
+    arm_v8_1m_mainline,
+    arm_v8_2a,
+    arm_v8_3a,
+    arm_v8_4a,
+    arm_v8_5a,
+    arm_v8_6a,
+    arm_v8_7a,
+    arm_v8_8a,
+    arm_v8_9a,
+    arm_v8m_baseline,
+    arm_v8m_mainline,
+    arm_v8r,
+    arm_v9,
+    arm_v9_1a,
+    arm_v9_2a,
+    arm_v9_3a,
+    arm_v9_4a,
+    arm_v9_5a,
+    arm_v9_6a,
+
+    aarch64_arm64e,
+    aarch64_arm64ec,
+
+    mips_r6,
+
+    powerpc_spe,
+
+    spirv_v10,
+    spirv_v11,
+    spirv_v12,
+    spirv_v13,
+    spirv_v14,
+    spirv_v15,
+    spirv_v16,
+
+    pub fn toFeature(sub: SubArch, arch: Cpu.Arch) ?std.Target.Cpu.Feature.Set.Index {
+        if (arch.isPowerPC()) {
+            if (sub == .powerpc_spe) return @intFromEnum(std.Target.powerpc.Feature.spe);
+        } else if (arch.isMIPS32()) {
+            return @intFromEnum(std.Target.mips.Feature.mips32r6);
+        } else if (arch.isMIPS64()) {
+            return @intFromEnum(std.Target.mips.Feature.mips64r6);
+        } else if (arch.isSpirV()) {
+            const spirv = std.Target.spirv.Feature;
+            return @intFromEnum(switch (sub) {
+                .spirv_v10 => spirv.v1_0,
+                .spirv_v11 => spirv.v1_1,
+                .spirv_v12 => spirv.v1_2,
+                .spirv_v13 => spirv.v1_3,
+                .spirv_v14 => spirv.v1_4,
+                .spirv_v15 => spirv.v1_5,
+                .spirv_v16 => spirv.v1_6,
+                else => return null,
+            });
+        } else if (arch.isAARCH64()) {
+            const aarch64 = std.Target.aarch64.Feature;
+            return @intFromEnum(switch (sub) {
+                .arm_v8_1a => aarch64.v8_1a,
+                .arm_v8_2a => aarch64.v8_2a,
+                .arm_v8_3a => aarch64.v8_3a,
+                .arm_v8_4a => aarch64.v8_4a,
+                .arm_v8_5a => aarch64.v8_5a,
+                .arm_v8_6a => aarch64.v8_6a,
+                .arm_v8_7a => aarch64.v8_7a,
+                .arm_v8_8a => aarch64.v8_8a,
+                .arm_v8_9a => aarch64.v8_9a,
+                .arm_v8m_baseline => return null,
+                .arm_v8r => aarch64.v8r,
+                .arm_v9_1a => aarch64.v9_1a,
+                .arm_v9_2a => aarch64.v9_2a,
+                .arm_v9_3a => aarch64.v9_3a,
+                .arm_v9_4a => aarch64.v9_4a,
+                .arm_v9_5a => aarch64.v9_5a,
+                .arm_v9_6a => aarch64.v9_6a,
+
+                .aarch64_arm64e => return null,
+                .aarch64_arm64ec => return null,
+
+                else => return null,
+            });
+        } else if (arch.isArm()) {
+            const arm = std.Target.arm.Feature;
+            return @intFromEnum(switch (sub) {
+                .arm_v4t => arm.v4t,
+                .arm_v5 => arm.v5t,
+                .arm_v5te => arm.v5te,
+                .arm_v6 => arm.v6,
+                .arm_v6k => arm.v6k,
+                .arm_v6m => arm.v6m,
+                .arm_v6t2 => arm.v6t2,
+                .arm_v7 => arm.has_v7,
+                .arm_v7em => arm.v7em,
+                .arm_v7k => return null,
+                .arm_v7m => arm.v7m,
+                .arm_v7s => return null,
+                .arm_v7ve => arm.v7ve,
+                .arm_v8 => arm.has_v8,
+                .arm_v8r => arm.v8r,
+                .arm_v9 => arm.v9a,
+                else => return null,
+            });
+        }
+        return null;
+    }
+};
+
 const Target = @This();
 
 cpu: Cpu,
@@ -545,67 +667,215 @@ fn toLower(src: []const u8, dest: []u8) ?[]const u8 {
     return dest[0..src.len];
 }
 
-pub fn parseArchName(query: []const u8) ?Cpu.Arch {
+pub const ArchSubArch = struct { std.Target.Cpu.Arch, ?SubArch };
+pub fn parseArchName(query: []const u8) ?ArchSubArch {
     var buf: [64]u8 = undefined;
     const lower = toLower(query, &buf) orelse return null;
-    return std.meta.stringToEnum(Cpu.Arch, lower) orelse
-        std.StaticStringMap(Cpu.Arch).initComptime(.{
-            .{ "i386", .x86 },
-            .{ "i486", .x86 },
-            .{ "i586", .x86 },
-            .{ "i686", .x86 },
-            .{ "i786", .x86 },
-            .{ "i886", .x86 },
-            .{ "i986", .x86 },
-            .{ "amd64", .x86_64 },
-            .{ "x86_64h", .x86_64 },
-            .{ "powerpcspe", .powerpc },
-            .{ "ppc", .powerpc },
-            .{ "ppc32", .powerpc },
-            .{ "ppcle", .powerpcle },
-            .{ "ppc32le", .powerpcle },
-            .{ "ppu", .powerpc64 },
-            .{ "ppc64", .powerpc64 },
-            .{ "ppc64le", .powerpc64le },
-            .{ "xscale", .arm },
-            .{ "xscaleeb", .armeb },
-            .{ "arm64", .aarch64 },
-            .{ "arm64e", .aarch64 },
-            .{ "arm64ec", .aarch64 },
-            .{ "mipseb", .mips },
-            .{ "mipsallegrex", .mips },
-            .{ "mipsisa32r6", .mips },
-            .{ "mipsr6", .mips },
-            .{ "mipsallegrexel", .mipsel },
-            .{ "mipsisa32r6el", .mipsel },
-            .{ "mipsr6el", .mipsel },
-            .{ "mips64eb", .mips64 },
-            .{ "mipsn32", .mips64 },
-            .{ "mipsisa64r6", .mips64 },
-            .{ "mips64r6", .mips64 },
-            .{ "mipsn32r6", .mips64 },
-            .{ "mipsn32el", .mips64el },
-            .{ "mipsisa64r6el", .mips64el },
-            .{ "mips64r6el", .mips64el },
-            .{ "mipsn32r6el", .mips64el },
-            .{ "systemz", .s390x },
-            .{ "sparcv9", .sparc64 },
-            .{ "spirv32", .spirv32 },
-            .{ "spirv32v1.0", .spirv32 },
-            .{ "spirv32v1.1", .spirv32 },
-            .{ "spirv32v1.2", .spirv32 },
-            .{ "spirv32v1.3", .spirv32 },
-            .{ "spirv32v1.4", .spirv32 },
-            .{ "spirv32v1.5", .spirv32 },
-            .{ "spirv32v1.6", .spirv32 },
-            .{ "spirv64v1.0", .spirv64 },
-            .{ "spirv64v1.1", .spirv64 },
-            .{ "spirv64v1.2", .spirv64 },
-            .{ "spirv64v1.3", .spirv64 },
-            .{ "spirv64v1.4", .spirv64 },
-            .{ "spirv64v1.5", .spirv64 },
-            .{ "spirv64v1.6", .spirv64 },
-        }).get(lower) orelse return null;
+    if (std.meta.stringToEnum(std.Target.Cpu.Arch, lower)) |arch| return .{ arch, null };
+    if (std.StaticStringMap(ArchSubArch).initComptime(.{
+        .{ "i386", .{ .x86, null } },
+        .{ "i486", .{ .x86, null } },
+        .{ "i586", .{ .x86, null } },
+        .{ "i686", .{ .x86, null } },
+        .{ "i786", .{ .x86, null } },
+        .{ "i886", .{ .x86, null } },
+        .{ "i986", .{ .x86, null } },
+        .{ "amd64", .{ .x86_64, null } },
+        .{ "x86_64h", .{ .x86_64, null } },
+        .{ "powerpcspe", .{ .powerpc, .powerpc_spe } },
+        .{ "ppc", .{ .powerpc, null } },
+        .{ "ppc32", .{ .powerpc, null } },
+        .{ "ppcle", .{ .powerpcle, null } },
+        .{ "ppc32le", .{ .powerpcle, null } },
+        .{ "ppu", .{ .powerpc64, null } },
+        .{ "ppc64", .{ .powerpc64, null } },
+        .{ "ppc64le", .{ .powerpc64le, null } },
+        .{ "xscale", .{ .arm, null } },
+        .{ "xscaleeb", .{ .armeb, null } },
+        .{ "arm64", .{ .aarch64, null } },
+        .{ "arm64e", .{ .aarch64, .aarch64_arm64e } },
+        .{ "arm64ec", .{ .aarch64, .aarch64_arm64ec } },
+        .{ "mipseb", .{ .mips, null } },
+        .{ "mipsallegrex", .{ .mips, null } },
+        .{ "mipsisa32r6", .{ .mips, .mips_r6 } },
+        .{ "mipsr6", .{ .mips, .mips_r6 } },
+        .{ "mipsallegrexel", .{ .mipsel, null } },
+        .{ "mipsisa32r6el", .{ .mipsel, .mips_r6 } },
+        .{ "mipsr6el", .{ .mipsel, .mips_r6 } },
+        .{ "mips64eb", .{ .mips64, null } },
+        .{ "mipsn32", .{ .mips64, null } },
+        .{ "mipsisa64r6", .{ .mips64, .mips_r6 } },
+        .{ "mips64r6", .{ .mips64, .mips_r6 } },
+        .{ "mipsn32r6", .{ .mips64, .mips_r6 } },
+        .{ "mipsn32el", .{ .mips64el, null } },
+        .{ "mipsisa64r6el", .{ .mips64el, .mips_r6 } },
+        .{ "mips64r6el", .{ .mips64el, .mips_r6 } },
+        .{ "mipsn32r6el", .{ .mips64el, .mips_r6 } },
+        .{ "systemz", .{ .s390x, null } },
+        .{ "sparcv9", .{ .sparc64, null } },
+        .{ "spirv32", .{ .spirv32, null } },
+        .{ "spirv32v1.0", .{ .spirv32, .spirv_v10 } },
+        .{ "spirv32v1.1", .{ .spirv32, .spirv_v11 } },
+        .{ "spirv32v1.2", .{ .spirv32, .spirv_v12 } },
+        .{ "spirv32v1.3", .{ .spirv32, .spirv_v13 } },
+        .{ "spirv32v1.4", .{ .spirv32, .spirv_v14 } },
+        .{ "spirv32v1.5", .{ .spirv32, .spirv_v15 } },
+        .{ "spirv32v1.6", .{ .spirv32, .spirv_v16 } },
+        .{ "spirv64v1.0", .{ .spirv64, .spirv_v10 } },
+        .{ "spirv64v1.1", .{ .spirv64, .spirv_v11 } },
+        .{ "spirv64v1.2", .{ .spirv64, .spirv_v12 } },
+        .{ "spirv64v1.3", .{ .spirv64, .spirv_v13 } },
+        .{ "spirv64v1.4", .{ .spirv64, .spirv_v14 } },
+        .{ "spirv64v1.5", .{ .spirv64, .spirv_v15 } },
+        .{ "spirv64v1.6", .{ .spirv64, .spirv_v16 } },
+    }).get(lower)) |arch_sub_arch| return arch_sub_arch;
+
+    const arm_subarch = std.StaticStringMap(SubArch).initComptime(.{
+        .{ "v4t", .arm_v4t },
+        .{ "v5", .arm_v5 },
+        .{ "v5t", .arm_v5 },
+        .{ "v5e", .arm_v5te },
+        .{ "v5te", .arm_v5te },
+        .{ "v6", .arm_v6 },
+        .{ "v6j", .arm_v6 },
+        .{ "v6k", .arm_v6k },
+        .{ "v6hl", .arm_v6k },
+        .{ "v6m", .arm_v6m },
+        .{ "v6sm", .arm_v6m },
+        .{ "v6s-m", .arm_v6m },
+        .{ "v6-m", .arm_v6m },
+        .{ "v6z", .arm_v6k },
+        .{ "v6zk", .arm_v6k },
+        .{ "v6kz", .arm_v6k },
+        .{ "v7", .arm_v7 },
+        .{ "v7a", .arm_v7 },
+        .{ "v7hl", .arm_v7 },
+        .{ "v7l", .arm_v7 },
+        .{ "v7-a", .arm_v7 },
+        .{ "v7r", .arm_v7 },
+        .{ "v7r", .arm_v7 },
+        .{ "v7m", .arm_v7s },
+        .{ "v7-m", .arm_v7s },
+        .{ "v7em", .arm_v7em },
+        .{ "v7e-m", .arm_v7em },
+        .{ "v8", .arm_v8 },
+        .{ "v8a", .arm_v8 },
+        .{ "v8l", .arm_v8 },
+        .{ "v8-a", .arm_v8 },
+        .{ "v8.1a", .arm_v8_1a },
+        .{ "v8.1-a", .arm_v8_1a },
+        .{ "v82.a", .arm_v8_2a },
+        .{ "v82.-a", .arm_v8_2a },
+        .{ "v83.a", .arm_v8_3a },
+        .{ "v83.-a", .arm_v8_3a },
+        .{ "v84.a", .arm_v8_4a },
+        .{ "v84.-a", .arm_v8_4a },
+        .{ "v85.a", .arm_v8_5a },
+        .{ "v85.-a", .arm_v8_5a },
+        .{ "v86.a", .arm_v8_6a },
+        .{ "v86.-a", .arm_v8_6a },
+        .{ "v8.7a", .arm_v8_7a },
+        .{ "v8.7-a", .arm_v8_7a },
+        .{ "v8.8a", .arm_v8_8a },
+        .{ "v8.8-a", .arm_v8_8a },
+        .{ "v8.9a", .arm_v8_9a },
+        .{ "v8.9-a", .arm_v8_9a },
+        .{ "v8r", .arm_v8r },
+        .{ "v8-r", .arm_v8r },
+        .{ "v9", .arm_v9 },
+        .{ "v9a", .arm_v9 },
+        .{ "v9-a", .arm_v9 },
+        .{ "v9.1a", .arm_v9_1a },
+        .{ "v9.1-a", .arm_v9_1a },
+        .{ "v9.2a", .arm_v9_2a },
+        .{ "v9.2-a", .arm_v9_2a },
+        .{ "v9.3a", .arm_v9_3a },
+        .{ "v9.3-a", .arm_v9_3a },
+        .{ "v9.4a", .arm_v9_4a },
+        .{ "v9.4-a", .arm_v9_4a },
+        .{ "v9.5a", .arm_v9_5a },
+        .{ "v9.5-a", .arm_v9_5a },
+        .{ "v9.6a", .arm_v9_6a },
+        .{ "v9.6-a", .arm_v9_6a },
+        .{ "v8m.base", .arm_v8m_baseline },
+        .{ "v8-m.base", .arm_v8m_baseline },
+        .{ "v8m.main", .arm_v8m_mainline },
+        .{ "v8-m.main", .arm_v8m_mainline },
+        .{ "v8.1m.main", .arm_v8_1m_mainline },
+        .{ "v8.1-m.main", .arm_v8_1m_mainline },
+    });
+
+    for ([_]Cpu.Arch{ .arm, .armeb, .thumb, .thumbeb, .aarch64, .aarch64_be }) |arch| {
+        const name = @tagName(arch);
+        if (!mem.startsWith(u8, lower, name)) continue;
+        var actual_arch = arch;
+        var trimmed = lower[name.len..];
+        if (arch == .arm and mem.endsWith(u8, trimmed, "eb")) {
+            actual_arch = .armeb;
+            trimmed.len -= 2;
+        } else if (arch == .thumb and mem.endsWith(u8, trimmed, "eb")) {
+            actual_arch = .thumbeb;
+            trimmed.len -= 2;
+        }
+
+        if (arm_subarch.get(trimmed)) |sub_arch| {
+            if (actual_arch.isThumb()) {
+                switch (sub_arch) {
+                    .arm_v6m, .arm_v7em, .arm_v7m => {},
+                    else => if (actual_arch == .thumb) {
+                        actual_arch = .arm;
+                    } else {
+                        actual_arch = .armeb;
+                    },
+                }
+            } else if (actual_arch.isArm()) {
+                switch (sub_arch) {
+                    .arm_v6m, .arm_v7em, .arm_v7m => if (actual_arch == .arm) {
+                        actual_arch = .thumb;
+                    } else {
+                        actual_arch = .thumbeb;
+                    },
+                    else => {},
+                }
+            }
+            return .{ actual_arch, sub_arch };
+        }
+    }
+
+    if (mem.startsWith(u8, lower, "bpf")) {
+        if (lower.len == 3) return switch (@import("builtin").cpu.arch.endian()) {
+            .little => return .{ .bpfel, null },
+            .big => return .{ .bpfeb, null },
+        };
+        const rest = lower[3..];
+        if (mem.eql(u8, rest, "_le") or mem.eql(u8, rest, "el")) return .{ .bpfel, null };
+        if (mem.eql(u8, rest, "_be") or mem.eql(u8, rest, "eb")) return .{ .bpfeb, null };
+    }
+
+    return null;
+}
+
+test parseArchName {
+    {
+        const arch, const sub_arch = parseArchName("spirv64v1.6").?;
+        try testing.expect(arch == .spirv64);
+        try testing.expect(sub_arch == .spirv_v16);
+    }
+    {
+        const arch, const sub_arch = parseArchName("i786").?;
+        try testing.expect(arch == .x86);
+        try testing.expect(sub_arch == null);
+    }
+    {
+        const arch, const sub_arch = parseArchName("bpf_le").?;
+        try testing.expect(arch == .bpfel);
+        try testing.expect(sub_arch == null);
+    }
+    {
+        const arch, const sub_arch = parseArchName("armv8eb").?;
+        try testing.expect(arch == .armeb);
+        try testing.expect(sub_arch == .arm_v8);
+    }
 }
 
 pub fn parseOsName(query: []const u8) ?Os.Tag {
