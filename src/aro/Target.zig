@@ -883,6 +883,8 @@ pub fn parseOsName(query: []const u8) ?Os.Tag {
     const lower = toLower(query, &buf) orelse return null;
     return std.meta.stringToEnum(Os.Tag, lower) orelse
         std.StaticStringMap(Os.Tag).initComptime(.{
+            .{ "darwin", .macos },
+            .{ "macosx", .macos },
             .{ "win32", .windows },
             .{ "xros", .visionos },
         }).get(lower) orelse return null;

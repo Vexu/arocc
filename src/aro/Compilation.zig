@@ -363,7 +363,27 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
         .driverkit,
         .visionos,
         .watchos,
-        => try define(w, "__APPLE__"),
+        => {
+            try define(w, "__APPLE__");
+
+            const version = target.os.version_range.semver.min;
+            var version_buf: [8]u8 = undefined;
+            const version_str = if (target.os.tag == .macos and version.order(.{ .major = 10, .minor = 10, .patch = 0 }) == .lt)
+                std.fmt.bufPrint(&version_buf, "{d}{d}{d}", .{ version.major, @min(version.minor, 9), @min(version.patch, 9) }) catch unreachable
+            else
+                std.fmt.bufPrint(&version_buf, "{d:0>2}{d:0>2}{d:0>2}", .{ version.major, @min(version.minor, 99), @min(version.patch, 99) }) catch unreachable;
+
+            try w.print("#define {s} {s}\n", .{ switch (target.os.tag) {
+                .tvos => "__ENVIRONMENT_TV_OS_VERSION_MIN_REQUIRED__",
+                .ios => "__ENVIRONMENT_IPHONE_OS_VERSION_MIN_REQUIRED__",
+                .watchos => "__ENVIRONMENT_WATCH_OS_VERSION_MIN_REQUIRED__",
+                .driverkit => "__ENVIRONMENT_DRIVERKIT_VERSION_MIN_REQUIRED__",
+                .macos => "__ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__",
+                else => unreachable,
+            }, version_str });
+
+            try w.print("#define __ENVIRONMENT_OS_VERSION_MIN_REQUIRED__ {s}\n", .{version_str});
+        },
         .wasi => try define(w, "__wasi__"),
         .emscripten => try define(w, "__EMSCRIPTEN__"),
         .@"3ds" => try define(w, "__3DS__"),

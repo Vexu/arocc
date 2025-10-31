@@ -1810,6 +1810,11 @@ fn attribute(p: *Parser, kind: Attribute.Kind, namespace: ?[]const u8) Error!?Te
         if (p.eatToken(.l_paren)) |_| p.skipTo(.r_paren);
         return null;
     };
+    if (attr == .availability) {
+        // TODO parse introduced=10.4 etc
+        if (p.eatToken(.l_paren)) |_| p.skipTo(.r_paren);
+        return null;
+    }
 
     const required_count = Attribute.requiredArgCount(attr);
     var arguments = Attribute.initArguments(attr, name_tok);

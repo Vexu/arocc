@@ -716,6 +716,7 @@ const attributes = struct {
     pub const ms_abi = struct {};
     // TODO cannot be combined with weak or selectany
     pub const internal_linkage = struct {};
+    pub const availability = struct {};
 };
 
 pub const Tag = std.meta.DeclEnum(attributes);

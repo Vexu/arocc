@@ -417,6 +417,10 @@ internal_linkage
     .tag = .internal_linkage
     .gnu = true
 
+availability
+    .tag = .availability
+    .gnu = true
+
 # declspec only
 align
     .tag = .aligned
