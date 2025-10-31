@@ -17,7 +17,7 @@ const Pragma = @import("Pragma.zig");
 const record_layout = @import("record_layout.zig");
 const Source = @import("Source.zig");
 const StringInterner = @import("StringInterner.zig");
-const target_util = @import("target.zig");
+const Target = @import("Target.zig");
 const Tokenizer = @import("Tokenizer.zig");
 const Token = Tokenizer.Token;
 const TypeStore = @import("TypeStore.zig");
@@ -147,9 +147,8 @@ framework_dirs: std.ArrayList([]const u8) = .empty,
 system_framework_dirs: std.ArrayList([]const u8) = .empty,
 /// Allocated into `gpa`, but keys are externally managed.
 embed_dirs: std.ArrayList([]const u8) = .empty,
-target: std.Target = @import("builtin").target,
-darwin_target_variant: ?std.Target = null,
-vendor: target_util.Vendor = .unknown,
+target: Target = .default,
+darwin_target_variant: ?Target = null,
 cmodel: std.builtin.CodeModel = .default,
 pragma_handlers: std.StringArrayHashMapUnmanaged(*Pragma) = .empty,
 langopts: LangOpts = .{},
@@ -185,7 +184,7 @@ pub fn initDefault(gpa: Allocator, arena: Allocator, io: Io, diagnostics: *Diagn
     };
     errdefer comp.deinit();
     try comp.addDefaultPragmaHandlers();
-    comp.langopts.setEmulatedCompiler(target_util.systemCompiler(&comp.target));
+    comp.langopts.setEmulatedCompiler(comp.target.systemCompiler());
     return comp;
 }
 
@@ -895,7 +894,7 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
     try comp.generateIntMaxAndWidth(w, "PTRDIFF", comp.type_store.ptrdiff);
     try comp.generateIntMaxAndWidth(w, "INTPTR", comp.type_store.intptr);
     try comp.generateIntMaxAndWidth(w, "UINTPTR", try comp.type_store.intptr.makeIntUnsigned(comp));
-    try comp.generateIntMaxAndWidth(w, "SIG_ATOMIC", target_util.sigAtomicType(target));
+    try comp.generateIntMaxAndWidth(w, "SIG_ATOMIC", target.sigAtomicType());
 
     // int widths
     try w.print("#define __BITINT_MAXWIDTH__ {d}\n", .{bit_int_max_bits});
@@ -914,7 +913,7 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
     try comp.generateSizeofType(w, "__SIZEOF_WCHAR_T__", comp.type_store.wchar);
     // try comp.generateSizeofType(w, "__SIZEOF_WINT_T__", .void_pointer);
 
-    if (target_util.hasInt128(target)) {
+    if (target.hasInt128()) {
         try comp.generateSizeofType(w, "__SIZEOF_INT128__", .int128);
     }
 
@@ -937,16 +936,16 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
     try comp.generateExactWidthTypes(w);
     try comp.generateFastAndLeastWidthTypes(w);
 
-    if (target_util.FPSemantics.halfPrecisionType(target)) |half| {
+    if (Target.FPSemantics.halfPrecisionType(target)) |half| {
         try generateFloatMacros(w, "FLT16", half, "F16");
     }
-    try generateFloatMacros(w, "FLT", target_util.FPSemantics.forType(.float, target), "F");
-    try generateFloatMacros(w, "DBL", target_util.FPSemantics.forType(.double, target), "");
-    try generateFloatMacros(w, "LDBL", target_util.FPSemantics.forType(.longdouble, target), "L");
+    try generateFloatMacros(w, "FLT", Target.FPSemantics.forType(.float, target), "F");
+    try generateFloatMacros(w, "DBL", Target.FPSemantics.forType(.double, target), "");
+    try generateFloatMacros(w, "LDBL", Target.FPSemantics.forType(.longdouble, target), "L");
 
     // TODO: clang treats __FLT_EVAL_METHOD__ as a special-cased macro because evaluating it within a scope
     // where `#pragma clang fp eval_method(X)` has been called produces an error diagnostic.
-    const flt_eval_method = comp.langopts.fp_eval_method orelse target_util.defaultFpEvalMethod(target);
+    const flt_eval_method = comp.langopts.fp_eval_method orelse target.defaultFpEvalMethod();
     try w.print("#define __FLT_EVAL_METHOD__ {d}\n", .{@intFromEnum(flt_eval_method)});
 
     try w.writeAll(
@@ -1040,7 +1039,7 @@ fn writeBuiltinMacros(comp: *Compilation, system_defines_mode: SystemDefinesMode
     }
 }
 
-fn generateFloatMacros(w: *Io.Writer, prefix: []const u8, semantics: target_util.FPSemantics, ext: []const u8) !void {
+fn generateFloatMacros(w: *Io.Writer, prefix: []const u8, semantics: Target.FPSemantics, ext: []const u8) !void {
     const denormMin = semantics.chooseValue(
         []const u8,
         .{
@@ -1123,7 +1122,7 @@ fn generateTypeMacro(comp: *const Compilation, w: *Io.Writer, name: []const u8, 
 
 pub fn float80Type(comp: *const Compilation) ?QualType {
     if (comp.langopts.emulate != .gcc) return null;
-    return target_util.float80Type(&comp.target);
+    return comp.target.float80Type();
 }
 
 /// Smallest integer type with at least N bits
@@ -1281,11 +1280,11 @@ fn generateExactWidthType(comp: *Compilation, w: *Io.Writer, original_qt: QualTy
 }
 
 pub fn hasFloat128(comp: *const Compilation) bool {
-    return target_util.hasFloat128(&comp.target);
+    return comp.target.hasFloat128();
 }
 
 pub fn hasHalfPrecisionFloatABI(comp: *const Compilation) bool {
-    return comp.langopts.allow_half_args_and_returns or target_util.hasHalfPrecisionFloatABI(&comp.target);
+    return comp.langopts.allow_half_args_and_returns or comp.target.hasHalfPrecisionFloatABI();
 }
 
 fn generateIntMax(comp: *const Compilation, w: *Io.Writer, name: []const u8, qt: QualType) !void {
@@ -2031,25 +2030,25 @@ pub fn getSourceMTimeUncached(comp: *const Compilation, source_id: Source.Id) ?u
 }
 
 pub fn isTargetArch(comp: *const Compilation, query: []const u8) bool {
-    return target_util.parseArch(query) == comp.target.cpu.arch;
+    return Target.parseArchName(query) == comp.target.cpu.arch;
 }
 
 pub fn isTargetOs(comp: *const Compilation, query: []const u8) bool {
-    return target_util.isOs(&comp.target, query);
+    return Target.isOs(&comp.target, query);
 }
 
 pub fn isTargetVendor(comp: *const Compilation, query: []const u8) bool {
-    return target_util.parseVendor(query) == comp.vendor;
+    return Target.parseVendorName(query) == comp.target.vendor;
 }
 
 pub fn isTargetAbi(comp: *const Compilation, query: []const u8) bool {
-    return target_util.parseAbi(query) == comp.target.abi;
+    return Target.parseAbiName(query) == comp.target.abi;
 }
 
 pub fn isTargetVariantOs(comp: *const Compilation, query: []const u8) bool {
     if (comp.target.os.tag.isDarwin()) {
         const variant_target = &(comp.darwin_target_variant orelse return false);
-        return target_util.isOs(variant_target, query);
+        return Target.isOs(variant_target, query);
     }
     return false;
 }
@@ -2057,7 +2056,7 @@ pub fn isTargetVariantOs(comp: *const Compilation, query: []const u8) bool {
 pub fn isTargetVariantEnvironment(comp: *const Compilation, query: []const u8) bool {
     if (comp.target.os.tag.isDarwin()) {
         const variant_target = &(comp.darwin_target_variant orelse return false);
-        return target_util.parseAbi(query) == variant_target.abi;
+        return Target.parseAbiName(query) == variant_target.abi;
     }
     return false;
 }

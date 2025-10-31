@@ -6,7 +6,7 @@ const system_defaults = @import("system_defaults");
 const Compilation = @import("Compilation.zig");
 const Driver = @import("Driver.zig");
 const Multilib = @import("Driver/Multilib.zig");
-const target_util = @import("target.zig");
+const Target = @import("Target.zig");
 const Linux = @import("toolchains/Linux.zig");
 
 pub const PathList = std.ArrayList([]const u8);
@@ -64,7 +64,7 @@ selected_multilib: Multilib = .{},
 
 inner: Inner = .{ .uninitialized = {} },
 
-pub fn getTarget(tc: *const Toolchain) *const std.Target {
+pub fn getTarget(tc: *const Toolchain) *const Target {
     return &tc.driver.comp.target;
 }
 
@@ -438,11 +438,11 @@ fn addUnwindLibrary(tc: *const Toolchain, argv: *std.ArrayList([]const u8)) !voi
     const target = tc.getTarget();
     if ((target.abi.isAndroid() and unw == .libgcc) or
         target.ofmt == .wasm or
-        target_util.isWindowsMSVCEnvironment(target) or
+        target.isWindowsMSVCEnvironment() or
         unw == .none) return;
 
     const lgk = tc.getLibGCCKind();
-    const as_needed = lgk == .unspecified and !target.abi.isAndroid() and !target_util.isCygwinMinGW(target);
+    const as_needed = lgk == .unspecified and !target.abi.isAndroid() and !target.isCygwinMinGW();
 
     try argv.ensureUnusedCapacity(tc.driver.comp.gpa, 3);
     if (as_needed) {
@@ -454,7 +454,7 @@ fn addUnwindLibrary(tc: *const Toolchain, argv: *std.ArrayList([]const u8)) !voi
         .compiler_rt => if (lgk == .static) {
             argv.appendAssumeCapacity("-l:libunwind.a");
         } else if (lgk == .shared) {
-            if (target_util.isCygwinMinGW(target)) {
+            if (target.isCygwinMinGW()) {
                 argv.appendAssumeCapacity("-l:libunwind.dll.a");
             } else {
                 argv.appendAssumeCapacity("-l:libunwind.so");
@@ -489,7 +489,7 @@ pub fn addRuntimeLibs(tc: *const Toolchain, argv: *std.ArrayList([]const u8)) !v
             // TODO
         },
         .libgcc => {
-            if (target_util.isKnownWindowsMSVCEnvironment(target)) {
+            if (target.isKnownWindowsMSVCEnvironment()) {
                 const rtlib_str = tc.driver.rtlib orelse system_defaults.rtlib;
                 if (!mem.eql(u8, rtlib_str, "platform")) {
                     try tc.driver.err("unsupported runtime library 'libgcc' for platform 'MSVC'", .{});

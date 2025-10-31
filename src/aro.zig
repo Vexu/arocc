@@ -6,7 +6,7 @@ pub const Parser = @import("aro/Parser.zig");
 pub const Preprocessor = @import("aro/Preprocessor.zig");
 pub const Source = @import("aro/Source.zig");
 pub const StringInterner = @import("aro/StringInterner.zig");
-pub const target_util = @import("aro/target.zig");
+pub const Target = @import("aro/Target.zig");
 pub const Tokenizer = @import("aro/Tokenizer.zig");
 pub const Toolchain = @import("aro/Toolchain.zig");
 pub const Tree = @import("aro/Tree.zig");
@@ -35,7 +35,7 @@ test {
     _ = @import("aro/InitList.zig");
     _ = @import("aro/LangOpts.zig");
     _ = @import("aro/Preprocessor.zig");
-    _ = @import("aro/target.zig");
+    _ = @import("aro/Target.zig");
     _ = @import("aro/Tokenizer.zig");
     _ = @import("aro/toolchains/Linux.zig");
     _ = @import("aro/Value.zig");

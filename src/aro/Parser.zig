@@ -17,7 +17,6 @@ const Source = @import("Source.zig");
 const StringId = @import("StringInterner.zig").StringId;
 const SymbolStack = @import("SymbolStack.zig");
 const Symbol = SymbolStack.Symbol;
-const target_util = @import("target.zig");
 const text_literal = @import("text_literal.zig");
 const Tokenizer = @import("Tokenizer.zig");
 const Tree = @import("Tree.zig");
@@ -10249,7 +10248,7 @@ fn fixedSizeInt(p: *Parser, base: u8, buf: []const u8, suffix: NumberSuffix, tok
         if (interned_val.compare(.lte, max_int, p.comp)) break;
     } else {
         if (p.comp.langopts.emulate == .gcc) {
-            if (target_util.hasInt128(&p.comp.target)) {
+            if (p.comp.target.hasInt128()) {
                 res.qt = .int128;
             } else {
                 res.qt = .long_long;

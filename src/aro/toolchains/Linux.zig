@@ -7,7 +7,7 @@ const Compilation = @import("../Compilation.zig");
 const Driver = @import("../Driver.zig");
 const Distro = @import("../Driver/Distro.zig");
 const GCCDetector = @import("../Driver/GCCDetector.zig");
-const target_util = @import("../target.zig");
+const Target = @import("../Target.zig");
 const Toolchain = @import("../Toolchain.zig");
 
 const Linux = @This();
@@ -108,7 +108,7 @@ fn findPaths(self: *Linux, tc: *Toolchain) !void {
     var output: [64]u8 = undefined;
 
     const os_lib_dir = getOSLibDir(target);
-    const multiarch_triple = getMultiarchTriple(target) orelse target_util.toLLVMTriple(target, &output);
+    const multiarch_triple = getMultiarchTriple(target) orelse target.toLLVMTriple(&output);
 
     try self.addMultiLibPaths(tc, sysroot, os_lib_dir);
 
@@ -156,7 +156,7 @@ fn getStatic(self: *const Linux, d: *const Driver) bool {
     return d.static and !d.static_pie;
 }
 
-pub fn getDefaultLinker(self: *const Linux, target: *const std.Target) []const u8 {
+pub fn getDefaultLinker(self: *const Linux, target: *const Target) []const u8 {
     _ = self;
     if (target.abi.isAndroid()) {
         return "ld.lld";
@@ -195,7 +195,7 @@ pub fn buildLinkerArgs(self: *const Linux, tc: *const Toolchain, argv: *std.Arra
     try argv.append(gpa, "--eh-frame-hdr");
 
     // Todo: Driver should parse `-EL`/`-EB` for arm to set endianness for arm targets
-    if (target_util.ldEmulationOption(&d.comp.target, null)) |emulation| {
+    if (d.comp.target.ldEmulationOption(null)) |emulation| {
         try argv.appendSlice(gpa, &.{ "-m", emulation });
     } else {
         try d.err("Unknown target triple", .{});
@@ -319,7 +319,7 @@ pub fn buildLinkerArgs(self: *const Linux, tc: *const Toolchain, argv: *std.Arra
     // TODO add -T args
 }
 
-fn getMultiarchTriple(target: *const std.Target) ?[]const u8 {
+fn getMultiarchTriple(target: *const Target) ?[]const u8 {
     const is_android = target.abi.isAndroid();
     const is_mips_r6 = std.Target.mips.featureSetHas(target.cpu.features, .mips32r6);
     return switch (target.cpu.arch) {
@@ -345,7 +345,7 @@ fn getMultiarchTriple(target: *const std.Target) ?[]const u8 {
     };
 }
 
-fn getOSLibDir(target: *const std.Target) []const u8 {
+fn getOSLibDir(target: *const Target) []const u8 {
     switch (target.cpu.arch) {
         .x86,
         .powerpc,
@@ -483,7 +483,7 @@ test Linux {
 
     const raw_triple = "x86_64-linux-gnu";
     const target_query = try std.Target.Query.parse(.{ .arch_os_abi = raw_triple });
-    comp.target = try std.zig.system.resolveTargetQuery(fake_io, target_query);
+    comp.target = .fromZigTarget(try std.zig.system.resolveTargetQuery(fake_io, target_query));
     comp.langopts.setEmulatedCompiler(.gcc);
 
     var driver: Driver = .{ .comp = &comp, .diagnostics = undefined };

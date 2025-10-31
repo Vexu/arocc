@@ -2,7 +2,6 @@ const std = @import("std");
 const mem = std.mem;
 const Allocator = mem.Allocator;
 const process = std.process;
-const testing = std.testing;
 
 const backend = @import("backend");
 const Assembly = backend.Assembly;
@@ -16,7 +15,7 @@ const GCCVersion = @import("Driver/GCCVersion.zig");
 const LangOpts = @import("LangOpts.zig");
 const Preprocessor = @import("Preprocessor.zig");
 const Source = @import("Source.zig");
-const target_util = @import("target.zig");
+const Target = @import("Target.zig");
 const Toolchain = @import("Toolchain.zig");
 const Tree = @import("Tree.zig");
 
@@ -773,14 +772,9 @@ pub fn parseArgs(
         if (d.raw_darwin_variant_target_triple) |darwin_triple| {
             d.comp.darwin_target_variant = try d.parseTarget(darwin_triple, null);
         }
-        if (d.raw_target_triple == null) {
-            if (d.comp.target.os.tag.isDarwin()) {
-                d.comp.vendor = .apple;
-            }
-        }
     }
     if (emulate != null or d.raw_target_triple != null) {
-        d.comp.langopts.setEmulatedCompiler(emulate orelse target_util.systemCompiler(&d.comp.target));
+        d.comp.langopts.setEmulatedCompiler(emulate orelse d.comp.target.systemCompiler());
         switch (d.comp.langopts.emulate) {
             .clang => try d.diagnostics.set("clang", .off),
             .gcc => try d.diagnostics.set("gnu", .off),
@@ -859,23 +853,24 @@ pub fn warn(d: *Driver, fmt: []const u8, args: anytype) Compilation.Error!void {
     try d.diagnostics.add(.{ .kind = .warning, .text = allocating.written(), .location = null });
 }
 
-fn unsupportedOptionForTarget(d: *Driver, target: *const std.Target, opt: []const u8) Compilation.Error!void {
+fn unsupportedOptionForTarget(d: *Driver, target: *const Target, opt: []const u8) Compilation.Error!void {
     try d.err(
         "unsupported option '{s}' for target '{s}-{s}-{s}'",
         .{ opt, @tagName(target.cpu.arch), @tagName(target.os.tag), @tagName(target.abi) },
     );
 }
 
-fn parseTarget(d: *Driver, arch_os_abi: []const u8, opt_cpu_features: ?[]const u8) Compilation.Error!std.Target {
+fn parseTarget(d: *Driver, arch_os_abi: []const u8, opt_cpu_features: ?[]const u8) Compilation.Error!Target {
     var query: std.Target.Query = .{
         .dynamic_linker = .init(null),
     };
+    var vendor: Target.Vendor = .unknown;
 
     var it = mem.splitScalar(u8, arch_os_abi, '-');
     const arch_name = it.first();
     const arch_is_native = mem.eql(u8, arch_name, "native");
     if (!arch_is_native) {
-        query.cpu_arch = target_util.parseArch(arch_name) orelse {
+        query.cpu_arch = Target.parseArchName(arch_name) orelse {
             return d.fatal("unknown architecture: '{s}'", .{arch_name});
         };
     }
@@ -884,8 +879,8 @@ fn parseTarget(d: *Driver, arch_os_abi: []const u8, opt_cpu_features: ?[]const u
     const opt_os_text = blk: {
         const opt_os_or_vendor = it.next();
         if (opt_os_or_vendor) |os_or_vendor| {
-            if (target_util.parseVendor(os_or_vendor)) |vendor| {
-                d.comp.vendor = vendor;
+            if (Target.parseVendorName(os_or_vendor)) |parsed_vendor| {
+                vendor = parsed_vendor;
                 break :blk it.next();
             }
         }
@@ -894,7 +889,7 @@ fn parseTarget(d: *Driver, arch_os_abi: []const u8, opt_cpu_features: ?[]const u
 
     if (opt_os_text) |os_text| {
         var version_str: []const u8 = undefined;
-        parseOs(&query, os_text, &version_str) catch |er| switch (er) {
+        Target.parseOs(&query, os_text, &version_str) catch |er| switch (er) {
             error.UnknownOs => return d.fatal("unknown operating system '{s}'", .{os_text}),
             error.InvalidOsVersion => return d.fatal("invalid operating system version '{s}'", .{version_str}),
         };
@@ -905,7 +900,7 @@ fn parseTarget(d: *Driver, arch_os_abi: []const u8, opt_cpu_features: ?[]const u
     const opt_abi_text = it.next();
     if (opt_abi_text) |abi_text| {
         var version_str: []const u8 = undefined;
-        parseAbi(&query, abi_text, &version_str) catch |er| switch (er) {
+        Target.parseAbi(&query, abi_text, &version_str) catch |er| switch (er) {
             error.UnknownOs => return d.fatal("unknown ABI '{s}'", .{abi_text}),
             error.InvalidAbiVersion => return d.fatal("invalid ABI version '{s}'", .{version_str}),
             error.InvalidApiVersion => return d.fatal("invalid Android API version '{s}'", .{version_str}),
@@ -967,173 +962,22 @@ fn parseTarget(d: *Driver, arch_os_abi: []const u8, opt_cpu_features: ?[]const u
         }
     }
 
-    return std.zig.system.resolveTargetQuery(d.comp.io, query) catch |e|
+    const zig_target = std.zig.system.resolveTargetQuery(d.comp.io, query) catch |e|
         return d.fatal("unable to resolve target: {s}", .{errorDescription(e)});
-}
 
-/// Parse ABI string in `<abi>(.?<version>)?` format.
-///
-/// Poplates `abi`, `glibc_version` and `android_api_level` fields of `result`.
-///
-/// If given `version_string` will be populated when `InvalidAbiVersion` or `InvalidApiVerson` is returned.
-pub fn parseAbi(result: *std.Target.Query, text: []const u8, version_string: ?*[]const u8) !void {
-    const abi, const version_text = for (text, 0..) |c, i| switch (c) {
-        '0'...'9' => {
-            if (target_util.parseAbi(text[0..i])) |abi| {
-                break .{ abi, text[i..] };
-            }
-        },
-        '.' => break .{
-            target_util.parseAbi(text[0..i]) orelse return error.UnknownOs, text[i + 1 ..],
-        },
-        else => {},
-    } else .{ target_util.parseAbi(text) orelse return error.UnknownOs, "" };
-    result.abi = abi;
-    if (version_string) |ptr| ptr.* = version_text;
-
-    if (version_text.len != 0) {
-        if (abi.isGnu()) {
-            result.glibc_version = std.Target.Query.parseVersion(version_text) catch |er| switch (er) {
-                error.Overflow, error.InvalidVersion => return error.InvalidAbiVersion,
-            };
-        } else if (abi.isAndroid()) {
-            result.android_api_level = std.fmt.parseUnsigned(u32, version_text, 10) catch |er| switch (er) {
-                error.Overflow, error.InvalidCharacter => return error.InvalidApiVersion,
-            };
-        } else return error.InvalidAbiVersion;
-    }
-}
-
-test parseAbi {
-    const V = std.SemanticVersion;
-    var query: std.Target.Query = .{};
-    try parseAbi(&query, "gnuabin322.3", null);
-    try testing.expect(query.abi == .gnuabin32);
-    try testing.expectEqual(query.glibc_version, V{ .major = 2, .minor = 3, .patch = 0 });
-
-    try parseAbi(&query, "gnuabin32.2.3", null);
-    try testing.expect(query.abi == .gnuabin32);
-    try testing.expectEqual(query.glibc_version, V{ .major = 2, .minor = 3, .patch = 0 });
-
-    try parseAbi(&query, "android17", null);
-    try testing.expect(query.abi == .android);
-    try testing.expectEqual(query.android_api_level, 17);
-
-    try parseAbi(&query, "android.17", null);
-    try testing.expect(query.abi == .android);
-    try testing.expectEqual(query.android_api_level, 17);
-
-    try testing.expectError(error.InvalidAbiVersion, parseAbi(&query, "code162", null));
-    try testing.expect(query.abi == .code16);
-
-    try testing.expectError(error.InvalidAbiVersion, parseAbi(&query, "code16.2", null));
-    try testing.expect(query.abi == .code16);
-}
-
-/// Parse OS string with common aliases in `<os>(.?<version>(...<version>))?` format.
-///
-/// `native` <os> results in `builtin.os.tag`.
-///
-/// Poplates `os_tag`, `os_version_min` and `os_version_max` fields of `result`.
-///
-/// If given `version_string` will be populated when `InvalidOsVersion` is returned.
-pub fn parseOs(result: *std.Target.Query, text: []const u8, version_string: ?*[]const u8) !void {
-    const checkOs = struct {
-        fn checkOs(os_text: []const u8) ?std.Target.Os.Tag {
-            const os_is_native = mem.eql(u8, os_text, "native");
-            if (os_is_native) return @import("builtin").os.tag;
-            return target_util.parseOs(os_text);
+    if (query.isNative()) {
+        if (zig_target.os.tag.isDarwin()) {
+            vendor = .apple;
         }
-    }.checkOs;
-
-    var seen_digit = false;
-    const tag, const version_text = for (text, 0..) |c, i| switch (c) {
-        '0'...'9' => {
-            if (i == 0) continue;
-            if (checkOs(text[0..i])) |os| {
-                break .{ os, text[i..] };
-            }
-            seen_digit = true;
-        },
-        '.' => break .{
-            checkOs(text[0..i]) orelse return error.UnknownOs, text[i + 1 ..],
-        },
-        else => if (seen_digit) {
-            if (checkOs(text[0..i])) |os| {
-                break .{ os, text[i..] };
-            }
-        },
-    } else .{ checkOs(text) orelse return error.UnknownOs, "" };
-    result.os_tag = tag;
-    if (version_string) |ptr| ptr.* = version_text;
-
-    if (version_text.len > 0) switch (tag.versionRangeTag()) {
-        .none => return error.InvalidOsVersion,
-        .semver, .hurd, .linux => {
-            var range_it = mem.splitSequence(u8, version_text, "...");
-            result.os_version_min = .{
-                .semver = std.Target.Query.parseVersion(range_it.first()) catch |er| switch (er) {
-                    error.Overflow, error.InvalidVersion => return error.InvalidOsVersion,
-                },
-            };
-            if (range_it.next()) |v| {
-                result.os_version_max = .{
-                    .semver = std.Target.Query.parseVersion(v) catch |er| switch (er) {
-                        error.Overflow, error.InvalidVersion => return error.InvalidOsVersion,
-                    },
-                };
-            }
-        },
-        .windows => {
-            var range_it = mem.splitSequence(u8, version_text, "...");
-            result.os_version_min = .{
-                .windows = std.Target.Os.WindowsVersion.parse(range_it.first()) catch |er| switch (er) {
-                    error.InvalidOperatingSystemVersion => return error.InvalidOsVersion,
-                },
-            };
-            if (range_it.next()) |v| {
-                result.os_version_max = .{
-                    .windows = std.Target.Os.WindowsVersion.parse(v) catch |er| switch (er) {
-                        error.InvalidOperatingSystemVersion => return error.InvalidOsVersion,
-                    },
-                };
-            }
-        },
+    }
+    return .{
+        .cpu = zig_target.cpu,
+        .vendor = vendor,
+        .os = zig_target.os,
+        .abi = zig_target.abi,
+        .ofmt = zig_target.ofmt,
+        .dynamic_linker = zig_target.dynamic_linker,
     };
-}
-
-test parseOs {
-    const V = std.Target.Query.OsVersion;
-    var query: std.Target.Query = .{};
-    try parseOs(&query, "3ds2.3", null);
-    try testing.expect(query.os_tag == .@"3ds");
-    try testing.expectEqual(query.os_version_min, V{ .semver = .{ .major = 2, .minor = 3, .patch = 0 } });
-
-    try parseOs(&query, "3ds.2.3", null);
-    try testing.expect(query.os_tag == .@"3ds");
-    try testing.expectEqual(query.os_version_min, V{ .semver = .{ .major = 2, .minor = 3, .patch = 0 } });
-
-    try testing.expectError(error.InvalidOsVersion, parseOs(&query, "ps33.3", null));
-    try testing.expect(query.os_tag == .ps3);
-
-    try testing.expectError(error.InvalidOsVersion, parseOs(&query, "ps3.3.3", null));
-    try testing.expect(query.os_tag == .ps3);
-
-    try parseOs(&query, "linux6.17", null);
-    try testing.expect(query.os_tag == .linux);
-    try testing.expectEqual(query.os_version_min, V{ .semver = .{ .major = 6, .minor = 17, .patch = 0 } });
-
-    try parseOs(&query, "linux.6.17", null);
-    try testing.expect(query.os_tag == .linux);
-    try testing.expectEqual(query.os_version_min, V{ .semver = .{ .major = 6, .minor = 17, .patch = 0 } });
-
-    try parseOs(&query, "win32win10", null);
-    try testing.expect(query.os_tag == .windows);
-    try testing.expectEqual(query.os_version_min, V{ .windows = .win10 });
-
-    try parseOs(&query, "win32.win10", null);
-    try testing.expect(query.os_tag == .windows);
-    try testing.expectEqual(query.os_version_min, V{ .windows = .win10 });
 }
 
 pub fn fatal(d: *Driver, comptime fmt: []const u8, args: anytype) error{ FatalError, OutOfMemory } {
@@ -1487,7 +1331,7 @@ fn processSource(
             .{},
         );
 
-        const assembly = try asm_fn(d.comp.target, &tree);
+        const assembly = try asm_fn(d.comp.target.toZigTarget(), &tree);
         defer assembly.deinit(d.comp.gpa);
 
         if (d.only_preprocess_and_compile) {
@@ -1530,7 +1374,7 @@ fn processSource(
             render_errors.deinit(d.comp.gpa);
         }
 
-        var obj = ir.render(d.comp.gpa, d.comp.target, &render_errors) catch |e| switch (e) {
+        var obj = ir.render(d.comp.gpa, d.comp.target.toZigTarget(), &render_errors) catch |e| switch (e) {
             error.OutOfMemory => return error.OutOfMemory,
             error.LowerFail => {
                 return d.fatal(
@@ -1633,7 +1477,7 @@ pub fn getPICMode(d: *Driver, lastpic: []const u8) Compilation.Error!struct { ba
     const linker = d.use_linker orelse @import("system_defaults").linker;
     const is_bfd_linker = eqlIgnoreCase(linker, "bfd");
 
-    const is_pie_default = switch (target_util.isPIEDefault(target)) {
+    const is_pie_default = switch (target.isPIEDefault()) {
         .yes => true,
         .no => false,
         .depends_on_linker => if (is_bfd_linker)
@@ -1641,7 +1485,7 @@ pub fn getPICMode(d: *Driver, lastpic: []const u8) Compilation.Error!struct { ba
         else
             false, //MSVC
     };
-    const is_pic_default = switch (target_util.isPICdefault(target)) {
+    const is_pic_default = switch (target.isPICdefault()) {
         .yes => true,
         .no => false,
         .depends_on_linker => if (is_bfd_linker)
@@ -1700,7 +1544,7 @@ pub fn getPICMode(d: *Driver, lastpic: []const u8) Compilation.Error!struct { ba
     // '-fno-...' arguments, both PIC and PIE are disabled. Any PIE
     // option implicitly enables PIC at the same level.
     if (target.os.tag == .windows and
-        !target_util.isCygwinMinGW(target) and
+        !target.isCygwinMinGW() and
         (eqlIgnoreCase(lastpic, "-fpic") or eqlIgnoreCase(lastpic, "-fpie"))) // -fpic/-fPIC, -fpie/-fPIE
     {
         try d.unsupportedOptionForTarget(target, lastpic);
@@ -1711,7 +1555,7 @@ pub fn getPICMode(d: *Driver, lastpic: []const u8) Compilation.Error!struct { ba
 
     // Check whether the tool chain trumps the PIC-ness decision. If the PIC-ness
     // is forced, then neither PIC nor PIE flags will have no effect.
-    const forced = switch (target_util.isPICDefaultForced(target)) {
+    const forced = switch (target.isPICDefaultForced()) {
         .yes => true,
         .no => false,
         .depends_on_linker => if (is_bfd_linker) target.cpu.arch == .x86_64 else target.cpu.arch == .aarch64 or target.cpu.arch == .x86_64,
@@ -1724,7 +1568,7 @@ pub fn getPICMode(d: *Driver, lastpic: []const u8) Compilation.Error!struct { ba
             is_piclevel_two = mem.eql(u8, lastpic, "-fPIE") or mem.eql(u8, lastpic, "-fPIC");
         } else {
             pic, pie = .{ false, false };
-            if (target_util.isPS(target)) {
+            if (target.isPS()) {
                 if (d.comp.cmodel != .kernel) {
                     pic = true;
                     try d.warn(
@@ -1736,7 +1580,7 @@ pub fn getPICMode(d: *Driver, lastpic: []const u8) Compilation.Error!struct { ba
         }
     }
 
-    if (pic and (target.os.tag.isDarwin() or target_util.isPS(target))) {
+    if (pic and (target.os.tag.isDarwin() or target.isPS())) {
         is_piclevel_two = is_piclevel_two or is_pic_default;
     }
 

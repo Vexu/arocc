@@ -4,7 +4,7 @@ const system_defaults = @import("system_defaults");
 
 const GCCVersion = @import("GCCVersion.zig");
 const Multilib = @import("Multilib.zig");
-const target_util = @import("../target.zig");
+const Target = @import("../Target.zig");
 const Toolchain = @import("../Toolchain.zig");
 
 const GCCDetector = @This();
@@ -395,9 +395,9 @@ pub fn discover(self: *GCCDetector, tc: *Toolchain) !void {
 
     const target = tc.getTarget();
     const biarch_variant_target = if (target.ptrBitWidth() == 32)
-        target_util.get64BitArchVariant(target)
+        target.get64BitArchVariant()
     else
-        target_util.get32BitArchVariant(target);
+        target.get32BitArchVariant();
 
     var candidate_lib_dirs_buffer: [16][]const u8 = undefined;
     var candidate_lib_dirs = std.ArrayList([]const u8).initBuffer(&candidate_lib_dirs_buffer);
@@ -420,13 +420,13 @@ pub fn discover(self: *GCCDetector, tc: *Toolchain) !void {
     );
 
     var target_buf: [64]u8 = undefined;
-    const triple_str = target_util.toLLVMTriple(target, &target_buf);
+    const triple_str = target.toLLVMTriple(&target_buf);
     candidate_triple_aliases.appendAssumeCapacity(triple_str);
 
     // Also include the multiarch variant if it's different.
     var biarch_buf: [64]u8 = undefined;
     if (biarch_variant_target) |*biarch_target| {
-        const biarch_triple_str = target_util.toLLVMTriple(biarch_target, &biarch_buf);
+        const biarch_triple_str = biarch_target.toLLVMTriple(&biarch_buf);
         if (!std.mem.eql(u8, biarch_triple_str, triple_str)) {
             candidate_triple_aliases.appendAssumeCapacity(biarch_triple_str);
         }
@@ -488,7 +488,7 @@ pub fn discover(self: *GCCDetector, tc: *Toolchain) !void {
 fn findBiarchMultilibs(
     tc: *const Toolchain,
     result: *Multilib.Detected,
-    target: *const std.Target,
+    target: *const Target,
     path: [2][]const u8,
     needs_biarch_suffix: bool,
 ) !bool {
@@ -550,7 +550,7 @@ fn findBiarchMultilibs(
 fn scanGCCForMultilibs(
     self: *GCCDetector,
     tc: *const Toolchain,
-    target: *const std.Target,
+    target: *const Target,
     path: [2][]const u8,
     needs_biarch_suffix: bool,
 ) !bool {
@@ -576,7 +576,7 @@ fn scanGCCForMultilibs(
 fn scanLibDirForGCCTriple(
     self: *GCCDetector,
     tc: *const Toolchain,
-    target: *const std.Target,
+    target: *const Target,
     lib_dir: []const u8,
     candidate_triple: []const u8,
     needs_biarch_suffix: bool,
