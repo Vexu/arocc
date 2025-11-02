@@ -7,8 +7,6 @@ const testing = std.testing;
 
 const builtin = @import("builtin");
 
-const backend = @import("backend");
-
 const LangOpts = @import("LangOpts.zig");
 const QualType = @import("TypeStore.zig").QualType;
 

@@ -12,7 +12,7 @@ pub fn main() !void {
 
     const args = try std.process.argsAlloc(arena);
     if (args.len != 3) {
-        const stderr = std.debug.lockStderrWriter(&.{});
+        const stderr, _ = std.debug.lockStderrWriter(&.{});
         stderr.print("Usage: {s} <input-file> <output-path>", .{args[0]}) catch {};
         std.process.exit(1);
     }
