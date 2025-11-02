@@ -1348,6 +1348,11 @@ pub const invalid_asm_str: Diagnostic = .{
     .kind = .@"error",
 };
 
+pub const invalid_asm_output: Diagnostic = .{
+    .fmt = "invalid lvalue in asm output",
+    .kind = .@"error",
+};
+
 pub const dollar_in_identifier_extension: Diagnostic = .{
     .fmt = "'$' in identifier",
     .opt = .@"dollar-in-identifier-extension",

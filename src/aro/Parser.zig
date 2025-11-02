@@ -4755,20 +4755,17 @@ fn msvcAsmStmt(p: *Parser) Error!?Node.Index {
 }
 
 /// asmOperand : ('[' IDENTIFIER ']')? asmStr '(' expr ')'
-fn asmOperand(p: *Parser, names: *std.ArrayList(?TokenIndex), constraints: *NodeList, exprs: *NodeList) Error!void {
-    const gpa = p.comp.gpa;
-    if (p.eatToken(.l_bracket)) |l_bracket| {
+fn asmOperand(p: *Parser, kind: enum { output, input }) Error!Tree.Node.AsmStmt.Operand {
+    const name = if (p.eatToken(.l_bracket)) |l_bracket| name: {
         const ident = (try p.eatIdentifier()) orelse {
             try p.err(p.tok_i, .expected_identifier, .{});
             return error.ParsingFailed;
         };
-        try names.append(gpa, ident);
         try p.expectClosing(l_bracket, .r_bracket);
-    } else {
-        try names.append(gpa, null);
-    }
+        break :name ident;
+    } else 0;
+
     const constraint = try p.asmStr();
-    try constraints.append(gpa, constraint.node);
 
     const l_paren = p.eatToken(.l_paren) orelse {
         try p.err(p.tok_i, .expected_token, .{ p.tok_ids[p.tok_i], Token.Id.l_paren });
@@ -4776,8 +4773,17 @@ fn asmOperand(p: *Parser, names: *std.ArrayList(?TokenIndex), constraints: *Node
     };
     const maybe_res = try p.expr();
     try p.expectClosing(l_paren, .r_paren);
-    const res = try p.expectResult(maybe_res);
-    try exprs.append(gpa, res.node);
+    var res = try p.expectResult(maybe_res);
+    if (kind == .output and !p.tree.isLval(res.node)) {
+        try p.err(l_paren + 1, .invalid_asm_output, .{});
+    } else if (kind == .input) {
+        try res.lvalConversion(p, l_paren + 1);
+    }
+    return .{
+        .name = name,
+        .constraint = constraint.node,
+        .expr = res.node,
+    };
 }
 
 /// gnuAsmStmt
@@ -4792,33 +4798,36 @@ fn gnuAsmStmt(p: *Parser, quals: Tree.GNUAssemblyQualifiers, asm_tok: TokenIndex
     try p.checkAsmStr(asm_str.val, l_paren);
 
     if (p.tok_ids[p.tok_i] == .r_paren) {
+        if (quals.goto) try p.err(p.tok_i, .expected_token, .{ Tree.Token.Id.r_paren, p.tok_ids[p.tok_i] });
+
         return try p.addNode(.{
-            .gnu_asm_simple = .{
-                .asm_str = asm_str.node,
+            .asm_stmt = .{
                 .asm_tok = asm_tok,
+                .asm_str = asm_str.node,
+                .outputs = &.{},
+                .inputs = &.{},
+                .clobbers = &.{},
+                .labels = &.{},
+                .quals = quals,
             },
         });
     }
 
     const expected_items = 8; // arbitrarily chosen, most assembly will have fewer than 8 inputs/outputs/constraints/names
-    const bytes_needed = expected_items * @sizeOf(?TokenIndex) + expected_items * 3 * @sizeOf(Node.Index);
+    const bytes_needed = expected_items * @sizeOf(Tree.Node.AsmStmt.Operand) + expected_items * 2 * @sizeOf(Node.Index);
 
     var stack_fallback = std.heap.stackFallback(bytes_needed, gpa);
     const allocator = stack_fallback.get();
 
-    // TODO: Consider using a TokenIndex of 0 instead of null if we need to store the names in the tree
-    var names: std.ArrayList(?TokenIndex) = .empty;
-    defer names.deinit(allocator);
-    names.ensureUnusedCapacity(allocator, expected_items) catch unreachable; // stack allocation already succeeded
-    var constraints: NodeList = .empty;
-    defer constraints.deinit(allocator);
-    constraints.ensureUnusedCapacity(allocator, expected_items) catch unreachable; // stack allocation already succeeded
-    var exprs: NodeList = .empty;
-    defer exprs.deinit(allocator);
-    exprs.ensureUnusedCapacity(allocator, expected_items) catch unreachable; //stack allocation already succeeded
+    var operands: std.ArrayList(Tree.Node.AsmStmt.Operand) = .empty;
+    defer operands.deinit(allocator);
+    operands.ensureUnusedCapacity(allocator, expected_items) catch unreachable; //stack allocation already succeeded
     var clobbers: NodeList = .empty;
     defer clobbers.deinit(allocator);
     clobbers.ensureUnusedCapacity(allocator, expected_items) catch unreachable; //stack allocation already succeeded
+    var labels: NodeList = .empty;
+    defer labels.deinit(allocator);
+    labels.ensureUnusedCapacity(allocator, expected_items) catch unreachable; //stack allocation already succeeded
 
     // Outputs
     var ate_extra_colon = false;
@@ -4827,14 +4836,14 @@ fn gnuAsmStmt(p: *Parser, quals: Tree.GNUAssemblyQualifiers, asm_tok: TokenIndex
         if (!ate_extra_colon) {
             if (p.tok_ids[p.tok_i].isStringLiteral() or p.tok_ids[p.tok_i] == .l_bracket) {
                 while (true) {
-                    try p.asmOperand(&names, &constraints, &exprs);
+                    const operand = try p.asmOperand(.output);
+                    try operands.append(allocator, operand);
                     if (p.eatToken(.comma) == null) break;
                 }
             }
         }
     }
-
-    const num_outputs = names.items.len;
+    const num_outputs = operands.items.len;
 
     // Inputs
     if (ate_extra_colon or p.tok_ids[p.tok_i] == .colon or p.tok_ids[p.tok_i] == .colon_colon) {
@@ -4847,15 +4856,13 @@ fn gnuAsmStmt(p: *Parser, quals: Tree.GNUAssemblyQualifiers, asm_tok: TokenIndex
         if (!ate_extra_colon) {
             if (p.tok_ids[p.tok_i].isStringLiteral() or p.tok_ids[p.tok_i] == .l_bracket) {
                 while (true) {
-                    try p.asmOperand(&names, &constraints, &exprs);
+                    const operand = try p.asmOperand(.input);
+                    try operands.append(allocator, operand);
                     if (p.eatToken(.comma) == null) break;
                 }
             }
         }
     }
-    std.debug.assert(names.items.len == constraints.items.len and constraints.items.len == exprs.items.len);
-    const num_inputs = names.items.len - num_outputs;
-    _ = num_inputs;
 
     // Clobbers
     if (ate_extra_colon or p.tok_ids[p.tok_i] == .colon or p.tok_ids[p.tok_i] == .colon_colon) {
@@ -4880,7 +4887,6 @@ fn gnuAsmStmt(p: *Parser, quals: Tree.GNUAssemblyQualifiers, asm_tok: TokenIndex
     }
 
     // Goto labels
-    var num_labels: u32 = 0;
     if (ate_extra_colon or p.tok_ids[p.tok_i] == .colon) {
         if (!ate_extra_colon) {
             p.tok_i += 1;
@@ -4895,7 +4901,6 @@ fn gnuAsmStmt(p: *Parser, quals: Tree.GNUAssemblyQualifiers, asm_tok: TokenIndex
                 try p.labels.append(gpa, .{ .unresolved_goto = ident });
                 break :blk ident;
             };
-            try names.append(allocator, ident);
 
             const label_addr_node = try p.addNode(.{
                 .addr_of_label = .{
@@ -4903,9 +4908,8 @@ fn gnuAsmStmt(p: *Parser, quals: Tree.GNUAssemblyQualifiers, asm_tok: TokenIndex
                     .qt = .void_pointer,
                 },
             });
-            try exprs.append(allocator, label_addr_node);
+            try labels.append(allocator, label_addr_node);
 
-            num_labels += 1;
             if (p.eatToken(.comma) == null) break;
         }
     } else if (quals.goto) {
@@ -4913,11 +4917,18 @@ fn gnuAsmStmt(p: *Parser, quals: Tree.GNUAssemblyQualifiers, asm_tok: TokenIndex
         return error.ParsingFailed;
     }
 
-    // TODO: validate and insert into AST
-    return p.addNode(.{ .null_stmt = .{
-        .semicolon_or_r_brace_tok = asm_tok,
-        .qt = .void,
-    } });
+    // TODO: validate
+    return p.addNode(.{
+        .asm_stmt = .{
+            .asm_tok = asm_tok,
+            .asm_str = asm_str.node,
+            .outputs = operands.items[0..num_outputs],
+            .inputs = operands.items[num_outputs..],
+            .clobbers = clobbers.items,
+            .labels = labels.items,
+            .quals = quals,
+        },
+    });
 }
 
 fn checkAsmStr(p: *Parser, asm_str: Value, tok: TokenIndex) !void {

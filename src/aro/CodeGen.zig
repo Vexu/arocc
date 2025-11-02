@@ -110,6 +110,9 @@ pub fn genIr(tree: *const Tree) Compilation.Error!Ir {
                 error.FatalError => return error.FatalError,
                 error.OutOfMemory => return error.OutOfMemory,
             },
+            .global_asm => {
+                return c.fail("TODO global assembly", .{});
+            },
             else => unreachable,
         }
     }
@@ -496,6 +499,7 @@ fn genExpr(c: *CodeGen, node_index: Node.Index) Error!Ir.Ref {
         .goto_stmt,
         .computed_goto_stmt,
         .nullptr_literal,
+        .asm_stmt,
         => return c.fail("TODO CodeGen.genStmt {s}\n", .{@tagName(node)}),
         .comma_expr => |bin| {
             _ = try c.genExpr(bin.lhs);
