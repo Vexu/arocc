@@ -1427,7 +1427,7 @@ pub fn getSource(comp: *const Compilation, id: Source.Id) Source {
         return comp.source_aliases.items[@intFromEnum(id.index)];
     }
     if (id.index == .generated) return .{
-        .path = "<scratch space>",
+        .path = "<scratch space>", // Load-bearing name: Driver's addImplicitInclude function relies on this name not containing dir separators.
         .buf = comp.generated_buf.items,
         .id = .generated,
         .splice_locs = &.{},

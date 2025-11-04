@@ -410,7 +410,7 @@ pub fn expansionSlice(pp: *Preprocessor, tok: Tree.TokenIndex) []Source.Location
 }
 
 /// Preprocess a compilation unit of sources into a parsable list of tokens.
-pub fn preprocessSources(pp: *Preprocessor, sources: []const Source) Error!void {
+pub fn preprocessSources(pp: *Preprocessor, sources: []const Source, implicit_includes: []const Source) Error!void {
     assert(sources.len > 1);
     const first = sources[0];
     try pp.addIncludeStart(first);
@@ -418,6 +418,13 @@ pub fn preprocessSources(pp: *Preprocessor, sources: []const Source) Error!void 
         try pp.addIncludeStart(header);
         _ = try pp.preprocess(header);
     }
+    pp.include_depth = 1;
+    for (implicit_includes) |header| {
+        try pp.addIncludeStart(header);
+        _ = try pp.preprocess(header);
+        assert(pp.include_depth == 1);
+    }
+    pp.include_depth = 0;
     try pp.addIncludeResume(first.id, 0, 1);
     const eof = try pp.preprocess(first);
     try pp.addToken(eof);

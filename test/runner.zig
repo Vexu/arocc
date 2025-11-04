@@ -22,10 +22,12 @@ const AddCommandLineArgsResult = struct {
     aro.Preprocessor.Linemarkers,
     aro.Compilation.SystemDefinesMode,
     aro.Preprocessor.DumpMode,
+    std.ArrayList(aro.Source),
 };
 
 /// Returns only_preprocess and line_markers settings if saw -E
 fn addCommandLineArgs(comp: *aro.Compilation, file: aro.Source, macro_buf: *std.ArrayListUnmanaged(u8)) !AddCommandLineArgsResult {
+    var implicit_includes: std.ArrayList(aro.Source) = .empty;
     var only_preprocess = false;
     var line_markers: aro.Preprocessor.Linemarkers = .none;
     var system_defines: aro.Compilation.SystemDefinesMode = .include_system_defines;
@@ -51,6 +53,8 @@ fn addCommandLineArgs(comp: *aro.Compilation, file: aro.Source, macro_buf: *std.
                 line_markers = if (driver.use_line_directives) .line_directives else .numeric_directives;
             }
         }
+        const slice = try driver.implicit_includes.toOwnedSlice(comp.gpa);
+        implicit_includes = .fromOwnedSlice(slice);
     }
     if (std.mem.indexOf(u8, file.buf, "//aro-env")) |idx| {
         const buf = file.buf[idx..];
@@ -68,7 +72,7 @@ fn addCommandLineArgs(comp: *aro.Compilation, file: aro.Source, macro_buf: *std.
         }
     }
 
-    return .{ only_preprocess, line_markers, system_defines, dump_mode };
+    return .{ only_preprocess, line_markers, system_defines, dump_mode, implicit_includes };
 }
 
 fn testOne(gpa: std.mem.Allocator, path: []const u8, test_dir: []const u8) !void {
@@ -269,7 +273,8 @@ pub fn main() !void {
         var macro_buf: std.ArrayListUnmanaged(u8) = .empty;
         defer macro_buf.deinit(comp.gpa);
 
-        const only_preprocess, const linemarkers, const system_defines, const dump_mode = try addCommandLineArgs(&comp, file, &macro_buf);
+        const only_preprocess, const linemarkers, const system_defines, const dump_mode, var implicit_includes = try addCommandLineArgs(&comp, file, &macro_buf);
+        defer implicit_includes.deinit(comp.gpa);
         const user_macros = try comp.addSourceFromBuffer("<command line>", macro_buf.items);
 
         const builtin_macros = try comp.generateBuiltinMacros(system_defines);
@@ -290,6 +295,12 @@ pub fn main() !void {
 
         _ = try pp.preprocess(builtin_macros);
         _ = try pp.preprocess(user_macros);
+        pp.include_depth = 1;
+        for (implicit_includes.items) |header| {
+            _ = try pp.preprocess(header);
+            std.debug.assert(pp.include_depth == 1);
+        }
+        pp.include_depth = 0;
         const eof = pp.preprocess(file) catch |err| {
             fail_count += 1;
             std.debug.print("could not preprocess file '{s}': {s}\n", .{ path, @errorName(err) });
