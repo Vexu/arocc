@@ -1674,6 +1674,7 @@ pub fn hasInclude(
     if (try FindInclude.run(comp, filename, include_type, switch (which) {
         .next => .{ .only_search_after_dir = comp.getSource(includer_token_source).path },
         .first => switch (include_type) {
+            .cli => unreachable,
             .quotes => .{ .allow_same_dir = comp.getSource(includer_token_source).path },
             .angle_brackets => .only_search,
         },
@@ -1739,7 +1740,7 @@ const FindInclude = struct {
             },
         }
         switch (include_type) {
-            .quotes => for (comp.iquote_include_dirs.items) |dir| {
+            .quotes, .cli => for (comp.iquote_include_dirs.items) |dir| {
                 if (try find.checkIncludeDir(dir, .user)) |res| return res;
             },
             .angle_brackets => {},
@@ -1848,6 +1849,8 @@ pub const WhichInclude = enum {
 pub const IncludeType = enum {
     quotes,
     angle_brackets,
+    /// cli behaves like quotes but it is relative to the Driver cwd instead of the main source file's directory.
+    cli,
 };
 
 fn getPathContents(comp: *Compilation, path: []const u8, limit: Io.Limit) ![]u8 {
@@ -1915,7 +1918,7 @@ pub fn findEmbed(
     const sf_allocator = stack_fallback.get();
 
     switch (include_type) {
-        .quotes => {
+        .quotes, .cli => {
             const dir = std.fs.path.dirname(comp.getSource(includer_token_source).path) orelse ".";
             const path = try std.fs.path.join(sf_allocator, &.{ dir, filename });
             defer sf_allocator.free(path);
@@ -1959,6 +1962,7 @@ pub fn findInclude(
     const found = try FindInclude.run(comp, filename, include_type, switch (which) {
         .next => .{ .only_search_after_dir = comp.getSource(includer_token.source).path },
         .first => switch (include_type) {
+            .cli => .{ .allow_same_dir = "." },
             .quotes => .{ .allow_same_dir = comp.getSource(includer_token.source).path },
             .angle_brackets => .only_search,
         },

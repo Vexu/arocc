@@ -46,6 +46,7 @@ comp: *Compilation,
 diagnostics: *Diagnostics,
 
 inputs: std.ArrayList(Source) = .empty,
+implicit_includes: std.ArrayList(Source) = .empty,
 link_objects: std.ArrayList([]const u8) = .empty,
 output_name: ?[]const u8 = null,
 sysroot: ?[]const u8 = null,
@@ -133,6 +134,7 @@ pub fn deinit(d: *Driver) void {
         d.comp.gpa.free(obj);
     }
     d.inputs.deinit(d.comp.gpa);
+    d.implicit_includes.deinit(d.comp.gpa);
     d.link_objects.deinit(d.comp.gpa);
     d.* = undefined;
 }
@@ -217,6 +219,7 @@ pub const usage =
     \\  --embed-dir=<dir>       Add directory to `#embed` search path
     \\  --emulate=[clang|gcc|msvc]
     \\                          Select which C compiler to emulate (default clang)
+    \\  -include <file>         Process <file> as if `#include "file"` appeared as the first line of the primary source file.
     \\  -mabicalls              Enable SVR4-style position-independent code (Mips only)
     \\  -mno-abicalls           Disable SVR4-style position-independent code (Mips only)
     \\  -mcmodel=<code-model>   Generate code for the given code model
@@ -575,6 +578,15 @@ pub fn parseArgs(
                     path = args[i];
                 }
                 try d.comp.system_framework_dirs.append(d.comp.gpa, path);
+            } else if (option(arg, "-include") orelse option(arg, "--include")) |implicit_include| {
+                try d.addImplicitInclude(implicit_include);
+            } else if (mem.eql(u8, arg, "-include") or mem.eql(u8, arg, "--include")) {
+                i += 1;
+                if (i >= args.len) {
+                    try d.err("expected argument after {s}", .{arg});
+                    continue;
+                }
+                try d.addImplicitInclude(args[i]);
             } else if (option(arg, "--embed-dir=")) |path| {
                 try d.comp.embed_dirs.append(d.comp.gpa, path);
             } else if (option(arg, "--emulate=")) |compiler_str| {
@@ -833,6 +845,14 @@ fn addSource(d: *Driver, path: []const u8) !Source {
         return d.comp.addSourceFromFile(.stdin(), "<stdin>", .user);
     }
     return d.comp.addSourceFromPath(path);
+}
+
+fn addImplicitInclude(d: *Driver, path: []const u8) !void {
+    const source = (d.comp.findInclude(path, .{ .id = .keyword_include, .source = .generated }, .cli, .first) catch |er|
+        return d.fatal("unable to add implicit include file '{s}': {s}", .{ path, errorDescription(er) })) orelse
+        return d.fatal("unable to add implicit include file '{s}': NotFound", .{path});
+
+    try d.implicit_includes.append(d.comp.gpa, source);
 }
 
 pub fn err(d: *Driver, fmt: []const u8, args: anytype) Compilation.Error!void {
@@ -1258,7 +1278,7 @@ fn processSource(
         }
     }
 
-    try pp.preprocessSources(&.{ source, builtin, user_macros });
+    try pp.preprocessSources(&.{ source, builtin, user_macros }, d.implicit_includes.items);
 
     var writer_buf: [4096]u8 = undefined;
     if (opt_dep_file) |dep_file| {
