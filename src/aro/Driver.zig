@@ -848,9 +848,7 @@ fn addSource(d: *Driver, path: []const u8) !Source {
 }
 
 fn addImplicitInclude(d: *Driver, path: []const u8) !void {
-    // using .generated as the source id will cause the header lookup logic to use the dirname of "<scratch space>" (".") as
-    // the base directory; so the first lookup will be relative to the Driver cwd instead of the main source file's directory.
-    const source = (d.comp.findInclude(path, .{ .id = .keyword_include, .source = .generated }, .quotes, .first) catch |er|
+    const source = (d.comp.findInclude(path, .{ .id = .keyword_include, .source = .generated }, .cli, .first) catch |er|
         return d.fatal("unable to add implicit include file '{s}': {s}", .{ path, errorDescription(er) })) orelse
         return d.fatal("unable to add implicit include file '{s}': NotFound", .{path});
 
