@@ -224,13 +224,6 @@ pub fn main() !void {
     try initial_comp.addDefaultPragmaHandlers();
     try initial_comp.addBuiltinIncludeDir(test_dir, null);
 
-    // apparently we can't use setAstCwd without libc on windows yet
-    const win = @import("builtin").os.tag == .windows;
-    var tmp_dir = if (!win) std.testing.tmpDir(.{});
-    defer if (!win) tmp_dir.cleanup();
-
-    if (!win) try tmp_dir.dir.setAsCwd();
-
     // iterate over all cases
     var ok_count: u32 = 0;
     var fail_count: u32 = 0;
