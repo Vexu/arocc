@@ -409,8 +409,28 @@ pub fn expansionSlice(pp: *Preprocessor, tok: Tree.TokenIndex) []Source.Location
     return locs[0..i];
 }
 
+const TokenCount = struct {
+    tokens_len: usize,
+    expansion_entries_len: usize,
+};
+
+pub fn getTokenCount(pp: *const Preprocessor) TokenCount {
+    return .{
+        .tokens_len = pp.tokens.len,
+        .expansion_entries_len = pp.expansion_entries.len,
+    };
+}
+
+/// `count` must be less than or equal to the current token count; i.e. this function cannot be used to grow the list
+pub fn setTokenCount(pp: *Preprocessor, count: TokenCount) void {
+    assert(pp.tokens.len >= count.tokens_len);
+    for (pp.expansion_entries.items(.locs)[count.expansion_entries_len..]) |locs| TokenWithExpansionLocs.free(locs, pp.comp.gpa);
+    pp.tokens.len = count.tokens_len;
+    pp.expansion_entries.len = count.expansion_entries_len;
+}
+
 /// Preprocess a compilation unit of sources into a parsable list of tokens.
-pub fn preprocessSources(pp: *Preprocessor, sources: []const Source, implicit_includes: []const Source) Error!void {
+pub fn preprocessSources(pp: *Preprocessor, sources: []const Source, imacros: []const Source, implicit_includes: []const Source) Error!void {
     assert(sources.len > 1);
     const first = sources[0];
     try pp.addIncludeStart(first);
@@ -419,6 +439,14 @@ pub fn preprocessSources(pp: *Preprocessor, sources: []const Source, implicit_in
         _ = try pp.preprocess(header);
     }
     pp.include_depth = 1;
+    const token_count = pp.getTokenCount();
+    for (imacros) |imacro| {
+        try pp.addIncludeStart(imacro);
+        _ = try pp.preprocess(imacro);
+        assert(pp.include_depth == 1);
+    }
+    pp.setTokenCount(token_count);
+
     for (implicit_includes) |header| {
         try pp.addIncludeStart(header);
         _ = try pp.preprocess(header);

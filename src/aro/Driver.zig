@@ -46,6 +46,7 @@ comp: *Compilation,
 diagnostics: *Diagnostics,
 
 inputs: std.ArrayList(Source) = .empty,
+imacros: std.ArrayList(Source) = .empty,
 implicit_includes: std.ArrayList(Source) = .empty,
 link_objects: std.ArrayList([]const u8) = .empty,
 output_name: ?[]const u8 = null,
@@ -134,6 +135,7 @@ pub fn deinit(d: *Driver) void {
         d.comp.gpa.free(obj);
     }
     d.inputs.deinit(d.comp.gpa);
+    d.imacros.deinit(d.comp.gpa);
     d.implicit_includes.deinit(d.comp.gpa);
     d.link_objects.deinit(d.comp.gpa);
     d.* = undefined;
@@ -219,6 +221,7 @@ pub const usage =
     \\  --embed-dir=<dir>       Add directory to `#embed` search path
     \\  --emulate=[clang|gcc|msvc]
     \\                          Select which C compiler to emulate (default clang)
+    \\  -imacros <file>         Include macros from <file> before parsing
     \\  -include <file>         Process <file> as if `#include "file"` appeared as the first line of the primary source file.
     \\  -mabicalls              Enable SVR4-style position-independent code (Mips only)
     \\  -mno-abicalls           Disable SVR4-style position-independent code (Mips only)
@@ -587,6 +590,15 @@ pub fn parseArgs(
                     continue;
                 }
                 try d.addImplicitInclude(args[i]);
+            } else if (option(arg, "-imacros") orelse option(arg, "--imacros")) |imacro_path| {
+                try d.addImacros(imacro_path);
+            } else if (mem.eql(u8, arg, "-imacros") or mem.eql(u8, arg, "--imacros")) {
+                i += 1;
+                if (i >= args.len) {
+                    try d.err("expected argument after {s}", .{arg});
+                    continue;
+                }
+                try d.addImacros(args[i]);
             } else if (option(arg, "--embed-dir=")) |path| {
                 try d.comp.embed_dirs.append(d.comp.gpa, path);
             } else if (option(arg, "--emulate=")) |compiler_str| {
@@ -847,12 +859,21 @@ fn addSource(d: *Driver, path: []const u8) !Source {
     return d.comp.addSourceFromPath(path);
 }
 
-fn addImplicitInclude(d: *Driver, path: []const u8) !void {
+fn findIncludeCLI(d: *Driver, path: []const u8, kind: []const u8) !Source {
     const source = (d.comp.findInclude(path, .{ .id = .keyword_include, .source = .generated }, .cli, .first) catch |er|
-        return d.fatal("unable to add implicit include file '{s}': {s}", .{ path, errorDescription(er) })) orelse
-        return d.fatal("unable to add implicit include file '{s}': NotFound", .{path});
+        return d.fatal("unable to add {s} file '{s}': {s}", .{ kind, path, errorDescription(er) })) orelse
+        return d.fatal("unable to add {s} file '{s}': NotFound", .{ kind, path });
+    return source;
+}
 
+fn addImplicitInclude(d: *Driver, path: []const u8) !void {
+    const source = try d.findIncludeCLI(path, "implicit include");
     try d.implicit_includes.append(d.comp.gpa, source);
+}
+
+fn addImacros(d: *Driver, path: []const u8) !void {
+    const source = try d.findIncludeCLI(path, "imacros");
+    try d.imacros.append(d.comp.gpa, source);
 }
 
 pub fn err(d: *Driver, fmt: []const u8, args: anytype) Compilation.Error!void {
@@ -1278,7 +1299,7 @@ fn processSource(
         }
     }
 
-    try pp.preprocessSources(&.{ source, builtin, user_macros }, d.implicit_includes.items);
+    try pp.preprocessSources(&.{ source, builtin, user_macros }, d.imacros.items, d.implicit_includes.items);
 
     var writer_buf: [4096]u8 = undefined;
     if (opt_dep_file) |dep_file| {
