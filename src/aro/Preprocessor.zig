@@ -433,23 +433,29 @@ pub fn setTokenCount(pp: *Preprocessor, count: TokenCount) void {
 pub fn preprocessSources(pp: *Preprocessor, sources: []const Source, imacros: []const Source, implicit_includes: []const Source) Error!void {
     assert(sources.len > 1);
     const first = sources[0];
+
     try pp.addIncludeStart(first);
+    var prev_source: ?Source = null;
     for (sources[1..]) |header| {
         try pp.addIncludeStart(header);
         _ = try pp.preprocess(header);
+        if (prev_source) |prev| try pp.addIncludeResume(prev.id, 0, 1);
+        prev_source = header;
     }
     pp.include_depth = 1;
-    const token_count = pp.getTokenCount();
     for (imacros) |imacro| {
         try pp.addIncludeStart(imacro);
+        const token_count = pp.getTokenCount();
         _ = try pp.preprocess(imacro);
         assert(pp.include_depth == 1);
+        pp.setTokenCount(token_count);
+        try pp.addIncludeResume(sources[1].id, 0, 1);
     }
-    pp.setTokenCount(token_count);
 
     for (implicit_includes) |header| {
         try pp.addIncludeStart(header);
         _ = try pp.preprocess(header);
+        try pp.addIncludeResume(sources[1].id, 0, 1);
         assert(pp.include_depth == 1);
     }
     pp.include_depth = 0;
