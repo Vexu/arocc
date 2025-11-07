@@ -288,28 +288,11 @@ pub fn main() !void {
         if (comp.langopts.ms_extensions) {
             comp.ms_cwd_source_id = file.id;
         }
-
-        _ = try pp.preprocess(builtin_macros);
-        _ = try pp.preprocess(user_macros);
-        pp.include_depth = 1;
-        const token_count = pp.getTokenCount();
-        for (imacros.items) |imacro| {
-            try pp.addIncludeStart(imacro);
-            _ = try pp.preprocess(imacro);
-            std.debug.assert(pp.include_depth == 1);
-        }
-        pp.setTokenCount(token_count);
-        for (implicit_includes.items) |header| {
-            _ = try pp.preprocess(header);
-            std.debug.assert(pp.include_depth == 1);
-        }
-        pp.include_depth = 0;
-        const eof = pp.preprocess(file) catch |err| {
+        pp.preprocessSources(&.{ file, builtin_macros, user_macros }, imacros.items, implicit_includes.items) catch |err| {
             fail_count += 1;
             std.debug.print("could not preprocess file '{s}': {s}\n", .{ path, @errorName(err) });
             continue;
         };
-        try pp.addToken(eof);
 
         if (pp.defines.get("TESTS_SKIPPED")) |macro| {
             if (macro.is_func or macro.tokens.len != 1 or macro.tokens[0].id != .pp_num) {
