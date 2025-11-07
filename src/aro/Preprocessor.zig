@@ -430,8 +430,8 @@ pub fn setTokenCount(pp: *Preprocessor, count: TokenCount) void {
 }
 
 /// Preprocess a compilation unit of sources into a parsable list of tokens.
+/// `sources` must contain at least one element; the first element must be the primary source file.
 pub fn preprocessSources(pp: *Preprocessor, sources: []const Source, imacros: []const Source, implicit_includes: []const Source) Error!void {
-    assert(sources.len > 1);
     const first = sources[0];
 
     try pp.addIncludeStart(first);
@@ -449,13 +449,13 @@ pub fn preprocessSources(pp: *Preprocessor, sources: []const Source, imacros: []
         _ = try pp.preprocess(imacro);
         assert(pp.include_depth == 1);
         pp.setTokenCount(token_count);
-        try pp.addIncludeResume(sources[1].id, 0, 1);
+        try pp.addIncludeResume((prev_source orelse first).id, 0, 1);
     }
 
     for (implicit_includes) |header| {
         try pp.addIncludeStart(header);
         _ = try pp.preprocess(header);
-        try pp.addIncludeResume(sources[1].id, 0, 1);
+        try pp.addIncludeResume((prev_source orelse first).id, 0, 1);
         assert(pp.include_depth == 1);
     }
     pp.include_depth = 0;
