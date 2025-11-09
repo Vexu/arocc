@@ -1299,7 +1299,13 @@ fn processSource(
         }
     }
 
-    try pp.preprocessSources(&.{ source, builtin, user_macros }, d.imacros.items, d.implicit_includes.items);
+    try pp.preprocessSources(.{
+        .main = source,
+        .builtin = builtin,
+        .command_line = user_macros,
+        .imacros = d.imacros.items,
+        .implicit_includes = d.implicit_includes.items,
+    });
 
     var writer_buf: [4096]u8 = undefined;
     if (opt_dep_file) |dep_file| {

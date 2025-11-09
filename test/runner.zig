@@ -288,7 +288,13 @@ pub fn main() !void {
         if (comp.langopts.ms_extensions) {
             comp.ms_cwd_source_id = file.id;
         }
-        pp.preprocessSources(&.{ file, builtin_macros, user_macros }, imacros.items, implicit_includes.items) catch |err| {
+        pp.preprocessSources(.{
+            .main = file,
+            .builtin = builtin_macros,
+            .command_line = user_macros,
+            .imacros = imacros.items,
+            .implicit_includes = implicit_includes.items,
+        }) catch |err| {
             fail_count += 1;
             std.debug.print("could not preprocess file '{s}': {s}\n", .{ path, @errorName(err) });
             continue;
