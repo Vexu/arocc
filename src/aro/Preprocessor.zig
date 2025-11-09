@@ -378,7 +378,7 @@ pub fn deinit(pp: *Preprocessor) void {
 }
 
 /// Free buffers that are not needed after preprocessing
-fn clearBuffers(pp: *Preprocessor) void {
+pub fn clearBuffers(pp: *Preprocessor) void {
     const gpa = pp.comp.gpa;
     pp.token_buf.clearAndFree(gpa);
     pp.char_buf.clearAndFree(gpa);
@@ -409,24 +409,67 @@ pub fn expansionSlice(pp: *Preprocessor, tok: Tree.TokenIndex) []Source.Location
     return locs[0..i];
 }
 
+const TokenCount = struct {
+    tokens_len: usize,
+    expansion_entries_len: usize,
+};
+
+fn getTokenCount(pp: *const Preprocessor) TokenCount {
+    return .{
+        .tokens_len = pp.tokens.len,
+        .expansion_entries_len = pp.expansion_entries.len,
+    };
+}
+
+/// `count` must be less than or equal to the current token count; i.e. this function cannot be used to grow the list
+fn setTokenCount(pp: *Preprocessor, count: TokenCount) void {
+    assert(pp.tokens.len >= count.tokens_len);
+    for (pp.expansion_entries.items(.locs)[count.expansion_entries_len..]) |locs| TokenWithExpansionLocs.free(locs, pp.comp.gpa);
+    pp.tokens.len = count.tokens_len;
+    pp.expansion_entries.len = count.expansion_entries_len;
+}
+
 /// Preprocess a compilation unit of sources into a parsable list of tokens.
-pub fn preprocessSources(pp: *Preprocessor, sources: []const Source, implicit_includes: []const Source) Error!void {
-    assert(sources.len > 1);
-    const first = sources[0];
-    try pp.addIncludeStart(first);
-    for (sources[1..]) |header| {
-        try pp.addIncludeStart(header);
-        _ = try pp.preprocess(header);
-    }
+pub fn preprocessSources(pp: *Preprocessor, sources: struct {
+    main: Source,
+    builtin: Source,
+    command_line: ?Source = null,
+    imacros: []const Source = &.{},
+    implicit_includes: []const Source = &.{},
+}) Error!void {
+    try pp.addIncludeStart(sources.main.id);
+
     pp.include_depth = 1;
-    for (implicit_includes) |header| {
-        try pp.addIncludeStart(header);
-        _ = try pp.preprocess(header);
-        assert(pp.include_depth == 1);
+    try pp.addIncludeStart(sources.builtin.id);
+    _ = try pp.preprocess(sources.builtin);
+
+    if (sources.command_line) |command_line| {
+        try pp.addIncludeStart(command_line.id);
+        _ = try pp.preprocess(command_line);
+
+        for (sources.imacros) |imacro| {
+            try pp.addIncludeStart(imacro.id);
+            const token_count = pp.getTokenCount();
+            _ = try pp.preprocess(imacro);
+            assert(pp.include_depth == 1);
+            pp.setTokenCount(token_count);
+            try pp.addIncludeResume(command_line.id, 0, 1);
+        }
+
+        for (sources.implicit_includes) |header| {
+            try pp.addIncludeStart(header.id);
+            _ = try pp.preprocess(header);
+            try pp.addIncludeResume(command_line.id, 0, 1);
+            assert(pp.include_depth == 1);
+        }
+    } else {
+        assert(sources.imacros.len == 0);
+        assert(sources.implicit_includes.len == 0);
     }
     pp.include_depth = 0;
-    try pp.addIncludeResume(first.id, 0, 1);
-    const eof = try pp.preprocess(first);
+
+    try pp.addIncludeResume(sources.main.id, 0, 1);
+    const eof = try pp.preprocess(sources.main);
     try pp.addToken(eof);
     pp.clearBuffers();
 }
@@ -463,10 +506,10 @@ pub fn tokenize(pp: *Preprocessor, source: Source) Error!Token {
     }
 }
 
-pub fn addIncludeStart(pp: *Preprocessor, source: Source) !void {
+pub fn addIncludeStart(pp: *Preprocessor, source: Source.Id) !void {
     if (pp.linemarkers == .none) return;
     try pp.addToken(.{ .id = .include_start, .loc = .{
-        .id = source.id,
+        .id = source,
         .byte_offset = std.math.maxInt(u32),
         .line = 1,
     } });
@@ -3422,7 +3465,7 @@ fn include(pp: *Preprocessor, tokenizer: *Tokenizer, which: Compilation.WhichInc
     }
 
     const token_state = pp.getTokenState();
-    try pp.addIncludeStart(new_source);
+    try pp.addIncludeStart(new_source.id);
     const eof = pp.preprocessExtra(new_source) catch |er| switch (er) {
         error.StopPreprocessing => {
             for (pp.expansion_entries.items(.locs)[token_state.expansion_entries_len..]) |loc| TokenWithExpansionLocs.free(loc, gpa);
