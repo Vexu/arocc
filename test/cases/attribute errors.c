@@ -54,7 +54,7 @@ typedef struct {} A3, [[deprecated]] B3, C3;
     "attribute errors.c:22:24: warning: unknown attribute 'invalid_attribute' ignored [-Wunknown-attributes]" \
     "attribute errors.c:23:24: warning: unknown attribute 'invalid_attribute' ignored [-Wunknown-attributes]" \
     "attribute errors.c:24:49: error: 'deprecated' attribute takes at most 1 argument(s)" \
-    "attribute errors.c:28:24: warning: attribute 'cold' ignored on fields [-Wignored-attributes]" \
+    "attribute errors.c:28:24: warning: attribute 'cold' ignored on types [-Wignored-attributes]" \
     "attribute errors.c:31:5: warning: '__thiscall' calling convention is not supported for this target [-Wignored-attributes]" \
     "attribute errors.c:32:36: error: attribute value '4294967296' out of range" \
     "attribute errors.c:33:46: error: attribute argument is invalid, expected an integer constant but got a complex floating point number" \

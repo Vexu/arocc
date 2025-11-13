@@ -21,6 +21,15 @@ void baz(void) {
     x = 5;
 }
 
+struct S {
+    int __attribute__((deprecated("foo"), packed)) p;
+};
+
+int deprecated_field(struct S s) {
+    (void)__builtin_offsetof(struct S, p);
+    return s.p;
+}
+
 #define EXPECTED_ERRORS "deprecated vars.c:8:5: warning: 'foo' is deprecated [-Wdeprecated-declarations]" \
     "deprecated vars.c:4:20: note: 'foo' has been explicitly marked deprecated here" \
     "deprecated vars.c:9:5: warning: 'bar' is deprecated [-Wdeprecated-declarations]" \
@@ -35,3 +44,5 @@ void baz(void) {
     "deprecated vars.c:15:29: note: 'arg' has been explicitly marked deprecated here" \
     "deprecated vars.c:21:5: warning: 'x' is deprecated [-Wdeprecated-declarations]" \
     "deprecated vars.c:20:12: note: 'x' has been explicitly marked deprecated here" \
+    "deprecated vars.c:30:14: warning: 'p' is deprecated: foo [-Wdeprecated-declarations]" \
+    "deprecated vars.c:25:24: note: 'p' has been explicitly marked deprecated here" \
