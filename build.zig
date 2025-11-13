@@ -305,6 +305,28 @@ pub fn build(b: *Build) !void {
         break :step unit_tests_step;
     };
 
+    const integration_tests_step2 = step: {
+        const integration_tests = b.addExecutable(.{
+            .name = "test-runner",
+            .root_module = b.createModule(.{
+                .root_source_file = b.path("test/cases.zig"),
+                .target = b.graph.host,
+                .optimize = .ReleaseFast,
+            }),
+        });
+        const test_runner_options = b.addOptions();
+        integration_tests.root_module.addOptions("build_options", test_runner_options);
+        test_runner_options.addOption(bool, "test_all_allocation_failures", test_all_allocation_failures);
+        test_runner_options.addOption(bool, "debug_allocations", debug_allocations);
+
+        const integration_test_runner = b.addRunArtifact(integration_tests);
+        integration_test_runner.addArtifactArg(exe);
+
+        const integration_tests_step = b.step("test-integration2", "Run integration tests");
+        integration_tests_step.dependOn(&integration_test_runner.step);
+        break :step integration_tests_step;
+    };
+
     const integration_tests_step = step: {
         const integration_tests = b.addExecutable(.{
             .name = "test-runner",
@@ -355,6 +377,7 @@ pub fn build(b: *Build) !void {
     tests_step.dependOn(test_fmt_step);
     tests_step.dependOn(unit_tests_step);
     tests_step.dependOn(integration_tests_step);
+    tests_step.dependOn(integration_tests_step2);
     tests_step.dependOn(record_tests_step);
 
     try addFuzzStep(b, target, afl_clang_lto_path, aro_module);
