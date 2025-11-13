@@ -78,6 +78,7 @@ pub const Error = Compilation.Error || error{ParsingFailed};
 const TentativeAttribute = struct {
     attr: Attribute,
     tok: TokenIndex,
+    seen: bool = false,
 };
 
 /// How the parser handles const int decl references when it is expecting an integer
@@ -2731,6 +2732,9 @@ fn recordDecl(p: *Parser) Error!bool {
         const attr_index: u32 = @intCast(p.comp.type_store.attributes.items.len);
         const attr_len: u32 = @intCast(to_append.len);
         try p.comp.type_store.attributes.appendSlice(gpa, to_append);
+
+        qt = try Attribute.applyTypeAttributes(p, qt, attr_buf_top, null);
+        @memset(p.attr_buf.items(.seen)[attr_buf_top..], false);
 
         if (name_tok == 0 and bits == null) unnamed: {
             var is_typedef = false;
@@ -6141,8 +6145,7 @@ pub const Result = struct {
         // for (p.diagnostics.list.items[err_start..]) |err_item| {
         //     if (err_item.tag != .unused_value) return;
         // }
-        var cur_node = res.node;
-        while (true) switch (cur_node.get(&p.tree)) {
+        loop: switch (res.node.get(&p.tree)) {
             .assign_expr,
             .mul_assign_expr,
             .div_assign_expr,
@@ -6158,29 +6161,26 @@ pub const Result = struct {
             .pre_dec_expr,
             .post_inc_expr,
             .post_dec_expr,
-            => return,
+            => {},
             .call_expr => |call| {
                 const call_info = p.tree.callableResultUsage(call.callee) orelse return;
                 if (call_info.nodiscard) try p.err(expr_start, .nodiscard_unused, .{p.tokSlice(call_info.tok)});
                 if (call_info.warn_unused_result) try p.err(expr_start, .warn_unused_result, .{p.tokSlice(call_info.tok)});
-                return;
             },
             .builtin_call_expr => |call| {
                 const expanded = p.comp.builtins.lookup(p.tokSlice(call.builtin_tok));
                 const attributes = expanded.attributes;
                 if (attributes.pure) try p.err(call.builtin_tok, .builtin_unused, .{"pure"});
                 if (attributes.@"const") try p.err(call.builtin_tok, .builtin_unused, .{"const"});
-                return;
             },
             .stmt_expr => |stmt_expr| {
                 const compound = stmt_expr.operand.get(&p.tree).compound_stmt;
-                cur_node = compound.body[compound.body.len - 1];
+                continue :loop compound.body[compound.body.len - 1].get(&p.tree);
             },
-            .comma_expr => |comma| cur_node = comma.rhs,
-            .paren_expr => |grouped| cur_node = grouped.operand,
-            else => break,
-        };
-        try p.err(expr_start, .unused_value, .{});
+            .comma_expr => |comma| continue :loop comma.rhs.get(&p.tree),
+            .paren_expr => |grouped| continue :loop grouped.operand.get(&p.tree),
+            else => try p.err(expr_start, .unused_value, .{}),
+        }
     }
 
     fn boolRes(lhs: *Result, p: *Parser, tag: std.meta.Tag(Node), rhs: Result, tok_i: TokenIndex) !void {
@@ -8314,24 +8314,30 @@ fn offsetofMemberDesignator(
     base_record_ty: Type.Record,
     base_qt: QualType,
     offset_kind: OffsetKind,
-    access_tok: TokenIndex,
+    base_access_tok: TokenIndex,
 ) Error!Result {
     errdefer p.skipTo(.r_paren);
     const base_field_name_tok = try p.expectIdentifier();
     const base_field_name = try p.comp.internString(p.tokSlice(base_field_name_tok));
 
-    try p.validateFieldAccess(base_record_ty, base_qt, base_field_name_tok, base_field_name);
     const base_node = try p.addNode(.{ .default_init_expr = .{
         .last_tok = p.tok_i,
         .qt = base_qt,
     } });
 
-    var lhs, const initial_offset = try p.fieldAccessExtra(base_node, base_record_ty, base_field_name, false, access_tok);
+    var lhs, const initial_offset = try p.fieldAccessExtra(base_node, base_record_ty, false, &.{
+        .base_qt = base_qt,
+        .target_name = base_field_name,
+        .access_tok = base_access_tok,
+        .name_tok = base_field_name_tok,
+        .check_deprecated = false,
+    });
 
     var total_offset: i64 = @intCast(initial_offset);
     var runtime_offset = false;
     while (true) switch (p.tok_ids[p.tok_i]) {
         .period => {
+            const access_tok = p.tok_i;
             p.tok_i += 1;
             const field_name_tok = try p.expectIdentifier();
             const field_name = try p.comp.internString(p.tokSlice(field_name_tok));
@@ -8340,8 +8346,13 @@ fn offsetofMemberDesignator(
                 try p.err(field_name_tok, .offsetof_ty, .{lhs.qt});
                 return error.ParsingFailed;
             };
-            try p.validateFieldAccess(lhs_record_ty, lhs.qt, field_name_tok, field_name);
-            lhs, const offset_bits = try p.fieldAccessExtra(lhs.node, lhs_record_ty, field_name, false, access_tok);
+            lhs, const offset_bits = try p.fieldAccessExtra(lhs.node, lhs_record_ty, false, &.{
+                .base_qt = base_qt,
+                .target_name = field_name,
+                .access_tok = access_tok,
+                .name_tok = field_name_tok,
+                .check_deprecated = false,
+            });
             total_offset += @intCast(offset_bits);
         },
         .l_bracket => {
@@ -9099,31 +9110,35 @@ fn fieldAccess(
     if (!is_arrow and is_ptr) try p.err(field_name_tok, .member_expr_ptr, .{expr_qt});
 
     const field_name = try p.comp.internString(p.tokSlice(field_name_tok));
-    try p.validateFieldAccess(record_ty, record_qt, field_name_tok, field_name);
-    const result, _ = try p.fieldAccessExtra(lhs.node, record_ty, field_name, is_arrow, access_tok);
+    const result, _ = try p.fieldAccessExtra(lhs.node, record_ty, is_arrow, &.{
+        .base_qt = record_qt,
+        .target_name = field_name,
+        .access_tok = access_tok,
+        .name_tok = field_name_tok,
+        .check_deprecated = true,
+    });
     return result;
-}
-
-fn validateFieldAccess(p: *Parser, record_ty: Type.Record, record_qt: QualType, field_name_tok: TokenIndex, field_name: StringId) Error!void {
-    if (record_ty.hasField(p.comp, field_name)) return;
-    try p.err(field_name_tok, .no_such_member, .{ p.tokSlice(field_name_tok), record_qt });
-    return error.ParsingFailed;
 }
 
 fn fieldAccessExtra(
     p: *Parser,
     base: Node.Index,
     record_ty: Type.Record,
-    target_name: StringId,
     is_arrow: bool,
-    access_tok: TokenIndex,
+    ctx: *const struct {
+        base_qt: QualType,
+        target_name: StringId,
+        access_tok: TokenIndex,
+        name_tok: TokenIndex,
+        check_deprecated: bool,
+    },
 ) Error!struct { Result, u64 } {
     for (record_ty.fields, 0..) |field, field_index| {
         if (field.name_tok == 0) if (field.qt.getRecord(p.comp)) |field_record_ty| {
-            if (!field_record_ty.hasField(p.comp, target_name)) continue;
+            if (!field_record_ty.hasField(p.comp, ctx.target_name)) continue;
 
             const access: Node.MemberAccess = .{
-                .access_tok = access_tok,
+                .access_tok = ctx.access_tok,
                 .qt = field.qt,
                 .base = base,
                 .member_index = @intCast(field_index),
@@ -9133,12 +9148,14 @@ fn fieldAccessExtra(
             else
                 .{ .member_access_expr = access });
 
-            const ret, const offset_bits = try p.fieldAccessExtra(inner, field_record_ty, target_name, false, access_tok);
+            const ret, const offset_bits = try p.fieldAccessExtra(inner, field_record_ty, false, ctx);
             return .{ ret, offset_bits + field.layout.offset_bits };
         };
-        if (target_name == field.name) {
+        if (ctx.target_name == field.name) {
+            if (ctx.check_deprecated) try p.checkDeprecatedUnavailable(field.qt, ctx.name_tok, field.name_tok);
+
             const access: Node.MemberAccess = .{
-                .access_tok = access_tok,
+                .access_tok = ctx.access_tok,
                 .qt = field.qt,
                 .base = base,
                 .member_index = @intCast(field_index),
@@ -9150,8 +9167,8 @@ fn fieldAccessExtra(
             return .{ .{ .qt = field.qt, .node = result_node }, field.layout.offset_bits };
         }
     }
-    // We already checked that this container has a field by the name.
-    unreachable;
+    try p.err(ctx.name_tok, .no_such_member, .{ p.tokSlice(ctx.name_tok), ctx.base_qt });
+    return error.ParsingFailed;
 }
 
 fn checkVaStartArg(p: *Parser, builtin_tok: TokenIndex, first_after: TokenIndex, param_tok: TokenIndex, arg: *Result, idx: u32) !void {
