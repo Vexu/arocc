@@ -73,11 +73,11 @@ struct_decl: 'struct S9'
   record_field: 'float'
    name: f
 
-  record_field: 'long'
+  record_field: 'attributed(long)'
+   attr: warn_if_not_aligned alignment: .{ .node = .null, .requested = 16 }
    name: l
    field attr: packed
    field attr: aligned alignment: .{ .node = .null, .requested = 16 }
-   field attr: warn_if_not_aligned alignment: .{ .node = .null, .requested = 16 }
 
 union_decl: 'union U1'
   record_field: 'long'
