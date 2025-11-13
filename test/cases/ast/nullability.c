@@ -37,9 +37,9 @@ function: 'attributed(fn () *int)'
  name: e
 
 struct_decl: 'struct __sFILE'
-  record_field: '*fn (*void) int'
+  record_field: 'attributed(*fn (*void) int)'
+   attr: nullability kind: nullable
    name: _close
-   field attr: nullability kind: nullable
 
 typedef: 'struct __sFILE'
  name: FILE

@@ -2904,18 +2904,17 @@ const CallableResultUsage = struct {
 };
 
 pub fn callableResultUsage(tree: *const Tree, node: Node.Index) ?CallableResultUsage {
-    var cur_node = node;
-    while (true) switch (cur_node.get(tree)) {
+    loop: switch (node.get(tree)) {
         .decl_ref_expr => |decl_ref| return .{
             .tok = decl_ref.name_tok,
             .nodiscard = decl_ref.qt.hasAttribute(tree.comp, .nodiscard),
             .warn_unused_result = decl_ref.qt.hasAttribute(tree.comp, .warn_unused_result),
         },
 
-        .paren_expr, .addr_of_expr, .deref_expr => |un| cur_node = un.operand,
-        .comma_expr => |bin| cur_node = bin.rhs,
-        .cast => |cast| cur_node = cast.operand,
-        .call_expr => |call| cur_node = call.callee,
+        .paren_expr, .addr_of_expr, .deref_expr => |un| continue :loop un.operand.get(tree),
+        .comma_expr => |bin| continue :loop bin.rhs.get(tree),
+        .cast => |cast| continue :loop cast.operand.get(tree),
+        .call_expr => |call| continue :loop call.callee.get(tree),
         .member_access_expr, .member_access_ptr_expr => |access| {
             var qt = access.base.qt(tree);
             if (qt.get(tree.comp, .pointer)) |pointer| qt = pointer.child;
@@ -2925,19 +2924,14 @@ pub fn callableResultUsage(tree: *const Tree, node: Node.Index) ?CallableResultU
             };
 
             const field = record_ty.fields[access.member_index];
-            const attributes = field.attributes(tree.comp);
             return .{
                 .tok = field.name_tok,
-                .nodiscard = for (attributes) |attr| {
-                    if (attr.tag == .nodiscard) break true;
-                } else false,
-                .warn_unused_result = for (attributes) |attr| {
-                    if (attr.tag == .warn_unused_result) break true;
-                } else false,
+                .nodiscard = field.qt.hasAttribute(tree.comp, .nodiscard),
+                .warn_unused_result = field.qt.hasAttribute(tree.comp, .warn_unused_result),
             };
         },
         else => return null,
-    };
+    }
 }
 
 pub fn isLval(tree: *const Tree, node: Node.Index) bool {
