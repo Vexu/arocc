@@ -732,13 +732,10 @@ pub fn getDecayedStringLiteral(p: *Parser, node: Node.Index) ?Value {
 }
 
 fn getNode(p: *Parser, node: Node.Index, comptime tag: std.meta.Tag(Tree.Node)) ?@FieldType(Node, @tagName(tag)) {
-    var cur = node;
-    while (true) {
-        switch (cur.get(&p.tree)) {
-            .paren_expr => |un| cur = un.operand,
-            tag => |data| return data,
-            else => return null,
-        }
+    loop: switch (node.get(&p.tree)) {
+        .paren_expr => |un| continue :loop un.operand.get(&p.tree),
+        tag => |data| return data,
+        else => return null,
     }
 }
 

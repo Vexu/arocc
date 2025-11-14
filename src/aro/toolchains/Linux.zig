@@ -375,7 +375,7 @@ pub fn defineSystemIncludes(self: *const Linux, tc: *const Toolchain) !void {
     // musl prefers /usr/include before builtin includes, so musl targets will add builtins
     // at the end of this function (unless disabled with nostdlibinc)
     if (!tc.driver.nobuiltininc and (!target.abi.isMusl() or tc.driver.nostdlibinc)) {
-        try comp.addBuiltinIncludeDir(tc.driver.aro_name, tc.driver.resource_dir);
+        try tc.addBuiltinIncludeDir();
     }
 
     if (tc.driver.nostdlibinc) return;
@@ -383,30 +383,30 @@ pub fn defineSystemIncludes(self: *const Linux, tc: *const Toolchain) !void {
     const sysroot = tc.getSysroot();
     const local_include = try std.fs.path.join(comp.gpa, &.{ sysroot, "/usr/local/include" });
     defer comp.gpa.free(local_include);
-    try comp.addSystemIncludeDir(local_include);
+    try tc.addSystemIncludeDir(local_include);
 
     if (self.gcc_detector.is_valid) {
         const gcc_include_path = try std.fs.path.join(comp.gpa, &.{ self.gcc_detector.parent_lib_path, "..", self.gcc_detector.gcc_triple, "include" });
         defer comp.gpa.free(gcc_include_path);
-        try comp.addSystemIncludeDir(gcc_include_path);
+        try tc.addSystemIncludeDir(gcc_include_path);
     }
 
     if (getMultiarchTriple(target)) |triple| {
         const joined = try std.fs.path.join(comp.gpa, &.{ sysroot, "/usr/include", triple });
         defer comp.gpa.free(joined);
         if (tc.exists(joined)) {
-            try comp.addSystemIncludeDir(joined);
+            try tc.addSystemIncludeDir(joined);
         }
     }
 
     if (target.os.tag == .rtems) return;
 
-    try comp.addSystemIncludeDir("/include");
-    try comp.addSystemIncludeDir("/usr/include");
+    try tc.addSystemIncludeDir("/include");
+    try tc.addSystemIncludeDir("/usr/include");
 
     std.debug.assert(!tc.driver.nostdlibinc);
     if (!tc.driver.nobuiltininc and target.abi.isMusl()) {
-        try comp.addBuiltinIncludeDir(tc.driver.aro_name, tc.driver.resource_dir);
+        try tc.addBuiltinIncludeDir();
     }
 }
 

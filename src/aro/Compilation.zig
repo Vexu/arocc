@@ -120,6 +120,34 @@ pub const Environment = struct {
     }
 };
 
+pub const Include = struct {
+    kind: Kind,
+    path: []const u8,
+
+    pub const Kind = enum {
+        quote,
+        normal,
+        framework,
+        system,
+        system_framework,
+        after,
+
+        pub fn isFramework(kind: Kind) bool {
+            return switch (kind) {
+                .framework, .system_framework => true,
+                else => false,
+            };
+        }
+
+        pub fn isSystem(kind: Kind) bool {
+            return switch (kind) {
+                .after, .system, .system_framework => true,
+                else => false,
+            };
+        }
+    };
+};
+
 const Compilation = @This();
 
 gpa: Allocator,
@@ -129,34 +157,26 @@ io: Io,
 cwd: std.fs.Dir,
 diagnostics: *Diagnostics,
 
-code_gen_options: CodeGenOptions = .default,
-environment: Environment = .{},
 sources: std.StringArrayHashMapUnmanaged(Source) = .empty,
 source_aliases: std.ArrayList(Source) = .empty,
 /// Allocated into `gpa`, but keys are externally managed.
-include_dirs: std.ArrayList([]const u8) = .empty,
-/// Allocated into `gpa`, but keys are externally managed.
-iquote_include_dirs: std.ArrayList([]const u8) = .empty,
-/// Allocated into `gpa`, but keys are externally managed.
-system_include_dirs: std.ArrayList([]const u8) = .empty,
-/// Allocated into `gpa`, but keys are externally managed.
-after_include_dirs: std.ArrayList([]const u8) = .empty,
-/// Allocated into `gpa`, but keys are externally managed.
-framework_dirs: std.ArrayList([]const u8) = .empty,
-/// Allocated into `gpa`, but keys are externally managed.
-system_framework_dirs: std.ArrayList([]const u8) = .empty,
+search_path: std.ArrayList(Include) = .empty,
 /// Allocated into `gpa`, but keys are externally managed.
 embed_dirs: std.ArrayList([]const u8) = .empty,
+
+environment: Environment = .{},
 target: Target = .default,
 darwin_target_variant: ?Target = null,
 cmodel: std.builtin.CodeModel = .default,
-pragma_handlers: std.StringArrayHashMapUnmanaged(*Pragma) = .empty,
+
+code_gen_options: CodeGenOptions = .default,
 langopts: LangOpts = .{},
 generated_buf: std.ArrayList(u8) = .empty,
 builtins: Builtins = .{},
 string_interner: StringInterner = .{},
 interner: Interner = .{},
 type_store: TypeStore = .{},
+pragma_handlers: std.StringArrayHashMapUnmanaged(*Pragma) = .empty,
 /// If this is not null, the directory containing the specified Source will be searched for includes
 /// Used by MS extensions which allow searching for includes relative to the directory of the main source file.
 ms_cwd_source_id: ?Source.Id = null,
@@ -200,12 +220,7 @@ pub fn deinit(comp: *Compilation) void {
     }
     comp.sources.deinit(gpa);
     comp.source_aliases.deinit(gpa);
-    comp.include_dirs.deinit(gpa);
-    comp.iquote_include_dirs.deinit(gpa);
-    comp.system_include_dirs.deinit(gpa);
-    comp.after_include_dirs.deinit(gpa);
-    comp.framework_dirs.deinit(gpa);
-    comp.system_framework_dirs.deinit(gpa);
+    comp.search_path.deinit(gpa);
     comp.embed_dirs.deinit(gpa);
     comp.pragma_handlers.deinit(gpa);
     comp.generated_buf.deinit(gpa);
@@ -1392,30 +1407,6 @@ pub fn getCharSignedness(comp: *const Compilation) std.builtin.Signedness {
     return comp.langopts.char_signedness_override orelse comp.target.cCharSignedness();
 }
 
-/// Add built-in aro headers directory to system include paths
-pub fn addBuiltinIncludeDir(comp: *Compilation, aro_dir: []const u8, override_resource_dir: ?[]const u8) !void {
-    const gpa = comp.gpa;
-    const arena = comp.arena;
-    try comp.system_include_dirs.ensureUnusedCapacity(gpa, 1);
-    if (override_resource_dir) |resource_dir| {
-        comp.system_include_dirs.appendAssumeCapacity(try std.fs.path.join(arena, &.{ resource_dir, "include" }));
-        return;
-    }
-    var search_path = aro_dir;
-    while (std.fs.path.dirname(search_path)) |dirname| : (search_path = dirname) {
-        var base_dir = comp.cwd.openDir(dirname, .{}) catch continue;
-        defer base_dir.close();
-
-        base_dir.access("include/stddef.h", .{}) catch continue;
-        comp.system_include_dirs.appendAssumeCapacity(try std.fs.path.join(arena, &.{ dirname, "include" }));
-        break;
-    } else return error.AroIncludeNotFound;
-}
-
-pub fn addSystemIncludeDir(comp: *Compilation, path: []const u8) !void {
-    try comp.system_include_dirs.append(comp.gpa, try comp.arena.dupe(u8, path));
-}
-
 pub fn getSource(comp: *const Compilation, id: Source.Id) Source {
     if (id.alias) {
         return comp.source_aliases.items[@intFromEnum(id.index)];
@@ -1655,6 +1646,127 @@ pub fn addSourceAlias(comp: *Compilation, source: Source.Id, new_path: []const u
     return aliased_source.id;
 }
 
+// Sort and deduplicate a list of includes into a search path.
+pub fn initSearchPath(comp: *Compilation, includes: []const Include, verbose: bool) !void {
+    comp.search_path.clearRetainingCapacity();
+
+    for (includes) |include| {
+        if (include.kind == .quote) {
+            try comp.addToSearchPath(include, verbose);
+        }
+    }
+
+    try comp.removeDuplicateSearchPaths(0, verbose);
+    const quote_count = comp.search_path.items.len;
+
+    for (includes) |include| {
+        if (include.kind == .normal or include.kind == .framework) {
+            try comp.addToSearchPath(include, verbose);
+        }
+    }
+
+    try comp.removeDuplicateSearchPaths(quote_count, verbose);
+
+    for (includes) |include| {
+        if (include.kind == .system or include.kind == .system_framework) {
+            try comp.addToSearchPath(include, verbose);
+        }
+    }
+
+    for (includes) |include| {
+        if (include.kind == .after) {
+            try comp.addToSearchPath(include, verbose);
+        }
+    }
+
+    try comp.removeDuplicateSearchPaths(quote_count, verbose);
+
+    if (verbose) {
+        std.debug.print("#include \"...\" search starts here:\n", .{});
+        for (comp.search_path.items, 0..) |include, i| {
+            if (i == quote_count) {
+                std.debug.print("#include <...> search starts here:\n", .{});
+            }
+            std.debug.print(" {s}{s}\n", .{
+                include.path, if (include.kind.isFramework())
+                    " (framework directory)"
+                else
+                    "",
+            });
+        }
+        std.debug.print("End of search list.\n", .{});
+    }
+}
+fn addToSearchPath(comp: *Compilation, include: Include, verbose: bool) !void {
+    comp.cwd.access(include.path, .{}) catch {
+        if (verbose) {
+            std.debug.print("ignoring nonexistent directory \"{s}\"\n", .{include.path});
+            return;
+        }
+    };
+    try comp.search_path.append(comp.gpa, include);
+}
+fn removeDuplicateSearchPaths(comp: *Compilation, start: usize, verbose: bool) !void {
+    var sf = std.heap.stackFallback(1024, comp.gpa);
+    const allocator = sf.get();
+    var seen_includes: std.StringHashMapUnmanaged(void) = .empty;
+    defer seen_includes.deinit(allocator);
+    var seen_frameworks: std.StringHashMapUnmanaged(void) = .empty;
+    defer seen_frameworks.deinit(allocator);
+
+    var i = start;
+    for (comp.search_path.items[start..]) |include| {
+        if (include.kind.isFramework()) {
+            const gop = try seen_frameworks.getOrPut(allocator, include.path);
+            if (!gop.found_existing) {
+                comp.search_path.items[i] = include;
+                i += 1;
+                continue;
+            }
+        } else {
+            const gop = try seen_frameworks.getOrPut(allocator, include.path);
+            if (!gop.found_existing) {
+                comp.search_path.items[i] = include;
+                i += 1;
+                continue;
+            }
+        }
+
+        var removal_index: ?usize = null;
+
+        // If a normal include is later shadowed by a system include remove
+        // the normal include instead.
+        if (include.kind.isSystem()) {
+            for (comp.search_path.items[start..], start..) |previous, previous_index| {
+                if (previous.kind.isFramework() != include.kind.isFramework()) continue;
+                if (!mem.eql(u8, previous.path, include.path)) continue;
+
+                if (!previous.kind.isSystem()) removal_index = previous_index;
+                break;
+            } else {
+                unreachable; // Didn't find the duplicate
+            }
+        }
+
+        if (verbose) {
+            std.debug.print("ignoring duplicate directory \"{s}\"\n", .{include.path});
+            if (removal_index != null)
+                std.debug.print(" as it is a non-system directory that duplicates a system directory\n", .{});
+        }
+
+        if (removal_index) |ri| {
+            const move_size = i - ri;
+            @memmove(
+                comp.search_path.items[ri..][0..move_size],
+                comp.search_path.items[ri + 1 ..][0..move_size],
+            );
+            comp.search_path.items[i - 1] = include;
+        }
+    }
+
+    comp.search_path.shrinkRetainingCapacity(i);
+}
+
 pub fn hasInclude(
     comp: *Compilation,
     filename: []const u8,
@@ -1733,26 +1845,19 @@ const FindInclude = struct {
                 find.wait_for = std.fs.path.dirname(other_file);
             },
         }
-        switch (include_type) {
-            .quotes, .cli => for (comp.iquote_include_dirs.items) |dir| {
-                if (try find.checkIncludeDir(dir, .user)) |res| return res;
-            },
-            .angle_brackets => {},
-        }
-        for (comp.include_dirs.items) |dir| {
-            if (try find.checkIncludeDir(dir, .user)) |res| return res;
-        }
-        for (comp.framework_dirs.items) |dir| {
-            if (try find.checkFrameworkDir(dir, .user)) |res| return res;
-        }
-        for (comp.system_include_dirs.items) |dir| {
-            if (try find.checkIncludeDir(dir, .system)) |res| return res;
-        }
-        for (comp.system_framework_dirs.items) |dir| {
-            if (try find.checkFrameworkDir(dir, .system)) |res| return res;
-        }
-        for (comp.after_include_dirs.items) |dir| {
-            if (try find.checkIncludeDir(dir, .system)) |res| return res;
+        for (comp.search_path.items) |include| {
+            if (include.kind == .quote) {
+                if (include_type != .angle_brackets) {
+                    if (try find.checkIncludeDir(include.path, .user)) |res| return res;
+                }
+                continue;
+            }
+            const source_kind: Source.Kind = if (include.kind.isSystem()) .system else .user;
+            if (include.kind.isFramework()) {
+                if (try find.checkFrameworkDir(include.path, source_kind)) |res| return res;
+            } else {
+                if (try find.checkIncludeDir(include.path, source_kind)) |res| return res;
+            }
         }
         if (comp.ms_cwd_source_id) |source_id| {
             if (try find.checkMsCwdIncludeDir(source_id)) |res| return res;
@@ -1822,6 +1927,7 @@ const FindInclude = struct {
         const header_path = try std.fmt.allocPrint(sfa, format, args);
         defer sfa.free(header_path);
         find.comp.normalizePath(header_path);
+
         const source = comp.addSourceFromPathExtra(header_path, kind) catch |err| switch (err) {
             error.OutOfMemory => |e| return e,
             else => return null,
