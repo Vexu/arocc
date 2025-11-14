@@ -941,7 +941,7 @@ fn parseTarget(d: *Driver, arch_os_abi: []const u8, opt_cpu_features: ?[]const u
     if (opt_abi_text) |abi_text| {
         var version_str: []const u8 = undefined;
         Target.parseAbi(&query, abi_text, &version_str) catch |er| switch (er) {
-            error.UnknownOs => return d.fatal("unknown ABI '{s}'", .{abi_text}),
+            error.UnknownAbi => return d.fatal("unknown ABI '{s}'", .{abi_text}),
             error.InvalidAbiVersion => return d.fatal("invalid ABI version '{s}'", .{version_str}),
             error.InvalidApiVersion => return d.fatal("invalid Android API version '{s}'", .{version_str}),
         };
@@ -1599,7 +1599,7 @@ pub fn getPICMode(d: *Driver, lastpic: []const u8) Compilation.Error!struct { ba
     // '-fno-...' arguments, both PIC and PIE are disabled. Any PIE
     // option implicitly enables PIC at the same level.
     if (target.os.tag == .windows and
-        !target.isCygwinMinGW() and
+        !target.isMinGW() and
         (eqlIgnoreCase(lastpic, "-fpic") or eqlIgnoreCase(lastpic, "-fpie"))) // -fpic/-fPIC, -fpie/-fPIE
     {
         try d.unsupportedOptionForTarget(target, lastpic);
@@ -1643,6 +1643,7 @@ pub fn getPICMode(d: *Driver, lastpic: []const u8) Compilation.Error!struct { ba
     // generation, independent of the argument order.
     if (kernel_or_kext and
         (!(target.os.tag != .ios) or (target.os.isAtLeast(.ios, .{ .major = 6, .minor = 0, .patch = 0 }) orelse false)) and
+        (!(target.os.tag != .maccatalyst) or (target.os.isAtLeast(.maccatalyst, .{ .major = 6, .minor = 0, .patch = 0 }) orelse false)) and
         !(target.os.tag != .watchos) and
         !(target.os.tag != .driverkit))
     {
