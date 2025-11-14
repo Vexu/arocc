@@ -911,7 +911,7 @@ pub fn isAbi(target: *const Target, query: []const u8) bool {
     const lower = toLower(query, &buf) orelse return false;
     if (std.meta.stringToEnum(Abi, lower)) |some| {
         if (some == .none and target.os.tag == .maccatalyst) {
-            // Clang things maccatalyst has macabi
+            // Clang thinks maccatalyst has macabi
             return false;
         }
         return target.abi == some;
