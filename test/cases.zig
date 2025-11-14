@@ -1,6 +1,7 @@
 const std = @import("std");
 const Io = std.Io;
 const mem = std.mem;
+const print = std.debug.print;
 const process = std.process;
 
 const gpa = std.heap.smp_allocator;
@@ -12,8 +13,7 @@ pub fn main() !void {
 
     const args = try process.argsAlloc(arena);
     if (args.len != 2) {
-        const stderr, _ = std.debug.lockStderrWriter(&.{});
-        stderr.print("Usage: {s} <arocc-exe>", .{args[0]}) catch {};
+        print("Usage: {s} <arocc-exe>", .{args[0]});
         process.exit(1);
     }
 
@@ -31,13 +31,10 @@ pub fn main() !void {
     var group: Io.Group = .init;
     var stats: Stats = .{};
 
-    const root_prog_node = std.Progress.start(.{ .root_name = "test integration" });
-    defer root_prog_node.end();
+    const root_prog_node = std.Progress.start(.{ .root_name = "integration tests" });
 
     var it = dir.iterate();
-    while (it.next() catch |err| {
-        std.debug.panic("failed to walk cases: {t}", .{err});
-    }) |entry| {
+    while (try it.next()) |entry| {
         if (entry.kind != .file) continue;
         root_prog_node.increaseEstimatedTotalItems(1);
         _ = @atomicRmw(u32, &stats.total, .Add, 1, .monotonic);
@@ -45,13 +42,14 @@ pub fn main() !void {
         group.async(io, runCase, .{ io, entry.name, arocc_exe, root_prog_node, &stats });
     }
     group.wait(io);
+    root_prog_node.end();
 
     if (stats.failed == 0 and stats.skipped == 0) {
-        std.debug.print("All {d} tests passed.\n", .{stats.total});
+        print("All {d} tests passed.\n", .{stats.total});
     } else if (stats.failed == 0) {
-        std.debug.print("{d} passed; {d} skipped.\n", .{ stats.total, stats.skipped });
+        print("{d} passed; {d} skipped.\n", .{ stats.total, stats.skipped });
     } else {
-        std.debug.print("{d} passed; {d} failed.\n\n", .{ stats.total, stats.failed });
+        print("{d} passed; {d} failed.\n\n", .{ stats.total, stats.failed });
         std.process.exit(1);
     }
 }
@@ -91,7 +89,7 @@ fn runCaseExtra(
     stats: *Stats,
 ) !void {
     if (!mem.endsWith(u8, filename, ".c")) {
-        std.debug.print("test case is not a .c file: '{s}'\n", .{filename});
+        print("test case is not a .c file: '{s}'\n", .{filename});
         return error.InvalidName;
     }
     const path = try std.fs.path.join(arena, &.{ "test", "cases2", filename });
@@ -139,7 +137,7 @@ fn runCaseExtra(
         const term = try child.wait();
         if (term != .Exited) {
             const cmd = try mem.join(arena, " ", args.items);
-            std.debug.print("arocc command crashed:\n{s}\n", .{cmd});
+            print("arocc command crashed:\n{s}\n", .{cmd});
             return error.Crashed;
         }
     }
@@ -150,7 +148,7 @@ fn runCaseExtra(
 
             for (expected_errors) |expected| {
                 if (mem.indexOf(u8, actual_errors, expected) == null) {
-                    std.debug.print(
+                    print(
                         \\
                         \\======= expected to find error =======
                         \\{s}
@@ -173,7 +171,7 @@ fn runCaseExtra(
                     for (expected_errors) |expected| {
                         if (mem.indexOf(u8, expected, actual) != null) break;
                     } else {
-                        std.debug.print(
+                        print(
                             \\
                             \\========= new error ==========
                             \\{s}
@@ -198,7 +196,7 @@ fn runCaseExtra(
 
                 try std.testing.expectEqualStrings(expected, stdout);
             } else |err| if (err != error.FileNotFound) {
-                std.debug.print("can't open ast file '{s}': {t}\n", .{ ast_path, err });
+                print("can't open ast file '{s}': {t}\n", .{ ast_path, err });
                 return err;
             }
         },
@@ -210,7 +208,7 @@ fn runCaseExtra(
 
                 try std.testing.expectEqualStrings(expected, stdout);
             } else |err| if (err != error.FileNotFound) {
-                std.debug.print("can't open expanded file '{s}': {t}\n", .{ expanded_path, err });
+                print("can't open expanded file '{s}': {t}\n", .{ expanded_path, err });
                 return err;
             }
         },
@@ -221,14 +219,14 @@ fn runCaseExtra(
 
                 try std.testing.expectStringEndsWith(stdout, expected);
             } else |err| if (err != error.FileNotFound) {
-                std.debug.print("can't open expanded file '{s}': {t}\n", .{ expanded_path, err });
+                print("can't open expanded file '{s}': {t}\n", .{ expanded_path, err });
                 return err;
             }
         },
     }
 
     if (case.skipped != 0) {
-        std.debug.print("{s}: {d} test{s} skipped\n", .{ case.name, case.skipped, if (case.skipped == 1) @as([]const u8, "") else "s" });
+        print("{s}: {d} test{s} skipped\n", .{ case.name, case.skipped, if (case.skipped == 1) @as([]const u8, "") else "s" });
         _ = @atomicRmw(u32, &stats.skipped, .Add, case.skipped, .monotonic);
     }
 }
@@ -275,7 +273,7 @@ fn caseFromFile(io: Io, arena: mem.Allocator, path: []const u8) !Case {
             } else break;
         }
         const manifest_start = start orelse {
-            std.debug.print("{s}: no test manifest\n", .{name});
+            print("{s}: no test manifest\n", .{name});
             return error.TestManifestMissing;
         };
         break :manifest bytes[manifest_start..];
@@ -291,7 +289,7 @@ fn caseFromFile(io: Io, arena: mem.Allocator, path: []const u8) !Case {
         const line = it.next() orelse return error.TestManifestMissingType;
         const trimmed = mem.trim(u8, line[2..], " \t");
         break :kind std.meta.stringToEnum(std.meta.Tag(Case.Kind), trimmed) orelse {
-            std.debug.print("{s}: invalid test case type: {s}\n", .{ name, trimmed });
+            print("{s}: invalid test case type: {s}\n", .{ name, trimmed });
             return error.TestManifestInvalidType;
         };
     };
@@ -301,12 +299,12 @@ fn caseFromFile(io: Io, arena: mem.Allocator, path: []const u8) !Case {
         if (trimmed.len == 0) break; // Start of trailing data.
 
         const key, const value = mem.cutScalar(u8, trimmed, '=') orelse {
-            std.debug.print("{s}: missing value for config option: {s}\n", .{ name, trimmed });
+            print("{s}: missing value for config option: {s}\n", .{ name, trimmed });
             return error.TestManifestMissingValue;
         };
         if (mem.eql(u8, key, "skipped")) {
             skipped = std.fmt.parseInt(u32, value, 10) catch |err| {
-                std.debug.print("{s}: invalid skipped '{s}': {t}\n", .{ name, trimmed, err });
+                print("{s}: invalid skipped '{s}': {t}\n", .{ name, trimmed, err });
                 return err;
             };
         } else if (mem.eql(u8, key, "args")) {
@@ -325,14 +323,14 @@ fn caseFromFile(io: Io, arena: mem.Allocator, path: []const u8) !Case {
             var env_it = mem.tokenizeScalar(u8, value, ' ');
             while (env_it.next()) |env_kv| {
                 const env_k, const env_v = mem.cutScalar(u8, env_kv, '=') orelse {
-                    std.debug.print("{s}: invalid env key value pair: {s}\n", .{ name, env_kv });
+                    print("{s}: invalid env key value pair: {s}\n", .{ name, env_kv });
                     continue;
                 };
                 try buf.append(gpa, .{ .key = env_k, .value = env_v });
             }
             env = try arena.dupe(Case.KV, buf.items);
         } else {
-            std.debug.print("{s}: unknown config option: {s}\n", .{ name, key });
+            print("{s}: unknown config option: {s}\n", .{ name, key });
             return error.TestManifestUnknownOption;
         }
     }

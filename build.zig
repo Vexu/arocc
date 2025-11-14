@@ -314,11 +314,6 @@ pub fn build(b: *Build) !void {
                 .optimize = .ReleaseFast,
             }),
         });
-        const test_runner_options = b.addOptions();
-        integration_tests.root_module.addOptions("build_options", test_runner_options);
-        test_runner_options.addOption(bool, "test_all_allocation_failures", test_all_allocation_failures);
-        test_runner_options.addOption(bool, "debug_allocations", debug_allocations);
-
         const integration_test_runner = b.addRunArtifact(integration_tests);
         integration_test_runner.addArtifactArg(exe);
 
