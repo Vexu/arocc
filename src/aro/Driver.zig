@@ -48,6 +48,8 @@ diagnostics: *Diagnostics,
 inputs: std.ArrayList(Source) = .empty,
 imacros: std.ArrayList(Source) = .empty,
 implicit_includes: std.ArrayList(Source) = .empty,
+/// List of includes that will be used to construct the compilation's search path
+includes: std.ArrayList(Compilation.Include) = .empty,
 link_objects: std.ArrayList([]const u8) = .empty,
 output_name: ?[]const u8 = null,
 sysroot: ?[]const u8 = null,
@@ -66,6 +68,7 @@ verbose_ast: bool = false,
 verbose_pp: bool = false,
 verbose_ir: bool = false,
 verbose_linker_args: bool = false,
+verbose_search_path: bool = false,
 nobuiltininc: bool = false,
 nostdinc: bool = false,
 nostdlibinc: bool = false,
@@ -137,6 +140,7 @@ pub fn deinit(d: *Driver) void {
     d.inputs.deinit(d.comp.gpa);
     d.imacros.deinit(d.comp.gpa);
     d.implicit_includes.deinit(d.comp.gpa);
+    d.includes.deinit(d.comp.gpa);
     d.link_objects.deinit(d.comp.gpa);
     d.* = undefined;
 }
@@ -284,6 +288,8 @@ pub fn parseArgs(
     macro_buf: *std.ArrayList(u8),
     args: []const []const u8,
 ) (Compilation.Error || std.Io.Writer.Error)!bool {
+    const gpa = d.comp.gpa;
+
     var i: usize = 1;
     var comment_arg: []const u8 = "";
     var hosted: ?bool = null;
@@ -320,7 +326,7 @@ pub fn parseArgs(
                     value = macro[some + 1 ..];
                     macro = macro[0..some];
                 }
-                try macro_buf.print(d.comp.gpa, "#define {s} {s}\n", .{ macro, value });
+                try macro_buf.print(gpa, "#define {s} {s}\n", .{ macro, value });
             } else if (mem.startsWith(u8, arg, "-U")) {
                 var macro = arg["-U".len..];
                 if (macro.len == 0) {
@@ -331,7 +337,7 @@ pub fn parseArgs(
                     }
                     macro = args[i];
                 }
-                try macro_buf.print(d.comp.gpa, "#undef {s}\n", .{macro});
+                try macro_buf.print(gpa, "#undef {s}\n", .{macro});
             } else if (mem.eql(u8, arg, "-O")) {
                 d.comp.code_gen_options.optimization_level = .@"1";
             } else if (mem.startsWith(u8, arg, "-O")) {
@@ -525,7 +531,7 @@ pub fn parseArgs(
                     }
                     path = args[i];
                 }
-                try d.comp.include_dirs.append(d.comp.gpa, path);
+                try d.includes.append(gpa, .{ .kind = .normal, .path = path });
             } else if (mem.startsWith(u8, arg, "-idirafter")) {
                 var path = arg["-idirafter".len..];
                 if (path.len == 0) {
@@ -536,7 +542,7 @@ pub fn parseArgs(
                     }
                     path = args[i];
                 }
-                try d.comp.after_include_dirs.append(d.comp.gpa, path);
+                try d.includes.append(gpa, .{ .kind = .after, .path = path });
             } else if (mem.startsWith(u8, arg, "-isystem")) {
                 var path = arg["-isystem".len..];
                 if (path.len == 0) {
@@ -547,7 +553,7 @@ pub fn parseArgs(
                     }
                     path = args[i];
                 }
-                try d.comp.system_include_dirs.append(d.comp.gpa, path);
+                try d.includes.append(gpa, .{ .kind = .system, .path = path });
             } else if (mem.startsWith(u8, arg, "-iquote")) {
                 var path = arg["-iquote".len..];
                 if (path.len == 0) {
@@ -558,7 +564,7 @@ pub fn parseArgs(
                     }
                     path = args[i];
                 }
-                try d.comp.iquote_include_dirs.append(d.comp.gpa, path);
+                try d.includes.append(gpa, .{ .kind = .quote, .path = path });
             } else if (mem.startsWith(u8, arg, "-F")) {
                 var path = arg["-F".len..];
                 if (path.len == 0) {
@@ -569,7 +575,7 @@ pub fn parseArgs(
                     }
                     path = args[i];
                 }
-                try d.comp.framework_dirs.append(d.comp.gpa, path);
+                try d.includes.append(gpa, .{ .kind = .framework, .path = path });
             } else if (mem.startsWith(u8, arg, "-iframework")) {
                 var path = arg["-iframework".len..];
                 if (path.len == 0) {
@@ -580,7 +586,7 @@ pub fn parseArgs(
                     }
                     path = args[i];
                 }
-                try d.comp.system_framework_dirs.append(d.comp.gpa, path);
+                try d.includes.append(gpa, .{ .kind = .system_framework, .path = path });
             } else if (option(arg, "-include") orelse option(arg, "--include")) |implicit_include| {
                 try d.addImplicitInclude(implicit_include);
             } else if (mem.eql(u8, arg, "-include") or mem.eql(u8, arg, "--include")) {
@@ -600,7 +606,7 @@ pub fn parseArgs(
                 }
                 try d.addImacros(args[i]);
             } else if (option(arg, "--embed-dir=")) |path| {
-                try d.comp.embed_dirs.append(d.comp.gpa, path);
+                try d.comp.embed_dirs.append(gpa, path);
             } else if (option(arg, "--emulate=")) |compiler_str| {
                 const compiler = std.meta.stringToEnum(LangOpts.Compiler, compiler_str) orelse {
                     try d.err("invalid compiler '{s}'", .{arg});
@@ -627,6 +633,9 @@ pub fn parseArgs(
                 d.output_name = file;
             } else if (option(arg, "--sysroot=")) |sysroot| {
                 d.sysroot = sysroot;
+            } else if (mem.eql(u8, arg, "-Wp,-v")) {
+                // TODO this is not how this argument should work
+                d.verbose_search_path = true;
             } else if (mem.eql(u8, arg, "-pedantic")) {
                 d.diagnostics.state.extensions = .warning;
             } else if (mem.eql(u8, arg, "-pedantic-errors")) {
@@ -783,12 +792,12 @@ pub fn parseArgs(
                 try d.warn("unknown argument '{s}'", .{arg});
             }
         } else if (std.mem.endsWith(u8, arg, ".o") or std.mem.endsWith(u8, arg, ".obj")) {
-            try d.link_objects.append(d.comp.gpa, arg);
+            try d.link_objects.append(gpa, arg);
         } else {
             const source = d.addSource(arg) catch |er| {
                 return d.fatal("unable to add source file '{s}': {s}", .{ arg, errorDescription(er) });
             };
-            try d.inputs.append(d.comp.gpa, source);
+            try d.inputs.append(gpa, source);
         }
     }
     {
@@ -1137,8 +1146,9 @@ pub fn main(d: *Driver, tc: *Toolchain, args: []const []const u8, comptime fast_
     };
     tc.defineSystemIncludes() catch |er| switch (er) {
         error.OutOfMemory => return error.OutOfMemory,
-        error.AroIncludeNotFound => return d.fatal("unable to find Aro builtin headers", .{}),
+        error.FatalError => return error.FatalError,
     };
+    try d.comp.initSearchPath(d.includes.items, d.verbose_search_path);
 
     const builtin_macros = d.comp.generateBuiltinMacros(d.system_defines) catch |er| switch (er) {
         error.FileTooBig => return d.fatal("builtin macro source exceeded max size", .{}),
@@ -1271,6 +1281,7 @@ fn processSource(
     comptime fast_exit: bool,
     asm_gen_fn: ?AsmCodeGenFn,
 ) !void {
+    const gpa = d.comp.gpa;
     d.comp.generated_buf.items.len = 0;
     const prev_total = d.diagnostics.errors;
 
@@ -1279,7 +1290,7 @@ fn processSource(
 
     var name_buf: [std.fs.max_name_bytes]u8 = undefined;
     var opt_dep_file = try d.initDepFile(source, &name_buf);
-    defer if (opt_dep_file) |*dep_file| dep_file.deinit(d.comp.gpa);
+    defer if (opt_dep_file) |*dep_file| dep_file.deinit(gpa);
 
     if (opt_dep_file) |*dep_file| pp.dep_file = dep_file;
 
@@ -1387,7 +1398,7 @@ fn processSource(
         );
 
         const assembly = try asm_fn(d.comp.target.toZigTarget(), &tree);
-        defer assembly.deinit(d.comp.gpa);
+        defer assembly.deinit(gpa);
 
         if (d.only_preprocess_and_compile) {
             const out_file = d.comp.cwd.createFile(out_file_name, .{}) catch |er|
@@ -1416,20 +1427,20 @@ fn processSource(
         }
     } else {
         var ir = try tree.genIr();
-        defer ir.deinit(d.comp.gpa);
+        defer ir.deinit(gpa);
 
         if (d.verbose_ir) {
             var stdout = std.fs.File.stdout().writer(&writer_buf);
-            ir.dump(d.comp.gpa, d.detectConfig(stdout.file), &stdout.interface) catch {};
+            ir.dump(gpa, d.detectConfig(stdout.file), &stdout.interface) catch {};
         }
 
         var render_errors: Ir.Renderer.ErrorList = .{};
         defer {
-            for (render_errors.values()) |msg| d.comp.gpa.free(msg);
-            render_errors.deinit(d.comp.gpa);
+            for (render_errors.values()) |msg| gpa.free(msg);
+            render_errors.deinit(gpa);
         }
 
-        var obj = ir.render(d.comp.gpa, d.comp.target.toZigTarget(), &render_errors) catch |e| switch (e) {
+        var obj = ir.render(gpa, d.comp.target.toZigTarget(), &render_errors) catch |e| switch (e) {
             error.OutOfMemory => return error.OutOfMemory,
             error.LowerFail => {
                 return d.fatal(
@@ -1453,8 +1464,8 @@ fn processSource(
         if (fast_exit) std.process.exit(0); // Not linking, no need for cleanup.
         return;
     }
-    try d.link_objects.ensureUnusedCapacity(d.comp.gpa, 1);
-    d.link_objects.appendAssumeCapacity(try d.comp.gpa.dupe(u8, out_file_name));
+    try d.link_objects.ensureUnusedCapacity(gpa, 1);
+    d.link_objects.appendAssumeCapacity(try gpa.dupe(u8, out_file_name));
     d.temp_file_count += 1;
     if (fast_exit) {
         try d.invokeLinker(tc, fast_exit);

@@ -24,10 +24,12 @@ const AddCommandLineArgsResult = struct {
     aro.Preprocessor.DumpMode,
     std.ArrayList(aro.Source),
     std.ArrayList(aro.Source),
+    std.ArrayList(aro.Compilation.Include),
 };
 
 /// Returns only_preprocess and line_markers settings if saw -E
 fn addCommandLineArgs(comp: *aro.Compilation, file: aro.Source, macro_buf: *std.ArrayListUnmanaged(u8)) !AddCommandLineArgsResult {
+    var includes: std.ArrayList(aro.Compilation.Include) = .empty;
     var imacros: std.ArrayList(aro.Source) = .empty;
     var implicit_includes: std.ArrayList(aro.Source) = .empty;
     var only_preprocess = false;
@@ -57,6 +59,7 @@ fn addCommandLineArgs(comp: *aro.Compilation, file: aro.Source, macro_buf: *std.
         }
         imacros = .fromOwnedSlice(try driver.imacros.toOwnedSlice(comp.gpa));
         implicit_includes = .fromOwnedSlice(try driver.implicit_includes.toOwnedSlice(comp.gpa));
+        includes = .fromOwnedSlice(try driver.includes.toOwnedSlice(comp.gpa));
     }
     if (std.mem.indexOf(u8, file.buf, "//aro-env")) |idx| {
         const buf = file.buf[idx..];
@@ -74,7 +77,7 @@ fn addCommandLineArgs(comp: *aro.Compilation, file: aro.Source, macro_buf: *std.
         }
     }
 
-    return .{ only_preprocess, line_markers, system_defines, dump_mode, imacros, implicit_includes };
+    return .{ only_preprocess, line_markers, system_defines, dump_mode, imacros, implicit_includes, includes };
 }
 
 fn testOne(gpa: std.mem.Allocator, path: []const u8, test_dir: []const u8) !void {
@@ -91,7 +94,7 @@ fn testOne(gpa: std.mem.Allocator, path: []const u8, test_dir: []const u8) !void
     var macro_buf = std.ArrayList(u8).init(comp.gpa);
     defer macro_buf.deinit();
 
-    _, _, const system_defines, _ = try addCommandLineArgs(&comp, file, macro_buf.writer());
+    _, _, const system_defines, _, _ = try addCommandLineArgs(&comp, file, macro_buf.writer());
     const user_macros = try comp.addSourceFromBuffer("<command line>", macro_buf.items);
 
     const builtin_macros = try comp.generateBuiltinMacros(system_defines);
@@ -199,32 +202,23 @@ pub fn main() !void {
     var initial_comp = aro.Compilation.init(gpa, arena, std.testing.io, &diagnostics, std.fs.cwd());
     defer initial_comp.deinit();
 
-    // Intentional reduntant and mixed-separator path for Windows-specific tests
-    const cases_mixed_include_dir = try std.fs.path.join(arena, &.{ args[1], "include//mixed" });
-    try initial_comp.include_dirs.append(gpa, cases_mixed_include_dir);
+    const base_includes = [_]aro.Compilation.Include{
+        // Aro builtin includes
+        .{ .kind = .system, .path = "include" },
 
-    const cases_include_dir = try std.fs.path.join(arena, &.{ args[1], "include" });
-    try initial_comp.include_dirs.append(gpa, cases_include_dir);
-    try initial_comp.embed_dirs.append(gpa, cases_include_dir);
+        // Intentional reduntant and mixed-separator path for Windows-specific tests
+        .{ .kind = .normal, .path = try std.fs.path.join(arena, &.{ args[1], "include//mixed" }) },
+        .{ .kind = .normal, .path = try std.fs.path.join(arena, &.{ args[1], "include" }) },
+        .{ .kind = .normal, .path = try std.fs.path.join(arena, &.{ args[1], "include", "next" }) },
+        .{ .kind = .system, .path = try std.fs.path.join(arena, &.{ args[1], "include_system" }) },
+        .{ .kind = .system, .path = try std.fs.path.join(arena, &.{ args[1], "include_system", "next" }) },
+        .{ .kind = .framework, .path = try std.fs.path.join(arena, &.{ args[1], "frameworks" }) },
+        .{ .kind = .quote, .path = try std.fs.path.join(arena, &.{ args[1], "include", "iquote" }) },
+        .{ .kind = .system, .path = try std.fs.path.resolve(initial_comp.arena, &.{ test_dir, "../../include" }) },
+    };
 
-    const cases_next_include_dir = try std.fs.path.join(arena, &.{ args[1], "include", "next" });
-    try initial_comp.include_dirs.append(gpa, cases_next_include_dir);
-    try initial_comp.embed_dirs.append(gpa, cases_next_include_dir);
-
-    const cases_system_include_dir = try std.fs.path.join(arena, &.{ args[1], "include_system" });
-    try initial_comp.system_include_dirs.append(gpa, cases_system_include_dir);
-
-    const cases_system_next_include_dir = try std.fs.path.join(arena, &.{ args[1], "include_system", "next" });
-    try initial_comp.system_include_dirs.append(gpa, cases_system_next_include_dir);
-
-    const cases_frameworks_dir = try std.fs.path.join(arena, &.{ args[1], "frameworks" });
-    try initial_comp.framework_dirs.append(gpa, cases_frameworks_dir);
-
-    const cases_iquote_dir = try std.fs.path.join(arena, &.{ args[1], "include", "iquote" });
-    try initial_comp.iquote_include_dirs.append(gpa, cases_iquote_dir);
-
+    try initial_comp.embed_dirs.append(gpa, try std.fs.path.join(arena, &.{ args[1], "embed" }));
     try initial_comp.addDefaultPragmaHandlers();
-    try initial_comp.addBuiltinIncludeDir(test_dir, null);
 
     // iterate over all cases
     var ok_count: u32 = 0;
@@ -242,12 +236,6 @@ pub fn main() !void {
         var comp = initial_comp;
         defer {
             // preserve some values
-            comp.include_dirs = .{};
-            comp.iquote_include_dirs = .{};
-            comp.system_include_dirs = .{};
-            comp.after_include_dirs = .{};
-            comp.framework_dirs = .{};
-            comp.system_framework_dirs = .{};
             comp.embed_dirs = .{};
             comp.pragma_handlers = .{};
             comp.environment = .{};
@@ -268,9 +256,18 @@ pub fn main() !void {
         var macro_buf: std.ArrayListUnmanaged(u8) = .empty;
         defer macro_buf.deinit(comp.gpa);
 
-        const only_preprocess, const linemarkers, const system_defines, const dump_mode, var imacros, var implicit_includes = try addCommandLineArgs(&comp, file, &macro_buf);
+        const only_preprocess, const linemarkers, const system_defines, const dump_mode, var imacros, var implicit_includes, var includes = try addCommandLineArgs(&comp, file, &macro_buf);
         defer imacros.deinit(comp.gpa);
         defer implicit_includes.deinit(comp.gpa);
+        defer includes.deinit(comp.gpa);
+
+        if (includes.items.len != 0) {
+            try includes.appendSlice(comp.gpa, &base_includes);
+            try comp.initSearchPath(includes.items, false);
+        } else {
+            try comp.initSearchPath(&base_includes, false);
+        }
+
         const user_macros = try comp.addSourceFromBuffer("<command line>", macro_buf.items);
 
         const builtin_macros = try comp.generateBuiltinMacros(system_defines);

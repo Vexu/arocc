@@ -512,16 +512,47 @@ pub fn defineSystemIncludes(tc: *Toolchain) !void {
         .unknown => {
             if (tc.driver.nostdinc) return;
 
-            const comp = tc.driver.comp;
             if (!tc.driver.nobuiltininc) {
-                try comp.addBuiltinIncludeDir(tc.driver.aro_name, tc.driver.resource_dir);
+                try tc.addBuiltinIncludeDir();
             }
 
             if (!tc.driver.nostdlibinc) {
-                try comp.addSystemIncludeDir("/usr/include");
+                try tc.addSystemIncludeDir("/usr/include");
             }
         },
     };
+}
+
+pub fn addSystemIncludeDir(tc: *const Toolchain, path: []const u8) !void {
+    const d = tc.driver;
+    _ = try d.includes.append(d.comp.gpa, .{ .kind = .system, .path = try d.comp.arena.dupe(u8, path) });
+}
+
+/// Add built-in aro headers directory to system include paths
+pub fn addBuiltinIncludeDir(tc: *const Toolchain) !void {
+    const d = tc.driver;
+    const comp = d.comp;
+    const gpa = comp.gpa;
+    const arena = comp.arena;
+    try d.includes.ensureUnusedCapacity(gpa, 1);
+    if (d.resource_dir) |resource_dir| {
+        const path = try std.fs.path.join(arena, &.{ resource_dir, "include" });
+        comp.cwd.access(path, .{}) catch {
+            return d.fatal("Aro builtin headers not found in provided -resource-dir", .{});
+        };
+        d.includes.appendAssumeCapacity(.{ .kind = .system, .path = path });
+        return;
+    }
+    var search_path = d.aro_name;
+    while (std.fs.path.dirname(search_path)) |dirname| : (search_path = dirname) {
+        var base_dir = d.comp.cwd.openDir(dirname, .{}) catch continue;
+        defer base_dir.close();
+
+        base_dir.access("include/stddef.h", .{}) catch continue;
+        const path = try std.fs.path.join(arena, &.{ dirname, "include" });
+        d.includes.appendAssumeCapacity(.{ .kind = .system, .path = path });
+        break;
+    } else return d.fatal("unable to find Aro builtin headers", .{});
 }
 
 /// Read the file at `path` into `buf`.
