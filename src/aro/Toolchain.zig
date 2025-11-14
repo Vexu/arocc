@@ -442,7 +442,7 @@ fn addUnwindLibrary(tc: *const Toolchain, argv: *std.ArrayList([]const u8)) !voi
         unw == .none) return;
 
     const lgk = tc.getLibGCCKind();
-    const as_needed = lgk == .unspecified and !target.abi.isAndroid() and !target.isCygwinMinGW();
+    const as_needed = lgk == .unspecified and !target.abi.isAndroid() and !target.isMinGW();
 
     try argv.ensureUnusedCapacity(tc.driver.comp.gpa, 3);
     if (as_needed) {
@@ -454,7 +454,7 @@ fn addUnwindLibrary(tc: *const Toolchain, argv: *std.ArrayList([]const u8)) !voi
         .compiler_rt => if (lgk == .static) {
             argv.appendAssumeCapacity("-l:libunwind.a");
         } else if (lgk == .shared) {
-            if (target.isCygwinMinGW()) {
+            if (target.isMinGW()) {
                 argv.appendAssumeCapacity("-l:libunwind.dll.a");
             } else {
                 argv.appendAssumeCapacity("-l:libunwind.so");
