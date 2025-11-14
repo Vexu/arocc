@@ -645,10 +645,6 @@ pub fn isWindowsMSVCEnvironment(target: *const Target) bool {
     return target.os.tag == .windows and (target.abi == .msvc or target.abi == .none);
 }
 
-pub fn isCygwinMinGW(target: *const Target) bool {
-    return target.os.tag == .windows and (target.abi == .gnu or target.abi == .cygnus);
-}
-
 pub fn isMinGW(target: *const Target) bool {
     return target.os.tag == .windows and target.abi.isGnu();
 }
@@ -910,6 +906,22 @@ pub fn parseAbiName(query: []const u8) ?Abi {
     return std.meta.stringToEnum(Abi, lower);
 }
 
+pub fn isAbi(target: *const Target, query: []const u8) bool {
+    var buf: [64]u8 = undefined;
+    const lower = toLower(query, &buf) orelse return false;
+    if (std.meta.stringToEnum(Abi, lower)) |some| {
+        if (some == .none and target.os.tag == .maccatalyst) {
+            // Clang thinks maccatalyst has macabi
+            return false;
+        }
+        return target.abi == some;
+    }
+    if (mem.eql(u8, lower, "macabi")) {
+        return target.os.tag == .maccatalyst;
+    }
+    return false;
+}
+
 pub fn defaultFpEvalMethod(target: *const Target) LangOpts.FPEvalMethod {
     switch (target.cpu.arch) {
         .x86, .x86_64 => {
@@ -932,7 +944,6 @@ pub fn defaultFpEvalMethod(target: *const Target) LangOpts.FPEvalMethod {
 /// Value of the `-m` flag for `ld` for this target
 pub fn ldEmulationOption(target: *const Target, arm_endianness: ?std.builtin.Endian) ?[]const u8 {
     return switch (target.cpu.arch) {
-        .x86 => "elf_i386",
         .arm,
         .armeb,
         .thumb,
@@ -943,19 +954,11 @@ pub fn ldEmulationOption(target: *const Target, arm_endianness: ?std.builtin.End
         },
         .aarch64 => "aarch64linux",
         .aarch64_be => "aarch64linuxb",
-        .m68k => "m68kelf",
-        .powerpc => if (target.os.tag == .linux) "elf32ppclinux" else "elf32ppc",
-        .powerpcle => if (target.os.tag == .linux) "elf32lppclinux" else "elf32lppc",
-        .powerpc64 => "elf64ppc",
-        .powerpc64le => "elf64lppc",
-        .riscv32 => "elf32lriscv",
-        .riscv64 => "elf64lriscv",
-        .sparc => "elf32_sparc",
-        .sparc64 => "elf64_sparc",
+        .csky => "cskyelf_linux",
         .loongarch32 => "elf32loongarch",
         .loongarch64 => "elf64loongarch",
+        .m68k => "m68kelf",
         .mips => "elf32btsmip",
-        .mipsel => "elf32ltsmip",
         .mips64 => switch (target.abi) {
             .gnuabin32, .muslabin32 => "elf32btsmipn32",
             else => "elf64btsmip",
@@ -964,12 +967,21 @@ pub fn ldEmulationOption(target: *const Target, arm_endianness: ?std.builtin.End
             .gnuabin32, .muslabin32 => "elf32ltsmipn32",
             else => "elf64ltsmip",
         },
+        .mipsel => "elf32ltsmip",
+        .powerpc => if (target.os.tag == .linux) "elf32ppclinux" else "elf32ppc",
+        .powerpc64 => "elf64ppc",
+        .powerpc64le => "elf64lppc",
+        .powerpcle => if (target.os.tag == .linux) "elf32lppclinux" else "elf32lppc",
+        .riscv32 => "elf32lriscv",
+        .riscv64 => "elf64lriscv",
+        .sparc => "elf32_sparc",
+        .sparc64 => "elf64_sparc",
+        .ve => "elf64ve",
+        .x86 => "elf_i386",
         .x86_64 => switch (target.abi) {
             .gnux32, .muslx32 => "elf32_x86_64",
             else => "elf_x86_64",
         },
-        .ve => "elf64ve",
-        .csky => "cskyelf_linux",
         else => null,
     };
 }
@@ -982,6 +994,7 @@ pub fn get32BitArchVariant(target: *const Target) ?Target {
         .avr,
         .bpfeb,
         .bpfel,
+        .kvx,
         .msp430,
         .s390x,
         .ve,
@@ -1072,6 +1085,7 @@ pub fn get64BitArchVariant(target: *const Target) ?Target {
         .bpfeb,
         .bpfel,
         .hppa64,
+        .kvx,
         .loongarch64,
         .mips64,
         .mips64el,
@@ -1118,109 +1132,112 @@ pub fn toLLVMTriple(target: *const Target, buf: []u8) []const u8 {
     var writer: std.Io.Writer = .fixed(buf);
 
     const llvm_arch = switch (target.cpu.arch) {
-        .arm => "arm",
-        .armeb => "armeb",
         .aarch64 => if (target.abi == .ilp32) "aarch64_32" else "aarch64",
         .aarch64_be => "aarch64_be",
+        .amdgcn => "amdgcn",
         .arc => "arc",
+        .arm => "arm",
+        .armeb => "armeb",
         .avr => "avr",
-        .bpfel => "bpfel",
         .bpfeb => "bpfeb",
+        .bpfel => "bpfel",
         .csky => "csky",
         .hexagon => "hexagon",
+        .lanai => "lanai",
         .loongarch32 => "loongarch32",
         .loongarch64 => "loongarch64",
         .m68k => "m68k",
         .mips => "mips",
-        .mipsel => "mipsel",
         .mips64 => "mips64",
         .mips64el => "mips64el",
+        .mipsel => "mipsel",
         .msp430 => "msp430",
+        .nvptx => "nvptx",
+        .nvptx64 => "nvptx64",
         .powerpc => "powerpc",
-        .powerpcle => "powerpcle",
         .powerpc64 => "powerpc64",
         .powerpc64le => "powerpc64le",
-        .amdgcn => "amdgcn",
+        .powerpcle => "powerpcle",
         .riscv32 => "riscv32",
         .riscv32be => "riscv32be",
         .riscv64 => "riscv64",
         .riscv64be => "riscv64be",
+        .s390x => "s390x",
         .sparc => "sparc",
         .sparc64 => "sparc64",
-        .s390x => "s390x",
+        .spirv32 => "spirv32",
+        .spirv64 => "spirv64",
         .thumb => "thumb",
         .thumbeb => "thumbeb",
+        .ve => "ve",
+        .wasm32 => "wasm32",
+        .wasm64 => "wasm64",
         .x86 => "i386",
         .x86_64 => "x86_64",
         .xcore => "xcore",
         .xtensa => "xtensa",
-        .nvptx => "nvptx",
-        .nvptx64 => "nvptx64",
-        .spirv32 => "spirv32",
-        .spirv64 => "spirv64",
-        .lanai => "lanai",
-        .wasm32 => "wasm32",
-        .wasm64 => "wasm64",
-        .ve => "ve",
+
         // Note: these are not supported in LLVM; this is the Zig arch name
-        .kalimba => "kalimba",
-        .propeller => "propeller",
-        .or1k => "or1k",
         .alpha => "alpha",
         .arceb => "arceb",
         .hppa => "hppa",
         .hppa64 => "hppa64",
+        .kalimba => "kalimba",
+        .kvx => "kvx",
         .microblaze => "microblaze",
         .microblazeel => "microblazeel",
+        .or1k => "or1k",
+        .propeller => "propeller",
         .sh => "sh",
         .sheb => "sheb",
-        .xtensaeb => "xtensaeb",
         .x86_16 => "i86",
+        .xtensaeb => "xtensaeb",
     };
     writer.writeAll(llvm_arch) catch unreachable;
     writer.writeByte('-') catch unreachable;
 
     const llvm_os = switch (target.os.tag) {
-        .freestanding => "unknown",
-        .dragonfly => "dragonfly",
-        .freebsd => "freebsd",
-        .fuchsia => "fuchsia",
-        .linux => "linux",
-        .ps3 => "lv2",
-        .netbsd => "netbsd",
-        .openbsd => "openbsd",
-        .illumos => "illumos",
-        .windows => "windows",
-        .haiku => "haiku",
-        .rtems => "rtems",
-        .cuda => "cuda",
-        .nvcl => "nvcl",
         .amdhsa => "amdhsa",
-        .ps4 => "ps4",
-        .ps5 => "ps5",
-        .mesa3d => "mesa3d",
-        .contiki => "contiki",
         .amdpal => "amdpal",
+        .contiki => "contiki",
+        .cuda => "cuda",
+        .dragonfly => "dragonfly",
+        .driverkit => "driverkit",
+        .emscripten => "emscripten",
+        .freebsd => "freebsd",
+        .freestanding => "unknown",
+        .fuchsia => "fuchsia",
+        .haiku => "haiku",
         .hermit => "hermit",
         .hurd => "hurd",
-        .wasi => "wasi",
-        .emscripten => "emscripten",
-        .uefi => "windows",
+        .illumos => "illumos",
+        .ios, .maccatalyst => "ios",
+        .linux => "linux",
         .macos => "macosx",
-        .ios => "ios",
-        .tvos => "tvos",
-        .watchos => "watchos",
-        .driverkit => "driverkit",
-        .visionos => "xros",
-        .serenity => "serenity",
-        .vulkan => "vulkan",
         .managarm => "managarm",
+        .mesa3d => "mesa3d",
+        .netbsd => "netbsd",
+        .nvcl => "nvcl",
+        .openbsd => "openbsd",
+        .ps3 => "lv2",
+        .ps4 => "ps4",
+        .ps5 => "ps5",
+        .rtems => "rtems",
+        .serenity => "serenity",
+        .tvos => "tvos",
+        .uefi => "windows",
+        .visionos => "xros",
+        .vulkan => "vulkan",
+        .wasi => "wasi",
+        .watchos => "watchos",
+        .windows => "windows",
+
         .@"3ds",
-        .vita,
         .opencl,
         .opengl,
-        .plan9,
         .other,
+        .plan9,
+        .vita,
         => "unknown",
     };
     writer.writeAll(llvm_os) catch unreachable;
@@ -1236,35 +1253,35 @@ pub fn toLLVMTriple(target: *const Target, buf: []u8) []const u8 {
     writer.writeByte('-') catch unreachable;
 
     const llvm_abi = switch (target.abi) {
-        .none, .ilp32 => "unknown",
+        .none => if (target.os.tag == .maccatalyst) "macabi" else "unknown",
+        .ilp32 => "unknown",
+
+        .android => "android",
+        .androideabi => "androideabi",
+        .code16 => "code16",
+        .eabi => "eabi",
+        .eabihf => "eabihf",
         .gnu => "gnu",
-        .gnuabin32 => "gnuabin32",
         .gnuabi64 => "gnuabi64",
+        .gnuabin32 => "gnuabin32",
         .gnueabi => "gnueabi",
         .gnueabihf => "gnueabihf",
         .gnuf32 => "gnuf32",
         .gnusf => "gnusf",
         .gnux32 => "gnux32",
-        .code16 => "code16",
-        .eabi => "eabi",
-        .eabihf => "eabihf",
-        .android => "android",
-        .androideabi => "androideabi",
+        .itanium => "itanium",
+        .msvc => "msvc",
         .musl => "musl",
-        .muslabin32 => "muslabin32",
         .muslabi64 => "muslabi64",
+        .muslabin32 => "muslabin32",
         .musleabi => "musleabi",
         .musleabihf => "musleabihf",
         .muslf32 => "muslf32",
         .muslsf => "muslsf",
         .muslx32 => "muslx32",
-        .msvc => "msvc",
-        .itanium => "itanium",
-        .cygnus => "cygnus",
-        .simulator => "simulator",
-        .macabi => "macabi",
         .ohos => "ohos",
         .ohoseabi => "ohoseabi",
+        .simulator => "simulator",
     };
     writer.writeAll(llvm_abi) catch unreachable;
     return writer.buffered();
@@ -1276,6 +1293,7 @@ pub fn isPIEDefault(target: *const Target) DefaultPIStatus {
     return switch (target.os.tag) {
         .haiku,
 
+        .maccatalyst,
         .macos,
         .ios,
         .tvos,
@@ -1343,6 +1361,7 @@ pub fn isPICdefault(target: *const Target) DefaultPIStatus {
     return switch (target.os.tag) {
         .haiku,
 
+        .maccatalyst,
         .macos,
         .ios,
         .tvos,
@@ -1451,6 +1470,7 @@ pub fn isPICDefaultForced(target: *const Target) DefaultPIStatus {
             return if (target.cpu.arch == .x86_64) .yes else .no;
         },
 
+        .maccatalyst,
         .macos,
         .ios,
         .tvos,
@@ -1563,10 +1583,18 @@ pub fn parseAbi(result: *std.Target.Query, text: []const u8, version_string: ?*[
             }
         },
         '.' => break .{
-            parseAbiName(text[0..i]) orelse return error.UnknownOs, text[i + 1 ..],
+            parseAbiName(text[0..i]) orelse return error.UnknownAbi, text[i + 1 ..],
         },
         else => {},
-    } else .{ parseAbiName(text) orelse return error.UnknownOs, "" };
+    } else .{ parseAbiName(text) orelse {
+        if (mem.eql(u8, text, "macabi")) {
+            if (result.os_tag == .ios) {
+                result.os_tag = .maccatalyst;
+                return;
+            }
+        }
+        return error.UnknownAbi;
+    }, "" };
     result.abi = abi;
     if (version_string) |ptr| ptr.* = version_text;
 
