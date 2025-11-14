@@ -15,7 +15,7 @@ void good() {
 }
 
 // syntax
-// args= -std=c23 --target=x86_64-linux-gnu
+// args = -std=c23 --target=x86_64-linux-gnu
 //
 // c23 auto.c:1:1: error: 'auto' not allowed in function return type
 // c23 auto.c:4:10: error: 'auto' requires an initializer

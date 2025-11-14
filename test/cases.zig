@@ -298,10 +298,12 @@ fn caseFromFile(io: Io, arena: mem.Allocator, path: []const u8) !Case {
         const trimmed = mem.trim(u8, line[2..], " \t");
         if (trimmed.len == 0) break; // Start of trailing data.
 
-        const key, const value = mem.cutScalar(u8, trimmed, '=') orelse {
+        const key_raw, const value_raw = mem.cutScalar(u8, trimmed, '=') orelse {
             print("{s}: missing value for config option: {s}\n", .{ name, trimmed });
             return error.TestManifestMissingValue;
         };
+        const key = mem.trimEnd(u8, key_raw, " \t");
+        const value = mem.trimStart(u8, value_raw, " \t");
         if (mem.eql(u8, key, "skipped")) {
             skipped = std.fmt.parseInt(u32, value, 10) catch |err| {
                 print("{s}: invalid skipped '{s}': {t}\n", .{ name, trimmed, err });

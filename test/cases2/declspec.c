@@ -22,8 +22,8 @@ _Static_assert(_Alignof(Int2) == 8, "");
 __declspec(restrict) int *qux(void); // TODO should be allowed
 
 // syntax
-// skipped=1
-// args=-fdeclspec --target=x86_64-linux
+// skipped = 1
+// args = -fdeclspec --target=x86_64-linux
 //
 // declspec.c:5:12: warning: __declspec attribute 'aligned' is not supported [-Wignored-attributes]
 // declspec.c:17:18: error: 'declspec' attribute not allowed after declarator

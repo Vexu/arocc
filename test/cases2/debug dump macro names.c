@@ -5,4 +5,4 @@ int x = BAR;
 #define FOO 43
 
 // expand_partial
-// args=-dN
+// args = -dN
