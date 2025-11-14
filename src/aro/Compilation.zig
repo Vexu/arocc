@@ -304,16 +304,9 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
                 }
                 try define(w, "__MSVCRT__");
                 try define(w, "__MINGW32__");
-            } else if (target.abi == .cygnus) {
-                try define(w, "__CYGWIN__");
-                if (ptr_width == 64) {
-                    try define(w, "__CYGWIN64__");
-                } else {
-                    try define(w, "__CYGWIN32__");
-                }
             }
 
-            if (target.abi.isGnu() or target.abi == .cygnus) {
+            if (target.abi.isGnu()) {
                 // MinGW and Cygwin define __declspec(a) to __attribute((a)).
                 // Like Clang we make the define no op if -fdeclspec is enabled.
                 if (comp.langopts.declspec_attrs) {
@@ -357,6 +350,7 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
             try defineStd(w, "sun", is_gnu);
             try define(w, "__illumos__");
         },
+        .maccatalyst,
         .macos,
         .tvos,
         .ios,
@@ -375,7 +369,7 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
 
             try w.print("#define {s} {s}\n", .{ switch (target.os.tag) {
                 .tvos => "__ENVIRONMENT_TV_OS_VERSION_MIN_REQUIRED__",
-                .ios => "__ENVIRONMENT_IPHONE_OS_VERSION_MIN_REQUIRED__",
+                .ios, .maccatalyst => "__ENVIRONMENT_IPHONE_OS_VERSION_MIN_REQUIRED__",
                 .watchos => "__ENVIRONMENT_WATCH_OS_VERSION_MIN_REQUIRED__",
                 .driverkit => "__ENVIRONMENT_DRIVERKIT_VERSION_MIN_REQUIRED__",
                 .macos => "__ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__",
@@ -405,7 +399,7 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
         .ps4,
         .ps5,
         => try defineStd(w, "unix", is_gnu),
-        .windows => if (target.abi.isGnu() or target.abi == .cygnus) {
+        .windows => if (target.abi.isGnu()) {
             try defineStd(w, "unix", is_gnu);
         },
         else => {},
@@ -677,7 +671,7 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
         },
         .aarch64, .aarch64_be => {
             try define(w, "__aarch64__");
-            if (target.os.tag == .macos) {
+            if (target.os.tag.isDarwin()) {
                 try define(w, "__AARCH64_SIMD__");
                 if (ptr_width == 32) {
                     try define(w, "__ARM64_ARCH_8_32__");
@@ -1036,7 +1030,7 @@ fn writeBuiltinMacros(comp: *Compilation, system_defines_mode: SystemDefinesMode
         \\
     );
     if (comp.langopts.standard.atLeast(.c11)) switch (comp.target.os.tag) {
-        .openbsd, .driverkit, .ios, .macos, .tvos, .visionos, .watchos => {
+        .openbsd, .driverkit, .ios, .maccatalyst, .macos, .tvos, .visionos, .watchos => {
             try w.writeAll("#define __STDC_NO_THREADS__ 1\n");
         },
         .ps4, .ps5 => {
@@ -2070,7 +2064,7 @@ pub fn isTargetVendor(comp: *const Compilation, query: []const u8) bool {
 }
 
 pub fn isTargetAbi(comp: *const Compilation, query: []const u8) bool {
-    return Target.parseAbiName(query) == comp.target.abi;
+    return Target.isAbi(&comp.target, query);
 }
 
 pub fn isTargetVariantOs(comp: *const Compilation, query: []const u8) bool {
@@ -2084,7 +2078,7 @@ pub fn isTargetVariantOs(comp: *const Compilation, query: []const u8) bool {
 pub fn isTargetVariantEnvironment(comp: *const Compilation, query: []const u8) bool {
     if (comp.target.os.tag.isDarwin()) {
         const variant_target = &(comp.darwin_target_variant orelse return false);
-        return Target.parseAbiName(query) == variant_target.abi;
+        return Target.isAbi(variant_target, query);
     }
     return false;
 }
