@@ -305,6 +305,23 @@ pub fn build(b: *Build) !void {
         break :step unit_tests_step;
     };
 
+    const integration_tests_step2 = step: {
+        const integration_tests = b.addExecutable(.{
+            .name = "test-runner",
+            .root_module = b.createModule(.{
+                .root_source_file = b.path("test/cases.zig"),
+                .target = b.graph.host,
+                .optimize = .ReleaseFast,
+            }),
+        });
+        const integration_test_runner = b.addRunArtifact(integration_tests);
+        integration_test_runner.addArtifactArg(exe);
+
+        const integration_tests_step = b.step("test-integration2", "Run integration tests");
+        integration_tests_step.dependOn(&integration_test_runner.step);
+        break :step integration_tests_step;
+    };
+
     const integration_tests_step = step: {
         const integration_tests = b.addExecutable(.{
             .name = "test-runner",
@@ -336,15 +353,13 @@ pub fn build(b: *Build) !void {
             .name = "record-runner",
             .root_module = b.createModule(.{
                 .root_source_file = b.path("test/record_runner.zig"),
-                .optimize = mode,
-                .target = target,
+                .target = b.graph.host,
+                .optimize = .ReleaseFast,
             }),
-            .use_llvm = use_llvm,
-            .use_lld = use_llvm,
         });
         record_tests.root_module.addImport("aro", aro_module);
         const record_tests_runner = b.addRunArtifact(record_tests);
-        record_tests_runner.addArg(b.pathFromRoot("test/records"));
+        record_tests_runner.addArtifactArg(exe);
 
         const record_tests_step = b.step("test-record", "Run record layout tests");
         record_tests_step.dependOn(&record_tests_runner.step);
@@ -355,6 +370,7 @@ pub fn build(b: *Build) !void {
     tests_step.dependOn(test_fmt_step);
     tests_step.dependOn(unit_tests_step);
     tests_step.dependOn(integration_tests_step);
+    tests_step.dependOn(integration_tests_step2);
     tests_step.dependOn(record_tests_step);
 
     try addFuzzStep(b, target, afl_clang_lto_path, aro_module);
