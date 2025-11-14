@@ -237,7 +237,8 @@ fn singleRun(gpa: std.mem.Allocator, test_dir: []const u8, test_case: TestCase, 
     defer comp.deinit();
 
     try comp.addDefaultPragmaHandlers();
-    try comp.addBuiltinIncludeDir(test_dir, null);
+    const builtin_header_path = try std.fs.path.resolve(comp.arena, &.{ test_dir, "../../include" });
+    try comp.search_path.append(gpa, .{ .kind = .system, .path = builtin_header_path });
 
     try setTarget(&comp, test_case.target);
     switch (comp.target.os.tag) {
