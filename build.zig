@@ -336,15 +336,12 @@ pub fn build(b: *Build) !void {
             .name = "record-runner",
             .root_module = b.createModule(.{
                 .root_source_file = b.path("test/record_runner.zig"),
-                .optimize = mode,
-                .target = target,
+                .target = b.graph.host,
             }),
-            .use_llvm = use_llvm,
-            .use_lld = use_llvm,
         });
         record_tests.root_module.addImport("aro", aro_module);
         const record_tests_runner = b.addRunArtifact(record_tests);
-        record_tests_runner.addArg(b.pathFromRoot("test/records"));
+        record_tests_runner.addArtifactArg(exe);
 
         const record_tests_step = b.step("test-record", "Run record layout tests");
         record_tests_step.dependOn(&record_tests_runner.step);
