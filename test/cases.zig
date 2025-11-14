@@ -44,13 +44,14 @@ pub fn main() !void {
     group.wait(io);
     root_prog_node.end();
 
+    print("max mem used = {Bi:.2}\n", .{stats.max_rss});
     if (stats.failed == 0 and stats.skipped == 0) {
         print("All {d} tests passed.\n", .{stats.total});
     } else if (stats.failed == 0) {
         print("{d} passed; {d} skipped.\n", .{ stats.total, stats.skipped });
     } else {
         print("{d} passed; {d} failed.\n\n", .{ stats.total, stats.failed });
-        std.process.exit(1);
+        process.exit(1);
     }
 }
 
@@ -58,6 +59,7 @@ const Stats = struct {
     total: u32 = 0,
     failed: u32 = 0,
     skipped: u32 = 0,
+    max_rss: usize = 0,
 };
 
 fn runCase(
@@ -112,6 +114,8 @@ fn runCaseExtra(
     child.stderr_behavior = .Pipe;
     child.stdin_behavior = .Ignore;
 
+    child.request_resource_usage_statistics = true;
+
     var env_map: process.EnvMap = undefined;
     if (case.env.len > 0) {
         env_map = try process.getEnvMap(arena);
@@ -139,6 +143,9 @@ fn runCaseExtra(
             const cmd = try mem.join(arena, " ", args.items);
             print("arocc command crashed:\n{s}\n", .{cmd});
             return error.Crashed;
+        }
+        if (child.resource_usage_statistics.getMaxRss()) |max_rss| {
+            _ = @atomicRmw(usize, &stats.max_rss, .Max, max_rss, .monotonic);
         }
     }
 
@@ -185,7 +192,7 @@ fn runCaseExtra(
                 if (actual_count != expected_errors.len) return error.NewErrors;
             }
         },
-        else => {},
+        .syntax_no_error => {},
     }
 
     switch (case.kind) {

@@ -1,8 +1,8 @@
 const std = @import("std");
 const Io = std.Io;
+const mem = std.mem;
 const print = std.debug.print;
 const process = std.process;
-const mem = std.mem;
 
 /// These tests don't work for any platform due to Aro bugs.
 /// Skip entirely.
@@ -142,7 +142,7 @@ pub fn main() !void {
     group.wait(io);
     root_node.end();
 
-    std.debug.print("max mem used = {Bi:.2}\n", .{stats.max_alloc});
+    print("max mem used = {Bi:.2}\n", .{stats.max_alloc});
     if (stats.ok_count == cases.items.len and stats.skip_count == 0) {
         print("All {d} tests passed ({d} invalid targets)\n", .{ stats.ok_count, stats.invalid_target_count });
     } else if (stats.fail_count == 0) {
@@ -272,7 +272,7 @@ fn runCaseExtra(io: Io, aro_exe: []const u8, test_case: TestCase, stats: *Stats)
     const expected = compErr.get(expected_writer.buffered()) orelse ExpectedFailure{};
 
     if (code == 0 and expected.any()) {
-        std.debug.print("\nTest Passed when failures expected:\n\texpected:{any}\n", .{expected});
+        print("\nTest Passed when failures expected:\n\texpected:{any}\n", .{expected});
         stats.recordResult(.fail);
     } else {
         var actual = ExpectedFailure{};
@@ -296,7 +296,7 @@ fn runCaseExtra(io: Io, aro_exe: []const u8, test_case: TestCase, stats: *Stats)
             }
         }
         if (!expected.eql(actual)) {
-            std.debug.print("in case {s}:\nexp:{any}\nact:{any}\n{s}", .{ expected_writer.buffered(), expected, actual, stderr });
+            print("in case {s}:\nexp:{any}\nact:{any}\n{s}", .{ expected_writer.buffered(), expected, actual, stderr });
             stats.recordResult(.fail);
         } else if (actual.any()) {
             stats.recordResult(.skip);
