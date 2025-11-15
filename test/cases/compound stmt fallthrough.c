@@ -5,7 +5,7 @@ int main(void) {
             __attribute__((fallthrough));
         }
         case 2: {
-            __attribute__((fallthrough));
+            __attribute__((fallthrough));;
         }
         default: {
             
