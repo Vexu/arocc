@@ -1156,7 +1156,7 @@ pub fn applyStatementAttributes(p: *Parser, expr_start: TokenIndex, attr_buf_sta
                         try p.attr_application_buf.append(p.comp.gpa, attr);
                         break;
                     },
-                    .r_brace => {},
+                    .r_brace, .semicolon => {},
                     else => {
                         try p.err(expr_start, .invalid_fallthrough, .{});
                         break;
