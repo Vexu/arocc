@@ -240,6 +240,7 @@ pub const Node = union(enum) {
     builtin_call_expr: BuiltinCall,
     builtin_ref: BuiltinRef,
     builtin_types_compatible_p: TypesCompatible,
+    builtin_constant_p: BuiltinConstantP,
     builtin_choose_expr: Conditional,
     builtin_convertvector: Convertvector,
     builtin_shufflevector: Shufflevector,
@@ -611,6 +612,11 @@ pub const Node = union(enum) {
     pub const BuiltinRef = struct {
         name_tok: TokenIndex,
         qt: QualType,
+    };
+
+    pub const BuiltinConstantP = struct {
+        builtin_tok: TokenIndex,
+        arg: Node.Index,
     };
 
     pub const TypesCompatible = struct {
@@ -1673,6 +1679,12 @@ pub const Node = union(enum) {
                         .rhs = @bitCast(node_data[1]),
                     },
                 },
+                .builtin_constant_p => .{
+                    .builtin_constant_p = .{
+                        .builtin_tok = node_tok,
+                        .arg = @enumFromInt(node_data[0]),
+                    },
+                },
                 .builtin_convertvector => .{
                     .builtin_convertvector = .{
                         .builtin_tok = node_tok,
@@ -1798,7 +1810,7 @@ pub const Node = union(enum) {
                 .generic_association_expr,
                 .generic_default_expr,
                 => null,
-                .builtin_types_compatible_p => .int,
+                .builtin_types_compatible_p, .builtin_constant_p => .int,
                 else => {
                     // If a node is typed the type is stored in data[0].
                     return @bitCast(tree.nodes.items(.data)[@intFromEnum(index)][0]);
@@ -1961,6 +1973,7 @@ pub const Node = union(enum) {
             cond_expr,
             builtin_choose_expr,
             builtin_types_compatible_p,
+            builtin_constant_p,
             builtin_convertvector,
             builtin_shufflevector,
             array_init_expr,
@@ -2772,6 +2785,11 @@ pub fn setNode(tree: *Tree, node: Node, index: usize) !void {
             repr.data[1] = @bitCast(builtin.rhs);
             repr.tok = builtin.builtin_tok;
         },
+        .builtin_constant_p => |builtin_constant_p| {
+            repr.tag = .builtin_constant_p;
+            repr.data[0] = @intFromEnum(builtin_constant_p.arg);
+            repr.tok = builtin_constant_p.builtin_tok;
+        },
         .builtin_convertvector => |builtin| {
             repr.tag = .builtin_convertvector;
             repr.data[0] = @bitCast(builtin.dest_qt);
@@ -3401,6 +3419,11 @@ fn dumpNode(
             try call.rhs.dump(tree.comp, w);
             try w.writeByte('\n');
             try config.setColor(w, .reset);
+        },
+        .builtin_constant_p => |call| {
+            try w.splatByteAll(' ', level + 1);
+            try w.writeAll("arg:\n");
+            try tree.dumpNode(call.arg, level + delta, config, w);
         },
         .builtin_convertvector => |convert| {
             try w.splatByteAll(' ', level + half);
