@@ -8145,6 +8145,27 @@ fn convertvector(p: *Parser, builtin_tok: TokenIndex) Error!Result {
     };
 }
 
+/// builtinConstantP : __builtin_constant_p '(' expr ')'
+fn builtinConstantP(p: *Parser, builtin_tok: TokenIndex) Error!Result {
+    const l_paren = try p.expectToken(.l_paren);
+    const expr_res = try p.expect(expr);
+    try p.expectClosing(l_paren, .r_paren);
+
+    const is_constant = expr_res.val.opt_ref != .none;
+    const res: Result = .{
+        .val = Value.fromBool(is_constant),
+        .qt = .int,
+        .node = try p.addNode(.{
+            .builtin_constant_p = .{
+                .builtin_tok = builtin_tok,
+                .arg = expr_res.node,
+            },
+        }),
+    };
+    try res.putValue(p);
+    return res;
+}
+
 /// typesCompatible : __builtin_types_compatible_p '(' typeName ',' typeName ')'
 fn typesCompatible(p: *Parser, builtin_tok: TokenIndex) Error!Result {
     const l_paren = try p.expectToken(.l_paren);
@@ -9584,6 +9605,7 @@ fn primaryExpr(p: *Parser) Error!?Result {
                         .__builtin_convertvector => return try p.convertvector(name_tok),
                         .__builtin_shufflevector => return try p.shufflevector(name_tok),
                         .__builtin_bit_cast => return try p.builtinBitCast(name_tok),
+                        .__builtin_constant_p => return try p.builtinConstantP(name_tok),
                         else => {},
                     },
                     else => {},
