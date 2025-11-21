@@ -375,6 +375,8 @@ pub fn parseArgs(
                 d.use_line_directives = false;
             } else if (mem.eql(u8, arg, "-fapple-kext")) {
                 d.apple_kext = true;
+            } else if (option(arg, "-frandom-seed=")) |_| {
+                // Ignore
             } else if (option(arg, "-fmacro-prefix-map=")) |kv| {
                 const pair = mem.cutScalar(u8, kv, '=') orelse {
                     try d.err("invalid argument '{s}' to '-fmacro-prefix-map=", .{kv});
@@ -641,6 +643,24 @@ pub fn parseArgs(
                 d.output_name = file;
             } else if (option(arg, "--sysroot=")) |sysroot| {
                 d.sysroot = sysroot;
+            } else if (mem.eql(u8, arg, "-rpath")) {
+                i += 1;
+                if (i >= args.len) {
+                    try d.err("expected argument after -rpath", .{});
+                    continue;
+                }
+                // ignore
+            } else if (mem.startsWith(u8, arg, "-L")) {
+                var path = arg["-L".len..];
+                if (path.len == 0) {
+                    i += 1;
+                    if (i >= args.len) {
+                        try d.err("expected argument after -L", .{});
+                        continue;
+                    }
+                    path = args[i];
+                }
+                // ignore
             } else if (mem.eql(u8, arg, "-Wp,-v")) {
                 // TODO this is not how this argument should work
                 d.verbose_search_path = true;
