@@ -52,6 +52,7 @@ implicit_includes: std.ArrayList(Source) = .empty,
 /// List of includes that will be used to construct the compilation's search path
 includes: std.ArrayList(Compilation.Include) = .empty,
 link_objects: std.ArrayList([]const u8) = .empty,
+macro_prefix_map: std.ArrayList(struct { []const u8, []const u8 }) = .empty,
 output_name: ?[]const u8 = null,
 sysroot: ?[]const u8 = null,
 resource_dir: ?[]const u8 = null,
@@ -143,6 +144,7 @@ pub fn deinit(d: *Driver) void {
     d.implicit_includes.deinit(d.comp.gpa);
     d.includes.deinit(d.comp.gpa);
     d.link_objects.deinit(d.comp.gpa);
+    d.macro_prefix_map.deinit(d.comp.gpa);
     d.* = undefined;
 }
 
@@ -383,6 +385,12 @@ pub fn parseArgs(
             } else if (option(arg, "-fvisibility=")) |visibility| {
                 d.comp.langopts.default_symbol_visibility = Attribute.visibilityFromString(visibility) orelse
                     return d.fatal("unsupported value '{s}'' in '{s}'", .{ visibility, arg });
+            } else if (option(arg, "-fmacro-prefix-map=")) |kv| {
+                const pair = mem.cutScalar(u8, kv, '=') orelse {
+                    try d.err("invalid argument '{s}' to '-fmacro-prefix-map=", .{kv});
+                    continue;
+                };
+                try d.macro_prefix_map.append(gpa, pair);
             } else if (option(arg, "-mcmodel=")) |cmodel| {
                 d.comp.cmodel = std.meta.stringToEnum(std.builtin.CodeModel, cmodel) orelse
                     return d.fatal("unsupported machine code model: '{s}'", .{arg});
@@ -1302,6 +1310,7 @@ fn processSource(
 
     var pp = try Preprocessor.initDefault(d.comp);
     defer pp.deinit();
+    pp.path_replacements = d.macro_prefix_map.items;
 
     var name_buf: [std.fs.max_name_bytes]u8 = undefined;
     var opt_dep_file = try d.initDepFile(source, &name_buf);
