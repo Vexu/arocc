@@ -215,8 +215,6 @@ pub const Macro = struct {
     }
 };
 
-const Preprocessor = @This();
-
 const ExpansionEntry = struct {
     idx: Tree.TokenIndex,
     locs: [*]Source.Location,
@@ -226,6 +224,8 @@ const TokenState = struct {
     tokens_len: usize,
     expansion_entries_len: usize,
 };
+
+const Preprocessor = @This();
 
 comp: *Compilation,
 diagnostics: *Diagnostics,
@@ -273,6 +273,9 @@ m_times: std.AutoHashMapUnmanaged(Source.Id, u64) = .empty,
 
 /// The dependency file tracking all includes and embeds.
 dep_file: ?*DepFile = null,
+
+/// Path prefixes to replace when expanding __FILE__
+path_replacements: []const struct { []const u8, []const u8 } = &.{},
 
 pub const parse = Parser.parse;
 
@@ -1432,7 +1435,14 @@ fn expandObjMacro(pp: *Preprocessor, simple_macro: *const Macro) Error!ExpandBuf
                 .file => {
                     const start = pp.comp.generated_buf.items.len;
                     const source = pp.comp.getSource(pp.expansion_source_loc.id);
-                    try pp.comp.generated_buf.print(gpa, "\"{f}\"\n", .{fmtEscapes(source.path)});
+                    for (pp.path_replacements) |replacement| {
+                        if (mem.cutPrefix(u8, source.path, replacement[0])) |rest| {
+                            try pp.comp.generated_buf.print(gpa, "\"{f}{f}\"", .{ fmtEscapes(replacement[1]), fmtEscapes(rest) });
+                            break;
+                        }
+                    } else {
+                        try pp.comp.generated_buf.print(gpa, "\"{f}\"\n", .{fmtEscapes(source.path)});
+                    }
 
                     buf.appendAssumeCapacity(try pp.makeGeneratedToken(start, .string_literal, tok));
                 },
