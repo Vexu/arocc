@@ -16,4 +16,4 @@ unsigned long __int64 l;
     ".c:8:13: warning: '__stdcall' only applies to function types; type here is 'int *' [-Wignored-attributes]" \
     ".c:8:32: error: expected ']', found '__cdecl'" \
     ".c:8:31: note: to match this '{'" \
-    ".c:10:17: warning: '__cdecl' only applies to function types; type here is 'void (*)(void)' [-Wignored-attributes]" \
+

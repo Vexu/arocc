@@ -1013,6 +1013,15 @@ pub const QualType = packed struct(u32) {
         return qt.scalarKind(comp).isPointer();
     }
 
+    /// Function or function pointer
+    pub fn isCallable(qt: QualType, comp: *const Compilation) bool {
+        return switch (qt.base(comp).type) {
+            .func => true,
+            .pointer => |ptr| ptr.child.is(comp, .func),
+            else => false,
+        };
+    }
+
     pub fn eqlQualified(a_qt: QualType, b_qt: QualType, comp: *const Compilation) bool {
         if (a_qt.@"const" != b_qt.@"const") return false;
         if (a_qt.@"volatile" != b_qt.@"volatile") return false;

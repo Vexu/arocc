@@ -847,7 +847,21 @@ pub fn applyVariableAttributes(p: *Parser, qt: QualType, attr_buf_start: usize, 
         } else {
             try p.attr_application_buf.append(gpa, attr);
         },
-        .calling_convention => try applyCallingConvention(attr, p, tok, base_qt),
+        .calling_convention => try applyKeywordCallingConvention(attr, p, tok, base_qt),
+
+        .fastcall,
+        .stdcall,
+        .thiscall,
+        .vectorcall,
+        .cdecl,
+        .pcs,
+        .riscv_vector_cc,
+        .aarch64_sve_pcs,
+        .aarch64_vector_pcs,
+        .sysv_abi,
+        .ms_abi,
+        => try applyGnuAttrCallingConvention(attr, p, tok, base_qt),
+
         .alloc_size,
         .copy,
         .tls_model,
@@ -902,7 +916,21 @@ pub fn applyTypeAttributes(p: *Parser, qt: QualType, attr_buf_start: usize, diag
             } else {
                 try p.err(tok, .designated_init_invalid, .{});
             },
-            .calling_convention => try applyCallingConvention(attr, p, tok, base_qt),
+            .calling_convention => try applyKeywordCallingConvention(attr, p, tok, base_qt),
+
+            .fastcall,
+            .stdcall,
+            .thiscall,
+            .vectorcall,
+            .cdecl,
+            .pcs,
+            .riscv_vector_cc,
+            .aarch64_sve_pcs,
+            .aarch64_vector_pcs,
+            .sysv_abi,
+            .ms_abi,
+            => try applyGnuAttrCallingConvention(attr, p, tok, base_qt),
+
             .alloc_size,
             .copy,
             .scalar_storage_order,
@@ -958,97 +986,21 @@ pub fn applyFunctionAttributes(p: *Parser, qt: QualType, attr_buf_start: usize) 
         },
         .aligned => try attr.applyAligned(p, base_qt, null),
         .format => try attr.applyFormat(p, base_qt),
-        .calling_convention => try applyCallingConvention(attr, p, tok, base_qt),
-        .fastcall => if (p.comp.target.cpu.arch == .x86) {
-            try p.attr_application_buf.append(gpa, .{
-                .tag = .calling_convention,
-                .args = .{ .calling_convention = .{ .cc = .fastcall } },
-                .syntax = attr.syntax,
-            });
-        } else {
-            try p.err(tok, .callconv_not_supported, .{"fastcall"});
-        },
-        .stdcall => if (p.comp.target.cpu.arch == .x86) {
-            try p.attr_application_buf.append(gpa, .{
-                .tag = .calling_convention,
-                .args = .{ .calling_convention = .{ .cc = .stdcall } },
-                .syntax = attr.syntax,
-            });
-        } else {
-            try p.err(tok, .callconv_not_supported, .{"stdcall"});
-        },
-        .thiscall => if (p.comp.target.cpu.arch == .x86) {
-            try p.attr_application_buf.append(gpa, .{
-                .tag = .calling_convention,
-                .args = .{ .calling_convention = .{ .cc = .thiscall } },
-                .syntax = attr.syntax,
-            });
-        } else {
-            try p.err(tok, .callconv_not_supported, .{"thiscall"});
-        },
-        .vectorcall => if (p.comp.target.cpu.arch == .x86 or p.comp.target.cpu.arch.isAARCH64()) {
-            try p.attr_application_buf.append(gpa, .{
-                .tag = .calling_convention,
-                .args = .{ .calling_convention = .{ .cc = .vectorcall } },
-                .syntax = attr.syntax,
-            });
-        } else {
-            try p.err(tok, .callconv_not_supported, .{"vectorcall"});
-        },
-        .cdecl => {},
-        .pcs => if (p.comp.target.cpu.arch.isArm()) {
-            try p.attr_application_buf.append(gpa, .{
-                .tag = .calling_convention,
-                .args = .{ .calling_convention = .{ .cc = switch (attr.args.pcs.kind) {
-                    .aapcs => .arm_aapcs,
-                    .@"aapcs-vfp" => .arm_aapcs_vfp,
-                } } },
-                .syntax = attr.syntax,
-            });
-        } else {
-            try p.err(tok, .callconv_not_supported, .{"pcs"});
-        },
-        .riscv_vector_cc => if (p.comp.target.cpu.arch.isRISCV()) {
-            try p.attr_application_buf.append(gpa, .{
-                .tag = .calling_convention,
-                .args = .{ .calling_convention = .{ .cc = .riscv_vector } },
-                .syntax = attr.syntax,
-            });
-        } else {
-            try p.err(tok, .callconv_not_supported, .{"pcs"});
-        },
-        .aarch64_sve_pcs => if (p.comp.target.cpu.arch.isAARCH64()) {
-            try p.attr_application_buf.append(gpa, .{
-                .tag = .calling_convention,
-                .args = .{ .calling_convention = .{ .cc = .aarch64_sve_pcs } },
-                .syntax = attr.syntax,
-            });
-        } else {
-            try p.err(tok, .callconv_not_supported, .{"pcs"});
-        },
-        .aarch64_vector_pcs => if (p.comp.target.cpu.arch.isAARCH64()) {
-            try p.attr_application_buf.append(gpa, .{
-                .tag = .calling_convention,
-                .args = .{ .calling_convention = .{ .cc = .aarch64_vector_pcs } },
-                .syntax = attr.syntax,
-            });
-        } else {
-            try p.err(tok, .callconv_not_supported, .{"pcs"});
-        },
-        .sysv_abi => if (p.comp.target.cpu.arch == .x86_64 and p.comp.target.os.tag == .windows) {
-            try p.attr_application_buf.append(gpa, .{
-                .tag = .calling_convention,
-                .args = .{ .calling_convention = .{ .cc = .x86_64_sysv } },
-                .syntax = attr.syntax,
-            });
-        },
-        .ms_abi => if (p.comp.target.cpu.arch == .x86_64 and p.comp.target.os.tag != .windows) {
-            try p.attr_application_buf.append(gpa, .{
-                .tag = .calling_convention,
-                .args = .{ .calling_convention = .{ .cc = .x86_64_win } },
-                .syntax = attr.syntax,
-            });
-        },
+        .calling_convention => try applyKeywordCallingConvention(attr, p, tok, base_qt),
+
+        .fastcall,
+        .stdcall,
+        .thiscall,
+        .vectorcall,
+        .cdecl,
+        .pcs,
+        .riscv_vector_cc,
+        .aarch64_sve_pcs,
+        .aarch64_vector_pcs,
+        .sysv_abi,
+        .ms_abi,
+        => try applyGnuAttrCallingConvention(attr, p, tok, base_qt),
+
         .malloc => {
             if (base_qt.get(p.comp, .func).?.return_type.isPointer(p.comp)) {
                 try p.attr_application_buf.append(gpa, attr);
@@ -1261,9 +1213,111 @@ fn applyFormat(attr: Attribute, p: *Parser, qt: QualType) !void {
     try p.attr_application_buf.append(p.comp.gpa, attr);
 }
 
-fn applyCallingConvention(attr: Attribute, p: *Parser, tok: TokenIndex, qt: QualType) !void {
-    if (!qt.is(p.comp, .func)) {
-        return p.err(tok, .callconv_non_func, .{ p.tok_ids[tok].symbol(), qt });
+/// These come from GNU attributes like __attribute__((sysv_abi))
+fn applyGnuAttrCallingConvention(attr: Attribute, p: *Parser, tok: TokenIndex, qt: QualType) !void {
+    if (!qt.isCallable(p.comp)) {
+        return p.err(tok, .callconv_non_func, .{ p.tokSlice(tok), qt });
+    }
+    const gpa = p.comp.gpa;
+    switch (attr.tag) {
+        .fastcall => if (p.comp.target.cpu.arch == .x86) {
+            try p.attr_application_buf.append(gpa, .{
+                .tag = .calling_convention,
+                .args = .{ .calling_convention = .{ .cc = .fastcall } },
+                .syntax = attr.syntax,
+            });
+        } else {
+            try p.err(tok, .callconv_not_supported, .{"fastcall"});
+        },
+        .stdcall => if (p.comp.target.cpu.arch == .x86) {
+            try p.attr_application_buf.append(gpa, .{
+                .tag = .calling_convention,
+                .args = .{ .calling_convention = .{ .cc = .stdcall } },
+                .syntax = attr.syntax,
+            });
+        } else {
+            try p.err(tok, .callconv_not_supported, .{"stdcall"});
+        },
+        .thiscall => if (p.comp.target.cpu.arch == .x86) {
+            try p.attr_application_buf.append(gpa, .{
+                .tag = .calling_convention,
+                .args = .{ .calling_convention = .{ .cc = .thiscall } },
+                .syntax = attr.syntax,
+            });
+        } else {
+            try p.err(tok, .callconv_not_supported, .{"thiscall"});
+        },
+        .vectorcall => if (p.comp.target.cpu.arch == .x86 or p.comp.target.cpu.arch.isAARCH64()) {
+            try p.attr_application_buf.append(gpa, .{
+                .tag = .calling_convention,
+                .args = .{ .calling_convention = .{ .cc = .vectorcall } },
+                .syntax = attr.syntax,
+            });
+        } else {
+            try p.err(tok, .callconv_not_supported, .{"vectorcall"});
+        },
+        .cdecl => {},
+        .pcs => if (p.comp.target.cpu.arch.isArm()) {
+            try p.attr_application_buf.append(gpa, .{
+                .tag = .calling_convention,
+                .args = .{ .calling_convention = .{ .cc = switch (attr.args.pcs.kind) {
+                    .aapcs => .arm_aapcs,
+                    .@"aapcs-vfp" => .arm_aapcs_vfp,
+                } } },
+                .syntax = attr.syntax,
+            });
+        } else {
+            try p.err(tok, .callconv_not_supported, .{"pcs"});
+        },
+        .riscv_vector_cc => if (p.comp.target.cpu.arch.isRISCV()) {
+            try p.attr_application_buf.append(gpa, .{
+                .tag = .calling_convention,
+                .args = .{ .calling_convention = .{ .cc = .riscv_vector } },
+                .syntax = attr.syntax,
+            });
+        } else {
+            try p.err(tok, .callconv_not_supported, .{"pcs"});
+        },
+        .aarch64_sve_pcs => if (p.comp.target.cpu.arch.isAARCH64()) {
+            try p.attr_application_buf.append(gpa, .{
+                .tag = .calling_convention,
+                .args = .{ .calling_convention = .{ .cc = .aarch64_sve_pcs } },
+                .syntax = attr.syntax,
+            });
+        } else {
+            try p.err(tok, .callconv_not_supported, .{"pcs"});
+        },
+        .aarch64_vector_pcs => if (p.comp.target.cpu.arch.isAARCH64()) {
+            try p.attr_application_buf.append(gpa, .{
+                .tag = .calling_convention,
+                .args = .{ .calling_convention = .{ .cc = .aarch64_vector_pcs } },
+                .syntax = attr.syntax,
+            });
+        } else {
+            try p.err(tok, .callconv_not_supported, .{"pcs"});
+        },
+        .sysv_abi => if (p.comp.target.cpu.arch == .x86_64 and p.comp.target.os.tag == .windows) {
+            try p.attr_application_buf.append(gpa, .{
+                .tag = .calling_convention,
+                .args = .{ .calling_convention = .{ .cc = .x86_64_sysv } },
+                .syntax = attr.syntax,
+            });
+        },
+        .ms_abi => if (p.comp.target.cpu.arch == .x86_64 and p.comp.target.os.tag != .windows) {
+            try p.attr_application_buf.append(gpa, .{
+                .tag = .calling_convention,
+                .args = .{ .calling_convention = .{ .cc = .x86_64_win } },
+                .syntax = attr.syntax,
+            });
+        },
+        else => unreachable,
+    }
+}
+
+/// These come from explicit MSVC keywords like __stdcall, __fastcall, etc
+fn applyKeywordCallingConvention(attr: Attribute, p: *Parser, tok: TokenIndex, qt: QualType) !void {
+    if (!qt.isCallable(p.comp)) {
+        return p.err(tok, .callconv_non_func, .{ p.tokSlice(tok), qt });
     }
     switch (attr.args.calling_convention.cc) {
         .c => {},
