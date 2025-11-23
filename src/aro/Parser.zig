@@ -739,6 +739,11 @@ fn getNode(p: *Parser, node: Node.Index, comptime tag: std.meta.Tag(Tree.Node)) 
     }
 }
 
+pub fn isAddressOfStringLiteral(p: *Parser, node: Node.Index) bool {
+    const addr_of = p.getNode(node, .addr_of_expr) orelse return false;
+    return p.nodeIs(addr_of.operand, .string_literal_expr);
+}
+
 fn pragma(p: *Parser) Compilation.Error!bool {
     var found_pragma = false;
     while (p.eatToken(.keyword_pragma)) |_| {
@@ -6124,7 +6129,7 @@ const CallExpr = union(enum) {
                 } }),
             },
             .builtin => |builtin| return .{
-                .val = try evalBuiltin(builtin.expanded, p, args),
+                .val = try evalBuiltin(builtin.expanded, builtin.builtin_tok, p, args),
                 .qt = return_qt,
                 .node = try p.addNode(.{ .builtin_call_expr = .{
                     .builtin_tok = builtin.builtin_tok,

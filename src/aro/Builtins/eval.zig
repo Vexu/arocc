@@ -22,9 +22,8 @@ fn makeNan(comptime T: type, str: []const u8) T {
     return @bitCast(@as(UnsignedSameSize, bits) | @as(UnsignedSameSize, @bitCast(std.math.nan(T))));
 }
 
-pub fn eval(expanded: Builtins.Expanded, p: *Parser, args: []const Tree.Node.Index) !Value {
+pub fn eval(expanded: Builtins.Expanded, tok: Tree.TokenIndex, p: *Parser, args: []const Tree.Node.Index) !Value {
     if (!expanded.attributes.const_evaluable) return .{};
-
     switch (expanded.tag) {
         .common => |tag| switch (tag) {
             .__builtin_inff,
@@ -79,6 +78,15 @@ pub fn eval(expanded: Builtins.Expanded, p: *Parser, args: []const Tree.Node.Ind
                     else => unreachable,
                 };
                 return Value.intern(p.comp, .{ .float = f });
+            },
+            .__builtin_constant_p => {
+                if (args.len != 1) {
+                    try p.err(tok, .expected_arguments, .{ 1, args.len });
+                    return Value.one;
+                }
+                const arg = args[0];
+                const val = p.tree.value_map.get(arg) orelse return Value.fromBool(p.isAddressOfStringLiteral(arg));
+                return Value.fromBool(!val.isPointer(p.comp));
             },
             else => {},
         },
