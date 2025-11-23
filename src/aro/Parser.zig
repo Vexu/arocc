@@ -6117,9 +6117,16 @@ const CallExpr = union(enum) {
         };
     }
 
-    fn finish(self: CallExpr, p: *Parser, func_qt: QualType, list_buf_top: usize, l_paren: TokenIndex) Error!Result {
+    fn finish(
+        self: CallExpr,
+        p: *Parser,
+        func_qt: QualType,
+        list_buf_top: usize,
+        l_paren: TokenIndex,
+        args_ok: bool,
+    ) Error!Result {
         const args = p.list_buf.items[list_buf_top..];
-        const return_qt = try self.returnType(p, args, func_qt);
+        const return_qt: QualType = if (args_ok) try self.returnType(p, args, func_qt) else .invalid;
         switch (self) {
             .standard => |func_node| return .{
                 .qt = return_qt,
@@ -6131,7 +6138,7 @@ const CallExpr = union(enum) {
                 } }),
             },
             .builtin => |builtin| return .{
-                .val = try evalBuiltin(builtin.expanded, p, args),
+                .val = if (args_ok) try evalBuiltin(builtin.expanded, p, args) else .{},
                 .qt = return_qt,
                 .node = try p.addNode(.{ .builtin_call_expr = .{
                     .builtin_tok = builtin.builtin_tok,
@@ -9424,10 +9431,11 @@ fn callExpr(p: *Parser, lhs: Result) Error!Result {
     }
     if (func_qt.isInvalid()) {
         // Skip argument count checks.
-        return try call_expr.finish(p, func_qt, list_buf_top, l_paren);
+        return try call_expr.finish(p, func_qt, list_buf_top, l_paren, false);
     }
 
     const r_paren = p.tok_i - 1;
+    var args_ok = true;
     switch (func_kind) {
         .normal => if (params_len != arg_count) {
             try p.err(
@@ -9435,9 +9443,11 @@ fn callExpr(p: *Parser, lhs: Result) Error!Result {
                 .expected_arguments,
                 .{ params_len, arg_count },
             );
+            args_ok = false;
         },
         .variadic => if (arg_count < params_len) {
             try p.err(r_paren, .expected_at_least_arguments, .{ params_len, arg_count });
+            args_ok = false;
         },
         .old_style => if (params_len != arg_count) {
             if (params_len == 0)
@@ -9447,7 +9457,7 @@ fn callExpr(p: *Parser, lhs: Result) Error!Result {
         },
     }
 
-    return try call_expr.finish(p, func_qt, list_buf_top, l_paren);
+    return try call_expr.finish(p, func_qt, list_buf_top, l_paren, args_ok);
 }
 
 fn checkArrayBounds(p: *Parser, index: Result, array: Result, tok: TokenIndex) !void {
