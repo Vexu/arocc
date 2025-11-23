@@ -464,6 +464,11 @@ pub fn isNan(v: Value, comp: *const Compilation) bool {
     };
 }
 
+pub fn isPointer(v: Value, comp: *const Compilation) bool {
+    if (v.opt_ref == .none) return false;
+    return comp.interner.get(v.ref()) == .pointer;
+}
+
 /// Converts value to zero or one;
 /// `.none` value remains unchanged.
 pub fn boolCast(v: *Value, comp: *const Compilation) void {
