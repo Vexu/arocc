@@ -65,6 +65,8 @@ void baz(void) {
 
 __auto_type multidimensional[2][2];
 
+auto int invalid_c23_auto = 1;
+
 #define EXPECTED_ERRORS "__auto_type.c:3:1: error: '__auto_type' not allowed in function return type" \
     "__auto_type.c:4:1: error: '__auto_type' not allowed in function return type" \
     "__auto_type.c:6:10: error: '__auto_type' not allowed in function prototype" \
@@ -83,4 +85,4 @@ __auto_type multidimensional[2][2];
     "__auto_type.c:58:5: error: 'auto_array' declared as array of '__auto_type'" \
     "__auto_type.c:60:29: error: cannot use '__auto_type' with initializer list" \
     "__auto_type.c:66:1: error: 'multidimensional' declared as array of '__auto_type'" \
-
+    "__auto_type.c:68:30: error: 'auto' specified on global variable" \
