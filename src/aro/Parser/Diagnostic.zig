@@ -216,8 +216,13 @@ pub const illegal_storage_on_func: Diagnostic = .{
     .kind = .@"error",
 };
 
-pub const illegal_storage_on_global: Diagnostic = .{
-    .fmt = "illegal storage class on global variable",
+pub const auto_on_global: Diagnostic = .{
+    .fmt = "'auto' specified on global variable",
+    .kind = .@"error",
+};
+
+pub const register_on_global: Diagnostic = .{
+    .fmt = "register name not specified for global variable",
     .kind = .@"error",
 };
 
@@ -2293,6 +2298,11 @@ pub const u8_char_lit: Diagnostic = .{
 
 pub const invalid_compound_literal_storage_class: Diagnostic = .{
     .fmt = "compound literal cannot have {s} storage class",
+    .kind = .@"error",
+};
+
+pub const register_on_global_compound_literal: Diagnostic = .{
+    .fmt = "file scope compound literal specifies 'register'",
     .kind = .@"error",
 };
 

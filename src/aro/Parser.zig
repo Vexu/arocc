@@ -1339,7 +1339,7 @@ fn decl(p: *Parser) Error!bool {
         if (init_d.d.old_style_func) |tok_i| try p.err(tok_i, .invalid_old_style_params, .{});
 
         if (decl_spec.storage_class == .typedef) {
-            try decl_spec.validateDecl(p);
+            try decl_spec.validateDecl(p, init_d.asm_label);
             try p.tree.setNode(.{ .typedef = .{
                 .name_tok = init_d.d.name,
                 .qt = init_d.d.qt,
@@ -1356,7 +1356,7 @@ fn decl(p: *Parser) Error!bool {
                 .definition = null,
             } }, @intFromEnum(decl_node));
         } else {
-            try decl_spec.validateDecl(p);
+            try decl_spec.validateDecl(p, init_d.asm_label);
             var node_qt = init_d.d.qt;
             if (p.func.qt == null and decl_spec.storage_class != .@"extern") {
                 if (node_qt.get(p.comp, .array)) |array_ty| {
@@ -1596,13 +1596,16 @@ pub const DeclSpec = struct {
         if (d.constexpr) |tok_i| try p.err(tok_i, .illegal_storage_on_func, .{});
     }
 
-    fn validateDecl(d: DeclSpec, p: *Parser) Error!void {
+    fn validateDecl(d: DeclSpec, p: *Parser, asm_label: ?Node.Index) Error!void {
         if (d.@"inline") |tok_i| try p.err(tok_i, .func_spec_non_func, .{"inline"});
         // TODO move to attribute validation
         if (d.noreturn) |tok_i| try p.err(tok_i, .func_spec_non_func, .{"_Noreturn"});
         switch (d.storage_class) {
-            .auto => std.debug.assert(!p.comp.langopts.standard.atLeast(.c23)),
-            .register => if (p.func.qt == null) try p.err(p.tok_i, .illegal_storage_on_global, .{}),
+            .auto => {
+                std.debug.assert(!p.comp.langopts.standard.atLeast(.c23));
+                try p.err(p.tok_i, .auto_on_global, .{});
+            },
+            .register => if (p.func.qt == null and asm_label == null) try p.err(p.tok_i, .register_on_global, .{}),
             else => {},
         }
     }
@@ -1786,7 +1789,11 @@ fn storageClassSpec(p: *Parser, d: *DeclSpec) Error!bool {
     return p.tok_i != start;
 }
 
-const InitDeclarator = struct { d: Declarator, initializer: ?Result = null };
+const InitDeclarator = struct {
+    d: Declarator,
+    initializer: ?Result = null,
+    asm_label: ?Node.Index = null,
+};
 
 /// attribute
 ///  : attrIdentifier
@@ -1994,12 +2001,12 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec, attr_buf_top: usize, decl_no
     defer p.attr_buf.len = this_attr_buf_top;
     const gpa = p.comp.gpa;
 
-    var init_d = InitDeclarator{
+    var init_d: InitDeclarator = .{
         .d = (try p.declarator(decl_spec.qt, .normal)) orelse return null,
     };
 
     try p.attributeSpecifierExtra(init_d.d.name);
-    _ = try p.assembly(.decl_label);
+    init_d.asm_label = try p.assembly(.decl_label);
     try p.attributeSpecifierExtra(init_d.d.name);
 
     switch (init_d.d.declarator_type) {
@@ -4982,31 +4989,31 @@ fn assembly(p: *Parser, kind: enum { global, decl_label, stmt }) Error!?Node.Ind
     };
 
     const l_paren = try p.expectToken(.l_paren);
-    var result_node: ?Node.Index = null;
-    switch (kind) {
-        .decl_label => {
+    const res = switch (kind) {
+        .decl_label => blk: {
             const asm_str = try p.asmStr();
             const str = try p.removeNull(asm_str.val);
 
             const attr = Attribute{ .tag = .asm_label, .args = .{ .asm_label = .{ .name = str } }, .syntax = .keyword };
             try p.attr_buf.append(p.comp.gpa, .{ .attr = attr, .tok = asm_tok });
+            break :blk asm_str.node;
         },
-        .global => {
+        .global => blk: {
             const asm_str = try p.asmStr();
             try p.checkAsmStr(asm_str.val, l_paren);
-            result_node = try p.addNode(.{
+            break :blk try p.addNode(.{
                 .global_asm = .{
                     .asm_tok = asm_tok,
                     .asm_str = asm_str.node,
                 },
             });
         },
-        .stmt => result_node = try p.gnuAsmStmt(quals, asm_tok, l_paren),
-    }
+        .stmt => try p.gnuAsmStmt(quals, asm_tok, l_paren),
+    };
     try p.expectClosing(l_paren, .r_paren);
 
     if (kind != .decl_label) _ = try p.expectToken(.semicolon);
-    return result_node;
+    return res;
 }
 
 /// Same as stringLiteral but errors on unicode and wide string literals
@@ -8885,7 +8892,7 @@ fn compoundLiteral(p: *Parser, qt_opt: ?QualType, opt_l_paren: ?TokenIndex) Erro
                 try p.err(tok, .invalid_compound_literal_storage_class, .{@tagName(d.storage_class)});
                 d.storage_class = .none;
             },
-            .register => if (p.func.qt == null) try p.err(p.tok_i, .illegal_storage_on_global, .{}),
+            .register => if (p.func.qt == null) try p.err(p.tok_i, .register_on_global_compound_literal, .{}),
             else => {},
         }
 
