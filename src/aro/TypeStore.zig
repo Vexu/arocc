@@ -2070,13 +2070,20 @@ pub fn set(ts: *TypeStore, gpa: std.mem.Allocator, ty: Type, index: usize) !void
 
 pub fn initNamedTypes(ts: *TypeStore, comp: *Compilation) !void {
     const os = comp.target.os.tag;
-    ts.wchar = switch (comp.target.cpu.arch) {
-        .xcore => .uchar,
-        .ve, .msp430 => .uint,
-        .arm, .armeb, .thumb, .thumbeb => if (os != .windows and os != .netbsd and os != .openbsd) .uint else .int,
-        .aarch64, .aarch64_be => if (!os.isDarwin() and os != .netbsd) .uint else .int,
-        .x86_64, .x86 => if (os == .windows) .ushort else .int,
-        else => .int,
+    ts.wchar = switch (os) {
+        .openbsd, .netbsd => .int,
+        .ps4, .ps5 => .ushort,
+        .uefi => .ushort,
+        .windows => .ushort,
+        .driverkit, .ios, .maccatalyst, .macos, .tvos, .visionos, .watchos => .int,
+        else => switch (comp.target.cpu.arch) {
+            .aarch64, .aarch64_be => .uint,
+            .arm, .armeb, .thumb, .thumbeb => .int,
+            .ve, .msp430 => .uint,
+            .x86_64, .x86 => .int,
+            .xcore => .uchar,
+            else => .int,
+        },
     };
 
     const ptr_width = comp.target.ptrBitWidth();
