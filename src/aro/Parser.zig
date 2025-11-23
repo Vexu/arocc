@@ -5916,6 +5916,7 @@ const CallExpr = union(enum) {
                     .__builtin_reduce_xor,
                     .__builtin_reduce_max,
                     .__builtin_reduce_min,
+                    .__builtin_constant_p,
                     => 1,
 
                     .__builtin_complex,
@@ -5975,6 +5976,7 @@ const CallExpr = union(enum) {
 
     fn returnType(self: CallExpr, p: *Parser, args: []const Node.Index, func_qt: QualType) !QualType {
         if (self == .standard) {
+            if (func_qt.isInvalid()) return .invalid;
             return if (func_qt.get(p.comp, .func)) |func_ty| func_ty.return_type else .invalid;
         }
         const builtin = self.builtin;
@@ -6129,7 +6131,7 @@ const CallExpr = union(enum) {
                 } }),
             },
             .builtin => |builtin| return .{
-                .val = try evalBuiltin(builtin.expanded, builtin.builtin_tok, p, args),
+                .val = try evalBuiltin(builtin.expanded, p, args),
                 .qt = return_qt,
                 .node = try p.addNode(.{ .builtin_call_expr = .{
                     .builtin_tok = builtin.builtin_tok,
@@ -9331,7 +9333,7 @@ fn callExpr(p: *Parser, lhs: Result) Error!Result {
 
     // We cannot refer to the function type here because the pointer to
     // type_store.extra might get invalidated while parsing args.
-    const func_qt, const params_len, const func_kind = blk: {
+    const func_qt, const typed_params_len, const func_kind_base = blk: {
         var base_qt = lhs.qt;
         if (base_qt.get(p.comp, .pointer)) |pointer_ty| base_qt = pointer_ty.child;
         if (base_qt.isInvalid()) break :blk .{ base_qt, std.math.maxInt(usize), undefined };
@@ -9354,6 +9356,10 @@ fn callExpr(p: *Parser, lhs: Result) Error!Result {
 
     const call_expr = CallExpr.init(p, lhs.node, func.node);
 
+    const param_len_override = call_expr.paramCountOverride();
+    const params_len = param_len_override orelse typed_params_len;
+    const func_kind = if (param_len_override != null) .normal else func_kind_base;
+
     while (p.eatToken(.r_paren) == null) {
         const param_tok = p.tok_i;
         if (arg_count == params_len) first_after = p.tok_i;
@@ -9364,7 +9370,7 @@ fn callExpr(p: *Parser, lhs: Result) Error!Result {
         }
         if ((arg.qt.hasIncompleteSize(p.comp) and !arg.qt.is(p.comp, .void)) or arg.qt.isInvalid()) return error.ParsingFailed;
 
-        if (arg_count >= params_len) {
+        if (arg_count >= typed_params_len) {
             if (call_expr.shouldPromoteVarArg(arg_count)) switch (arg.qt.base(p.comp).type) {
                 .int => |int_ty| if (int_ty == .int) try arg.castToInt(p, arg.qt.promoteInt(p.comp), param_tok),
                 .float => |float_ty| if (float_ty == .double) try arg.castToFloat(p, .double, param_tok),
@@ -9421,16 +9427,17 @@ fn callExpr(p: *Parser, lhs: Result) Error!Result {
         return try call_expr.finish(p, func_qt, list_buf_top, l_paren);
     }
 
-    if (call_expr.paramCountOverride()) |expected| {
-        if (expected != arg_count) {
-            try p.err(first_after, .expected_arguments, .{ expected, arg_count });
-        }
-    } else switch (func_kind) {
+    const r_paren = p.tok_i - 1;
+    switch (func_kind) {
         .normal => if (params_len != arg_count) {
-            try p.err(first_after, .expected_arguments, .{ params_len, arg_count });
+            try p.err(
+                if (arg_count < params_len) r_paren else first_after,
+                .expected_arguments,
+                .{ params_len, arg_count },
+            );
         },
         .variadic => if (arg_count < params_len) {
-            try p.err(first_after, .expected_at_least_arguments, .{ params_len, arg_count });
+            try p.err(r_paren, .expected_at_least_arguments, .{ params_len, arg_count });
         },
         .old_style => if (params_len != arg_count) {
             if (params_len == 0)

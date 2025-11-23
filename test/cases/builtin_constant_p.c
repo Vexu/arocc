@@ -36,6 +36,6 @@ _Static_assert(!__builtin_constant_p("ABC"[0]), ""); // Should be constant
 
 #define TESTS_SKIPPED 1
 
-#define EXPECTED_ERRORS "builtin_constant_p.c:32:16: error: expected 1 argument(s) got 0" \
-    "builtin_constant_p.c:33:16: error: expected 1 argument(s) got 2" \
+#define EXPECTED_ERRORS "builtin_constant_p.c:32:37: error: expected 1 argument(s) got 0" \
+    "builtin_constant_p.c:33:40: error: expected 1 argument(s) got 2" \
 
