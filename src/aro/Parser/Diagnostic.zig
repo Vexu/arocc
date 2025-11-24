@@ -1512,13 +1512,38 @@ pub const builtin_must_be_called: Diagnostic = .{
     .kind = .@"error",
 };
 
-pub const va_start_not_in_func: Diagnostic = .{
-    .fmt = "'va_start' cannot be used outside a function",
+pub const va_func_not_in_func: Diagnostic = .{
+    .fmt = "'{s}' cannot be used outside a function",
     .kind = .@"error",
 };
 
-pub const va_start_fixed_args: Diagnostic = .{
-    .fmt = "'va_start' used in a function with fixed args",
+pub const va_func_fixed_args: Diagnostic = .{
+    .fmt = "'{s}' used in a function with fixed args",
+    .kind = .@"error",
+};
+
+pub const va_func_not_always_inline: Diagnostic = .{
+    .fmt = "'{s}' used in a function that is not always inlined",
+    .kind = .@"error",
+};
+
+pub const va_pack_non_call: Diagnostic = .{
+    .fmt = "'__va_arg_pack' used outside a call",
+    .kind = .@"error",
+};
+
+pub const va_pack_non_variadic_call: Diagnostic = .{
+    .fmt = "'__va_arg_pack' passed to non-variadic function",
+    .kind = .@"error",
+};
+
+pub const va_pack_non_variadic_arg: Diagnostic = .{
+    .fmt = "'__va_arg_pack' passed as non-variadic argument",
+    .kind = .@"error",
+};
+
+pub const va_pack_non_final_arg: Diagnostic = .{
+    .fmt = "'__va_arg_pack' is not the final argument",
     .kind = .@"error",
 };
 

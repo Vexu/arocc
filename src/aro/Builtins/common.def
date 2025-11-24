@@ -52,6 +52,14 @@ __builtin_ms_va_start
     .param_str = "v."
     .attributes = .{ .custom_typecheck = true }
 
+__builtin_va_arg_pack
+    .param_str = "v"
+    .attributes = .{ .custom_typecheck = true }
+
+__builtin_va_arg_pack_len
+    .param_str = "i"
+    .attributes = .{ .custom_typecheck = true }
+
 # Generated from clang/include/clang/Basic/Builtins.td
 
 __atomic_add_fetch
