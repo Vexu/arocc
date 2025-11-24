@@ -5934,8 +5934,9 @@ const CallExpr = union(enum) {
 
                     .__c11_atomic_store,
                     .__atomic_store,
+                    .__atomic_store_n,
+                    .__atomic_load,
                     .__c11_atomic_exchange,
-                    .__atomic_exchange,
                     .__c11_atomic_fetch_add,
                     .__c11_atomic_fetch_sub,
                     .__c11_atomic_fetch_or,
@@ -5960,6 +5961,9 @@ const CallExpr = union(enum) {
                     .__atomic_exchange_n,
                     => 3,
 
+                    .__atomic_exchange,
+                    => 4,
+
                     .__c11_atomic_compare_exchange_strong,
                     .__c11_atomic_compare_exchange_weak,
                     => 5,
@@ -5983,19 +5987,6 @@ const CallExpr = union(enum) {
         const func_ty = func_qt.get(p.comp, .func).?;
         return switch (builtin.expanded.tag) {
             .common => |tag| switch (tag) {
-                .__c11_atomic_exchange => {
-                    if (args.len != 4) return .invalid; // wrong number of arguments; already an error
-                    const second_param = args[2];
-                    return second_param.qt(&p.tree);
-                },
-                .__c11_atomic_load => {
-                    if (args.len != 3) return .invalid; // wrong number of arguments; already an error
-                    const first_param = args[1];
-                    const qt = first_param.qt(&p.tree);
-                    if (!qt.isPointer(p.comp)) return .invalid;
-                    return qt.childType(p.comp);
-                },
-
                 .__atomic_fetch_add,
                 .__atomic_add_fetch,
                 .__c11_atomic_fetch_add,
@@ -6021,15 +6012,33 @@ const CallExpr = union(enum) {
                 .__c11_atomic_fetch_nand,
 
                 .__atomic_exchange_n,
+                .__c11_atomic_exchange,
+
+                .__sync_fetch_and_add,
+                .__sync_fetch_and_and,
+                .__sync_fetch_and_nand,
+                .__sync_fetch_and_or,
+                .__sync_fetch_and_sub,
+                .__sync_fetch_and_xor,
+
+                .__sync_add_and_fetch,
+                .__sync_and_and_fetch,
+                .__sync_nand_and_fetch,
+                .__sync_or_and_fetch,
+                .__sync_sub_and_fetch,
+                .__sync_xor_and_fetch,
+
+                .__sync_swap,
+                .__sync_lock_test_and_set,
+                .__sync_val_compare_and_swap,
                 => {
-                    if (args.len != 3) return .invalid; // wrong number of arguments; already an error
-                    const second_param = args[2];
-                    return second_param.qt(&p.tree);
+                    const second_param = args[2].qt(&p.tree);
+                    return second_param;
                 },
                 .__builtin_complex => {
-                    if (args.len < 1) return .invalid; // not enough arguments; already an error
-                    const last_param = args[args.len - 1];
-                    return try last_param.qt(&p.tree).toComplex(p.comp);
+                    const last_param = args[args.len - 1].qt(&p.tree);
+                    if (last_param.isInvalid()) return .invalid;
+                    return try last_param.toComplex(p.comp);
                 },
                 .__atomic_compare_exchange,
                 .__atomic_compare_exchange_n,
@@ -6040,9 +6049,8 @@ const CallExpr = union(enum) {
                 .__c11_atomic_compare_exchange_strong,
                 .__c11_atomic_compare_exchange_weak,
                 => {
-                    if (args.len != 6) return .invalid; // wrong number of arguments
-                    const third_param = args[3];
-                    return third_param.qt(&p.tree);
+                    const third_param = args[3].qt(&p.tree);
+                    return third_param;
                 },
 
                 .__builtin_elementwise_abs,
@@ -6071,13 +6079,12 @@ const CallExpr = union(enum) {
                 .__builtin_elementwise_sub_sat,
                 .__builtin_elementwise_fma,
                 .__builtin_elementwise_popcount,
+
                 .__builtin_nondeterministic_value,
                 => {
-                    if (args.len < 1) return .invalid; // not enough arguments; already an error
-                    const last_param = args[args.len - 1];
-                    return last_param.qt(&p.tree);
+                    const first_param = args[0].qt(&p.tree);
+                    return first_param;
                 },
-                .__builtin_nontemporal_load,
                 .__builtin_reduce_add,
                 .__builtin_reduce_mul,
                 .__builtin_reduce_and,
@@ -6086,30 +6093,19 @@ const CallExpr = union(enum) {
                 .__builtin_reduce_max,
                 .__builtin_reduce_min,
                 => {
-                    if (args.len < 1) return .invalid; // not enough arguments; already an error
-                    const last_param = args[args.len - 1];
-                    return last_param.qt(&p.tree).childType(p.comp);
+                    const first_param = args[0].qt(&p.tree);
+                    if (first_param.isInvalid()) return .invalid;
+                    const vector_ty = first_param.get(p.comp, .vector) orelse return .invalid;
+                    return vector_ty.elem;
                 },
-                .__sync_add_and_fetch,
-                .__sync_and_and_fetch,
-                .__sync_fetch_and_add,
-                .__sync_fetch_and_and,
-                .__sync_fetch_and_nand,
-                .__sync_fetch_and_or,
-                .__sync_fetch_and_sub,
-                .__sync_fetch_and_xor,
-                .__sync_lock_test_and_set,
-                .__sync_nand_and_fetch,
-                .__sync_or_and_fetch,
-                .__sync_sub_and_fetch,
-                .__sync_swap,
-                .__sync_xor_and_fetch,
-                .__sync_val_compare_and_swap,
                 .__atomic_load_n,
+                .__c11_atomic_load,
+                .__builtin_nontemporal_load,
                 => {
-                    if (args.len < 1) return .invalid; // not enough arguments; already an error
-                    const first_param = args[0];
-                    return first_param.qt(&p.tree).childType(p.comp);
+                    const first_param = args[0].qt(&p.tree);
+                    if (first_param.isInvalid()) return .invalid;
+                    if (!first_param.isPointer(p.comp)) return .invalid;
+                    return first_param.childType(p.comp);
                 },
                 else => func_ty.return_type,
             },
