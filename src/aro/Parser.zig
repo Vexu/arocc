@@ -203,6 +203,11 @@ string_ids: struct {
     sigjmp_buf: StringId,
     ucontext_t: StringId,
 },
+va_arg_pack_ctx: packed struct {
+    valid: bool = false,
+    variadic: bool = false,
+    typed: bool = false,
+} = .{},
 
 /// Checks codepoint for various pedantic warnings
 /// Returns true if diagnostic issued
@@ -8242,7 +8247,7 @@ fn builtinChooseExpr(p: *Parser) Error!Result {
     return cond;
 }
 
-/// vaStart : __builtin_va_arg '(' assignExpr ',' typeName ')'
+/// vaArg : __builtin_va_arg '(' assignExpr ',' typeName ')'
 fn builtinVaArg(p: *Parser, builtin_tok: TokenIndex) Error!Result {
     const l_paren = try p.expectToken(.l_paren);
     const va_list_tok = p.tok_i;
@@ -8272,6 +8277,62 @@ fn builtinVaArg(p: *Parser, builtin_tok: TokenIndex) Error!Result {
             },
         }),
     };
+}
+
+/// vaArgPack : __builtin_va_arg_pack '(' ')'
+fn builtinVaArgPack(p: *Parser, builtin_tok: TokenIndex) Error!Result {
+    const l_paren = try p.expectToken(.l_paren);
+    try p.expectClosing(l_paren, .r_paren);
+
+    var res_qt: QualType = .invalid;
+    if (!try p.checkVaPackFunc(builtin_tok, "__builtin_va_arg_pack")) {
+        // Only add one error.
+    } else if (!p.va_arg_pack_ctx.valid) {
+        try p.err(builtin_tok, .va_pack_non_call, .{});
+    } else if (!p.va_arg_pack_ctx.variadic) {
+        try p.err(builtin_tok, .va_pack_non_variadic_call, .{});
+    } else if (p.va_arg_pack_ctx.typed) {
+        try p.err(builtin_tok, .va_pack_non_variadic_arg, .{});
+    } else {
+        res_qt = .void;
+    }
+    return .{
+        .qt = res_qt,
+        .node = try p.addNode(.{
+            .builtin_va_arg_pack = .{ .builtin_tok = builtin_tok },
+        }),
+    };
+}
+
+/// vaArgPackLen : __builtin_va_arg_pack_len '(' ')'
+fn builtinVaArgPackLen(p: *Parser, builtin_tok: TokenIndex) Error!Result {
+    const l_paren = try p.expectToken(.l_paren);
+    try p.expectClosing(l_paren, .r_paren);
+
+    _ = try p.checkVaPackFunc(builtin_tok, "__builtin_va_arg_pack_len");
+
+    return .{
+        .qt = .int,
+        .node = try p.addNode(.{
+            .builtin_va_arg_pack_len = .{
+                .builtin_tok = builtin_tok,
+            },
+        }),
+    };
+}
+
+fn checkVaPackFunc(p: *Parser, builtin_tok: TokenIndex, va_func_name: []const u8) !bool {
+    const func_qt, _ = (try p.checkVaFunc(builtin_tok, va_func_name)) orelse return false;
+
+    var it = Attribute.Iterator.initType(func_qt, p.comp);
+    while (it.next()) |item| switch (item[0].tag) {
+        .always_inline, .gnu_inline => break,
+        else => {},
+    } else {
+        try p.err(builtin_tok, .va_func_not_always_inline, .{va_func_name});
+        return false;
+    }
+    return true;
 }
 
 const OffsetKind = enum { bits, bytes };
@@ -9192,19 +9253,25 @@ fn checkVaStartArg(p: *Parser, builtin_tok: TokenIndex, first_after: TokenIndex,
         return error.ParsingFailed;
     }
 
-    const func_qt = p.func.qt orelse {
-        try p.err(builtin_tok, .va_start_not_in_func, .{});
-        return;
-    };
-    const func_ty = func_qt.get(p.comp, .func) orelse return;
-    if (func_ty.kind != .variadic or func_ty.params.len == 0) {
-        return p.err(builtin_tok, .va_start_fixed_args, .{});
-    }
+    _, const func_ty = (try p.checkVaFunc(builtin_tok, "va_start")) orelse return;
     const last_param_name = func_ty.params[func_ty.params.len - 1].name;
     const decl_ref = p.getNode(arg.node, .decl_ref_expr);
     if (decl_ref == null or last_param_name != try p.comp.internString(p.tokSlice(decl_ref.?.name_tok))) {
         try p.err(param_tok, .va_start_not_last_param, .{});
     }
+}
+
+fn checkVaFunc(p: *Parser, builtin_tok: TokenIndex, va_func_name: []const u8) !?struct { QualType, Type.Func } {
+    const func_qt = p.func.qt orelse {
+        try p.err(builtin_tok, .va_func_not_in_func, .{va_func_name});
+        return null;
+    };
+    const func_ty = func_qt.get(p.comp, .func) orelse return null;
+    if (func_ty.kind != .variadic or func_ty.params.len == 0) {
+        try p.err(builtin_tok, .va_func_fixed_args, .{va_func_name});
+        return null;
+    }
+    return .{ func_qt, func_ty };
 }
 
 fn checkArithOverflowArg(p: *Parser, builtin_tok: TokenIndex, first_after: TokenIndex, param_tok: TokenIndex, arg: *Result, idx: u32) !void {
@@ -9366,6 +9433,37 @@ fn callExpr(p: *Parser, lhs: Result) Error!Result {
     while (p.eatToken(.r_paren) == null) {
         const param_tok = p.tok_i;
         if (arg_count == params_len) first_after = p.tok_i;
+
+        // Check for __builtin_va_arg_pack
+        {
+            var i = p.tok_i;
+            loop: switch (p.tok_ids[i]) {
+                .l_paren => {
+                    i += 1;
+                    continue :loop p.tok_ids[i];
+                },
+                .identifier => if (mem.eql(u8, p.tokSlice(i), "__builtin_va_arg_pack")) {
+                    @branchHint(.cold);
+                    p.va_arg_pack_ctx = .{
+                        .valid = true,
+                        .variadic = func_kind != .normal,
+                        .typed = arg_count < typed_params_len,
+                    };
+                    defer p.va_arg_pack_ctx = .{};
+
+                    var arg = try p.expect(assignExpr);
+                    try p.list_buf.append(gpa, arg.node);
+                    arg_count += 1;
+                    if (p.eatToken(.comma)) |_| {
+                        try p.err(i, .va_pack_non_final_arg, .{});
+                        continue;
+                    }
+                    try p.expectClosing(l_paren, .r_paren);
+                    break;
+                },
+                else => {},
+            }
+        }
         var arg = try p.expect(assignExpr);
 
         if (call_expr.shouldPerformLvalConversion(arg_count)) {
@@ -9603,6 +9701,8 @@ fn primaryExpr(p: *Parser) Error!?Result {
                     .common => |tag| switch (tag) {
                         .__builtin_choose_expr => return try p.builtinChooseExpr(),
                         .__builtin_va_arg => return try p.builtinVaArg(name_tok),
+                        .__builtin_va_arg_pack => return try p.builtinVaArgPack(name_tok),
+                        .__builtin_va_arg_pack_len => return try p.builtinVaArgPackLen(name_tok),
                         .__builtin_offsetof => return try p.builtinOffsetof(name_tok, .bytes),
                         .__builtin_bitoffsetof => return try p.builtinOffsetof(name_tok, .bits),
                         .__builtin_types_compatible_p => return try p.typesCompatible(name_tok),

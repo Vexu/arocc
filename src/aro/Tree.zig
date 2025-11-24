@@ -243,6 +243,8 @@ pub const Node = union(enum) {
     builtin_choose_expr: Conditional,
     builtin_convertvector: Convertvector,
     builtin_shufflevector: Shufflevector,
+    builtin_va_arg_pack: VaArgPack,
+    builtin_va_arg_pack_len: VaArgPack,
 
     /// C23 bool literal `true` / `false`
     bool_literal: Literal,
@@ -631,6 +633,10 @@ pub const Node = union(enum) {
         lhs: Node.Index,
         rhs: Node.Index,
         indexes: []const Node.Index,
+    };
+
+    pub const VaArgPack = struct {
+        builtin_tok: TokenIndex,
     };
 
     pub const Literal = struct {
@@ -1689,6 +1695,16 @@ pub const Node = union(enum) {
                         .indexes = @ptrCast(tree.extra.items[node_data[1] + 2 ..][0..node_data[2]]),
                     },
                 },
+                .builtin_va_arg_pack => .{
+                    .builtin_va_arg_pack = .{
+                        .builtin_tok = node_tok,
+                    },
+                },
+                .builtin_va_arg_pack_len => .{
+                    .builtin_va_arg_pack_len = .{
+                        .builtin_tok = node_tok,
+                    },
+                },
                 .array_init_expr_two => .{
                     .array_init_expr = .{
                         .l_brace_tok = node_tok,
@@ -1797,7 +1813,9 @@ pub const Node = union(enum) {
                 .global_asm,
                 .generic_association_expr,
                 .generic_default_expr,
+                .builtin_va_arg_pack,
                 => null,
+                .builtin_va_arg_pack_len => .int,
                 .builtin_types_compatible_p => .int,
                 else => {
                     // If a node is typed the type is stored in data[0].
@@ -1963,6 +1981,8 @@ pub const Node = union(enum) {
             builtin_types_compatible_p,
             builtin_convertvector,
             builtin_shufflevector,
+            builtin_va_arg_pack,
+            builtin_va_arg_pack_len,
             array_init_expr,
             array_init_expr_two,
             struct_init_expr,
@@ -2789,6 +2809,14 @@ pub fn setNode(tree: *Tree, node: Node, index: usize) !void {
             tree.extra.appendAssumeCapacity(@intFromEnum(builtin.rhs));
             tree.extra.appendSliceAssumeCapacity(@ptrCast(builtin.indexes));
         },
+        .builtin_va_arg_pack => |builtin| {
+            repr.tag = .builtin_va_arg_pack;
+            repr.tok = builtin.builtin_tok;
+        },
+        .builtin_va_arg_pack_len => |builtin| {
+            repr.tag = .builtin_va_arg_pack_len;
+            repr.tok = builtin.builtin_tok;
+        },
         .array_init_expr => |init| {
             repr.data[0] = @bitCast(init.container_qt);
             if (init.items.len > 2) {
@@ -3424,6 +3452,7 @@ fn dumpNode(
                 }
             }
         },
+        .builtin_va_arg_pack, .builtin_va_arg_pack_len => {},
         .if_stmt => |@"if"| {
             try w.splatByteAll(' ', level + half);
             try w.writeAll("cond:\n");
