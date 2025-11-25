@@ -204,7 +204,6 @@ pub fn initDefault(gpa: Allocator, arena: Allocator, io: Io, diagnostics: *Diagn
     };
     errdefer comp.deinit();
     try comp.addDefaultPragmaHandlers();
-    comp.langopts.setEmulatedCompiler(comp.target.systemCompiler());
     return comp;
 }
 
@@ -274,17 +273,18 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
     }
 
     try w.writeAll(
+        \\#define __ARO_EMULATE_NO__ 0
         \\#define __ARO_EMULATE_CLANG__ 1
         \\#define __ARO_EMULATE_GCC__ 2
         \\#define __ARO_EMULATE_MSVC__ 3
         \\
     );
-    const emulated = switch (comp.langopts.emulate) {
+    try w.print("#define __ARO_EMULATE__ {s}\n", .{switch (comp.langopts.emulate) {
+        .no => "__ARO_EMULATE_NO__",
         .clang => "__ARO_EMULATE_CLANG__",
         .gcc => "__ARO_EMULATE_GCC__",
         .msvc => "__ARO_EMULATE_MSVC__",
-    };
-    try w.print("#define __ARO_EMULATE__ {s}\n", .{emulated});
+    }});
 
     if (comp.langopts.emulate == .msvc) {
         try w.writeAll("#define _MSC_VER 1933\n");
@@ -1162,8 +1162,10 @@ fn generateTypeMacro(comp: *const Compilation, w: *Io.Writer, name: []const u8, 
 }
 
 pub fn float80Type(comp: *const Compilation) ?QualType {
-    if (comp.langopts.emulate != .gcc) return null;
-    return comp.target.float80Type();
+    return switch (comp.langopts.emulate) {
+        .no, .gcc => comp.target.float80Type(),
+        .msvc, .clang => null,
+    };
 }
 
 /// Smallest integer type with at least N bits
@@ -1409,7 +1411,7 @@ pub fn maxArrayBytes(comp: *const Compilation) u64 {
 pub fn fixedEnumTagType(comp: *const Compilation) ?QualType {
     switch (comp.langopts.emulate) {
         .msvc => return .int,
-        .clang => if (comp.target.os.tag == .windows and comp.target.abi == .msvc) return .int,
+        .no, .clang => if (comp.target.os.tag == .windows and comp.target.abi == .msvc) return .int,
         .gcc => {},
     }
     return null;

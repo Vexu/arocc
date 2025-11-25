@@ -812,6 +812,7 @@ pub fn parseArgs(
             .clang => try d.diagnostics.set("clang", .off),
             .gcc => try d.diagnostics.set("gnu", .off),
             .msvc => try d.diagnostics.set("microsoft", .off),
+            .no => {},
         }
     }
     if (d.comp.langopts.preserve_comments and !d.only_preprocess) {

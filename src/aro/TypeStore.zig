@@ -2837,7 +2837,7 @@ pub const Builder = struct {
     }
 
     fn duplicateSpec(b: *Builder, source_tok: TokenIndex, spec: []const u8) !void {
-        if (b.parser.comp.langopts.emulate != .clang) return b.cannotCombine(source_tok);
+        if (b.parser.comp.langopts.emulate == .gcc) return b.cannotCombine(source_tok);
         try b.parser.err(b.parser.tok_i, .duplicate_decl_spec, .{spec});
     }
 

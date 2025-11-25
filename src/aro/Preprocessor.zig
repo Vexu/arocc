@@ -338,7 +338,7 @@ pub fn addBuiltinMacros(pp: *Preprocessor) !void {
     try pp.addBuiltinMacro("__is_identifier", .{ .func = .is_identifier });
     try pp.addBuiltinMacro("_Pragma", .{ .func = .pragma_operator });
 
-    if (pp.comp.langopts.emulate == .clang) {
+    if (pp.comp.langopts.emulate == .no or pp.comp.langopts.emulate == .clang) {
         try pp.addBuiltinMacro("__is_target_arch", .{ .func = .is_target_arch });
         try pp.addBuiltinMacro("__is_target_vendor", .{ .func = .is_target_vendor });
         try pp.addBuiltinMacro("__is_target_os", .{ .func = .is_target_os });
@@ -1825,7 +1825,11 @@ fn handleBuiltinMacro(pp: *Preprocessor, builtin: Macro.Builtin.Func, param_toks
                     features.hasFeature(pp.comp, ident_str)
                 else
                     features.hasExtension(pp.comp, ident_str),
-                .has_builtin => Builtins.fromName(pp.comp, ident_str) != null or (pp.comp.langopts.emulate == .clang and Macro.Builtin.has_builtin_special_cases.has(ident_str)),
+
+                .has_builtin => Builtins.fromName(pp.comp, ident_str) != null or
+                    ((pp.comp.langopts.emulate == .no or pp.comp.langopts.emulate == .clang) and
+                        Macro.Builtin.has_builtin_special_cases.has(ident_str)),
+
                 .is_target_arch => pp.comp.isTargetArch(ident_str),
                 .is_target_os => pp.comp.isTargetOs(ident_str),
                 .is_target_vendor => pp.comp.isTargetVendor(ident_str),
