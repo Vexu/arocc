@@ -937,6 +937,18 @@ pub const Token = struct {
             .keyword_unaligned,
             .keyword_unaligned2,
             => if (langopts.ms_extensions) kw else .identifier,
+
+            .keyword_float32,
+            .keyword_float64,
+            .keyword_float128,
+            .keyword_float32x,
+            .keyword_float64x,
+            .keyword_float128x,
+            .keyword_dfloat32,
+            .keyword_dfloat64,
+            .keyword_dfloat128,
+            .keyword_dfloat64x,
+            => if (langopts.emulate == .clang) .identifier else kw,
             else => kw,
         };
     }
