@@ -175,6 +175,10 @@ pub const usage =
     \\  -darwin-target-variant-triple
     \\                          Specify the darwin target variant triple
     \\  -fapple-kext            Use Apple's kernel extensions ABI
+    \\  -fexperimental-bounds-safety
+    \\                          Enable experimental clang-style bounds safety attributes (INCOMPLETE)
+    \\  -fno-experimental-bounds-safety
+    \\                          Disable experimental clang-style bounds safety attributes
     \\  -fchar8_t               Enable char8_t (enabled by default in C23 and later)
     \\  -fno-char8_t            Disable char8_t (disabled by default for pre-C23)
     \\  -fcolor-diagnostics     Enable colors in diagnostics
@@ -413,6 +417,10 @@ pub fn parseArgs(
                 d.dependencies.file = path;
             } else if (mem.eql(u8, arg, "-MV")) {
                 d.dependencies.format = .nmake;
+            } else if (mem.eql(u8, arg, "-fexperimental-bounds-safety")) {
+                d.comp.langopts.bounds_safety = .clang;
+            } else if (mem.eql(u8, arg, "-fno-experimental-bounds-safety")) {
+                d.comp.langopts.bounds_safety = .none;
             } else if (mem.eql(u8, arg, "-fchar8_t")) {
                 d.comp.langopts.has_char8_t_override = true;
             } else if (mem.eql(u8, arg, "-fno-char8_t")) {

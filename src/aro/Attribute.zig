@@ -579,6 +579,7 @@ const attributes = struct {
             };
         } = null,
     };
+    pub const single = struct {};
     pub const spectre = struct {
         arg: enum {
             nomitigation,
@@ -838,6 +839,7 @@ pub fn applyVariableAttributes(p: *Parser, qt: QualType, attr_buf_start: usize, 
         } else {
             try p.attr_application_buf.append(gpa, attr);
         },
+        .single => try applyBoundsSafetyAttr(attr, p, tok, base_qt),
         .calling_convention => try applyKeywordCallingConvention(attr, p, tok, base_qt),
 
         .fastcall,
@@ -921,6 +923,8 @@ pub fn applyTypeAttributes(p: *Parser, qt: QualType, attr_buf_start: usize, diag
             .sysv_abi,
             .ms_abi,
             => try applyGnuAttrCallingConvention(attr, p, tok, base_qt),
+
+            .single => try applyBoundsSafetyAttr(attr, p, tok, base_qt),
 
             .alloc_size,
             .copy,
@@ -1303,6 +1307,13 @@ fn applyGnuAttrCallingConvention(attr: Attribute, p: *Parser, tok: TokenIndex, q
         },
         else => unreachable,
     }
+}
+
+fn applyBoundsSafetyAttr(attr: Attribute, p: *Parser, tok: TokenIndex, qt: QualType) !void {
+    if (!qt.is(p.comp, .pointer)) {
+        return p.err(tok, .single_requires_pointer, .{});
+    }
+    try p.attr_application_buf.append(p.comp.gpa, attr);
 }
 
 /// These come from explicit MSVC keywords like __stdcall, __fastcall, etc

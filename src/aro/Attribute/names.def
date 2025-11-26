@@ -297,6 +297,10 @@ simd
     .tag = .simd
     .gnu = true
 
+single
+    .tag = .single
+    .gnu = true
+
 stack_protect
     .tag = .stack_protect
     .gnu = true

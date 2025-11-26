@@ -2495,8 +2495,8 @@ pub const const_var_assignment: Diagnostic = .{
     .kind = .@"error",
 };
 
-pub const declared_const_here: Diagnostic = .{
-    .fmt = "variable '{s}' declared const here",
+pub const declared_here: Diagnostic = .{
+    .fmt = "{s} '{s}' declared{s}{s} here",
     .kind = .note,
 };
 
@@ -2507,5 +2507,20 @@ pub const mixing_decimal_floats: Diagnostic = .{
 
 pub const invalid_attribute_location: Diagnostic = .{
     .fmt = "{s} cannot appear here",
+    .kind = .@"error",
+};
+
+pub const single_requires_pointer: Diagnostic = .{
+    .fmt = "'single' attribute only applies to pointer arguments",
+    .kind = .@"error",
+};
+
+pub const single_requires_zero_index: Diagnostic = .{
+    .fmt = "array subscript on single pointer must use a constant index of 0 to be in bounds",
+    .kind = .@"error",
+};
+
+pub const pointer_arith_single: Diagnostic = .{
+    .fmt = "pointer arithmetic on single pointer is out of bounds; consider adding '__counted_by'",
     .kind = .@"error",
 };

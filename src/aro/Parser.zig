@@ -6505,6 +6505,7 @@ pub const Result = struct {
             .add => {
                 // if both aren't arithmetic one should be pointer and the other an integer
                 if (a_sk.isPointer() == b_sk.isPointer() or a_sk.isInt() == b_sk.isInt()) return a.invalidBinTy(tok, b, p);
+                try p.boundsSafetyCheckPointerArithmetic(a.qt, b.qt, tok, a.node);
 
                 if (a_sk == .void_pointer or b_sk == .void_pointer)
                     try p.err(tok, .gnu_pointer_arith, .{});
@@ -6523,6 +6524,7 @@ pub const Result = struct {
             .sub => {
                 // if both aren't arithmetic then either both should be pointers or just the left one.
                 if (!a_sk.isPointer() or !(b_sk.isPointer() or b_sk.isInt())) return a.invalidBinTy(tok, b, p);
+                try p.boundsSafetyCheckPointerArithmetic(a.qt, b.qt, tok, a.node);
 
                 if (a_sk == .void_pointer)
                     try p.err(tok, .gnu_pointer_arith, .{});
@@ -7515,20 +7517,21 @@ fn unwrapNestedOperation(p: *Parser, node_idx: Node.Index) ?Node.DeclRef {
     };
 }
 
-fn issueDeclaredConstHereNote(p: *Parser, decl_ref: Tree.Node.DeclRef, var_name: []const u8) Compilation.Error!void {
+fn issueDeclaredHereNote(p: *Parser, decl_ref: Tree.Node.DeclRef, var_kind: []const u8, var_name: []const u8, var_qual: []const u8) Compilation.Error!void {
     const location = switch (decl_ref.decl.get(&p.tree)) {
         .variable => |variable| variable.name_tok,
         .param => |param| param.name_tok,
         else => return,
     };
-    try p.err(location, .declared_const_here, .{var_name});
+    const space = if (var_qual.len > 0) " " else "";
+    try p.err(location, .declared_here, .{ var_kind, var_name, space, var_qual });
 }
 
 fn issueConstAssignmetDiagnostics(p: *Parser, node_idx: Node.Index, tok: TokenIndex) Compilation.Error!void {
     if (p.unwrapNestedOperation(node_idx)) |unwrapped| {
         const name = p.tokSlice(unwrapped.name_tok);
         try p.err(tok, .const_var_assignment, .{ name, unwrapped.qt });
-        try p.issueDeclaredConstHereNote(unwrapped, name);
+        try p.issueDeclaredHereNote(unwrapped, "variable", name, "const");
     } else {
         try p.err(tok, .not_assignable, .{});
     }
@@ -8679,6 +8682,9 @@ fn unExpr(p: *Parser) Error!?Result {
                 try p.err(tok, .not_assignable, .{});
                 return error.ParsingFailed;
             }
+            if (operand.qt.isPointer(p.comp)) {
+                try p.checkPtrArithmeticAllowed(operand.qt, p.tok_i, operand.node);
+            }
             try operand.usualUnaryConversion(p, tok);
 
             if (operand.val.is(.int, p.comp) or operand.val.is(.int, p.comp)) {
@@ -8706,6 +8712,9 @@ fn unExpr(p: *Parser) Error!?Result {
             if (!p.tree.isLval(operand.node) or operand.qt.@"const") {
                 try p.err(tok, .not_assignable, .{});
                 return error.ParsingFailed;
+            }
+            if (operand.qt.isPointer(p.comp)) {
+                try p.checkPtrArithmeticAllowed(operand.qt, p.tok_i, operand.node);
             }
             try operand.usualUnaryConversion(p, tok);
 
@@ -9051,6 +9060,9 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!?Result {
                 try p.err(p.tok_i, .not_assignable, .{});
                 return error.ParsingFailed;
             }
+            if (operand.qt.isPointer(p.comp)) {
+                try p.checkPtrArithmeticAllowed(operand.qt, p.tok_i, operand.node);
+            }
             try operand.usualUnaryConversion(p, p.tok_i);
 
             try operand.un(p, .post_inc_expr, p.tok_i);
@@ -9072,6 +9084,9 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!?Result {
                 try p.err(p.tok_i, .not_assignable, .{});
                 return error.ParsingFailed;
             }
+            if (operand.qt.isPointer(p.comp)) {
+                try p.checkPtrArithmeticAllowed(operand.qt, p.tok_i, operand.node);
+            }
             try operand.usualUnaryConversion(p, p.tok_i);
 
             try operand.un(p, .post_dec_expr, p.tok_i);
@@ -9086,6 +9101,8 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!?Result {
             const array_before_conversion = lhs;
             const index_before_conversion = index;
             var ptr = lhs;
+            try p.boundsSafetyCheckArrayAccess(ptr, index, l_bracket);
+
             try ptr.lvalConversion(p, l_bracket);
             try index.lvalConversion(p, l_bracket);
             if (ptr.qt.get(p.comp, .pointer)) |pointer_ty| {
@@ -9558,6 +9575,48 @@ fn callExpr(p: *Parser, lhs: Result) Error!Result {
     }
 
     return try call_expr.finish(p, func_qt, list_buf_top, l_paren, args_ok);
+}
+
+fn boundsSafetyCheckArrayAccess(p: *Parser, lhs: Result, rhs: Result, l_bracket: TokenIndex) !void {
+    if (!p.comp.hasClangStyleBoundsSafety()) return;
+
+    const ptr, const index = if (lhs.qt.isPointer(p.comp)) .{ lhs, rhs } else .{ rhs, lhs };
+
+    if (ptr.qt.hasAttribute(p.comp, .single)) {
+        if (!index.val.isZero(p.comp)) {
+            try p.err(l_bracket, .single_requires_zero_index, .{});
+            if (p.unwrapNestedOperation(ptr.node)) |unwrapped| {
+                const name = p.tokSlice(unwrapped.name_tok);
+                try p.issueDeclaredHereNote(unwrapped, "pointer", name, "single");
+            }
+        }
+    }
+}
+
+fn boundsSafetyCheckPointerArithmetic(p: *Parser, lhs: QualType, rhs: QualType, tok: TokenIndex, node: Tree.Node.Index) !void {
+    if (!p.comp.hasClangStyleBoundsSafety()) return;
+
+    const ptr = if (lhs.isPointer(p.comp) and rhs.isInt(p.comp))
+        lhs
+    else if (rhs.isPointer(p.comp) and lhs.isInt(p.comp))
+        rhs
+    else
+        return;
+
+    try p.checkPtrArithmeticAllowed(ptr, tok, node);
+}
+
+fn checkPtrArithmeticAllowed(p: *Parser, ptr: QualType, tok: TokenIndex, node: Tree.Node.Index) !void {
+    if (!p.comp.hasClangStyleBoundsSafety()) return;
+
+    if (ptr.hasAttribute(p.comp, .single)) {
+        // clang issues this diagnostic even with a constant `0` operand
+        try p.err(tok, .pointer_arith_single, .{});
+        if (p.unwrapNestedOperation(node)) |unwrapped| {
+            const name = p.tokSlice(unwrapped.name_tok);
+            try p.issueDeclaredHereNote(unwrapped, "pointer", name, "single");
+        }
+    }
 }
 
 fn checkArrayBounds(p: *Parser, index: Result, array: Result, tok: TokenIndex) !void {
