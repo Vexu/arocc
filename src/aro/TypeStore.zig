@@ -2087,7 +2087,7 @@ pub fn initNamedTypes(ts: *TypeStore, comp: *Compilation) !void {
         .driverkit, .ios, .maccatalyst, .macos, .tvos, .visionos, .watchos => .int,
         else => switch (comp.target.cpu.arch) {
             .aarch64, .aarch64_be => .uint,
-            .arm, .armeb, .thumb, .thumbeb => .int,
+            .arm, .armeb, .thumb, .thumbeb => .uint,
             .ve, .msp430 => .uint,
             .x86_64, .x86 => .int,
             .xcore => .uchar,
