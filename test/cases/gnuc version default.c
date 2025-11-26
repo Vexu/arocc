@@ -4,7 +4,7 @@ _Static_assert(__GNUC__ == 4, "");
 _Static_assert(__GNUC_MINOR__ == 2, "");
 _Static_assert(__GNUC_PATCHLEVEL__ == 1, "");
 
-#elif __ARO_EMULATE__ == __ARO_EMULATE_GCC__
+#elif __ARO_EMULATE__ == __ARO_EMULATE_GCC__ || __ARO_EMULATE__ == __ARO_EMULATE_NO__
 
 _Static_assert(__GNUC__ == 7, "");
 _Static_assert(__GNUC_MINOR__ == 1, "");

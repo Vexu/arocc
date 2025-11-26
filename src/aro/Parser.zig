@@ -2578,7 +2578,7 @@ fn recordSpec(p: *Parser) Error!QualType {
 
     if (!any_incomplete) {
         const pragma_pack_value = switch (p.comp.langopts.emulate) {
-            .clang => starting_pragma_pack,
+            .clang, .no => starting_pragma_pack,
             .gcc => p.pragma_pack,
             // TODO: msvc considers `#pragma pack` on a per-field basis
             .msvc => p.pragma_pack,
@@ -8903,7 +8903,7 @@ fn unExpr(p: *Parser) Error!?Result {
             } else switch (p.comp.langopts.emulate) {
                 .msvc => {}, // Doesn't support `_Complex` or `__imag` in the first place
                 .gcc => operand.val = .zero,
-                .clang => {
+                .clang, .no => {
                     if (operand.val.is(.int, p.comp) or operand.val.is(.float, p.comp)) {
                         operand.val = .zero;
                     } else {
@@ -10401,16 +10401,13 @@ fn fixedSizeInt(p: *Parser, base: u8, buf: []const u8, suffix: NumberSuffix, tok
         if (res.qt.intRankOrder(suffix_qt, p.comp).compare(.lt)) continue;
         const max_int = try Value.maxInt(res.qt, p.comp);
         if (interned_val.compare(.lte, max_int, p.comp)) break;
-    } else {
-        if (p.comp.langopts.emulate == .gcc) {
-            if (p.comp.target.hasInt128()) {
-                res.qt = .int128;
-            } else {
-                res.qt = .long_long;
-            }
+    } else switch (p.comp.langopts.emulate) {
+        .no, .gcc => if (p.comp.target.hasInt128()) {
+            res.qt = .int128;
         } else {
-            res.qt = .ulong_long;
-        }
+            res.qt = .long_long;
+        },
+        .msvc, .clang => res.qt = .ulong_long,
     }
 
     res.node = try p.addNode(.{ .int_literal = .{ .qt = res.qt, .literal_tok = tok_i } });

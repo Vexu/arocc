@@ -7,11 +7,12 @@ pub const Compiler = enum {
     clang,
     gcc,
     msvc,
+    no,
 
     pub fn defaultGccVersion(self: Compiler) u32 {
         return switch (self) {
             .clang => 4 * 10_000 + 2 * 100 + 1,
-            .gcc => 7 * 10_000 + 1 * 100 + 0,
+            .no, .gcc => 7 * 10_000 + 1 * 100 + 0,
             .msvc => 0,
         };
     }
@@ -116,7 +117,7 @@ pub const Standard = enum {
 
 const LangOpts = @This();
 
-emulate: Compiler = .clang,
+emulate: Compiler = .no,
 standard: Standard = .default,
 /// -fshort-enums option, makes enums only take up as much space as they need to hold all the values.
 short_enums: bool = false,
