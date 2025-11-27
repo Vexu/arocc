@@ -5947,6 +5947,7 @@ const CallExpr = union(enum) {
                     .__c11_atomic_fetch_or,
                     .__c11_atomic_fetch_xor,
                     .__c11_atomic_fetch_and,
+                    .__c11_atomic_fetch_nand,
                     .__atomic_fetch_add,
                     .__atomic_fetch_sub,
                     .__atomic_fetch_and,
@@ -6018,6 +6019,10 @@ const CallExpr = union(enum) {
 
                 .__atomic_exchange_n,
                 .__c11_atomic_exchange,
+                => {
+                    const second_param = args[1].qt(&p.tree);
+                    return second_param;
+                },
 
                 .__sync_fetch_and_add,
                 .__sync_fetch_and_and,
@@ -6037,7 +6042,8 @@ const CallExpr = union(enum) {
                 .__sync_lock_test_and_set,
                 .__sync_val_compare_and_swap,
                 => {
-                    const second_param = args[2].qt(&p.tree);
+                    if (args.len < 2) return .invalid;
+                    const second_param = args[1].qt(&p.tree);
                     return second_param;
                 },
                 .__builtin_complex => {
@@ -6054,7 +6060,7 @@ const CallExpr = union(enum) {
                 .__c11_atomic_compare_exchange_strong,
                 .__c11_atomic_compare_exchange_weak,
                 => {
-                    const third_param = args[3].qt(&p.tree);
+                    const third_param = args[2].qt(&p.tree);
                     return third_param;
                 },
 
