@@ -394,7 +394,7 @@ fn mTime(pp: *Preprocessor, source_id: Source.Id) !u64 {
     return gop.value_ptr.*;
 }
 
-pub fn expansionSlice(pp: *Preprocessor, tok: Tree.TokenIndex) []Source.Location {
+pub fn expansionSlice(pp: *const Preprocessor, tok: Tree.TokenIndex) []Source.Location {
     const S = struct {
         fn orderTokenIndex(context: Tree.TokenIndex, item: Tree.TokenIndex) std.math.Order {
             return std.math.order(context, item);
