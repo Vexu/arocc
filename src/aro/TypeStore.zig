@@ -1946,6 +1946,7 @@ pub fn set(ts: *TypeStore, gpa: std.mem.Allocator, ty: Type, index: usize) !void
         .pointer => |pointer| {
             repr.data[0] = @bitCast(pointer.child);
             if (pointer.decayed) |array| {
+                std.debug.assert(pointer.bounds == .c);
                 repr.tag = .pointer_decayed;
                 repr.data[1] = @bitCast(array);
             } else {
