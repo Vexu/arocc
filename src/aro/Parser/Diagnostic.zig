@@ -2530,3 +2530,8 @@ pub const redundant_bounds_annotation: Diagnostic = .{
     .kind = .warning,
     .opt = .@"bounds-attributes-redundant",
 };
+
+pub const multiple_bounds_annotations: Diagnostic = .{
+    .fmt = "pointer cannot have more than one bound attribute",
+    .kind = .@"error",
+};

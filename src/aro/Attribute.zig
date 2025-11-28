@@ -1340,6 +1340,9 @@ fn applyBoundsSafetyAttr(bounds: PointerBounds, p: *Parser, tok: TokenIndex, qt:
     if (pointer.bounds == bounds) {
         return p.err(tok, .redundant_bounds_annotation, .{@tagName(bounds)});
     }
+    if (pointer.bounds != .c) {
+        return p.err(tok, .multiple_bounds_annotations, .{});
+    }
     qt.* = try p.comp.type_store.put(p.comp.gpa, .{ .pointer = .{
         .child = pointer.child,
         .decayed = pointer.decayed,

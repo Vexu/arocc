@@ -27,6 +27,8 @@ void foo(void) {
 
 int __single __single *redundant;
 
+int __single __unsafe_indexable *multiple;
+
 void unsafe_indexable(void) {
     int *__unsafe_indexable p;
     p[100] = 5;
@@ -53,5 +55,7 @@ void unsafe_indexable(void) {
     "bounds_safety.c:24:7: error: pointer arithmetic on single pointer is out of bounds; consider adding '__counted_by'" \
     "bounds_safety.c:25:7: error: pointer arithmetic on single pointer is out of bounds; consider adding '__counted_by'" \
     "bounds_safety.c:28:14: warning: pointer annotated with single multiple times. Annotate only once to remove this warning [-Wbounds-attributes-redundant]" \
-    "ptrcheck.h:11:33: note: expanded from here"
+    "ptrcheck.h:11:33: note: expanded from here" \
+    "bounds_safety.c:30:14: error: pointer cannot have more than one bound attribute" \
+    "ptrcheck.h:12:43: note: expanded from here" \
 
