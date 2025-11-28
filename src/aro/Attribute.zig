@@ -1337,6 +1337,9 @@ fn applyBoundsSafetyAttr(bounds: PointerBounds, p: *Parser, tok: TokenIndex, qt:
     const pointer = qt.get(p.comp, .pointer) orelse {
         return p.err(tok, .attribute_requires_pointer, .{@tagName(bounds)});
     };
+    if (pointer.bounds == bounds) {
+        return p.err(tok, .redundant_bounds_annotation, .{@tagName(bounds)});
+    }
     qt.* = try p.comp.type_store.put(p.comp.gpa, .{ .pointer = .{
         .child = pointer.child,
         .decayed = pointer.decayed,

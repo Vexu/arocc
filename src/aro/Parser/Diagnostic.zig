@@ -2524,3 +2524,9 @@ pub const pointer_arith_single: Diagnostic = .{
     .fmt = "pointer arithmetic on single pointer is out of bounds; consider adding '__counted_by'",
     .kind = .@"error",
 };
+
+pub const redundant_bounds_annotation: Diagnostic = .{
+    .fmt = "pointer annotated with {s} multiple times. Annotate only once to remove this warning",
+    .kind = .warning,
+    .opt = .@"bounds-attributes-redundant",
+};

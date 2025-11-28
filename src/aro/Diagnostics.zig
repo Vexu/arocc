@@ -198,6 +198,7 @@ pub const Option = enum {
     @"pragma-once-outside-header",
     @"underlying-atomic-qualifier-ignored",
     @"underlying-cv-qualifier-ignored",
+    @"bounds-attributes-redundant",
 
     /// GNU extensions
     pub const gnu = [_]Option{
