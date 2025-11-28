@@ -1646,7 +1646,24 @@ pub const Type = union(enum) {
     pub const Pointer = struct {
         child: QualType,
         decayed: ?QualType,
-        bounds: Attribute.PointerBounds,
+        bounds: Bounds,
+
+        pub const Bounds = enum {
+            /// C pointer with no bounds attribute
+            c,
+            /// No pointer arithmetic or non-zero indexing
+            single,
+            /// Explicitly specified as a traditional C pointer
+            unsafe_indexable,
+
+            pub fn fromTag(tag: Attribute.Tag) Bounds {
+                return switch (tag) {
+                    .single => .single,
+                    .unsafe_indexable => .unsafe_indexable,
+                    else => unreachable,
+                };
+            }
+        };
     };
 
     pub const Array = struct {

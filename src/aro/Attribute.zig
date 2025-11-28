@@ -7,7 +7,9 @@ const Diagnostics = @import("Diagnostics.zig");
 const Parser = @import("Parser.zig");
 const Tree = @import("Tree.zig");
 const TokenIndex = Tree.TokenIndex;
-const QualType = @import("TypeStore.zig").QualType;
+const TypeStore = @import("TypeStore.zig");
+const Type = TypeStore.Type;
+const QualType = TypeStore.QualType;
 const Value = @import("Value.zig");
 
 const Attribute = @This();
@@ -33,23 +35,6 @@ pub const Kind = enum {
             .c23 => .c23,
             .declspec => .declspec,
             .gnu => .gnu,
-        };
-    }
-};
-
-pub const PointerBounds = enum {
-    /// C pointer with no bounds attribute
-    c,
-    /// No pointer arithmetic or non-zero indexing
-    single,
-    /// Explicitly specified as a traditional C pointer
-    unsafe_indexable,
-
-    fn fromTag(tag: Tag) PointerBounds {
-        return switch (tag) {
-            .single => .single,
-            .unsafe_indexable => .unsafe_indexable,
-            else => unreachable,
         };
     }
 };
@@ -1332,7 +1317,7 @@ fn applyGnuAttrCallingConvention(attr: Attribute, p: *Parser, tok: TokenIndex, q
     }
 }
 
-fn applyBoundsSafetyAttr(bounds: PointerBounds, p: *Parser, tok: TokenIndex, qt: *QualType) !void {
+fn applyBoundsSafetyAttr(bounds: Type.Pointer.Bounds, p: *Parser, tok: TokenIndex, qt: *QualType) !void {
     if (qt.isInvalid()) return;
     const pointer = qt.get(p.comp, .pointer) orelse {
         return p.err(tok, .attribute_requires_pointer, .{@tagName(bounds)});
