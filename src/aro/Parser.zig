@@ -7114,14 +7114,14 @@ pub const Result = struct {
             } else if (dest_sk.isPointer()) {
                 if (src_sk.isPointer()) {
                     cast_kind = .bitcast;
+                } else if (src_sk == .bool) {
+                    cast_kind = .bool_to_pointer;
                 } else if (src_sk.isInt()) {
                     if (!src_sk.isReal()) {
                         res.qt = res.qt.toReal(p.comp);
                         try res.implicitCast(p, .complex_int_to_real, l_paren);
                     }
                     cast_kind = .int_to_pointer;
-                } else if (src_sk == .bool) {
-                    cast_kind = .bool_to_pointer;
                 } else if (res.qt.is(p.comp, .array)) {
                     cast_kind = .array_to_pointer;
                 } else if (res.qt.is(p.comp, .func)) {
