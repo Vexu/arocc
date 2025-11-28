@@ -2222,9 +2222,9 @@ fn generateVaListType(ts: *TypeStore, comp: *Compilation) !QualType {
     };
 
     const struct_qt = switch (kind) {
-        .aarch64_va_list => blk: {
+        .aarch64_va_list => {
             var record: Type.Record = .{
-                .name = try comp.internString("__va_list_tag"),
+                .name = try comp.internString("__va_list"),
                 .decl_node = undefined, // TODO
                 .layout = null,
                 .fields = &.{},
@@ -2242,11 +2242,11 @@ fn generateVaListType(ts: *TypeStore, comp: *Compilation) !QualType {
             record.layout = record_layout.compute(&fields, qt, comp, null) catch unreachable;
             try ts.set(comp.gpa, .{ .@"struct" = record }, @intFromEnum(qt._index));
 
-            break :blk qt;
+            return qt;
         },
-        .arm_va_list => blk: {
+        .arm_va_list => {
             var record: Type.Record = .{
-                .name = try comp.internString("__va_list_tag"),
+                .name = try comp.internString("__va_list"),
                 .decl_node = undefined, // TODO
                 .layout = null,
                 .fields = &.{},
@@ -2260,7 +2260,7 @@ fn generateVaListType(ts: *TypeStore, comp: *Compilation) !QualType {
             record.layout = record_layout.compute(&fields, qt, comp, null) catch unreachable;
             try ts.set(comp.gpa, .{ .@"struct" = record }, @intFromEnum(qt._index));
 
-            break :blk qt;
+            return qt;
         },
         .hexagon_va_list => blk: {
             var record: Type.Record = .{
@@ -2346,7 +2346,7 @@ fn generateVaListType(ts: *TypeStore, comp: *Compilation) !QualType {
 
             break :blk qt;
         },
-        .xtensa_va_list => blk: {
+        .xtensa_va_list => {
             var record: Type.Record = .{
                 .name = try comp.internString("__va_list_tag"),
                 .decl_node = undefined, // TODO
@@ -2364,7 +2364,7 @@ fn generateVaListType(ts: *TypeStore, comp: *Compilation) !QualType {
             record.layout = record_layout.compute(&fields, qt, comp, null) catch unreachable;
             try ts.set(comp.gpa, .{ .@"struct" = record }, @intFromEnum(qt._index));
 
-            break :blk qt;
+            return qt;
         },
     };
 
