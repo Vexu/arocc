@@ -37,6 +37,20 @@ pub const Kind = enum {
     }
 };
 
+pub const PointerBounds = enum {
+    /// C pointer with no bounds attribute
+    c,
+    /// No pointer arithmetic or non-zero indexing
+    single,
+
+    fn fromTag(tag: Tag) PointerBounds {
+        return switch (tag) {
+            .single => .single,
+            else => unreachable,
+        };
+    }
+};
+
 pub const Iterator = struct {
     source: ?struct {
         qt: QualType,
@@ -839,7 +853,7 @@ pub fn applyVariableAttributes(p: *Parser, qt: QualType, attr_buf_start: usize, 
         } else {
             try p.attr_application_buf.append(gpa, attr);
         },
-        .single => try applyBoundsSafetyAttr(attr, p, tok, base_qt),
+        .single => try applyBoundsSafetyAttr(.fromTag(attr.tag), p, tok, &base_qt),
         .calling_convention => try applyKeywordCallingConvention(attr, p, tok, base_qt),
 
         .fastcall,
@@ -924,7 +938,7 @@ pub fn applyTypeAttributes(p: *Parser, qt: QualType, attr_buf_start: usize, diag
             .ms_abi,
             => try applyGnuAttrCallingConvention(attr, p, tok, base_qt),
 
-            .single => try applyBoundsSafetyAttr(attr, p, tok, base_qt),
+            .single => try applyBoundsSafetyAttr(.fromTag(attr.tag), p, tok, &base_qt),
 
             .alloc_size,
             .copy,
@@ -1309,11 +1323,16 @@ fn applyGnuAttrCallingConvention(attr: Attribute, p: *Parser, tok: TokenIndex, q
     }
 }
 
-fn applyBoundsSafetyAttr(attr: Attribute, p: *Parser, tok: TokenIndex, qt: QualType) !void {
-    if (!qt.is(p.comp, .pointer)) {
-        return p.err(tok, .single_requires_pointer, .{});
-    }
-    try p.attr_application_buf.append(p.comp.gpa, attr);
+fn applyBoundsSafetyAttr(bounds: PointerBounds, p: *Parser, tok: TokenIndex, qt: *QualType) !void {
+    if (qt.isInvalid()) return;
+    const pointer = qt.get(p.comp, .pointer) orelse {
+        return p.err(tok, .attribute_requires_pointer, .{@tagName(bounds)});
+    };
+    qt.* = try p.comp.type_store.put(p.comp.gpa, .{ .pointer = .{
+        .child = pointer.child,
+        .decayed = pointer.decayed,
+        .bounds = bounds,
+    } });
 }
 
 /// These come from explicit MSVC keywords like __stdcall, __fastcall, etc

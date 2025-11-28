@@ -265,6 +265,7 @@ fn createType(desc: TypeDescription, it: *TypeDescription.TypeIterator, comp: *C
                 const pointer_qt = try comp.type_store.put(comp.gpa, .{ .pointer = .{
                     .child = builder.finish() catch unreachable,
                     .decayed = null,
+                    .bounds = .c,
                 } });
 
                 builder.@"const" = null;

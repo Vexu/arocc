@@ -219,9 +219,9 @@ pub const QualType = packed struct(u32) {
             .float_dfloat64 => return .{ .float = .dfloat64 },
             .float_dfloat128 => return .{ .float = .dfloat128 },
             .float_dfloat64x => return .{ .float = .dfloat64x },
-            .void_pointer => return .{ .pointer = .{ .child = .void, .decayed = null } },
-            .char_pointer => return .{ .pointer = .{ .child = .char, .decayed = null } },
-            .int_pointer => return .{ .pointer = .{ .child = .int, .decayed = null } },
+            .void_pointer => return .{ .pointer = .{ .child = .void, .decayed = null, .bounds = .c } },
+            .char_pointer => return .{ .pointer = .{ .child = .char, .decayed = null, .bounds = .c } },
+            .int_pointer => return .{ .pointer = .{ .child = .int, .decayed = null, .bounds = .c } },
 
             else => {},
         }
@@ -281,10 +281,12 @@ pub const QualType = packed struct(u32) {
             .pointer => .{ .pointer = .{
                 .child = @bitCast(repr.data[0]),
                 .decayed = null,
+                .bounds = @enumFromInt(repr.data[1]),
             } },
             .pointer_decayed => .{ .pointer = .{
                 .child = @bitCast(repr.data[0]),
                 .decayed = @bitCast(repr.data[1]),
+                .bounds = .c,
             } },
             .array_incomplete => .{ .array = .{
                 .elem = @bitCast(repr.data[0]),
@@ -782,6 +784,7 @@ pub const QualType = packed struct(u32) {
                 var pointer_qt = try comp.type_store.put(comp.gpa, .{ .pointer = .{
                     .child = elem_qt,
                     .decayed = qt,
+                    .bounds = .c,
                 } });
 
                 // .. and restrict to the pointer.
@@ -801,6 +804,7 @@ pub const QualType = packed struct(u32) {
                 return comp.type_store.put(comp.gpa, .{ .pointer = .{
                     .child = qt,
                     .decayed = null,
+                    .bounds = .c,
                 } });
             },
             else => return qt,
@@ -1642,6 +1646,7 @@ pub const Type = union(enum) {
     pub const Pointer = struct {
         child: QualType,
         decayed: ?QualType,
+        bounds: Attribute.PointerBounds,
     };
 
     pub const Array = struct {
@@ -1931,6 +1936,7 @@ pub fn set(ts: *TypeStore, gpa: std.mem.Allocator, ty: Type, index: usize) !void
                 repr.data[1] = @bitCast(array);
             } else {
                 repr.tag = .pointer;
+                repr.data[1] = @intFromEnum(pointer.bounds);
             }
         },
         .array => |array| {

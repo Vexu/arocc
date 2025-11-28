@@ -3559,6 +3559,7 @@ fn declarator(
         const pointer_qt = try p.comp.type_store.put(p.comp.gpa, .{ .pointer = .{
             .child = d.qt,
             .decayed = null,
+            .bounds = .c,
         } });
         d.qt = try builder.finishQuals(pointer_qt);
     }
@@ -5270,6 +5271,7 @@ fn stmt(p: *Parser) Error!Node.Index {
                 const result_qt = try p.comp.type_store.put(gpa, .{ .pointer = .{
                     .child = .{ .@"const" = true, ._index = .void },
                     .decayed = null,
+                    .bounds = .c,
                 } });
                 if (!goto_expr.qt.isRealInt(p.comp)) {
                     try p.err(expr_tok, .incompatible_arg, .{ goto_expr.qt, result_qt });
@@ -6311,6 +6313,7 @@ pub const Result = struct {
             a.qt = try p.comp.type_store.put(gpa, .{ .pointer = .{
                 .child = adjusted_elem_qt,
                 .decayed = null,
+                .bounds = .c,
             } });
             try a.implicitCast(p, .bitcast, tok);
         }
@@ -6318,6 +6321,7 @@ pub const Result = struct {
             b.qt = try p.comp.type_store.put(gpa, .{ .pointer = .{
                 .child = adjusted_elem_qt,
                 .decayed = null,
+                .bounds = .c,
             } });
             try b.implicitCast(p, .bitcast, tok);
         }
@@ -8591,6 +8595,7 @@ fn unExpr(p: *Parser) Error!?Result {
                 operand.qt = try p.comp.type_store.put(gpa, .{ .pointer = .{
                     .child = operand.qt,
                     .decayed = null,
+                    .bounds = .c,
                 } });
             }
             if (p.getNode(operand.node, .decl_ref_expr)) |decl_ref| {
@@ -8682,8 +8687,8 @@ fn unExpr(p: *Parser) Error!?Result {
                 try p.err(tok, .not_assignable, .{});
                 return error.ParsingFailed;
             }
-            if (operand.qt.isPointer(p.comp)) {
-                try p.checkPtrArithmeticAllowed(operand.qt, p.tok_i, operand.node);
+            if (operand.qt.get(p.comp, .pointer)) |pointer| {
+                try p.checkPtrArithmeticAllowed(pointer, p.tok_i, operand.node);
             }
             try operand.usualUnaryConversion(p, tok);
 
@@ -8713,8 +8718,8 @@ fn unExpr(p: *Parser) Error!?Result {
                 try p.err(tok, .not_assignable, .{});
                 return error.ParsingFailed;
             }
-            if (operand.qt.isPointer(p.comp)) {
-                try p.checkPtrArithmeticAllowed(operand.qt, p.tok_i, operand.node);
+            if (operand.qt.get(p.comp, .pointer)) |pointer| {
+                try p.checkPtrArithmeticAllowed(pointer, p.tok_i, operand.node);
             }
             try operand.usualUnaryConversion(p, tok);
 
@@ -9060,8 +9065,8 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!?Result {
                 try p.err(p.tok_i, .not_assignable, .{});
                 return error.ParsingFailed;
             }
-            if (operand.qt.isPointer(p.comp)) {
-                try p.checkPtrArithmeticAllowed(operand.qt, p.tok_i, operand.node);
+            if (operand.qt.get(p.comp, .pointer)) |pointer| {
+                try p.checkPtrArithmeticAllowed(pointer, p.tok_i, operand.node);
             }
             try operand.usualUnaryConversion(p, p.tok_i);
 
@@ -9084,8 +9089,8 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!?Result {
                 try p.err(p.tok_i, .not_assignable, .{});
                 return error.ParsingFailed;
             }
-            if (operand.qt.isPointer(p.comp)) {
-                try p.checkPtrArithmeticAllowed(operand.qt, p.tok_i, operand.node);
+            if (operand.qt.get(p.comp, .pointer)) |pointer| {
+                try p.checkPtrArithmeticAllowed(pointer, p.tok_i, operand.node);
             }
             try operand.usualUnaryConversion(p, p.tok_i);
 
@@ -9580,42 +9585,48 @@ fn callExpr(p: *Parser, lhs: Result) Error!Result {
 fn boundsSafetyCheckArrayAccess(p: *Parser, lhs: Result, rhs: Result, l_bracket: TokenIndex) !void {
     if (!p.comp.hasClangStyleBoundsSafety()) return;
 
-    const ptr, const index = if (lhs.qt.isPointer(p.comp)) .{ lhs, rhs } else .{ rhs, lhs };
+    const ptr_res, const pointer, const index = if (lhs.qt.get(p.comp, .pointer)) |pointer| .{ lhs, pointer, rhs } else .{ rhs, rhs.qt.get(p.comp, .pointer).?, lhs };
 
-    if (ptr.qt.hasAttribute(p.comp, .single)) {
-        if (!index.val.isZero(p.comp)) {
-            try p.err(l_bracket, .single_requires_zero_index, .{});
-            if (p.unwrapNestedOperation(ptr.node)) |unwrapped| {
-                const name = p.tokSlice(unwrapped.name_tok);
-                try p.issueDeclaredHereNote(unwrapped, "pointer", name, "single");
+    switch (pointer.bounds) {
+        .c => {},
+        .single => {
+            if (!index.val.isZero(p.comp)) {
+                try p.err(l_bracket, .single_requires_zero_index, .{});
+                if (p.unwrapNestedOperation(ptr_res.node)) |unwrapped| {
+                    const name = p.tokSlice(unwrapped.name_tok);
+                    try p.issueDeclaredHereNote(unwrapped, "pointer", name, "single");
+                }
             }
-        }
+        },
     }
 }
 
 fn boundsSafetyCheckPointerArithmetic(p: *Parser, lhs: QualType, rhs: QualType, tok: TokenIndex, node: Tree.Node.Index) !void {
     if (!p.comp.hasClangStyleBoundsSafety()) return;
 
-    const ptr = if (lhs.isPointer(p.comp) and rhs.isInt(p.comp))
-        lhs
-    else if (rhs.isPointer(p.comp) and lhs.isInt(p.comp))
-        rhs
+    const pointer = if (rhs.isInt(p.comp))
+        lhs.get(p.comp, .pointer) orelse return
+    else if (lhs.isInt(p.comp))
+        rhs.get(p.comp, .pointer) orelse return
     else
         return;
 
-    try p.checkPtrArithmeticAllowed(ptr, tok, node);
+    try p.checkPtrArithmeticAllowed(pointer, tok, node);
 }
 
-fn checkPtrArithmeticAllowed(p: *Parser, ptr: QualType, tok: TokenIndex, node: Tree.Node.Index) !void {
+fn checkPtrArithmeticAllowed(p: *Parser, pointer: Type.Pointer, tok: TokenIndex, node: Tree.Node.Index) !void {
     if (!p.comp.hasClangStyleBoundsSafety()) return;
 
-    if (ptr.hasAttribute(p.comp, .single)) {
-        // clang issues this diagnostic even with a constant `0` operand
-        try p.err(tok, .pointer_arith_single, .{});
-        if (p.unwrapNestedOperation(node)) |unwrapped| {
-            const name = p.tokSlice(unwrapped.name_tok);
-            try p.issueDeclaredHereNote(unwrapped, "pointer", name, "single");
-        }
+    switch (pointer.bounds) {
+        .c => {},
+        .single => {
+            // clang issues this diagnostic even with a constant `0` operand
+            try p.err(tok, .pointer_arith_single, .{});
+            if (p.unwrapNestedOperation(node)) |unwrapped| {
+                const name = p.tokSlice(unwrapped.name_tok);
+                try p.issueDeclaredHereNote(unwrapped, "pointer", name, "single");
+            }
+        },
     }
 }
 

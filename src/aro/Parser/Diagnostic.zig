@@ -2510,8 +2510,8 @@ pub const invalid_attribute_location: Diagnostic = .{
     .kind = .@"error",
 };
 
-pub const single_requires_pointer: Diagnostic = .{
-    .fmt = "'single' attribute only applies to pointer arguments",
+pub const attribute_requires_pointer: Diagnostic = .{
+    .fmt = "'{s}' attribute only applies to pointer arguments",
     .kind = .@"error",
 };
 
