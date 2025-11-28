@@ -3559,7 +3559,6 @@ fn declarator(
         const pointer_qt = try p.comp.type_store.put(p.comp.gpa, .{ .pointer = .{
             .child = d.qt,
             .decayed = null,
-            .bounds = .c,
         } });
         d.qt = try builder.finishQuals(pointer_qt);
     }
@@ -5271,7 +5270,6 @@ fn stmt(p: *Parser) Error!Node.Index {
                 const result_qt = try p.comp.type_store.put(gpa, .{ .pointer = .{
                     .child = .{ .@"const" = true, ._index = .void },
                     .decayed = null,
-                    .bounds = .c,
                 } });
                 if (!goto_expr.qt.isRealInt(p.comp)) {
                     try p.err(expr_tok, .incompatible_arg, .{ goto_expr.qt, result_qt });
@@ -6313,7 +6311,6 @@ pub const Result = struct {
             a.qt = try p.comp.type_store.put(gpa, .{ .pointer = .{
                 .child = adjusted_elem_qt,
                 .decayed = null,
-                .bounds = .c,
             } });
             try a.implicitCast(p, .bitcast, tok);
         }
@@ -6321,7 +6318,6 @@ pub const Result = struct {
             b.qt = try p.comp.type_store.put(gpa, .{ .pointer = .{
                 .child = adjusted_elem_qt,
                 .decayed = null,
-                .bounds = .c,
             } });
             try b.implicitCast(p, .bitcast, tok);
         }
@@ -8595,7 +8591,6 @@ fn unExpr(p: *Parser) Error!?Result {
                 operand.qt = try p.comp.type_store.put(gpa, .{ .pointer = .{
                     .child = operand.qt,
                     .decayed = null,
-                    .bounds = .c,
                 } });
             }
             if (p.getNode(operand.node, .decl_ref_expr)) |decl_ref| {
