@@ -7517,21 +7517,29 @@ fn unwrapNestedOperation(p: *Parser, node_idx: Node.Index) ?Node.DeclRef {
     };
 }
 
-fn issueDeclaredHereNote(p: *Parser, decl_ref: Tree.Node.DeclRef, var_kind: []const u8, var_name: []const u8, var_qual: []const u8) Compilation.Error!void {
+fn issueDeclaredConstHereNote(p: *Parser, decl_ref: Tree.Node.DeclRef, var_name: []const u8) Compilation.Error!void {
     const location = switch (decl_ref.decl.get(&p.tree)) {
         .variable => |variable| variable.name_tok,
         .param => |param| param.name_tok,
         else => return,
     };
-    const space = if (var_qual.len > 0) " " else "";
-    try p.err(location, .declared_here, .{ var_kind, var_name, space, var_qual });
+    try p.err(location, .declared_const_here, .{var_name});
 }
 
-fn issueConstAssignmetDiagnostics(p: *Parser, node_idx: Node.Index, tok: TokenIndex) Compilation.Error!void {
+fn issueBoundsDeclaredHereNote(p: *Parser, decl_ref: Tree.Node.DeclRef, var_name: []const u8, bounds: Type.Pointer.Bounds) Compilation.Error!void {
+    const location = switch (decl_ref.decl.get(&p.tree)) {
+        .variable => |variable| variable.name_tok,
+        .param => |param| param.name_tok,
+        else => return,
+    };
+    try p.err(location, .pointer_bounds_declared_here, .{ var_name, @tagName(bounds) });
+}
+
+fn issueConstAssignmentDiagnostics(p: *Parser, node_idx: Node.Index, tok: TokenIndex) Compilation.Error!void {
     if (p.unwrapNestedOperation(node_idx)) |unwrapped| {
         const name = p.tokSlice(unwrapped.name_tok);
         try p.err(tok, .const_var_assignment, .{ name, unwrapped.qt });
-        try p.issueDeclaredHereNote(unwrapped, "variable", name, "const");
+        try p.issueDeclaredConstHereNote(unwrapped, name);
     } else {
         try p.err(tok, .not_assignable, .{});
     }
@@ -7560,7 +7568,7 @@ fn assignExpr(p: *Parser) Error!?Result {
 
     var is_const: bool = undefined;
     if (!p.tree.isLvalExtra(lhs.node, &is_const) or is_const) {
-        try p.issueConstAssignmetDiagnostics(lhs.node, tok);
+        try p.issueConstAssignmentDiagnostics(lhs.node, tok);
         lhs.qt = .invalid;
     }
 
@@ -9589,7 +9597,7 @@ fn boundsSafetyCheckArrayAccess(p: *Parser, lhs: Result, rhs: Result, l_bracket:
                 try p.err(l_bracket, .single_requires_zero_index, .{});
                 if (p.unwrapNestedOperation(ptr_res.node)) |unwrapped| {
                     const name = p.tokSlice(unwrapped.name_tok);
-                    try p.issueDeclaredHereNote(unwrapped, "pointer", name, "single");
+                    try p.issueBoundsDeclaredHereNote(unwrapped, name, pointer.bounds);
                 }
             }
         },
@@ -9619,7 +9627,7 @@ fn checkPtrArithmeticAllowed(p: *Parser, pointer: Type.Pointer, tok: TokenIndex,
             try p.err(tok, .pointer_arith_single, .{});
             if (p.unwrapNestedOperation(node)) |unwrapped| {
                 const name = p.tokSlice(unwrapped.name_tok);
-                try p.issueDeclaredHereNote(unwrapped, "pointer", name, "single");
+                try p.issueBoundsDeclaredHereNote(unwrapped, name, pointer.bounds);
             }
         },
     }

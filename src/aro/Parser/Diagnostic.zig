@@ -2495,8 +2495,13 @@ pub const const_var_assignment: Diagnostic = .{
     .kind = .@"error",
 };
 
-pub const declared_here: Diagnostic = .{
-    .fmt = "{s} '{s}' declared{s}{s} here",
+pub const declared_const_here: Diagnostic = .{
+    .fmt = "variable '{s}' declared const here",
+    .kind = .note,
+};
+
+pub const pointer_bounds_declared_here: Diagnostic = .{
+    .fmt = "pointer '{s}' declared {s} here",
     .kind = .note,
 };
 
