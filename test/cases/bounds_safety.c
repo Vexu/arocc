@@ -34,6 +34,11 @@ void unsafe_indexable(void) {
     p[100] = 5;
 }
 
+void typeechecking(void) {
+    int a, b;
+    a[b] = 5;
+}
+
 #define EXPECTED_ERRORS "bounds_safety.c:10:9: error: 'single' attribute only applies to pointer arguments" \
     "ptrcheck.h:11:33: note: expanded from here" \
     "bounds_safety.c:15:6: error: array subscript on single pointer must use a constant index of 0 to be in bounds" \
@@ -58,4 +63,5 @@ void unsafe_indexable(void) {
     "ptrcheck.h:11:33: note: expanded from here" \
     "bounds_safety.c:30:14: error: pointer cannot have more than one bound attribute" \
     "ptrcheck.h:12:43: note: expanded from here" \
+    "bounds_safety.c:39:6: error: subscripted value is not an array, pointer or vector" \
 

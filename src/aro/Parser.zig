@@ -9109,7 +9109,6 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!?Result {
             const array_before_conversion = lhs;
             const index_before_conversion = index;
             var ptr = lhs;
-            try p.boundsSafetyCheckArrayAccess(ptr, index, l_bracket);
 
             try ptr.lvalConversion(p, l_bracket);
             try index.lvalConversion(p, l_bracket);
@@ -9634,6 +9633,8 @@ fn checkPtrArithmeticAllowed(p: *Parser, pointer: Type.Pointer, tok: TokenIndex,
 }
 
 fn checkArrayBounds(p: *Parser, index: Result, array: Result, tok: TokenIndex) !void {
+    try p.boundsSafetyCheckArrayAccess(array, index, tok);
+
     if (index.val.opt_ref == .none) return;
 
     const array_len = array.qt.arrayLen(p.comp) orelse return;
