@@ -9588,7 +9588,7 @@ fn boundsSafetyCheckArrayAccess(p: *Parser, lhs: Result, rhs: Result, l_bracket:
     const ptr_res, const pointer, const index = if (lhs.qt.get(p.comp, .pointer)) |pointer| .{ lhs, pointer, rhs } else .{ rhs, rhs.qt.get(p.comp, .pointer).?, lhs };
 
     switch (pointer.bounds) {
-        .c => {},
+        .c, .unsafe_indexable => {},
         .single => {
             if (!index.val.isZero(p.comp)) {
                 try p.err(l_bracket, .single_requires_zero_index, .{});
@@ -9618,7 +9618,7 @@ fn checkPtrArithmeticAllowed(p: *Parser, pointer: Type.Pointer, tok: TokenIndex,
     if (!p.comp.hasClangStyleBoundsSafety()) return;
 
     switch (pointer.bounds) {
-        .c => {},
+        .c, .unsafe_indexable => {},
         .single => {
             // clang issues this diagnostic even with a constant `0` operand
             try p.err(tok, .pointer_arith_single, .{});

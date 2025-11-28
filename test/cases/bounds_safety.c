@@ -25,6 +25,11 @@ void foo(void) {
     p -= 1;
 }
 
+void unsafe_indexable(void) {
+    int *__unsafe_indexable p;
+    p[100] = 5;
+}
+
 #define EXPECTED_ERRORS "bounds_safety.c:10:9: error: 'single' attribute only applies to pointer arguments" \
     "ptrcheck.h:11:33: note: expanded from here" \
     "bounds_safety.c:15:6: error: array subscript on single pointer must use a constant index of 0 to be in bounds" \

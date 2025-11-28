@@ -42,10 +42,13 @@ pub const PointerBounds = enum {
     c,
     /// No pointer arithmetic or non-zero indexing
     single,
+    /// Explicitly specified as a traditional C pointer
+    unsafe_indexable,
 
     fn fromTag(tag: Tag) PointerBounds {
         return switch (tag) {
             .single => .single,
+            .unsafe_indexable => .unsafe_indexable,
             else => unreachable,
         };
     }
@@ -635,6 +638,7 @@ const attributes = struct {
         __name_tok: TokenIndex,
     };
     pub const uninitialized = struct {};
+    pub const unsafe_indexable = struct {};
     pub const unsequenced = struct {};
     pub const unused = struct {};
     pub const used = struct {};
@@ -853,7 +857,10 @@ pub fn applyVariableAttributes(p: *Parser, qt: QualType, attr_buf_start: usize, 
         } else {
             try p.attr_application_buf.append(gpa, attr);
         },
-        .single => try applyBoundsSafetyAttr(.fromTag(attr.tag), p, tok, &base_qt),
+        .single,
+        .unsafe_indexable,
+        => try applyBoundsSafetyAttr(.fromTag(attr.tag), p, tok, &base_qt),
+
         .calling_convention => try applyKeywordCallingConvention(attr, p, tok, base_qt),
 
         .fastcall,
@@ -938,7 +945,9 @@ pub fn applyTypeAttributes(p: *Parser, qt: QualType, attr_buf_start: usize, diag
             .ms_abi,
             => try applyGnuAttrCallingConvention(attr, p, tok, base_qt),
 
-            .single => try applyBoundsSafetyAttr(.fromTag(attr.tag), p, tok, &base_qt),
+            .single,
+            .unsafe_indexable,
+            => try applyBoundsSafetyAttr(.fromTag(attr.tag), p, tok, &base_qt),
 
             .alloc_size,
             .copy,
