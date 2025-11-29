@@ -546,18 +546,10 @@ pub fn systemCompiler(target: *const Target) LangOpts.Compiler {
 }
 
 pub fn hasFloat128(target: *const Target) bool {
-    if (target.cpu.arch.isWasm()) return true;
     if (target.os.tag.isDarwin()) return false;
-    if (target.cpu.arch.isPowerPC()) return std.Target.powerpc.featureSetHas(target.cpu.features, .float128);
-    return switch (target.os.tag) {
-        .dragonfly,
-        .haiku,
-        .linux,
-        .openbsd,
-        .illumos,
-        => target.cpu.arch.isX86(),
-        else => false,
-    };
+    if (target.os.tag == .windows) return false;
+    if (target.cpu.arch.isX86()) return true;
+    return target.cTypeBitSize(.longdouble) == 128;
 }
 
 pub fn hasInt128(target: *const Target) bool {
