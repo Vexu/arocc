@@ -34,8 +34,8 @@ fn afterParse(pragma: *Pragma, _: *Compilation) void {
 fn deinit(pragma: *Pragma, comp: *Compilation) void {
     var self: *Once = @fieldParentPtr("pragma", pragma);
     self.pragma_once.deinit(comp.gpa);
-    comp.gpa.destroy(self);
     pragma.* = undefined;
+    comp.gpa.destroy(self);
 }
 
 fn preprocessorHandler(pragma: *Pragma, pp: *Preprocessor, start_idx: TokenIndex) Pragma.Error!void {
