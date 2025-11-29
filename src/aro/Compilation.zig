@@ -684,8 +684,19 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
                 try define(w, "__thumb__");
             }
         },
-        .aarch64, .aarch64_be => {
+        .aarch64, .aarch64_be => |arch| {
             try define(w, "__aarch64__");
+            switch (arch) {
+                .aarch64 => {
+                    try define(w, "__AARCH64EL__");
+                },
+                .aarch64_be => {
+                    try define(w, "__AARCH64EB__");
+                    try define(w, "__AARCH_BIG_ENDIAN");
+                    try define(w, "__ARM_BIG_ENDIAN");
+                },
+                else => unreachable,
+            }
             if (target.os.tag.isDarwin()) {
                 try define(w, "__AARCH64_SIMD__");
                 if (ptr_width == 32) {
