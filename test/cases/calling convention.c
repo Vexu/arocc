@@ -8,6 +8,8 @@ void foo(__attribute__((sysv_abi)) void (*p)(void)) {
 	__attribute__((sysv_abi)) void (*fn_ptr)(void);
 }
 
+/** manifest:
+syntax
 
-#define EXPECTED_ERRORS "calling convention.c:3:16: warning: 'sysv_abi' only applies to function types; type here is 'int' [-Wignored-attributes]" \
-
+calling convention.c:3:16: warning: 'sysv_abi' only applies to function types; type here is 'int' [-Wignored-attributes]
+*/

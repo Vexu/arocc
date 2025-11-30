@@ -1,5 +1,3 @@
-//aro-args --target=x86_64-windows-msvc
-
 typedef int J[];
 
 #pragma pack(1)
@@ -27,7 +25,11 @@ struct J_extra_alignment var83;
 _Static_assert(sizeof(J) == 0, "");
 _Static_assert(_Alignof(J) == 4, "");
 
-#define EXPECTED_ERRORS "msvc zero size array.c:10:16: warning: sizeof returns 0" \
-    "msvc zero size array.c:14:12: warning: sizeof returns 0" \
-    "msvc zero size array.c:27:16: warning: sizeof returns 0" \
+/** manifest:
+syntax
+args = --target=x86_64-windows-msvc
 
+msvc zero size array.c:8:16: warning: sizeof returns 0
+msvc zero size array.c:12:12: warning: sizeof returns 0
+msvc zero size array.c:25:16: warning: sizeof returns 0
+*/

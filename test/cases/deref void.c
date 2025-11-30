@@ -3,3 +3,7 @@ void foo(void) {
     (void)*p;
     p = &*p;
 }
+
+/** manifest:
+syntax
+*/

@@ -1,5 +1,3 @@
-//aro-args -E -P
-
 #define y x
 #define x y
 x
@@ -9,3 +7,7 @@ x
 
 #define x x
 x
+
+/** manifest:
+expand
+*/

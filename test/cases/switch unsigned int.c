@@ -1,4 +1,3 @@
-//aro-args --target=x86_64-linux-gnu
 int lottery(unsigned int x) {
     switch (x) {
         case 3: return 0;
@@ -7,3 +6,8 @@ int lottery(unsigned int x) {
         default: return -1;
     }
 }
+
+/** manifest:
+syntax
+args = --target=x86_64-linux-gnu
+*/

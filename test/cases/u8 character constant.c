@@ -12,9 +12,11 @@ const unsigned char c4 = u8'AA';
     #error Character constant should be true in preprocessor
 #endif
 
-#define EXPECTED_ERRORS \
-    "u8 character constant.c:1:25: warning: UTF-8 character literal is a C23 extension [-Wc23-extensions]" \
-    "u8 character constant.c:6:26: error: character too large for enclosing character literal type" \
-    "u8 character constant.c:7:26: error: character too large for enclosing character literal type" \
-    "u8 character constant.c:8:26: error: Unicode character literals may not contain multiple characters" \
+/** manifest:
+syntax
 
+u8 character constant.c:1:25: warning: UTF-8 character literal is a C23 extension [-Wc23-extensions]
+u8 character constant.c:6:26: error: character too large for enclosing character literal type
+u8 character constant.c:7:26: error: character too large for enclosing character literal type
+u8 character constant.c:8:26: error: Unicode character literals may not contain multiple characters
+*/

@@ -1,4 +1,3 @@
-//aro-args -std=c23
 #include <stdbool.h>
 #include <stdatomic.h>
 
@@ -75,6 +74,10 @@ _Static_assert(ATOMIC_CHAR8_T_LOCK_FREE == 1, "");
 _Static_assert(ATOMIC_POINTER_LOCK_FREE == 1, "");
 
 
-#define EXPECTED_ERRORS "atomic builtins.c:17:39: error: expected 6 argument(s) got 2" \
-    "atomic builtins.c:20:37: error: expected 6 argument(s) got 2" \
+/** manifest:
+syntax
+args = -std=c23
 
+atomic builtins.c:16:39: error: expected 6 argument(s) got 2
+atomic builtins.c:19:37: error: expected 6 argument(s) got 2
+*/

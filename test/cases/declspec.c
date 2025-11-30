@@ -1,5 +1,3 @@
-//aro-args -fdeclspec --target=x86_64-linux
-
 #pragma GCC diagnostic ignored "-Wgnu-alignof-expression"
 
 __declspec(align) int foo;
@@ -23,8 +21,13 @@ _Static_assert(_Alignof(Int2) == 8, "");
 
 __declspec(restrict) int *qux(void); // TODO should be allowed
 
-#define TESTS_SKIPPED 1
-#define EXPECTED_ERRORS "declspec.c:7:12: warning: __declspec attribute 'aligned' is not supported [-Wignored-attributes]" \
-	"declspec.c:19:18: error: 'declspec' attribute not allowed after declarator" \
-	"declspec.c:19:13: note: this declarator" \
-	"declspec.c:24:12: warning: attribute 'restrict' ignored on functions [-Wignored-attributes]" \
+/** manifest:
+syntax
+args = -fdeclspec --target=x86_64-linux
+skipped = 1
+
+declspec.c:5:12: warning: __declspec attribute 'aligned' is not supported [-Wignored-attributes]
+declspec.c:17:18: error: 'declspec' attribute not allowed after declarator
+declspec.c:17:13: note: this declarator
+declspec.c:22:12: warning: attribute 'restrict' ignored on functions [-Wignored-attributes]
+*/

@@ -19,3 +19,7 @@ _Static_assert(__GNUC_PATCHLEVEL__ == 0, "");
 #else
 #error Invalid value for __ARO_EMULATE__
 #endif
+
+/** manifest:
+syntax
+*/

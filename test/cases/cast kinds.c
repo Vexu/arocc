@@ -1,4 +1,3 @@
-//aro-args -Wno-int-conversion --target=x86_64-linux-gnu
 union U {
     int x;
     float y;
@@ -66,3 +65,8 @@ void foo(void) {
     volatile_p = p; // no_op
     p = volatile_p; // bitcast
 }
+
+/** manifest:
+syntax
+args = -Wno-int-conversion --target=x86_64-linux-gnu
+*/

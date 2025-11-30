@@ -1,4 +1,3 @@
-//aro-args -std=c23
 _Static_assert(1.0 + 2.0i == 2.0i + 1.0, "");
 _Static_assert(2.0i * 2.0i == -4.0, "");
 _Static_assert((double)2.0i == 0, "");
@@ -36,10 +35,14 @@ _Static_assert(5ll + 4.0il == 5ll + 4.0il, "");
 unsigned long complex_integer = 2.0i;
 bool d = 3 != 2.0i;
 
-#define EXPECTED_ERRORS "complex values.c:31:49: error: expected expression" \
-	"complex values.c:31:50: error: expected expression" \
-	"complex values.c:31:51: error: expected expression" \
-	"complex values.c:31:52: error: expected expression" \
-	"complex values.c:31:53: error: expected expression" \
-	"complex values.c:32:49: warning: excess elements in scalar initializer [-Wexcess-initializers]" \
+/** manifest:
+syntax
+args = -std=c23
 
+complex values.c:30:49: error: expected expression
+complex values.c:30:50: error: expected expression
+complex values.c:30:51: error: expected expression
+complex values.c:30:52: error: expected expression
+complex values.c:30:53: error: expected expression
+complex values.c:31:49: warning: excess elements in scalar initializer [-Wexcess-initializers]
+*/

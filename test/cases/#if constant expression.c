@@ -1,5 +1,3 @@
-//aro-args -E -Wno-integer-overflow -P
-
 #if defined FOO & !defined(BAZ)
 void
 #elif !defined(BAR)
@@ -24,3 +22,8 @@ long
 #if 0U - 1 != 18446744073709551615ULL
 #error incorrect unsigned subtraction in preprocessor
 #endif
+
+/** manifest:
+expand
+args = -Wno-integer-overflow
+*/

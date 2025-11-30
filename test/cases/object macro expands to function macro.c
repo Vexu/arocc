@@ -5,3 +5,7 @@
 #define A 1
 #if BAZ (A)
 #endif
+
+/** manifest:
+syntax
+*/

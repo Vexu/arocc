@@ -61,28 +61,32 @@ void pass_args_to_no_proto(int a) {
     func_no_proto(a);
 }
 
-#define EXPECTED_ERRORS "call.c:16:7: error: passing 'void' to parameter of incompatible type '_Bool'" \
-    "call.c:5:21: note: passing argument to parameter here" \
-    "call.c:19:7: warning: implicit pointer to integer conversion from 'int *' to 'int' [-Wint-conversion]" \
-    "call.c:6:18: note: passing argument to parameter here" \
-    "call.c:22:7: error: passing 'int *' to parameter of incompatible type 'float'" \
-    "call.c:7:20: note: passing argument to parameter here" \
-    "call.c:23:8: warning: implicit integer to pointer conversion from 'int' to 'int *' [-Wint-conversion]" \
-    "call.c:8:20: note: passing argument to parameter here" \
-    "call.c:25:8: error: passing 'float' to parameter of incompatible type 'int *'" \
-    "call.c:8:20: note: passing argument to parameter here" \
-    "call.c:28:7: error: passing 'int' to parameter of incompatible type 'struct Foo'" \
-    "call.c:9:25: note: passing argument to parameter here" \
-    "call.c:33:17: error: parameter has incomplete type 'enum E'" \
-    "call.c:34:5: error: call to undeclared function 'baz'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration]" \
-    "call.c:41:21: error: passing 'double' to parameter of incompatible type 'void *'" \
-    "call.c:37:28: note: passing argument to parameter here" \
-    "call.c:45:21: error: passing 'struct S' to parameter of incompatible type 'void *'" \
-    "call.c:37:28: note: passing argument to parameter here" \
-    "call.c:47:21: error: passing '_Complex int' to parameter of incompatible type 'void *'" \
-    "call.c:37:28: note: passing argument to parameter here" \
-    "call.c:49:8: warning: passing 'long *' to parameter of incompatible type 'int *' [-Wincompatible-pointer-types]" \
-    "call.c:8:20: note: passing argument to parameter here" \
-    "call.c:56:16: warning: passing 'unsigned int *' to parameter of incompatible type 'int *' converts between pointers to integer types with different sign [-Wpointer-sign]" \
-    "call.c:52:22: note: passing argument to parameter here" \
-    "call.c:61:19: warning: passing arguments to a function without a prototype is deprecated in all versions of C and is not supported in C23 [-Wdeprecated-non-prototype]" \
+/** manifest:
+syntax
+
+call.c:16:7: error: passing 'void' to parameter of incompatible type '_Bool'
+call.c:5:21: note: passing argument to parameter here
+call.c:19:7: warning: implicit pointer to integer conversion from 'int *' to 'int' [-Wint-conversion]
+call.c:6:18: note: passing argument to parameter here
+call.c:22:7: error: passing 'int *' to parameter of incompatible type 'float'
+call.c:7:20: note: passing argument to parameter here
+call.c:23:8: warning: implicit integer to pointer conversion from 'int' to 'int *' [-Wint-conversion]
+call.c:8:20: note: passing argument to parameter here
+call.c:25:8: error: passing 'float' to parameter of incompatible type 'int *'
+call.c:8:20: note: passing argument to parameter here
+call.c:28:7: error: passing 'int' to parameter of incompatible type 'struct Foo'
+call.c:9:25: note: passing argument to parameter here
+call.c:33:17: error: parameter has incomplete type 'enum E'
+call.c:34:5: error: call to undeclared function 'baz'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration]
+call.c:41:21: error: passing 'double' to parameter of incompatible type 'void *'
+call.c:37:28: note: passing argument to parameter here
+call.c:45:21: error: passing 'struct S' to parameter of incompatible type 'void *'
+call.c:37:28: note: passing argument to parameter here
+call.c:47:21: error: passing '_Complex int' to parameter of incompatible type 'void *'
+call.c:37:28: note: passing argument to parameter here
+call.c:49:8: warning: passing 'long *' to parameter of incompatible type 'int *' [-Wincompatible-pointer-types]
+call.c:8:20: note: passing argument to parameter here
+call.c:56:16: warning: passing 'unsigned int *' to parameter of incompatible type 'int *' converts between pointers to integer types with different sign [-Wpointer-sign]
+call.c:52:22: note: passing argument to parameter here
+call.c:61:19: warning: passing arguments to a function without a prototype is deprecated in all versions of C and is not supported in C23 [-Wdeprecated-non-prototype]
+*/

@@ -1,5 +1,3 @@
-//aro-args -std=c23
-
 #include <stdint.h>
 #include "test_helpers.h"
 
@@ -95,3 +93,8 @@ void int8(void) {
     _Static_assert(INT8_WIDTH == 8);
     _Static_assert(UINT8_WIDTH == 8);
 }
+
+/** manifest:
+syntax
+args = -std=c23 -I include
+*/

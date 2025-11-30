@@ -16,3 +16,7 @@ void *baz(int *a) {
     func(a);
     return a;
 }
+
+/** manifest:
+syntax
+*/

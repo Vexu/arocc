@@ -9,4 +9,8 @@ void foo(void) {
     enum E *p2 = &y;
 }
 
-#define EXPECTED_ERRORS "enum pointer.c:8:18: warning: incompatible pointer types initializing 'enum E *' from incompatible type 'int *' [-Wincompatible-pointer-types]" \
+/** manifest:
+syntax
+
+enum pointer.c:8:18: warning: incompatible pointer types initializing 'enum E *' from incompatible type 'int *' [-Wincompatible-pointer-types]
+*/

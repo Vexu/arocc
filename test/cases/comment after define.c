@@ -5,3 +5,7 @@
 #define BAR // comment
 #if 0
 #endif
+
+/** manifest:
+syntax
+*/

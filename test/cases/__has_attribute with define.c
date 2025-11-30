@@ -1,5 +1,3 @@
-//aro-args -E -P
-
 #define foo __has_attribute(used)
 #define bar 1 + __has_attribute(does_not_exist)
 #define HASATTR(X) __has_attribute(X)
@@ -8,3 +6,7 @@ foo
 bar
 HASATTR(used)
 HASATTR2(us, ed)
+
+/** manifest:
+expand
+*/

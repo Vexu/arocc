@@ -10,9 +10,8 @@ static int foo(void) {
     return 0;
 }
 
-// TODO re-enable when a backend is available again.
-// #if defined __linux__ && defined __x86_64__ 
-// #define EXPECTED_OUTPUT "Hello, world!\n"
-// #else
-#define TESTS_SKIPPED 1
-// #endif
+/** manifest:
+compare_output
+
+Hello, world!
+*/

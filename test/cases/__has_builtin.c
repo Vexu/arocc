@@ -15,4 +15,9 @@
 #  error should have builtin __is_target_arch
 #endif
 
-#define EXPECTED_ERRORS "__has_builtin.c:3:8: error: builtin exists"
+/** manifest:
+expand_error
+args = --emulate=clang
+
+__has_builtin.c:3:8: error: builtin exists
+*/

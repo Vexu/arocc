@@ -8,3 +8,8 @@ void foo(void) {
     EXPECT_TYPE(1.f + 1.f, float);
     EXPECT_TYPE((long double)1.f + 1.f, long double);
 }
+
+/** manifest:
+syntax
+args = -I include
+*/

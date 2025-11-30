@@ -1,5 +1,3 @@
-//aro-args --target=x86_64-linux-gnu -std=c23
-
 #include <limits.h>
 
 _Static_assert(CHAR_BIT == 8);
@@ -31,3 +29,8 @@ _Static_assert(LLONG_MIN == -9223372036854775807L - 1L);
 _Static_assert(UINT_MAX == 4294967295U);
 _Static_assert(ULONG_MAX == 18446744073709551615UL);
 _Static_assert(ULLONG_MAX == 18446744073709551615UL);
+
+/** manifest:
+syntax
+args = --target=x86_64-linux-gnu -std=c23
+*/

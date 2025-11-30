@@ -1,4 +1,3 @@
-//aro-args --target=aarch64-macos-musl
 void foo(void) {
     _Complex double cd = { 1.0, 2.0 };
     _Complex float cf = { 1.0f, 2.0f };
@@ -10,3 +9,8 @@ void foo(void) {
     cd = (_Complex double) { 1.0f, 2.0f}; // convert float literals to double
     cf = (_Complex float) { 1.0, 2.0 }; // convert double literals to float
 }
+
+/** manifest:
+syntax
+args = --target=aarch64-macos-musl
+*/

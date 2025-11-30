@@ -1,5 +1,3 @@
-//aro-args -std=c23 --target=x86_64-macos -ffreestanding
-
 #include <stdint.h>
 
 _Static_assert(INT_LEAST8_MAX == INT8_MAX);
@@ -33,3 +31,8 @@ _Static_assert(INT_FAST64_MAX == INT64_MAX);
 _Static_assert(INT_FAST64_MIN == INT64_MIN);
 _Static_assert(UINT_FAST64_MAX == UINT64_MAX);
 _Static_assert(INT_FAST64_WIDTH == INT64_WIDTH);
+
+/** manifest:
+syntax
+args = -std=c23 --target=x86_64-macos -ffreestanding
+*/

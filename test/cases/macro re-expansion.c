@@ -1,5 +1,3 @@
-//aro-args -E -P
-
 #define f(a) a
 #define z z[0]
 
@@ -36,3 +34,7 @@ INCOMPLETE2,3)
 Z1
 TAU(1)(2)
 OMEGA(1)(z)
+
+/** manifest:
+expand
+*/

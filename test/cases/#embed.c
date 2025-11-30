@@ -42,8 +42,12 @@ _Static_assert(bar == 'H', "");
 #error empty wasn't detected
 #endif
 
-#define EXPECTED_ERRORS \
-	"#embed.c:19:48: warning: unsupported embed parameter 'vendor::unsupported' embed parameter [-Wunsupported-embed-param]" \
-	"#embed.c:19:93: warning: duplicate embed parameter 'limit' [-Wduplicate-embed-param]" \
-	"#embed.c:25:21: error: the limit parameter expects one non-negative integer as a parameter" \
-	"#embed.c:25:39: error: unexpected token in embed parameter" \
+/** manifest:
+syntax
+args = --embed-dir=embed
+
+#embed.c:19:48: warning: unsupported embed parameter 'vendor::unsupported' embed parameter [-Wunsupported-embed-param]
+#embed.c:19:93: warning: duplicate embed parameter 'limit' [-Wduplicate-embed-param]
+#embed.c:25:21: error: the limit parameter expects one non-negative integer as a parameter
+#embed.c:25:39: error: unexpected token in embed parameter
+*/

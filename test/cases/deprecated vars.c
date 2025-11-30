@@ -1,5 +1,3 @@
-//aro-args -std=c23 -Wno-unused-value
-
 void foo(__attribute__((deprecated)) int arg, int arg2 __attribute__((deprecated))) {
     __attribute__((deprecated)) int foo = 1;
     int __attribute__((deprecated)) bar = 2;
@@ -30,19 +28,24 @@ int deprecated_field(struct S s) {
     return s.p;
 }
 
-#define EXPECTED_ERRORS "deprecated vars.c:8:5: warning: 'foo' is deprecated [-Wdeprecated-declarations]" \
-    "deprecated vars.c:4:20: note: 'foo' has been explicitly marked deprecated here" \
-    "deprecated vars.c:9:5: warning: 'bar' is deprecated [-Wdeprecated-declarations]" \
-    "deprecated vars.c:5:24: note: 'bar' has been explicitly marked deprecated here" \
-    "deprecated vars.c:10:5: warning: 'baz' is deprecated [-Wdeprecated-declarations]" \
-    "deprecated vars.c:6:28: note: 'baz' has been explicitly marked deprecated here" \
-    "deprecated vars.c:11:5: warning: 'arg' is deprecated [-Wdeprecated-declarations]" \
-    "deprecated vars.c:3:25: note: 'arg' has been explicitly marked deprecated here" \
-    "deprecated vars.c:12:5: warning: 'arg2' is deprecated [-Wdeprecated-declarations]" \
-    "deprecated vars.c:3:71: note: 'arg2' has been explicitly marked deprecated here" \
-    "deprecated vars.c:16:12: warning: 'arg' is deprecated [-Wdeprecated-declarations]" \
-    "deprecated vars.c:15:29: note: 'arg' has been explicitly marked deprecated here" \
-    "deprecated vars.c:21:5: warning: 'x' is deprecated [-Wdeprecated-declarations]" \
-    "deprecated vars.c:20:12: note: 'x' has been explicitly marked deprecated here" \
-    "deprecated vars.c:30:14: warning: 'p' is deprecated: foo [-Wdeprecated-declarations]" \
-    "deprecated vars.c:25:24: note: 'p' has been explicitly marked deprecated here" \
+/** manifest:
+syntax
+args = -std=c23 -Wno-unused-value
+
+deprecated vars.c:6:5: warning: 'foo' is deprecated [-Wdeprecated-declarations]
+deprecated vars.c:2:20: note: 'foo' has been explicitly marked deprecated here
+deprecated vars.c:7:5: warning: 'bar' is deprecated [-Wdeprecated-declarations]
+deprecated vars.c:3:24: note: 'bar' has been explicitly marked deprecated here
+deprecated vars.c:8:5: warning: 'baz' is deprecated [-Wdeprecated-declarations]
+deprecated vars.c:4:28: note: 'baz' has been explicitly marked deprecated here
+deprecated vars.c:9:5: warning: 'arg' is deprecated [-Wdeprecated-declarations]
+deprecated vars.c:1:25: note: 'arg' has been explicitly marked deprecated here
+deprecated vars.c:10:5: warning: 'arg2' is deprecated [-Wdeprecated-declarations]
+deprecated vars.c:1:71: note: 'arg2' has been explicitly marked deprecated here
+deprecated vars.c:14:12: warning: 'arg' is deprecated [-Wdeprecated-declarations]
+deprecated vars.c:13:29: note: 'arg' has been explicitly marked deprecated here
+deprecated vars.c:19:5: warning: 'x' is deprecated [-Wdeprecated-declarations]
+deprecated vars.c:18:12: note: 'x' has been explicitly marked deprecated here
+deprecated vars.c:28:14: warning: 'p' is deprecated: foo [-Wdeprecated-declarations]
+deprecated vars.c:23:24: note: 'p' has been explicitly marked deprecated here
+*/

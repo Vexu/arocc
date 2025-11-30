@@ -1,4 +1,3 @@
-//aro-args --target=x86_64-linux
 int _Alignas(int) _Alignas(float) _Alignas(16) a;
 
 const volatile int b;
@@ -27,3 +26,8 @@ enum E {
     D = (char) 2,
     E = (long) 3,
 };
+
+/** manifest:
+syntax
+args = --target=x86_64-linux
+*/

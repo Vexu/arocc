@@ -1,4 +1,3 @@
-//aro-args --target=x86_64-linux-gnu
 int foo(int);
 extern int foo(int);
 int foo(int);
@@ -20,3 +19,8 @@ int bar(void) {
     extern int b;
     return b;
 }
+
+/** manifest:
+syntax
+args = --target=x86_64-linux-gnu
+*/

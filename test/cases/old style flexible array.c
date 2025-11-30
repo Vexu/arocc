@@ -44,10 +44,13 @@ void baz(void) {
     s1.b[1] = 1;
 }
 
-#define EXPECTED_ERRORS "old style flexible array.c:13:9: warning: array index 1 is past the end of the array [-Warray-bounds]" \
-    "old style flexible array.c:15:9: warning: array index 1 is past the end of the array [-Warray-bounds]" \
-    "old style flexible array.c:19:15: warning: array index 1 is past the end of the array [-Warray-bounds]" \
-    "old style flexible array.c:33:9: warning: array index 1 is past the end of the array [-Warray-bounds]" \
-    "old style flexible array.c:36:9: warning: array index 1 is past the end of the array [-Warray-bounds]" \
-    "old style flexible array.c:44:9: warning: array index 1 is past the end of the array [-Wold-style-flexible-struct]" \
+/** manifest:
+syntax
 
+old style flexible array.c:13:9: warning: array index 1 is past the end of the array [-Warray-bounds]
+old style flexible array.c:15:9: warning: array index 1 is past the end of the array [-Warray-bounds]
+old style flexible array.c:19:15: warning: array index 1 is past the end of the array [-Warray-bounds]
+old style flexible array.c:33:9: warning: array index 1 is past the end of the array [-Warray-bounds]
+old style flexible array.c:36:9: warning: array index 1 is past the end of the array [-Warray-bounds]
+old style flexible array.c:44:9: warning: array index 1 is past the end of the array [-Wold-style-flexible-struct]
+*/

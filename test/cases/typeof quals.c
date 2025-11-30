@@ -12,8 +12,7 @@ void test_typeof_quals(void) {
     typeof(i) j;
 }
 
-#define EXPECTED_TYPES "const int" "const typeof(<expr>: const int)" \
-    "volatile int" "volatile typeof(<expr>: volatile int)" \
-    "int" "typeof(<expr>: int)" "void" \
-    "_Atomic(int)" "typeof(<expr>: _Atomic(int))" \
-    "restrict *int" "restrict typeof(<expr>: restrict *int)"
+/** manifest:
+syntax
+args = -target x86_64-linux
+*/

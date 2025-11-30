@@ -1,5 +1,3 @@
-//aro-args -std=c23 -Wpedantic
-
 constexpr int a = 1;
 static constexpr int b = 2;
 thread_local constexpr int c = 3;
@@ -30,12 +28,15 @@ constexpr struct S s2 = { 1, a};
 constexpr struct S s3 = { 1, non_const};
 // constexpr int s1_x = s1.x;
 
-#define TESTS_SKIPPED 1
+/** manifest:
+syntax
+skipped = 1
+args = -std=c23 -Wpedantic
 
-#define EXPECTED_ERRORS "constexpr.c:5:14: error: cannot combine with previous 'thread_local' specifier" \
-    "constexpr.c:7:19: error: invalid storage class on function parameter" \
-    "constexpr.c:7:1: error: illegal storage class on function" \
-    "constexpr.c:13:28: warning: implicit conversion from 'int' to 'signed _BitInt(2)' changes non-zero value from 4 to 0 [-Wconstant-conversion]" \
-    "constexpr.c:16:25: error: constexpr variable must be initialized by a constant expression" \
-    "constexpr.c:30:30: error: constexpr variable must be initialized by a constant expression" \
-
+constexpr.c:3:14: error: cannot combine with previous 'thread_local' specifier
+constexpr.c:5:19: error: invalid storage class on function parameter
+constexpr.c:5:1: error: illegal storage class on function
+constexpr.c:11:28: warning: implicit conversion from 'int' to 'signed _BitInt(2)' changes non-zero value from 4 to 0 [-Wconstant-conversion]
+constexpr.c:14:25: error: constexpr variable must be initialized by a constant expression
+constexpr.c:28:30: error: constexpr variable must be initialized by a constant expression
+*/

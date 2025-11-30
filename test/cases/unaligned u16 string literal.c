@@ -9,4 +9,10 @@ void foo(void) {
 
 _Static_assert(u"A");
 
-#define NO_ERROR_VALIDATION
+/** manifest:
+syntax
+
+unaligned u16 string literal.c:7:7: error: no member named 'y' in 'struct S'
+unaligned u16 string literal.c:10:1: warning: '_Static_assert' with no message is a C23 extension [-Wc23-extensions]
+unaligned u16 string literal.c:10:16: error: static assertion expression is not an integral constant expression
+*/

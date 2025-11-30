@@ -1,5 +1,3 @@
-//aro-args --emulate=gcc
-
 struct A {
     char c;
     int x;
@@ -29,3 +27,8 @@ _Static_assert(sizeof(struct A) > sizeof(struct B), "");
 _Static_assert(sizeof(struct B) == sizeof(char) + sizeof(int), "");
 _Static_assert(sizeof(struct C) == sizeof(char) + sizeof(int), "");
 _Static_assert(sizeof(struct D) == sizeof(char) + sizeof(int), "");
+
+/** manifest:
+syntax
+args = --emulate=gcc
+*/

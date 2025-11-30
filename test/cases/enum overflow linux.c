@@ -1,4 +1,3 @@
-//aro-args -target x86_64-linux-gnu
 enum E1 {
     A = 2147483647,
     B,
@@ -19,6 +18,12 @@ _Static_assert(G == 9223372036854775808ULL, "G");
 _Static_assert(H == 18446744073709551615ULL, "H");
 
 _Static_assert(H != C, "enumerator value was not truncated");
-#define EXPECTED_ERRORS "enum overflow linux.c:4:5: warning: overflow in enumeration value" \
-    "enum overflow linux.c:8:5: warning: incremented enumerator value 9223372036854775808 is not representable in the largest integer type [-Wenum-too-large]" \
-    "enum overflow linux.c:10:5: warning: incremented enumerator value 18446744073709551616 is not representable in the largest integer type [-Wenum-too-large]" \
+
+/** manifest:
+syntax
+args = -target x86_64-linux-gnu
+
+enum overflow linux.c:3:5: warning: overflow in enumeration value
+enum overflow linux.c:7:5: warning: incremented enumerator value 9223372036854775808 is not representable in the largest integer type [-Wenum-too-large]
+enum overflow linux.c:9:5: warning: incremented enumerator value 18446744073709551616 is not representable in the largest integer type [-Wenum-too-large]
+*/

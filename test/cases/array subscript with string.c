@@ -1,3 +1,6 @@
-#define NO_ERROR_VALIDATION
+/** manifest:
+syntax_ignore_errors
+*/
+
 int x[2];
 x[""[""]

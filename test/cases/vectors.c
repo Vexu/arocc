@@ -1,4 +1,3 @@
-//aro-args --target=x86_64-linux-gnu -Wno-unused
 typedef float *invalid1 __attribute__((vector_size(8)));
 typedef float invalid2 __attribute__((vector_size(9)));
 typedef float f2v __attribute__((vector_size(8)));
@@ -68,17 +67,22 @@ void compare(vec_a a, vec_a b, vec_b c, vec_b d) {
     __auto_type ab4 = c >= d;
 }
 
-#define EXPECTED_ERRORS "vectors.c:2:40: error: invalid vector element type 'float *'" \
-    "vectors.c:3:39: error: vector size not an integral multiple of component size" \
-    "vectors.c:10:10: error: invalid conversion between vector type 'f2v' (vector of 2 'float' values) and integer type 'int' of different size" \
-    "vectors.c:13:44: error: '_BitInt' vector element width must be at least as wide as 'CHAR_BIT'" \
-    "vectors.c:14:45: error: '_BitInt' vector element width must be a power of 2" \
-    "vectors.c:28:7: error: cannot convert between vector type 'f2v' (vector of 2 'float' values) and vector type 'i3v' (vector of 3 'int' values) as implicit conversion would cause truncation" \
-    "vectors.c:34:5: error: invalid conversion between vector type 'i3v' (vector of 3 'int' values) and 'i2v' (vector of 2 'int' values) of different size" \
-    "vectors.c:36:5: error: invalid conversion between vector type 'i2v' (vector of 2 'int' values) and integer type 'int' of different size" \
-    "vectors.c:37:5: error: invalid conversion between vector type 'i2v' (vector of 2 'int' values) and scalar type 'double'" \
-    "vectors.c:38:5: error: operand of type 'struct S' where arithmetic or pointer type is required" \
-    "vectors.c:40:10: error: invalid conversion between vector type 'i3v' (vector of 3 'int' values) and integer type 'long' of different size" \
-    "vectors.c:41:10: error: invalid conversion between vector type 'f2v' (vector of 2 'float' values) and scalar type 'double'" \
-    "vectors.c:42:10: error: operand of type 'struct S' where arithmetic or pointer type is required" \
-    "vectors.c:45:39: error: invalid vector element type '_Bool'" \
+/** manifest:
+syntax
+args = --target=x86_64-linux-gnu -Wno-unused
+
+vectors.c:1:40: error: invalid vector element type 'float *'
+vectors.c:2:39: error: vector size not an integral multiple of component size
+vectors.c:9:10: error: invalid conversion between vector type 'f2v' (vector of 2 'float' values) and integer type 'int' of different size
+vectors.c:12:44: error: '_BitInt' vector element width must be at least as wide as 'CHAR_BIT'
+vectors.c:13:45: error: '_BitInt' vector element width must be a power of 2
+vectors.c:27:7: error: cannot convert between vector type 'f2v' (vector of 2 'float' values) and vector type 'i3v' (vector of 3 'int' values) as implicit conversion would cause truncation
+vectors.c:33:5: error: invalid conversion between vector type 'i3v' (vector of 3 'int' values) and 'i2v' (vector of 2 'int' values) of different size
+vectors.c:35:5: error: invalid conversion between vector type 'i2v' (vector of 2 'int' values) and integer type 'int' of different size
+vectors.c:36:5: error: invalid conversion between vector type 'i2v' (vector of 2 'int' values) and scalar type 'double'
+vectors.c:37:5: error: operand of type 'struct S' where arithmetic or pointer type is required
+vectors.c:39:10: error: invalid conversion between vector type 'i3v' (vector of 3 'int' values) and integer type 'long' of different size
+vectors.c:40:10: error: invalid conversion between vector type 'f2v' (vector of 2 'float' values) and scalar type 'double'
+vectors.c:41:10: error: operand of type 'struct S' where arithmetic or pointer type is required
+vectors.c:44:39: error: invalid vector element type '_Bool'
+*/

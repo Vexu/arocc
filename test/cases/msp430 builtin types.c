@@ -1,4 +1,3 @@
-//aro-args --target=msp430-other-none
 #include <stddef.h>
 #include <stdarg.h>
 
@@ -26,3 +25,8 @@ void foo(int x, ... )
     va_list list;
     char *foo = list;
 }
+
+/** manifest:
+syntax
+args = --target=msp430-other-none
+*/

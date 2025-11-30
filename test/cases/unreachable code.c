@@ -32,7 +32,12 @@ int if_then_else(int a){
 		return 2;
 	return 3;
 }
-#define EXPECTED_ERRORS "unreachable code.c:10:3: warning: unreachable code [-Wunreachable-code]" \
-	"unreachable code.c:17:3: warning: unreachable code [-Wunreachable-code]" \
-	"unreachable code.c:25:3: warning: unreachable code [-Wunreachable-code]" \
-	"unreachable code.c:33:2: warning: unreachable code [-Wunreachable-code]" 
+
+/** manifest:
+syntax
+
+unreachable code.c:10:3: warning: unreachable code [-Wunreachable-code]
+unreachable code.c:17:3: warning: unreachable code [-Wunreachable-code]
+unreachable code.c:25:3: warning: unreachable code [-Wunreachable-code]
+unreachable code.c:33:2: warning: unreachable code [-Wunreachable-code]
+*/

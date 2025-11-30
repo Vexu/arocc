@@ -33,15 +33,18 @@ bar
 // should be no error since FOO should not be expanded
 #pragma GCC FOO "foo"
 
+/** manifest:
+syntax
 
-#define EXPECTED_ERRORS "pragma warning and error.c:3:13: error: pragma warning requires string literal" \
-	"pragma warning and error.c:5:13: error: pragma warning requires string literal" \
-	"pragma warning and error.c:7:13: warning: A warning [-W#pragma-messages]" \
-	"pragma warning and error.c:9:13: warning: Another warning [-W#pragma-messages]" \
-	"pragma warning and error.c:11:13: error: pragma error requires string literal" \
-	"pragma warning and error.c:13:13: error: pragma error requires string literal" \
-	"pragma warning and error.c:15:13: error: An error" \
-	"pragma warning and error.c:17:13: error: Another error" \
-	"pragma warning and error.c:26:1: note: #pragma message: bar 1" \
-	"pragma warning and error.c:27:1: note: #pragma message: baz 2" \
-	"pragma warning and error.c:29:2: warning: foo bar [-W#warnings]" \
+pragma warning and error.c:3:13: error: pragma warning requires string literal
+pragma warning and error.c:5:13: error: pragma warning requires string literal
+pragma warning and error.c:7:13: warning: A warning [-W#pragma-messages]
+pragma warning and error.c:9:13: warning: Another warning [-W#pragma-messages]
+pragma warning and error.c:11:13: error: pragma error requires string literal
+pragma warning and error.c:13:13: error: pragma error requires string literal
+pragma warning and error.c:15:13: error: An error
+pragma warning and error.c:17:13: error: Another error
+pragma warning and error.c:26:1: note: #pragma message: bar 1
+pragma warning and error.c:27:1: note: #pragma message: baz 2
+pragma warning and error.c:29:2: warning: foo bar [-W#warnings]
+*/

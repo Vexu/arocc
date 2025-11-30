@@ -1,4 +1,8 @@
-#define EXPECTED_ERRORS "unterminated comment.c:4:7: error: unterminated comment" \
-    "unterminated comment.c:4:6: error: expected ';' before end of file" \
+/** manifest:
+syntax
+
+unterminated comment.c:8:7: error: unterminated comment
+unterminated comment.c:8:6: error: expected ';' before end of file
+*/
 
 int x /**

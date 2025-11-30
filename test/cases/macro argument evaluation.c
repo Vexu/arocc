@@ -1,4 +1,3 @@
-//aro-args -E -P
 #define FOO(X) X##OK
 #define BAR FOO
 
@@ -17,5 +16,8 @@ BAR(A)
 
 BAR(A)
 
-#define EXPECTED_ERRORS "macro argument evaluation.c:15:2: error: Should error" \
+/** manifest:
+expand_error
 
+macro argument evaluation.c:14:2: error: Should error
+*/

@@ -49,12 +49,16 @@ void f3(void) {
     (void)&((struct Foo **)(_Bool)1)[0];
 }
 
-#define EXPECTED_ERRORS "member expr.c:7:8: error: member reference base type 'int' is not a structure or union" \
-    "member expr.c:10:8: error: member reference type 'struct Foo' is not a pointer; did you mean to use '.'?" \
-    "member expr.c:13:8: error: member reference type 'struct Foo' is not a pointer; did you mean to use '.'?" \
-    "member expr.c:13:8: error: no member named 'b' in 'struct Foo'" \
-    "member expr.c:16:7: error: member reference type 'struct Foo *' is a pointer; did you mean to use '->'?" \
-    "member expr.c:16:7: error: no member named 'b' in 'struct Foo'" \
-    "member expr.c:18:7: error: member reference base type 'int' is not a structure or union" \
-    "member expr.c:19:7: error: member reference base type 'int *' is not a structure or union" \
-    "member expr.c:20:8: error: member reference base type 'int *' is not a structure or union" \
+/** manifest:
+syntax
+
+member expr.c:7:8: error: member reference base type 'int' is not a structure or union
+member expr.c:10:8: error: member reference type 'struct Foo' is not a pointer; did you mean to use '.'?
+member expr.c:13:8: error: member reference type 'struct Foo' is not a pointer; did you mean to use '.'?
+member expr.c:13:8: error: no member named 'b' in 'struct Foo'
+member expr.c:16:7: error: member reference type 'struct Foo *' is a pointer; did you mean to use '->'?
+member expr.c:16:7: error: no member named 'b' in 'struct Foo'
+member expr.c:18:7: error: member reference base type 'int' is not a structure or union
+member expr.c:19:7: error: member reference base type 'int *' is not a structure or union
+member expr.c:20:8: error: member reference base type 'int *' is not a structure or union
+*/

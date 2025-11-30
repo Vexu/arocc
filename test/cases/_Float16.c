@@ -1,4 +1,3 @@
-//aro-args --target=x86_64-linux-gnu
 #include <stdarg.h>
 
 _Float16 foo(_Float16 x, _Float16 y) {
@@ -24,4 +23,8 @@ void conversions(void) {
     (void)(f16 + fp16);  // _Float16 + __fp16 promotes both to float
 }
 
-#define TESTS_SKIPPED 1
+/** manifest:
+syntax
+args = --target=x86_64-linux-gnu
+skipped = 1
+*/

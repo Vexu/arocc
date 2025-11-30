@@ -1,4 +1,3 @@
-//aro-args -Wno-gnu-alignof-expression
 #include "test_helpers.h"
 __auto_type __attribute__((noreturn)) foo(void);
 __auto_type foo1(void) {}
@@ -67,22 +66,27 @@ __auto_type multidimensional[2][2];
 
 auto int invalid_c23_auto = 1;
 
-#define EXPECTED_ERRORS "__auto_type.c:3:1: error: '__auto_type' not allowed in function return type" \
-    "__auto_type.c:4:1: error: '__auto_type' not allowed in function return type" \
-    "__auto_type.c:6:10: error: '__auto_type' not allowed in function prototype" \
-    "__auto_type.c:7:11: error: '__auto_type' not allowed in function prototype" \
-    "__auto_type.c:9:9: error: '__auto_type' not allowed in typedef" \
-    "__auto_type.c:10:5: error: cannot combine with previous 'int' specifier" \
-    "__auto_type.c:16:5: error: '__auto_type' not allowed in struct member" \
-    "__auto_type.c:19:5: error: '__auto_type' not allowed in union member" \
-    "__auto_type.c:29:5: warning: '__auto_type' is a GNU extension [-Wgnu-auto-type]" \
-    "__auto_type.c:35:14: error: expected expression" \
-    "__auto_type.c:37:17: error: declaration of variable 'd' with deduced type requires an initializer" \
-    "__auto_type.c:39:5: error: '__auto_type' may only be used with a single declarator" \
-    "__auto_type.c:42:21: error: cannot use bit-field as '__auto_type' initializer" \
-    "__auto_type.c:49:7: error: cannot assign to variable 'i' with const-qualified type 'const int'" \
-    "__auto_type.c:48:23: note: variable 'i' declared const here" \
-    "__auto_type.c:58:5: error: 'auto_array' declared as array of '__auto_type'" \
-    "__auto_type.c:60:29: error: cannot use '__auto_type' with initializer list" \
-    "__auto_type.c:66:1: error: 'multidimensional' declared as array of '__auto_type'" \
-    "__auto_type.c:68:30: error: 'auto' specified on global variable" \
+/** manifest:
+syntax
+args = -Wno-gnu-alignof-expression -I include
+
+__auto_type.c:2:1: error: '__auto_type' not allowed in function return type
+__auto_type.c:3:1: error: '__auto_type' not allowed in function return type
+__auto_type.c:5:10: error: '__auto_type' not allowed in function prototype
+__auto_type.c:6:11: error: '__auto_type' not allowed in function prototype
+__auto_type.c:8:9: error: '__auto_type' not allowed in typedef
+__auto_type.c:9:5: error: cannot combine with previous 'int' specifier
+__auto_type.c:15:5: error: '__auto_type' not allowed in struct member
+__auto_type.c:18:5: error: '__auto_type' not allowed in union member
+__auto_type.c:28:5: warning: '__auto_type' is a GNU extension [-Wgnu-auto-type]
+__auto_type.c:34:14: error: expected expression
+__auto_type.c:36:17: error: declaration of variable 'd' with deduced type requires an initializer
+__auto_type.c:38:5: error: '__auto_type' may only be used with a single declarator
+__auto_type.c:41:21: error: cannot use bit-field as '__auto_type' initializer
+__auto_type.c:48:7: error: cannot assign to variable 'i' with const-qualified type 'const int'
+__auto_type.c:47:23: note: variable 'i' declared const here
+__auto_type.c:57:5: error: 'auto_array' declared as array of '__auto_type'
+__auto_type.c:59:29: error: cannot use '__auto_type' with initializer list
+__auto_type.c:65:1: error: 'multidimensional' declared as array of '__auto_type'
+__auto_type.c:67:30: error: 'auto' specified on global variable
+*/

@@ -1,20 +1,24 @@
-//aro-args -E -std=c23 -P
-#define EXPECTED_ERRORS \
-    "#elifndef error.c:8:9: error: macro name missing" \
-    "#elifndef error.c:17:10: error: macro name missing"
 #ifdef FOO
-long long
+#error invalid
 #elifdef
-long
+#error invalid
 #else
 int
 #endif
 
 #define BAR
 #ifdef FOO
-long long
+#error invalid
 #elifndef
-long
+#error invalid
 #else
 int
 #endif
+
+/** manifest:
+expand_error
+args = -std=c23
+
+#elifndef error.c:4:9: error: macro name missing
+#elifndef error.c:13:10: error: macro name missing
+*/

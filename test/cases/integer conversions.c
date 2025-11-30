@@ -1,4 +1,3 @@
-//aro-args --target=x86_64-linux-gnu -Wno-c23-extensions
 #include "include/test_helpers.h"
 
 void foo(void) {
@@ -17,3 +16,8 @@ void foo(void) {
     _Complex int cy = 0;
     EXPECT_TYPE(cy + 4294967296wb, _Complex _BitInt(34));
 }
+
+/** manifest:
+syntax
+args = --target=x86_64-linux-gnu -Wno-c23-extensions -I include
+*/

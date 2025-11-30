@@ -8,3 +8,8 @@
 
 #include "iquote_test.h"
 _Static_assert(FOO == 42, "FOO is incorrect");
+
+/** manifest:
+syntax
+args = -iquote include/iquote
+*/

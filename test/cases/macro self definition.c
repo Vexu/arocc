@@ -1,4 +1,3 @@
-//aro-args -E -P
 #define FOO FOO
 
 FOO
@@ -8,3 +7,7 @@ FOO
 
 BAR
 BAZ
+
+/** manifest:
+expand
+*/

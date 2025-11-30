@@ -24,10 +24,13 @@ void test_type_resolution(void) {
     EXPECT_TYPE(x ? (int *)1 : (_Atomic int*)2, void *);
 }
 
-#define EXPECTED_ERRORS "type_resolution.c:23:5: warning: pointer type mismatch ('int *' and 'float *') [-Wpointer-type-mismatch]" \
-    "test_helpers.h:3:88: note: expanded from here" \
-    "type_resolution.c:23:30: note: expanded from here" \
-    "type_resolution.c:24:5: warning: pointer type mismatch ('int *' and '_Atomic(int) *') [-Wpointer-type-mismatch]" \
-    "test_helpers.h:3:88: note: expanded from here" \
-    "type_resolution.c:24:30: note: expanded from here" \
+/** manifest:
+syntax
 
+type_resolution.c:23:5: warning: pointer type mismatch ('int *' and 'float *') [-Wpointer-type-mismatch]
+test_helpers.h:3:88: note: expanded from here
+type_resolution.c:23:30: note: expanded from here
+type_resolution.c:24:5: warning: pointer type mismatch ('int *' and '_Atomic(int) *') [-Wpointer-type-mismatch]
+test_helpers.h:3:88: note: expanded from here
+type_resolution.c:24:30: note: expanded from here
+*/

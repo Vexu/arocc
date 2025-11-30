@@ -25,9 +25,9 @@ void foo(enum E e) {
     }
 }
 
-#if __INT_MAX__ <= 2147483647 // 2 or 4 byte ints
-#define EXPECTED_ERRORS \
-    "enumerator constants.c:9:5: warning: ISO C restricts enumerator values to range of 'int' (-2147483649 is too small) [-Wpedantic]" \
-    "enumerator constants.c:10:5: warning: ISO C restricts enumerator values to range of 'int' (2147483648 is too large) [-Wpedantic]" \
+/** manifest:
+syntax
 
-#endif
+enumerator constants.c:9:5: warning: ISO C restricts enumerator values to range of 'int' (-2147483649 is too small) [-Wpedantic]
+enumerator constants.c:10:5: warning: ISO C restricts enumerator values to range of 'int' (2147483648 is too large) [-Wpedantic]
+*/

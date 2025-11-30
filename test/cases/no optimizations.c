@@ -6,3 +6,7 @@
 #if defined(__OPTIMIZE_SIZE__)
 #error Optimize size flag should not be defined
 #endif
+
+/** manifest:
+syntax
+*/

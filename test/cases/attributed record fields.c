@@ -1,4 +1,3 @@
-//aro-args --target=x86_64-windows-msvc
 struct S1 {};
 
 struct S2 {
@@ -44,3 +43,8 @@ union U1 {
 union U2 {
     int x __attribute__((packed)), y, __attribute__((packed)) z, w __attribute__((aligned));
 };
+
+/** manifest:
+syntax
+args = --target=x86_64-windows-msvc
+*/

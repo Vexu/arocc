@@ -1,5 +1,3 @@
-//aro-args -E -P
-
 #define X(a) Foo_ ## a = a,
 enum Foo {
 X(1)
@@ -8,3 +6,7 @@ X(3)
 X(4)
 X(5)
 };
+
+/** manifest:
+expand
+*/

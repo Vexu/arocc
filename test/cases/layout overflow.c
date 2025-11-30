@@ -1,5 +1,3 @@
-//aro-args -fdeclspec
-
 struct S {
     char x[2305843009213693952ULL -1];
     char y[2305843009213693952ULL -1];
@@ -22,7 +20,10 @@ union U {
     char bytes[3333333333333333333];
 };
 
+/** manifest:
+syntax
+args = -fdeclspec
 
-#define EXPECTED_ERRORS "layout overflow.c:3:8: error: type 'struct S' is too large" \
-    "layout overflow.c:22:15: error: array is too large" \
-
+layout overflow.c:1:8: error: type 'struct S' is too large
+layout overflow.c:20:15: error: array is too large
+*/

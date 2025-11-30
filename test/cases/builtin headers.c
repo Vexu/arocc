@@ -6,3 +6,7 @@
 
 #define HEADER <stdarg.h>
 #include HEADER
+
+/** manifest:
+syntax
+*/

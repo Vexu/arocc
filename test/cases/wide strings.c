@@ -1,4 +1,3 @@
-//aro-args -std=c23
 #include <stdint.h>
 typedef __WCHAR_TYPE__ wchar_t;
 
@@ -68,12 +67,16 @@ uint32_t R[] = U"a" U'b';
 uint32_t S[] = U'a';
 uint32_t T[] = { U'a', U'b'};
 
-#define EXPECTED_ERRORS "wide strings.c:25:21: error: unsupported string literal concatenation" \
-    "wide strings.c:48:18: error: escape sequence out of range" \
-    "wide strings.c:50:18: error: escape sequence out of range" \
-    "wide strings.c:52:1: error: static assertion failed \"😬😬\"" \
-    "wide strings.c:53:1: error: static assertion failed \"😬😬\"" \
-    "wide strings.c:55:39: error: escape sequence out of range" \
-    "wide strings.c:67:21: error: expected ';', found 'a character literal'" \
-    "wide strings.c:68:16: error: array initializer must be an initializer list or wide string literal" \
+/** manifest:
+syntax
+args = -std=c23
 
+wide strings.c:24:21: error: unsupported string literal concatenation
+wide strings.c:47:18: error: escape sequence out of range
+wide strings.c:49:18: error: escape sequence out of range
+wide strings.c:51:1: error: static assertion failed "😬😬"
+wide strings.c:52:1: error: static assertion failed "😬😬"
+wide strings.c:54:39: error: escape sequence out of range
+wide strings.c:66:21: error: expected ';', found 'a character literal'
+wide strings.c:67:16: error: array initializer must be an initializer list or wide string literal
+*/

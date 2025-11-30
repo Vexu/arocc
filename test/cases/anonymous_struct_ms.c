@@ -1,4 +1,3 @@
-//aro-args -fms-extensions
 typedef struct {
     int a;
 } unnamed;
@@ -11,6 +10,10 @@ struct S {
     named;
 };
 
-#define EXPECTED_ERRORS \
-    "anonymous_struct_ms.c:10:12: warning: anonymous structs are a Microsoft extension [-Wmicrosoft-anon-tag]" \
-    "anonymous_struct_ms.c:11:10: warning: anonymous structs are a Microsoft extension [-Wmicrosoft-anon-tag]" \
+/** manifest:
+syntax
+args = -fms-extensions
+
+anonymous_struct_ms.c:9:12: warning: anonymous structs are a Microsoft extension [-Wmicrosoft-anon-tag]
+anonymous_struct_ms.c:10:10: warning: anonymous structs are a Microsoft extension [-Wmicrosoft-anon-tag]
+*/

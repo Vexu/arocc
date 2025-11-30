@@ -2,3 +2,7 @@
 p(elif)
 
 int endif;
+
+/** manifest:
+syntax
+*/

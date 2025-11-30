@@ -10,5 +10,8 @@
 #error Should error
 #endif
 
-#define EXPECTED_ERRORS "#if expression macro ws.c:10:2: error: Should error" \
+/** manifest:
+syntax
 
+#if expression macro ws.c:10:2: error: Should error
+*/

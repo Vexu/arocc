@@ -1,5 +1,3 @@
-//aro-args -std=c23
-
 #pragma GCC diagnostic ignored "-Wgnu-alignof-expression"
 
 #if __has_c_attribute(foo) || __has_c_attribute(foo::bar)
@@ -21,5 +19,10 @@ void foo(void) {
     return 5;
 }
 
-#define EXPECTED_ERRORS "standard attributes.c:15:5: warning: 'x' is deprecated [-Wdeprecated-declarations]" \
-    "standard attributes.c:14:7: note: 'x' has been explicitly marked deprecated here" \
+/** manifest:
+syntax
+args = -std=c23
+
+standard attributes.c:13:5: warning: 'x' is deprecated [-Wdeprecated-declarations]
+standard attributes.c:12:7: note: 'x' has been explicitly marked deprecated here
+*/

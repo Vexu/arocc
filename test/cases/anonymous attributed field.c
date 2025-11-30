@@ -1,4 +1,7 @@
-#define NO_ERROR_VALIDATION
+/** manifest:
+syntax_ignore_errors
+*/
+
 struct A {
     union {
         char a

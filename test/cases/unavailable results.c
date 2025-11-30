@@ -9,4 +9,8 @@ void foo(void) {
 }
 #pragma GCC diagnostic pop
 
-#define EXPECTED_ERRORS "unavailable results.c:8:10: error: cannot take the address of an rvalue" \
+/** manifest:
+syntax
+
+unavailable results.c:8:10: error: cannot take the address of an rvalue
+*/

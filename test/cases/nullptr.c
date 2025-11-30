@@ -1,4 +1,3 @@
-//aro-args -std=c23
 #include <stddef.h>
 // Comments below from N3047 working draft — August 4, 2022 § 7.21.2
 // Because it is considered to be a scalar type, nullptr_t may appear in any context where (void*)0 would be valid,
@@ -106,24 +105,27 @@ void bad_nullptr_use(void) {
     vp = (nullptr_t)(void *)0;
 }
 
-#define TESTS_SKIPPED 1
+/** manifest:
+syntax
+args = -std=c23
+skipped = 1
 
-#define EXPECTED_ERRORS "nullptr.c:89:27: error: invalid operands to binary expression ('nullptr_t' and 'int')" \
-    "nullptr.c:90:27: error: invalid operands to binary expression ('nullptr_t' and 'bool')" \
-    "nullptr.c:91:14: error: initializing 'bool' from incompatible type 'nullptr_t'" \
-    "nullptr.c:92:13: error: initializing 'int' from incompatible type 'nullptr_t'" \
-    "nullptr.c:93:19: error: initializing 'nullptr_t' from incompatible type 'int'" \
-    "nullptr.c:94:15: error: cannot cast an object of type 'nullptr_t' to 'float'" \
-    "nullptr.c:95:9: error: cannot cast an object of type 'nullptr_t' to 'int'" \
-    "nullptr.c:96:28: error: invalid operands to binary expression ('nullptr_t' and 'int')" \
-    "nullptr.c:97:13: error: invalid operands to binary expression ('nullptr_t' and 'int')" \
-    "nullptr.c:98:13: error: invalid operands to binary expression ('nullptr_t' and 'double')" \
-    "nullptr.c:99:13: error: invalid operands to binary expression ('nullptr_t' and 'int')" \
-    "nullptr.c:100:13: error: invalid operands to binary expression ('nullptr_t' and 'double')" \
-    "nullptr.c:101:13: error: invalid operands to binary expression ('nullptr_t' and 'int')" \
-    "nullptr.c:102:13: error: invalid operands to binary expression ('nullptr_t' and 'int')" \
-    "nullptr.c:103:7: error: invalid operands to binary expression ('nullptr_t' and 'int')" \
-    "nullptr.c:104:13: error: invalid operands to binary expression ('nullptr_t' and 'int')" \
-    "nullptr.c:105:10: error: cannot cast an object of type 'int' to 'nullptr_t'" \
-    "nullptr.c:106:10: error: cannot cast an object of type 'void *' to 'nullptr_t'" \
-
+nullptr.c:88:27: error: invalid operands to binary expression ('nullptr_t' and 'int')
+nullptr.c:89:27: error: invalid operands to binary expression ('nullptr_t' and 'bool')
+nullptr.c:90:14: error: initializing 'bool' from incompatible type 'nullptr_t'
+nullptr.c:91:13: error: initializing 'int' from incompatible type 'nullptr_t'
+nullptr.c:92:19: error: initializing 'nullptr_t' from incompatible type 'int'
+nullptr.c:93:15: error: cannot cast an object of type 'nullptr_t' to 'float'
+nullptr.c:94:9: error: cannot cast an object of type 'nullptr_t' to 'int'
+nullptr.c:95:28: error: invalid operands to binary expression ('nullptr_t' and 'int')
+nullptr.c:96:13: error: invalid operands to binary expression ('nullptr_t' and 'int')
+nullptr.c:97:13: error: invalid operands to binary expression ('nullptr_t' and 'double')
+nullptr.c:98:13: error: invalid operands to binary expression ('nullptr_t' and 'int')
+nullptr.c:99:13: error: invalid operands to binary expression ('nullptr_t' and 'double')
+nullptr.c:100:13: error: invalid operands to binary expression ('nullptr_t' and 'int')
+nullptr.c:101:13: error: invalid operands to binary expression ('nullptr_t' and 'int')
+nullptr.c:102:7: error: invalid operands to binary expression ('nullptr_t' and 'int')
+nullptr.c:103:13: error: invalid operands to binary expression ('nullptr_t' and 'int')
+nullptr.c:104:10: error: cannot cast an object of type 'int' to 'nullptr_t'
+nullptr.c:105:10: error: cannot cast an object of type 'void *' to 'nullptr_t'
+*/

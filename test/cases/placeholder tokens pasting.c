@@ -1,5 +1,3 @@
-//aro-args -P -E
-
 #define CAT(a, b) a##b
 #define CAT2(a, b) (a##b)
 
@@ -9,3 +7,7 @@ CAT(,y)
 x CAT2(,)x
 CAT2(,y)
 CAT2(x,)
+
+/** manifest:
+expand
+*/

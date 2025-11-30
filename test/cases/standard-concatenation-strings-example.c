@@ -1,5 +1,3 @@
-//aro-args -E -P
-
 #define str(s) # s
 #define xstr(s) str(s)
 #define debug(s, t) printf("x" # s "= %d, x" # t "= %s", \
@@ -18,3 +16,7 @@ str(INCFILE(2).h)
 str(INCFILE(2) . h)
 glue(HIGH, LOW);
 xglue(HIGH, LOW)
+
+/** manifest:
+expand
+*/

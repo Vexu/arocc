@@ -1,4 +1,7 @@
-//aro-args -std=c23
-#define EXPECTED_ERRORS \
-    "c23 missing type specifier.c:4:8: error: a type specifier is required for all declarations"
 static x = 5;
+
+/** manifest:
+syntax
+args = -std=c23
+
+c23 missing type specifier.c:1:8: error: a type specifier is required for all declarations*/

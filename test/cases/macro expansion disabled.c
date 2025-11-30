@@ -1,5 +1,3 @@
-//aro-args -E -P
-
 #define EMPTY()
 #define LOOP_INDIRECTION() LOOP
 #define LOOP(x) x LOOP_INDIRECTION EMPTY()() (x)
@@ -10,3 +8,7 @@ LOOP(1)
 
 #define A() 123
 EXPAND(DEFER(A)())
+
+/** manifest:
+expand
+*/

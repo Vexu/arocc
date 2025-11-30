@@ -1,5 +1,3 @@
-//aro-args -E -Wgnu-zero-variadic-macro-arguments -P
-
 #define eprintf(format, ...) fprintf (stderr, format, ##__VA_ARGS__)
 eprintf("foo");
 eprintf("foo",);
@@ -15,10 +13,13 @@ ZERO_ARGS(b)
 
 foo(1,bar)
 
-#define EXPECTED_ERRORS \
-    "token paste delete comma gnu.c:3:55: warning: token pasting of ',' and __VA_ARGS__ is a GNU extension [-Wgnu-zero-variadic-macro-arguments]" \
-    "token paste delete comma gnu.c:3:55: warning: token pasting of ',' and __VA_ARGS__ is a GNU extension [-Wgnu-zero-variadic-macro-arguments]" \
-    "token paste delete comma gnu.c:8:31: warning: token pasting of ',' and __VA_ARGS__ is a GNU extension [-Wgnu-zero-variadic-macro-arguments]" \
-    "token paste delete comma gnu.c:8:31: warning: token pasting of ',' and __VA_ARGS__ is a GNU extension [-Wgnu-zero-variadic-macro-arguments]" \
-    "token paste delete comma gnu.c:13:23: warning: token pasting of ',' and __VA_ARGS__ is a GNU extension [-Wgnu-zero-variadic-macro-arguments]" \
+/** manifest:
+expand
+args = -Wgnu-zero-variadic-macro-arguments
 
+token paste delete comma gnu.c:1:55: warning: token pasting of ',' and __VA_ARGS__ is a GNU extension [-Wgnu-zero-variadic-macro-arguments]
+token paste delete comma gnu.c:1:55: warning: token pasting of ',' and __VA_ARGS__ is a GNU extension [-Wgnu-zero-variadic-macro-arguments]
+token paste delete comma gnu.c:6:31: warning: token pasting of ',' and __VA_ARGS__ is a GNU extension [-Wgnu-zero-variadic-macro-arguments]
+token paste delete comma gnu.c:6:31: warning: token pasting of ',' and __VA_ARGS__ is a GNU extension [-Wgnu-zero-variadic-macro-arguments]
+token paste delete comma gnu.c:11:23: warning: token pasting of ',' and __VA_ARGS__ is a GNU extension [-Wgnu-zero-variadic-macro-arguments]
+*/

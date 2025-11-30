@@ -70,13 +70,17 @@ _Static_assert(THREE_SPACES_H == 1, "");
 #if __has_include(            )
 #endif
 
-#define EXPECTED_ERRORS "__has_include.c:1:5: error: Missing '(' after built-in macro '__has_include'" \
-    "__has_include.c:3:5: error: Missing '(' after built-in macro '__has_include'" \
-    "__has_include.c:6:5: error: expected 1 argument(s) got 0" \
-    "__has_include.c:22:19: error: expected \"FILENAME\" or <FILENAME>" \
-    "__has_include.c:25:27: error: expected closing '>'" \
-    "__has_include.c:25:19: note: to match this '<'" \
-    "__has_include.c:46:19: error: empty filename" \
-    "__has_include.c:59:24: error: expected closing ')'" \
-    "__has_include.c:70:19: error: expected \"FILENAME\" or <FILENAME>" \
+/** manifest:
+expand_error
+args = -I include
 
+__has_include.c:1:5: error: Missing '(' after built-in macro '__has_include'
+__has_include.c:3:5: error: Missing '(' after built-in macro '__has_include'
+__has_include.c:6:5: error: expected 1 argument(s) got 0
+__has_include.c:22:19: error: expected "FILENAME" or <FILENAME>
+__has_include.c:25:27: error: expected closing '>'
+__has_include.c:25:19: note: to match this '<'
+__has_include.c:46:19: error: empty filename
+__has_include.c:59:24: error: expected closing ')'
+__has_include.c:70:19: error: expected "FILENAME" or <FILENAME>
+*/

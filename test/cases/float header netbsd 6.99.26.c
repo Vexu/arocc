@@ -1,4 +1,3 @@
-//aro-args -E --target=x86-netbsd.6.99.26-gnu -std=c11 -P
 #include <float.h>
 DBL_DIG
 DBL_EPSILON
@@ -30,3 +29,8 @@ LDBL_MIN_10_EXP
 LDBL_MIN_EXP
 LDBL_MIN
 FLT_EVAL_METHOD
+
+/** manifest:
+expand
+args = --target=x86-netbsd.6.99.26-gnu -std=c11
+*/

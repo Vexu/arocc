@@ -1,4 +1,3 @@
-//aro-args -std=c17
 #if !__is_identifier(typeof)
 #error typeof should be an identifier in c17
 #endif
@@ -35,5 +34,10 @@ _Static_assert(X == 1, "'foobar' should be an identifier");
 #error FOO is an identifier
 #endif
 
-#define EXPECTED_ERRORS "__is_identifier.c:25:25: error: missing ')', after builtin feature-check macro" \
-	"__is_identifier.c:29:5: error: expected 1 argument(s) got 0"
+/** manifest:
+expand_error
+args = -std=c17
+
+__is_identifier.c:24:25: error: missing ')', after builtin feature-check macro
+__is_identifier.c:28:5: error: expected 1 argument(s) got 0
+*/

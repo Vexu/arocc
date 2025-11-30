@@ -1,5 +1,3 @@
-//aro-args --emulate=clang
-
 struct A {
     char c;
     int x;
@@ -28,3 +26,8 @@ struct D {
 _Static_assert(sizeof(struct A) == sizeof(struct B), "");
 _Static_assert(sizeof(struct A) == sizeof(struct C), "");
 _Static_assert(sizeof(struct A) == sizeof(struct D), "");
+
+/** manifest:
+syntax
+args = --emulate=clang
+*/

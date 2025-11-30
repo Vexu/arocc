@@ -1,9 +1,13 @@
-//aro-args -fno-dollars-in-identifiers
 #define foo$ bar
 void fib() {
   int foo$;
 }
 
-#define EXPECTED_ERRORS ":2:12: warning: ISO C99 requires whitespace after the macro name [-Wc99-extensions]" \
-    ":4:7: error: expected identifier or '('" \
-    ":2:12: note: expanded from here" \
+/** manifest:
+syntax
+args = -fno-dollars-in-identifiers
+
+no dollars in identifiers.c:1:12: warning: ISO C99 requires whitespace after the macro name [-Wc99-extensions]
+no dollars in identifiers.c:3:7: error: expected identifier or '('
+no dollars in identifiers.c:1:12: note: expanded from here
+*/

@@ -1,4 +1,3 @@
-//aro-args -fexperimental-bounds-safety
 #include <ptrcheck.h>
 
 #if !__has_ptrcheck
@@ -39,29 +38,33 @@ void typeechecking(void) {
     a[b] = 5;
 }
 
-#define EXPECTED_ERRORS "bounds_safety.c:10:9: error: 'single' attribute only applies to pointer arguments" \
-    "ptrcheck.h:11:33: note: expanded from here" \
-    "bounds_safety.c:15:6: error: array subscript on single pointer must use a constant index of 0 to be in bounds" \
-    "bounds_safety.c:9:19: note: pointer 'p' declared single here" \
-    "bounds_safety.c:16:6: error: array subscript on single pointer must use a constant index of 0 to be in bounds" \
-    "bounds_safety.c:9:19: note: pointer 'p' declared single here" \
-    "bounds_safety.c:18:12: error: pointer arithmetic on single pointer is out of bounds; consider adding '__counted_by'" \
-    "bounds_safety.c:9:19: note: pointer 'p' declared single here" \
-    "bounds_safety.c:19:12: error: pointer arithmetic on single pointer is out of bounds; consider adding '__counted_by'" \
-    "bounds_safety.c:9:19: note: pointer 'p' declared single here" \
-    "bounds_safety.c:20:6: error: pointer arithmetic on single pointer is out of bounds; consider adding '__counted_by'" \
-    "bounds_safety.c:9:19: note: pointer 'p' declared single here" \
-    "bounds_safety.c:21:8: error: pointer arithmetic on single pointer is out of bounds; consider adding '__counted_by'" \
-    "bounds_safety.c:9:19: note: pointer 'p' declared single here" \
-    "bounds_safety.c:22:6: error: pointer arithmetic on single pointer is out of bounds; consider adding '__counted_by'" \
-    "bounds_safety.c:9:19: note: pointer 'p' declared single here" \
-    "bounds_safety.c:23:8: error: pointer arithmetic on single pointer is out of bounds; consider adding '__counted_by'" \
-    "bounds_safety.c:9:19: note: pointer 'p' declared single here" \
-    "bounds_safety.c:24:7: error: pointer arithmetic on single pointer is out of bounds; consider adding '__counted_by'" \
-    "bounds_safety.c:25:7: error: pointer arithmetic on single pointer is out of bounds; consider adding '__counted_by'" \
-    "bounds_safety.c:28:14: warning: pointer annotated with single multiple times. Annotate only once to remove this warning [-Wbounds-attributes-redundant]" \
-    "ptrcheck.h:11:33: note: expanded from here" \
-    "bounds_safety.c:30:14: error: pointer cannot have more than one bound attribute" \
-    "ptrcheck.h:12:43: note: expanded from here" \
-    "bounds_safety.c:39:6: error: subscripted value is not an array, pointer or vector" \
+/** manifest:
+syntax
+args = -fexperimental-bounds-safety
 
+bounds_safety.c:9:9: error: 'single' attribute only applies to pointer arguments
+ptrcheck.h:11:33: note: expanded from here
+bounds_safety.c:14:6: error: array subscript on single pointer must use a constant index of 0 to be in bounds
+bounds_safety.c:8:19: note: pointer 'p' declared single here
+bounds_safety.c:15:6: error: array subscript on single pointer must use a constant index of 0 to be in bounds
+bounds_safety.c:8:19: note: pointer 'p' declared single here
+bounds_safety.c:17:12: error: pointer arithmetic on single pointer is out of bounds; consider adding '__counted_by'
+bounds_safety.c:8:19: note: pointer 'p' declared single here
+bounds_safety.c:18:12: error: pointer arithmetic on single pointer is out of bounds; consider adding '__counted_by'
+bounds_safety.c:8:19: note: pointer 'p' declared single here
+bounds_safety.c:19:6: error: pointer arithmetic on single pointer is out of bounds; consider adding '__counted_by'
+bounds_safety.c:8:19: note: pointer 'p' declared single here
+bounds_safety.c:20:8: error: pointer arithmetic on single pointer is out of bounds; consider adding '__counted_by'
+bounds_safety.c:8:19: note: pointer 'p' declared single here
+bounds_safety.c:21:6: error: pointer arithmetic on single pointer is out of bounds; consider adding '__counted_by'
+bounds_safety.c:8:19: note: pointer 'p' declared single here
+bounds_safety.c:22:8: error: pointer arithmetic on single pointer is out of bounds; consider adding '__counted_by'
+bounds_safety.c:8:19: note: pointer 'p' declared single here
+bounds_safety.c:23:7: error: pointer arithmetic on single pointer is out of bounds; consider adding '__counted_by'
+bounds_safety.c:24:7: error: pointer arithmetic on single pointer is out of bounds; consider adding '__counted_by'
+bounds_safety.c:27:14: warning: pointer annotated with single multiple times. Annotate only once to remove this warning [-Wbounds-attributes-redundant]
+ptrcheck.h:11:33: note: expanded from here
+bounds_safety.c:29:14: error: pointer cannot have more than one bound attribute
+ptrcheck.h:12:43: note: expanded from here
+bounds_safety.c:38:6: error: subscripted value is not an array, pointer or vector
+*/
