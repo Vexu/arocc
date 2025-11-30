@@ -34,7 +34,6 @@ fn afterParse(pragma: *Pragma, _: *Compilation) void {
 fn deinit(pragma: *Pragma, comp: *Compilation) void {
     var self: *Once = @fieldParentPtr("pragma", pragma);
     self.pragma_once.deinit(comp.gpa);
-    pragma.* = undefined;
     comp.gpa.destroy(self);
 }
 
