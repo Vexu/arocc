@@ -44,6 +44,7 @@ pub fn hasFeature(comp: *Compilation, ext: []const u8) bool {
         .c_generic_selections = comp.langopts.standard.atLeast(.c11),
         .c_static_assert = comp.langopts.standard.atLeast(.c11),
         .c_thread_local = comp.langopts.standard.atLeast(.c11) and comp.target.isTlsSupported(),
+        .bounds_attributes = comp.langopts.bounds_safety == .clang,
     };
     inline for (@typeInfo(@TypeOf(list)).@"struct".fields) |f| {
         if (std.mem.eql(u8, f.name, ext)) return @field(list, f.name);

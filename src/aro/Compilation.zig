@@ -1432,6 +1432,10 @@ pub fn getCharSignedness(comp: *const Compilation) std.builtin.Signedness {
     return comp.langopts.char_signedness_override orelse comp.target.cCharSignedness();
 }
 
+pub fn hasClangStyleBoundsSafety(comp: *const Compilation) bool {
+    return comp.langopts.bounds_safety == .clang;
+}
+
 pub fn getSource(comp: *const Compilation, id: Source.Id) Source {
     if (id.alias) {
         return comp.source_aliases.items[@intFromEnum(id.index)];

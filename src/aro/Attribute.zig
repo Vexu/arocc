@@ -7,7 +7,9 @@ const Diagnostics = @import("Diagnostics.zig");
 const Parser = @import("Parser.zig");
 const Tree = @import("Tree.zig");
 const TokenIndex = Tree.TokenIndex;
-const QualType = @import("TypeStore.zig").QualType;
+const TypeStore = @import("TypeStore.zig");
+const Type = TypeStore.Type;
+const QualType = TypeStore.QualType;
 const Value = @import("Value.zig");
 
 const Attribute = @This();
@@ -579,6 +581,7 @@ const attributes = struct {
             };
         } = null,
     };
+    pub const single = struct {};
     pub const spectre = struct {
         arg: enum {
             nomitigation,
@@ -620,6 +623,7 @@ const attributes = struct {
         __name_tok: TokenIndex,
     };
     pub const uninitialized = struct {};
+    pub const unsafe_indexable = struct {};
     pub const unsequenced = struct {};
     pub const unused = struct {};
     pub const used = struct {};
@@ -838,6 +842,10 @@ pub fn applyVariableAttributes(p: *Parser, qt: QualType, attr_buf_start: usize, 
         } else {
             try p.attr_application_buf.append(gpa, attr);
         },
+        .single,
+        .unsafe_indexable,
+        => try applyBoundsSafetyAttr(.fromTag(attr.tag), p, tok, &base_qt),
+
         .calling_convention => try applyKeywordCallingConvention(attr, p, tok, base_qt),
 
         .fastcall,
@@ -921,6 +929,10 @@ pub fn applyTypeAttributes(p: *Parser, qt: QualType, attr_buf_start: usize, diag
             .sysv_abi,
             .ms_abi,
             => try applyGnuAttrCallingConvention(attr, p, tok, base_qt),
+
+            .single,
+            .unsafe_indexable,
+            => try applyBoundsSafetyAttr(.fromTag(attr.tag), p, tok, &base_qt),
 
             .alloc_size,
             .copy,
@@ -1303,6 +1315,24 @@ fn applyGnuAttrCallingConvention(attr: Attribute, p: *Parser, tok: TokenIndex, q
         },
         else => unreachable,
     }
+}
+
+fn applyBoundsSafetyAttr(bounds: Type.Pointer.Bounds, p: *Parser, tok: TokenIndex, qt: *QualType) !void {
+    if (qt.isInvalid()) return;
+    const pointer = qt.get(p.comp, .pointer) orelse {
+        return p.err(tok, .attribute_requires_pointer, .{@tagName(bounds)});
+    };
+    if (pointer.bounds == bounds) {
+        return p.err(tok, .redundant_bounds_annotation, .{@tagName(bounds)});
+    }
+    if (pointer.bounds != .c) {
+        return p.err(tok, .multiple_bounds_annotations, .{});
+    }
+    qt.* = try p.comp.type_store.put(p.comp.gpa, .{ .pointer = .{
+        .child = pointer.child,
+        .decayed = pointer.decayed,
+        .bounds = bounds,
+    } });
 }
 
 /// These come from explicit MSVC keywords like __stdcall, __fastcall, etc

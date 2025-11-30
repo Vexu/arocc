@@ -18,6 +18,11 @@ pub const Compiler = enum {
     }
 };
 
+pub const BoundsSafety = enum {
+    none,
+    clang,
+};
+
 /// The floating-point evaluation method for intermediate results within a single expression
 pub const FPEvalMethod = enum(i8) {
     /// The evaluation method cannot be determined or is inconsistent for this target.
@@ -149,6 +154,8 @@ preserve_comments_in_macros: bool = false,
 /// Encoded as major * 10,000 + minor * 100 + patch
 /// e.g. 4.2.1 == 40201
 gnuc_version: ?u32 = null,
+
+bounds_safety: BoundsSafety = .none,
 
 pub fn setStandard(self: *LangOpts, name: []const u8) error{InvalidStandard}!void {
     self.standard = Standard.NameMap.get(name) orelse return error.InvalidStandard;

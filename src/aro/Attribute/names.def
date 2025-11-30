@@ -297,6 +297,10 @@ simd
     .tag = .simd
     .gnu = true
 
+single
+    .tag = .single
+    .gnu = true
+
 stack_protect
     .tag = .stack_protect
     .gnu = true
@@ -327,6 +331,10 @@ unavailable
 
 uninitialized
     .tag = .uninitialized
+    .gnu = true
+
+unsafe_indexable
+    .tag = .unsafe_indexable
     .gnu = true
 
 unused
