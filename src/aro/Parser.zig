@@ -3558,7 +3558,6 @@ fn declarator(
 
         const pointer_qt = try p.comp.type_store.put(p.comp.gpa, .{ .pointer = .{
             .child = d.qt,
-            .decayed = null,
         } });
         d.qt = try builder.finishQuals(pointer_qt);
     }
@@ -5269,7 +5268,6 @@ fn stmt(p: *Parser) Error!Node.Index {
             if (!goto_expr.qt.isInvalid() and !goto_expr.qt.isPointer(p.comp)) {
                 const result_qt = try p.comp.type_store.put(gpa, .{ .pointer = .{
                     .child = .{ .@"const" = true, ._index = .void },
-                    .decayed = null,
                 } });
                 if (!goto_expr.qt.isRealInt(p.comp)) {
                     try p.err(expr_tok, .incompatible_arg, .{ goto_expr.qt, result_qt });
@@ -6310,14 +6308,12 @@ pub const Result = struct {
         if (!adjusted_elem_qt.eqlQualified(a_elem, p.comp)) {
             a.qt = try p.comp.type_store.put(gpa, .{ .pointer = .{
                 .child = adjusted_elem_qt,
-                .decayed = null,
             } });
             try a.implicitCast(p, .bitcast, tok);
         }
         if (!adjusted_elem_qt.eqlQualified(b_elem, p.comp)) {
             b.qt = try p.comp.type_store.put(gpa, .{ .pointer = .{
                 .child = adjusted_elem_qt,
-                .decayed = null,
             } });
             try b.implicitCast(p, .bitcast, tok);
         }
@@ -8598,7 +8594,6 @@ fn unExpr(p: *Parser) Error!?Result {
 
                 operand.qt = try p.comp.type_store.put(gpa, .{ .pointer = .{
                     .child = operand.qt,
-                    .decayed = null,
                 } });
             }
             if (p.getNode(operand.node, .decl_ref_expr)) |decl_ref| {

@@ -264,7 +264,6 @@ fn createType(desc: TypeDescription, it: *TypeDescription.TypeIterator, comp: *C
                 _ = address_space; // TODO: handle address space
                 const pointer_qt = try comp.type_store.put(comp.gpa, .{ .pointer = .{
                     .child = builder.finish() catch unreachable,
-                    .decayed = null,
                 } });
 
                 builder.@"const" = null;
