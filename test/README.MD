@@ -1,95 +1,72 @@
-## Adding a new test
-To add a new test, add a new file to [test/cases](/test/cases) or expand an existing one.
+## Integration tests
+
+These test cases are used by the `test-integration` build step.
+
+A integration test case consists of a single `.c` file containing a test manifest
+embedded inside a `/** manifest: ... */` comment that can be placed anywhere in the file
+but preferably in the bottom.
+
+The cases are executed with `test/cases` as the CWD.
+
+### Manifest
+
+The manifest starts with the test type followed by key-value pairs of arugments
+and finally by trailing data.
+
+#### Test kinds
+
+Currently 4 test kinds are supported:
+
+- syntax: Run the compiler on the test case with `-fsyntax-only` and check the resulting errors
+  against those potentially specified in the trailing data. `--verbose-ast` is also used
+  the output of which can be checked against an expected result in `test/cases/ast/<test name>`.
+
+- syntax_ignore_errors: Same as syntax but any errors are ignored.
+
+- expand: Run the compiler on the test case with `-E -P`, checks any warnings match those specified
+  in the trailing data, and that the expansion output matches the expected result specified in
+  `test/cases/expanded/<test name>`.
+
+- expand_partial: Like expand but only checks that the result contains the output
+  specified in the trailing data instead of a complete match.
+
+- expand_error: Like expand but checks errors like syntax instead of the expansion output.
+  (there is no expansion output when the preprocessor emits an error)
+
+#### Arguments
+
+Currently 3 different arguments are supported:
+
+- skipped: The value is an integer representing how many steps in the test case were skipped
+  due to missing features or bugs.
+
+- args: Takes an array of arguments to be passed to the compiler.
+
+- env: Takes an array of KEY=VALUE pairs to be specified in the environment variables
+  passed to the compiler.
+
+### Example manifest
+
+```c
+/** manifest:
+syntax
+args = -Iinclude -Wfoo
+skipped = 1
+env = MYENV=1
+
+foo.c: 1:4: error: something went wrong
+*/
+```
 
 ---
-## Passing arguments to the compiler
-Arguments can be passed to the compiler by adding `//aro-args` on the first line of the file.
 
-**example:**
-```c
-//aro-args -std=c99
-void foo(void) {
-	int typeof = 5;
-}
-
-```
----
-## Testing preprocessor
-The output of the preprocessor can be tested by adding `//aro-args -E` on
-the first line of the file and then placing the expected result in [test/cases/expanded](/test/cases/expanded).
-
-**example:**
-```c
-//aro-args -E
-
-#define HE HI
-#define LLO _THERE
-#define HELLO "HI THERE"
-#define CAT(a,b) a##b
-#define XCAT(a,b) CAT(a,b)
-#define CALL(fn) fn(HE,LLO)
-CAT(HE, LLO)
-XCAT(HE, LLO)
-CALL(CAT)
-```
-
-
-## Testing for errors
-Expected compile errors can be tested by defining a `EXPECTED_ERRORS` macro.
-
-**example:**
-```c
-#define EXPECTED_ERRORS \
-    "invalid types.c:8:6: error: cannot combine with previous 'long' specifier" \
-    "invalid types.c:10:11: error: empty enum is invalid"
-
-long float a;
-enum Foo {};
-```
----
-## Ignoring errors in tests
-A test can ignore errors by defining a `NO_ERROR_VALIDATION` macro. This means the test will only fail if the
-compilation panics / crashes. This is useful for testing bugs found by fuzzing, where there may be a large number of
-uninteresting diagnostics.
-
-**example:**
-```c
-#define NO_ERROR_VALIDATION
-/* code goes here */
-```
----
-## Testing type resolution
-Type resolution can be tested by defining a `EXPECTED_TYPES` macro, and a function.
-The nth token in the `EXPECTED_TYPES` macro is the expected type of the nth statement
-in the function
-
-**example:**
-```c
-void my_test(void) {
-    int x = 5;
-    1L;
-    (void)1L;
-}
-#define EXPECTED_TYPES \
-    "int" "long" "void"
-```
----
-## Marking a test as skipped
-If a test case is currently broken, it should be commented and a `TESTS_SKIPPED` macro defined with the amount of skipped tests.
-
-**example:**
-```c
-#define TESTS_SKIPPED 1
-
-// <something broken here>
-```
----
 ## Running fuzz tests using AFLplusplus
+
 Fuzz testing requires [AFLplusplus](https://github.com/AFLplusplus/AFLplusplus). Run `zig build fuzz` to build the fuzz target,
 then `afl-fuzz -i test/cases -o test/fuzz-output -- ./zig-out/bin/arofuzz`
 
 A Dockerfile is provided to make it easier to get started with fuzzing. It requires two build args,
-`ZIG_VERSION` and `ZIG_PUBKEY`. `ZIG_VERSION` should be the release filename from https://ziglang.org/download/, *without*
+`ZIG_VERSION` and `ZIG_PUBKEY`. `ZIG_VERSION` should be the release filename from https://ziglang.org/download/, _without_
 the `.tar.xz` extension. `ZIG_PUBKEY` should be the minisign public key on https://ziglang.org/download/. You can also
 provide `USER_ID` and `GROUP_ID` so that files created in the container have the same user id and group id as files on
 your host system.
@@ -109,8 +86,11 @@ docker run --rm -it -v $PWD:/arocc -w /arocc --mount type=tmpfs,destination=/ram
 zig build fuzz  # This might take a while
 afl-fuzz -i test/cases -o test/fuzz-output -- ./zig-out/bin/arofuzz
 ```
+
 ---
+
 ## Running fuzz tests via Zig build system
+
 ```sh-session
 zig build test-unit --fuzz
 ```
