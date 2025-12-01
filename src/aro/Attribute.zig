@@ -804,6 +804,7 @@ pub fn applyVariableAttributes(p: *Parser, qt: QualType, attr_buf_start: usize, 
         // zig fmt: off
         .alias, .may_alias, .deprecated, .unavailable, .unused, .warn_if_not_aligned, .weak, .used,
         .noinit, .retain, .persistent, .section, .mode, .asm_label, .nullability, .unaligned, .selectany, .internal_linkage,
+        .visibility,
          => try p.attr_application_buf.append(gpa, attr),
         // zig fmt: on
         .common => if (nocommon) {
@@ -864,7 +865,6 @@ pub fn applyVariableAttributes(p: *Parser, qt: QualType, attr_buf_start: usize, 
         .alloc_size,
         .copy,
         .tls_model,
-        .visibility,
         => |t| try p.err(tok, .attribute_todo, .{ @tagName(t), "variables" }),
         // There is already an error in Parser for _Noreturn keyword
         .noreturn => if (attr.syntax != .keyword) try ignoredAttrErr(p, tok, attr.tag, "variables"),
@@ -961,6 +961,7 @@ pub fn applyFunctionAttributes(p: *Parser, qt: QualType, attr_buf_start: usize) 
         .@"const", .warn_unused_result, .section, .returns_nonnull, .returns_twice, .@"error",
         .externally_visible, .retain, .flatten, .gnu_inline, .alias, .asm_label, .nodiscard,
         .reproducible, .unsequenced, .nothrow, .nullability, .unaligned, .internal_linkage,
+        .visibility,
          => try p.attr_application_buf.append(gpa, attr),
         // zig fmt: on
         .hot => if (cold) {
@@ -1066,7 +1067,6 @@ pub fn applyFunctionAttributes(p: *Parser, qt: QualType, attr_buf_start: usize) 
         .symver,
         .target,
         .target_clones,
-        .visibility,
         .weakref,
         .zero_call_used_regs,
         => |t| try p.err(tok, .attribute_todo, .{ @tagName(t), "functions" }),
