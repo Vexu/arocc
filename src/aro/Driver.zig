@@ -220,7 +220,7 @@ pub const usage =
     \\  -fuse-line-directives   Use `#line <num>` linemarkers in preprocessed output
     \\  -fno-use-line-directives
     \\                          Use `# <num>` linemarkers in preprocessed output
-    \\  -fvisibility=[default||hidden|protected]
+    \\  -fvisibility=[default|hidden|protected]
     \\                          Set the default ELF image symbol visibility to the specified option—all symbols are marked with this unless overridden within the code
     \\  -iquote <dir>           Add directory to QUOTE include search path
     \\  -I <dir>                Add directory to include search path
