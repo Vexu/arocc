@@ -1,5 +1,3 @@
-//aro-args --target=x86-linux-gnu -pedantic
-
 // Note: examples taken from here: https://gcc.gnu.org/onlinedocs/gcc/Extended-Asm.html
 // Some examples do not use real instructions or register names, which may cause failures once we do
 // validation of the assembly
@@ -125,9 +123,12 @@ int missing_goto_label(int p1, int p2) {
 void extension_token(unsigned Offset) {
     asm volatile("some instructions" :: );
 }
+/** manifest:
+syntax
+args = --target=x86-linux-gnu -pedantic
 
-#define EXPECTED_ERRORS "gnu inline assembly statements.c:90:11: error: use of undeclared label 'carry_1'" \
-    "gnu inline assembly statements.c:104:9: error: expected ')', found ':'" \
-    "gnu inline assembly statements.c:118:10: error: expected ':', found ')'" \
-    "gnu inline assembly statements.c:126:5: warning: extension used [-Wlanguage-extension-token]" \
-
+gnu inline assembly statements.c:88:11: error: use of undeclared label 'carry_1'
+gnu inline assembly statements.c:102:9: error: expected ')', found ':'
+gnu inline assembly statements.c:116:10: error: expected ':', found ')'
+gnu inline assembly statements.c:124:5: warning: extension used [-Wlanguage-extension-token]
+*/

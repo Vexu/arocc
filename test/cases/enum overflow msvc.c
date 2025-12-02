@@ -1,4 +1,3 @@
-//aro-args -target x86_64-windows-msvc
 enum E1 {
     A = 2147483647,
     B,
@@ -20,8 +19,13 @@ _Static_assert(H == -1, "H");
 
 _Static_assert(H == C, "enumerator value was truncated");
 
-#define TESTS_SKIPPED 2
-#define EXPECTED_ERRORS "enum overflow msvc.c:4:5: warning: overflow in enumeration value" \
-    "enum overflow msvc.c:6:5: warning: overflow in enumeration value" \
-    "enum overflow msvc.c:8:5: warning: incremented enumerator value 9223372036854775808 is not representable in the largest integer type [-Wenum-too-large]" \
-    "enum overflow msvc.c:10:5: warning: incremented enumerator value 18446744073709551616 is not representable in the largest integer type [-Wenum-too-large]" \
+/** manifest:
+syntax
+args = -target x86_64-windows-msvc
+skipped = 2
+
+enum overflow msvc.c:3:5: warning: overflow in enumeration value
+enum overflow msvc.c:5:5: warning: overflow in enumeration value
+enum overflow msvc.c:7:5: warning: incremented enumerator value 9223372036854775808 is not representable in the largest integer type [-Wenum-too-large]
+enum overflow msvc.c:9:5: warning: incremented enumerator value 18446744073709551616 is not representable in the largest integer type [-Wenum-too-large]
+*/

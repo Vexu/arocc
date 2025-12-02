@@ -6,7 +6,9 @@ void foo(int x) {
     _Static_assert(sizeof(*pointer) > 0, "sizeof variably-modified type");
 }
 
-#define EXPECTED_ERRORS \
-    "sizeof variably modified types.c:3:20: error: static assertion expression is not an integral constant expression" \
-    "sizeof variably modified types.c:6:20: error: static assertion expression is not an integral constant expression" \
+/** manifest:
+syntax
 
+sizeof variably modified types.c:3:20: error: static assertion expression is not an integral constant expression
+sizeof variably modified types.c:6:20: error: static assertion expression is not an integral constant expression
+*/

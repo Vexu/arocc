@@ -2,4 +2,8 @@
 
 f(1
 
-#define EXPECTED_ERRORS "unmatched macro paren.c:3:1: error: unterminated function macro argument list" \
+/** manifest:
+expand_error
+
+unmatched macro paren.c:3:1: error: unterminated function macro argument list
+*/

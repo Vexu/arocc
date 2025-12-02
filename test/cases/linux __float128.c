@@ -1,4 +1,3 @@
-//aro-args --target=x86_64-linux-gnu
 void foo(void) {
     __float128 q = 0.0;
     _Float128 q2 = 0.0;
@@ -14,3 +13,8 @@ void foo(void) {
 }
 
 _Static_assert(1.F128 + 2.F128 == 3.F128, "");
+
+/** manifest:
+syntax
+args = --target=x86_64-linux-gnu
+*/

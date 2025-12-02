@@ -1,4 +1,3 @@
-//aro-args -E -P
 #define LINE __LINE__
 
 void foo(void) {
@@ -23,7 +22,7 @@ static int line1 = __LINE__;
 static int line2 = __LINE__;
 static char *file1 = __FILE__;
 
-#include "__line__.h"
+#include <__line__.h>
 
 static int line5 = FOO;
 
@@ -31,3 +30,8 @@ static int line5 = FOO;
 # 2 "b.c" 1 3
 # 3 "c.c" 1 3 4
 # 3 "c.c" 2
+
+/** manifest:
+expand
+args = -I include
+*/

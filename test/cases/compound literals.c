@@ -1,4 +1,3 @@
-//aro-args -std=c23
 struct A {
     int x;
 };
@@ -40,9 +39,13 @@ _Static_assert(sizeof ((char [3]){"foo"}) == 3, "");
 
 auto invalid_global = (register int){1};
 
-#define EXPECTED_ERRORS \
-    "compound literals.c:21:32: warning: array index 10 is past the end of the array [-Warray-bounds]" \
-    "compound literals.c:30:5: error: address of register variable requested" \
-    "compound literals.c:31:5: warning: expression result unused [-Wunused-value]" \
-    "compound literals.c:32:7: error: compound literal cannot have extern storage class" \
-    "compound literals.c:41:33: error: file scope compound literal specifies 'register'" \
+/** manifest:
+syntax
+args = -std=c23
+
+compound literals.c:20:32: warning: array index 10 is past the end of the array [-Warray-bounds]
+compound literals.c:29:5: error: address of register variable requested
+compound literals.c:30:5: warning: expression result unused [-Wunused-value]
+compound literals.c:31:7: error: compound literal cannot have extern storage class
+compound literals.c:40:33: error: file scope compound literal specifies 'register'
+*/

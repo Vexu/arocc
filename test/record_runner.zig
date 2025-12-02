@@ -1,6 +1,8 @@
 const std = @import("std");
+const Io = std.Io;
+const mem = std.mem;
 const print = std.debug.print;
-const aro = @import("aro");
+const process = std.process;
 
 /// These tests don't work for any platform due to Aro bugs.
 /// Skip entirely.
@@ -20,25 +22,8 @@ const global_test_exclude = std.StaticStringMap(void).initComptime(.{
 });
 
 fn lessThan(_: void, lhs: []const u8, rhs: []const u8) bool {
-    return std.mem.lessThan(u8, lhs, rhs);
+    return mem.lessThan(u8, lhs, rhs);
 }
-
-const MAX_MEM_PER_TEST = 1024 * 1024 * 16;
-
-/// Set true to debug specific targets w/ specific tests.
-const test_single_target = false;
-const single_target = .{
-    // .target = "arm-cortex_r4-ios-none:Clang",
-    // .c_test = "0064",
-    // .target = "s390x-generic-linux-gnu:Gcc",
-    // .c_test = "00", // run all the tests
-    // .target = "x86-i586-linux-gnu:Gcc",
-    // .c_test = "0002",
-    .target = "x86_64-x86_64-windows-msvc:Msvc",
-    .c_test = "0018", // run all the tests
-    // .target = "arm-arm1136j_s-freebsd-gnu:Clang",
-    // .c_test = "0052",
-};
 
 const Stats = struct {
     ok_count: u32 = 0,
@@ -74,7 +59,6 @@ const TestCase = struct {
     c_define: []const u8,
     target: []const u8,
     path: []const u8,
-    source: []const u8,
 
     const List = std.ArrayList(TestCase);
 };
@@ -94,160 +78,117 @@ const ExpectedFailure = struct {
         return std.meta.eql(self, other);
     }
 };
-const builtin = @import("builtin");
+
+const gpa = std.heap.smp_allocator;
 
 pub fn main() !void {
-    var debug_allocator: std.heap.DebugAllocator(.{}) = .{};
-    const gpa = debug_allocator.allocator();
-    defer if (debug_allocator.deinit() == .leak) std.process.exit(1);
+    var arena_allocator = std.heap.ArenaAllocator.init(gpa);
+    defer arena_allocator.deinit();
+    const arena = arena_allocator.allocator();
 
-    const args = try std.process.argsAlloc(gpa);
-    defer std.process.argsFree(gpa, args);
-
+    const args = try process.argsAlloc(arena);
     if (args.len != 2) {
-        print("expected test case directory as only argument\n", .{});
-        return error.InvalidArguments;
+        print("Usage: {s} <arocc-exe>", .{args[0]});
+        process.exit(1);
     }
 
-    const test_dir = args[1];
+    const arocc_exe = args[1];
 
     var cases: std.ArrayList([]const u8) = .empty;
-    defer {
-        for (cases.items) |path| gpa.free(path);
-        cases.deinit(gpa);
-    }
+    defer cases.deinit(gpa);
 
     // Collect all cases. Set scope to clean when done.
     {
-        var cases_dir = try std.fs.cwd().openDir(args[1], .{ .iterate = true });
+        var cases_dir = try std.fs.cwd().openDir("test/records", .{ .iterate = true });
         defer cases_dir.close();
-        var name_buf: [1024]u8 = undefined;
 
         var it = cases_dir.iterate();
         while (try it.next()) |entry| {
-            if (entry.kind == .directory) continue;
-            if (entry.kind != .file) {
-                print("skipping non file entry '{s}'\n", .{entry.name});
-                continue;
-            }
+            if (entry.kind != .file) continue;
 
             if (std.ascii.indexOfIgnoreCase(entry.name, "_test.c") != null) {
-                var name_writer: std.Io.Writer = .fixed(&name_buf);
-                try name_writer.print("{s}{c}{s}", .{ args[1], std.fs.path.sep, entry.name });
-                try cases.append(gpa, try gpa.dupe(u8, name_writer.buffered()));
+                try cases.append(gpa, try std.fs.path.join(arena, &.{ "test/records", entry.name }));
             }
         }
     }
 
-    std.mem.sort([]const u8, cases.items, {}, lessThan);
-
-    var arena_instance = std.heap.ArenaAllocator.init(gpa);
-    defer arena_instance.deinit();
-    const arena = arena_instance.allocator();
-
-    const thread_count = @max(1, std.Thread.getCpuCount() catch 1);
-
-    var thread_pool: std.Thread.Pool = undefined;
-    try thread_pool.init(.{ .allocator = arena, .n_jobs = @intCast(thread_count) });
-    defer thread_pool.deinit();
-
-    var wait_group: std.Thread.WaitGroup = .{};
+    mem.sort([]const u8, cases.items, {}, lessThan);
 
     var test_cases: TestCase.List = .empty;
     defer test_cases.deinit(gpa);
 
     for (cases.items) |path| {
-        const source = try std.fs.cwd().readFileAlloc(path, arena, .unlimited);
-        try parseTargetsFromCode(gpa, &test_cases, path, source);
+        try parseTargetsFromCode(&test_cases, arena, path);
     }
 
     const root_node = std.Progress.start(.{
-        .disable_printing = false,
-        .root_name = "Layout",
+        .root_name = "record layout tests",
         .estimated_total_items = test_cases.items.len,
     });
 
-    var stats = Stats{
+    var threaded: Io.Threaded = .init(gpa);
+    defer threaded.deinit();
+    const io = threaded.io();
+
+    var group: Io.Group = .init;
+    var stats: Stats = .{
         .root_node = root_node,
     };
 
-    for (0..thread_count) |i| {
-        wait_group.start();
-        try thread_pool.spawn(runTestCases, .{
-            gpa, test_dir, &wait_group, test_cases.items[i..], thread_count, &stats,
-        });
+    for (test_cases.items) |case| {
+        group.async(io, runCase, .{ io, arocc_exe, case, &stats });
     }
 
-    thread_pool.waitAndWork(&wait_group);
+    group.wait(io);
     root_node.end();
 
-    std.debug.print("max mem used = {Bi:.2}\n", .{stats.max_alloc});
+    print("max mem used = {Bi:.2}\n", .{stats.max_alloc});
     if (stats.ok_count == cases.items.len and stats.skip_count == 0) {
         print("All {d} tests passed ({d} invalid targets)\n", .{ stats.ok_count, stats.invalid_target_count });
     } else if (stats.fail_count == 0) {
         print("{d} passed; {d} skipped ({d} invalid targets).\n", .{ stats.ok_count, stats.skip_count, stats.invalid_target_count });
     } else {
         print("{d} passed; {d} failed ({d} invalid targets).\n\n", .{ stats.ok_count, stats.fail_count, stats.invalid_target_count });
-        std.process.exit(1);
+        process.exit(1);
     }
 }
 
-fn runTestCases(allocator: std.mem.Allocator, test_dir: []const u8, wg: *std.Thread.WaitGroup, test_cases: []const TestCase, stride: usize, stats: *Stats) void {
-    defer wg.finish();
-    const mem = allocator.alloc(u8, MAX_MEM_PER_TEST) catch |err| {
-        std.log.err("{s}", .{@errorName(err)});
-        if (@errorReturnTrace()) |trace| {
-            std.debug.dumpStackTrace(trace);
-        }
+fn runCase(io: Io, aro_exe: []const u8, test_case: TestCase, stats: *Stats) void {
+    runCaseExtra(io, aro_exe, test_case, stats) catch {
         stats.recordResult(.fail);
-        return;
     };
-    defer allocator.free(mem);
-    var fib = std.heap.FixedBufferAllocator.init(mem);
-
-    for (test_cases, 0..) |case, i| {
-        if (i % stride != 0) continue;
-        defer fib.end_index = 0;
-
-        singleRun(fib.allocator(), test_dir, case, stats) catch |err| {
-            std.log.err("{s}", .{@errorName(err)});
-            if (@errorReturnTrace()) |trace| {
-                std.debug.dumpStackTrace(trace);
-            }
-            stats.recordResult(.fail);
-        };
-        stats.updateMaxMemUsage(fib.end_index);
-    }
 }
 
-fn singleRun(gpa: std.mem.Allocator, test_dir: []const u8, test_case: TestCase, stats: *Stats) !void {
+fn runCaseExtra(io: Io, aro_exe: []const u8, test_case: TestCase, stats: *Stats) !void {
     const path = test_case.path;
 
-    var arena: std.heap.ArenaAllocator = .init(gpa);
-    defer arena.deinit();
+    var arena_allocator = std.heap.ArenaAllocator.init(gpa);
+    defer arena_allocator.deinit();
+    const arena = arena_allocator.allocator();
 
-    var diagnostics: aro.Diagnostics = .{
-        .output = .{ .to_list = .{
-            .arena = .init(gpa),
-        } },
-    };
-    defer diagnostics.deinit();
+    const target_str, _ = mem.cutScalar(u8, test_case.target, ':').?;
+    var iter = mem.tokenizeScalar(u8, target_str, '-');
+    const arch = iter.next().?;
+    const model = iter.next().?;
+    const os = iter.next().?;
+    const abi = iter.next().?;
 
-    var comp = aro.Compilation.init(gpa, arena.allocator(), std.testing.io, &diagnostics, std.fs.cwd());
-    defer comp.deinit();
+    var buf: [128]u8 = undefined;
+    var w = Io.Writer.fixed(&buf);
+    try w.print("{s}-{s}-{s}", .{ arch, os, abi });
 
-    try comp.addDefaultPragmaHandlers();
-    const builtin_header_path = try std.fs.path.resolve(comp.arena, &.{ test_dir, "../../include" });
-    try comp.search_path.append(gpa, .{ .kind = .system, .path = builtin_header_path });
-
-    try setTarget(&comp, test_case.target);
-    switch (comp.target.os.tag) {
+    const query = try std.Target.Query.parse(.{
+        .arch_os_abi = w.buffered(),
+        .cpu_features = model,
+    });
+    const target = try std.zig.system.resolveTargetQuery(io, query);
+    switch (target.os.tag) {
         .hermit => {
             stats.recordResult(.invalid_target);
             return; // Skip targets Aro doesn't support.
         },
         .ios, .macos => {
-            switch (comp.target.cpu.arch) {
+            switch (target.cpu.arch) {
                 .x86, .arm => {
                     stats.recordResult(.invalid_target);
                     return; // Skip targets Aro doesn't support.
@@ -259,9 +200,9 @@ fn singleRun(gpa: std.mem.Allocator, test_dir: []const u8, test_case: TestCase, 
     }
 
     var name_buf: [1024]u8 = undefined;
-    var name_writer: std.Io.Writer = .fixed(&name_buf);
+    var name_writer: Io.Writer = .fixed(&name_buf);
 
-    const test_name = std.mem.sliceTo(std.fs.path.basename(path), '_');
+    const test_name = mem.sliceTo(std.fs.path.basename(path), '_');
     try name_writer.print("{s} | {s} | {s}", .{
         test_name,
         test_case.target,
@@ -271,49 +212,53 @@ fn singleRun(gpa: std.mem.Allocator, test_dir: []const u8, test_case: TestCase, 
     var case_node = stats.root_node.start(name_writer.buffered(), 0);
     defer case_node.end();
 
-    const file = comp.addSourceFromBuffer(path, test_case.source) catch |err| {
-        stats.recordResult(.fail);
-        std.debug.print("could not add source '{s}': {s}\n", .{ path, @errorName(err) });
-        return;
+    var args: std.ArrayList([]const u8) = .empty;
+    defer args.deinit(gpa);
+
+    try args.appendSlice(gpa, &.{
+        aro_exe,
+        path,
+        "-fsyntax-only",
+        "-fno-color-diagnostics",
+        "-target",
+        w.buffered(),
+        "-mcpu",
+        model,
+        "--verbose-ast",
+        "-D",
+        test_case.c_define,
+    });
+    if (target.abi == .msvc) {
+        try args.append(gpa, "-DMSVC");
+    }
+
+    var child = process.Child.init(args.items, arena);
+    child.stdout_behavior = .Ignore;
+    child.stderr_behavior = .Pipe;
+    child.stdin_behavior = .Ignore;
+
+    child.request_resource_usage_statistics = true;
+
+    var stderr: []u8 = undefined;
+    const code = code: {
+        try child.spawn();
+        errdefer _ = child.kill() catch {};
+
+        var stderr_reader = child.stderr.?.readerStreaming(io, &.{});
+        stderr = try stderr_reader.interface.allocRemaining(arena, .unlimited);
+
+        const term = try child.wait();
+        if (term != .Exited) {
+            const cmd = try mem.join(arena, " ", args.items);
+            print("arocc command crashed:\n{s}\n", .{cmd});
+            return error.Crashed;
+        }
+        if (child.resource_usage_statistics.getMaxRss()) |max_rss| {
+            stats.updateMaxMemUsage(max_rss);
+        }
+
+        break :code term.Exited;
     };
-
-    comp.langopts.setEmulatedCompiler(comp.target.systemCompiler());
-
-    var macro_buf: [1024]u8 = undefined;
-    var macro_writer: std.Io.Writer = .fixed(&macro_buf);
-    try macro_writer.print("#define {s}\n", .{test_case.c_define});
-    if (comp.langopts.emulate == .msvc) {
-        comp.langopts.setMSExtensions(true);
-        try macro_writer.writeAll("#define MSVC\n");
-    }
-
-    const user_macros = try comp.addSourceFromBuffer("<command line>", macro_writer.buffered());
-    const builtin_macros = try comp.generateBuiltinMacros(.include_system_defines);
-
-    var pp = try aro.Preprocessor.initDefault(&comp);
-    defer pp.deinit();
-
-    _ = try pp.preprocess(builtin_macros);
-    _ = try pp.preprocess(user_macros);
-    const eof = pp.preprocess(file) catch |err| {
-        stats.recordResult(.fail);
-        std.debug.print("could not preprocess file '{s}': {s}\n", .{ path, @errorName(err) });
-        return;
-    };
-    try pp.addToken(eof);
-
-    var tree = try aro.Parser.parse(&pp);
-    defer tree.deinit();
-    {
-        var discard_buf: [256]u8 = undefined;
-        var discarding: std.Io.Writer.Discarding = .init(&discard_buf);
-        tree.dump(.no_color, &discarding.writer) catch {};
-    }
-
-    if (test_single_target) {
-        printDiagnostics(&diagnostics);
-        return;
-    }
 
     if (global_test_exclude.has(test_name)) {
         stats.recordResult(.skip);
@@ -326,17 +271,16 @@ fn singleRun(gpa: std.mem.Allocator, test_dir: []const u8, test_case: TestCase, 
 
     const expected = compErr.get(expected_writer.buffered()) orelse ExpectedFailure{};
 
-    if (diagnostics.total == 0 and expected.any()) {
-        std.debug.print("\nTest Passed when failures expected:\n\texpected:{any}\n", .{expected});
+    if (code == 0 and expected.any()) {
+        print("\nTest Passed when failures expected:\n\texpected:{any}\n", .{expected});
         stats.recordResult(.fail);
     } else {
         var actual = ExpectedFailure{};
-        for (diagnostics.output.to_list.messages.items) |msg| {
-            switch (msg.kind) {
-                .@"fatal error", .@"error" => {},
-                else => continue,
-            }
-            const line = msg.location.?.line;
+        var it = mem.tokenizeScalar(u8, stderr, '\n');
+        while (it.next()) |msg| {
+            if (mem.find(u8, msg, ": error: ") == null) continue;
+            const line = it.next().?;
+
             if (std.ascii.indexOfIgnoreCase(line, "_Static_assert") != null) {
                 if (std.ascii.indexOfIgnoreCase(line, "_extra_") != null) {
                     actual.extra = true;
@@ -352,8 +296,7 @@ fn singleRun(gpa: std.mem.Allocator, test_dir: []const u8, test_case: TestCase, 
             }
         }
         if (!expected.eql(actual)) {
-            std.debug.print("\nexp:{any}\nact:{any}\n", .{ expected, actual });
-            printDiagnostics(&diagnostics);
+            print("in case {s}:\nexp:{any}\nact:{any}\n{s}", .{ expected_writer.buffered(), expected, actual, stderr });
             stats.recordResult(.fail);
         } else if (actual.any()) {
             stats.recordResult(.skip);
@@ -363,66 +306,27 @@ fn singleRun(gpa: std.mem.Allocator, test_dir: []const u8, test_case: TestCase, 
     }
 }
 
-fn printDiagnostics(diagnostics: *aro.Diagnostics) void {
-    for (diagnostics.output.to_list.messages.items) |msg| {
-        if (msg.location) |loc| {
-            std.debug.print("{s}:{d}:{d}: {s}: {s}\n{s}\n", .{
-                loc.path, loc.line_no, loc.col, @tagName(msg.kind), msg.text, loc.line,
-            });
-        } else {
-            std.debug.print("{s}: {s}\n", .{ @tagName(msg.kind), msg.text });
-        }
-    }
-}
+fn parseTargetsFromCode(cases: *TestCase.List, arena: mem.Allocator, path: []const u8) !void {
+    const source = try std.fs.cwd().readFileAlloc(path, gpa, .unlimited);
+    defer gpa.free(source);
 
-/// Get Zig std.Target from string in the arch-cpu-os-abi format.
-fn getTarget(zig_target_string: []const u8) !aro.Target {
-    var buf: [128]u8 = undefined;
-    var iter = std.mem.tokenizeScalar(u8, zig_target_string, '-');
-    const arch = iter.next().?;
-    const model = iter.next().?;
-    const os = iter.next().?;
-    const abi = iter.next().?;
-    var w = std.Io.Writer.fixed(&buf);
-    try w.print("{s}-{s}-{s}", .{ arch, os, abi });
+    var index: usize = 0;
+    while (mem.indexOfPos(u8, source, index, "// MAPPING|")) |mapping_start| {
+        const line, _ = mem.cutScalar(u8, source[mapping_start..], '\n').?;
+        index = mapping_start + line.len;
 
-    const query = try std.Target.Query.parse(.{
-        .arch_os_abi = w.buffered(),
-        .cpu_features = model,
-    });
-    return .fromZigTarget(try std.zig.system.resolveTargetQuery(std.testing.io, query));
-}
-
-fn setTarget(comp: *aro.Compilation, target: []const u8) !void {
-    const compiler_split_index = std.mem.indexOf(u8, target, ":").?;
-
-    comp.target = try getTarget(target[0..compiler_split_index]);
-    comp.langopts.emulate = comp.target.systemCompiler();
-
-    const expected_compiler_name = target[compiler_split_index + 1 ..];
-    const set_name = @tagName(comp.langopts.emulate);
-    std.debug.assert(std.ascii.eqlIgnoreCase(set_name, expected_compiler_name));
-}
-
-fn parseTargetsFromCode(gpa: std.mem.Allocator, cases: *TestCase.List, path: []const u8, source: []const u8) !void {
-    var lines = std.mem.tokenizeScalar(u8, source, '\n');
-    while (lines.next()) |line| {
-        if (std.mem.indexOf(u8, line, "// MAPPING|") == null) continue;
-
-        std.debug.assert(std.mem.count(u8, line, "|") > 1);
-        var parts = std.mem.tokenizeScalar(u8, line, '|');
+        var parts = mem.tokenizeScalar(u8, line, '|');
         _ = parts.next(); // Skip the MAPPING bit
         const define = parts.next().?; // The define to set for this chunk.
 
         while (parts.next()) |target| {
-            if (std.mem.startsWith(u8, target, "END")) break;
+            if (mem.startsWith(u8, target, "END")) break;
             // These point to source, which lives
             // for the life of the test. So should be ok
             try cases.append(gpa, .{
                 .path = path,
-                .source = source,
-                .c_define = define,
-                .target = target,
+                .c_define = try arena.dupe(u8, define),
+                .target = try arena.dupe(u8, target),
             });
         }
     }

@@ -1,4 +1,3 @@
-//aro-args -Wfour-char-constants -Wno-c23-extensions
 /*
 
     A multiline comment to test that the linenumber is correct.
@@ -54,29 +53,33 @@ int Z = 'ABC\D';
 _Static_assert(sizeof(__CHAR16_TYPE__) == sizeof(u'A'), "");
 _Static_assert(sizeof(__CHAR32_TYPE__) == sizeof(U'A'), "");
 
-#define EXPECTED_ERRORS "wide character constants.c:9:27: error: character too large for enclosing character literal type" \
-    "wide character constants.c:9:20: warning: implicit conversion from 'int' to 'unsigned short' changes non-zero value from 131072 to 0 [-Wconstant-conversion]" \
-    "wide character constants.c:10:16: error: wide character literals may not contain multiple characters" \
-    "wide character constants.c:11:16: error: Unicode character literals may not contain multiple characters" \
-    "wide character constants.c:14:16: warning: multi-character character constant [-Wfour-char-constants]" \
-    "wide character constants.c:20:21: error: escape sequence out of range" \
-    "wide character constants.c:22:19: error: character too large for enclosing character literal type" \
-    "wide character constants.c:25:20: error: invalid universal character" \
-    "wide character constants.c:26:19: error: character too large for enclosing character literal type" \
-    "wide character constants.c:27:19: error: Unicode character literals may not contain multiple characters" \
-    "wide character constants.c:28:19: error: Unicode character literals may not contain multiple characters" \
-    "wide character constants.c:29:20: error: escape sequence out of range" \
-    "wide character constants.c:33:9: error: Unicode character literals may not contain multiple characters" \
-    "wide character constants.c:35:9: error: character too large for enclosing character literal type" \
-    "wide character constants.c:36:9: error: character 'A' cannot be specified by a universal character name" \
-    "wide character constants.c:39:9: error: \\x used with no following hex digits" \
-    "wide character constants.c:40:9: error: \\x used with no following hex digits" \
-    "wide character constants.c:41:10: warning: unknown escape sequence '\\8' [-Wunknown-escape-sequence]" \
-    "wide character constants.c:42:10: warning: unknown escape sequence '\\x09' [-Wunknown-escape-sequence]" \
-    "wide character constants.c:47:9: error: \\u used with no following hex digits" \
-    "wide character constants.c:48:9: error: \\U used with no following hex digits" \
-    "wide character constants.c:50:13: warning: use of non-standard escape character '\\E' [-Wpedantic]" \
-    "wide character constants.c:50:9: warning: multi-character character constant [-Wfour-char-constants]" \
-    "wide character constants.c:52:13: warning: unknown escape sequence '\\D' [-Wunknown-escape-sequence]" \
-    "wide character constants.c:52:9: warning: multi-character character constant [-Wfour-char-constants]" \
+/** manifest:
+syntax
+args = -Wfour-char-constants -Wno-c23-extensions
 
+wide character constants.c:8:27: error: character too large for enclosing character literal type
+wide character constants.c:8:20: warning: implicit conversion from 'int' to 'unsigned short' changes non-zero value from 131072 to 0 [-Wconstant-conversion]
+wide character constants.c:9:16: error: wide character literals may not contain multiple characters
+wide character constants.c:10:16: error: Unicode character literals may not contain multiple characters
+wide character constants.c:13:16: warning: multi-character character constant [-Wfour-char-constants]
+wide character constants.c:19:21: error: escape sequence out of range
+wide character constants.c:21:19: error: character too large for enclosing character literal type
+wide character constants.c:24:20: error: invalid universal character
+wide character constants.c:25:19: error: character too large for enclosing character literal type
+wide character constants.c:26:19: error: Unicode character literals may not contain multiple characters
+wide character constants.c:27:19: error: Unicode character literals may not contain multiple characters
+wide character constants.c:28:20: error: escape sequence out of range
+wide character constants.c:32:9: error: Unicode character literals may not contain multiple characters
+wide character constants.c:34:9: error: character too large for enclosing character literal type
+wide character constants.c:35:9: error: character 'A' cannot be specified by a universal character name
+wide character constants.c:38:9: error: \x used with no following hex digits
+wide character constants.c:39:9: error: \x used with no following hex digits
+wide character constants.c:40:10: warning: unknown escape sequence '\8' [-Wunknown-escape-sequence]
+wide character constants.c:41:10: warning: unknown escape sequence '\x09' [-Wunknown-escape-sequence]
+wide character constants.c:46:9: error: \u used with no following hex digits
+wide character constants.c:47:9: error: \U used with no following hex digits
+wide character constants.c:49:13: warning: use of non-standard escape character '\E' [-Wpedantic]
+wide character constants.c:49:9: warning: multi-character character constant [-Wfour-char-constants]
+wide character constants.c:51:13: warning: unknown escape sequence '\D' [-Wunknown-escape-sequence]
+wide character constants.c:51:9: warning: multi-character character constant [-Wfour-char-constants]
+*/

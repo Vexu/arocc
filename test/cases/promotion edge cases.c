@@ -1,4 +1,3 @@
-//aro-args --target=x86_64-linux-gnu
 struct S {
     unsigned x: 3;
     long y: 5;
@@ -13,3 +12,8 @@ void foo(void) {
     __fp16 fp16 = 0.0f;
     fp16 = fp16 + fp16; // __fp16 casts to float for arithmetic
 }
+
+/** manifest:
+syntax
+args = --target=x86_64-linux-gnu
+*/

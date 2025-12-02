@@ -1,4 +1,3 @@
-//aro-args -E -P -C
 #define a() 1 /*foo*/ ## /*bar*/ 2
 a()
 
@@ -14,3 +13,8 @@ d
 #define e(p) p ## 1
 
 e(hello/*foo*/)
+
+/** manifest:
+expand_partial
+args = -C
+*/

@@ -1,5 +1,3 @@
-//aro-args -E -P
-
 #define HE HI
 #define LLO _THERE
 #define HELLO "HI THERE"
@@ -17,3 +15,7 @@ FOO(1, (2, 3))
 
 #define S(...) S()
 S()
+
+/** manifest:
+expand
+*/

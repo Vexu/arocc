@@ -1,5 +1,3 @@
-//aro-args --target=x86_64-windows-msvc
-
 enum Small {
 	A
 } __attribute__((packed));
@@ -47,3 +45,8 @@ enum Huge {
 	L = 18446744073709551615ULL
 };
 _Static_assert(sizeof(enum Huge) == sizeof(int), "Huge");
+
+/** manifest:
+syntax
+args = --target=x86_64-windows-msvc
+*/

@@ -1,5 +1,9 @@
-//aro-args -std=c23
 #include <stddef.h>
 void foo(void) {
 	unreachable();
 }
+
+/** manifest:
+syntax
+args = -std=c23
+*/

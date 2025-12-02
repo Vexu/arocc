@@ -31,4 +31,8 @@ x) =\
 int trailing\ 
 ws = 1;
 
-#define EXPECTED_ERRORS "newline splicing.c:31:14: warning: backslash and newline separated by space [-Wbackslash-newline-escape]" \
+/** manifest:
+syntax
+
+newline splicing.c:31:14: warning: backslash and newline separated by space [-Wbackslash-newline-escape]
+*/

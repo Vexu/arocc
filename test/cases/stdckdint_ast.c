@@ -1,4 +1,3 @@
-//aro-args --target=x86_64-linux-gnu
 #include <stdckdint.h>
 
 void foo(void) {
@@ -11,3 +10,8 @@ void foo(void) {
     overflowed = ckd_sub(&res, x, y);
     overflowed = ckd_mul(&res, x, y);
 }
+
+/** manifest:
+syntax
+args = --target=x86_64-linux-gnu
+*/

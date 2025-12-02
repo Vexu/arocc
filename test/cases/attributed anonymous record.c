@@ -3,3 +3,7 @@ struct A{
         char a;
     } __attribute__((packed));
 };
+
+/** manifest:
+syntax
+*/

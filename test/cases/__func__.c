@@ -20,6 +20,10 @@ long *bar(int a) {
     return 0;
 }
 
-#define EXPECTED_ERRORS "__func__.c:3:24: warning: predefined identifier is only valid inside function [-Wpredefined-identifier-outside-function]" \
-    "__func__.c:4:25: warning: predefined identifier is only valid inside function [-Wpredefined-identifier-outside-function]" \
-    "__func__.c:5:25: warning: predefined identifier is only valid inside function [-Wpredefined-identifier-outside-function]" \
+/** manifest:
+syntax
+
+__func__.c:3:24: warning: predefined identifier is only valid inside function [-Wpredefined-identifier-outside-function]
+__func__.c:4:25: warning: predefined identifier is only valid inside function [-Wpredefined-identifier-outside-function]
+__func__.c:5:25: warning: predefined identifier is only valid inside function [-Wpredefined-identifier-outside-function]
+*/

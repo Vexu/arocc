@@ -12,12 +12,15 @@ void foo(void) {
     x = 1 / 2.0f;
 }
 
-#define EXPECTED_ERRORS \
-    "divide by zero.c:3:13: warning: division by zero is undefined [-Wdivision-by-zero]" \
-    "divide by zero.c:4:13: warning: remainder by zero is undefined [-Wdivision-by-zero]" \
-    "divide by zero.c:5:7: warning: division by zero is undefined [-Wdivision-by-zero]" \
-    "divide by zero.c:6:7: warning: remainder by zero is undefined [-Wdivision-by-zero]" \
-    "divide by zero.c:7:13: warning: division by zero is undefined [-Wdivision-by-zero]" \
-    "divide by zero.c:8:13: warning: remainder by zero is undefined [-Wdivision-by-zero]" \
-    "divide by zero.c:9:21: warning: division by zero is undefined [-Wdivision-by-zero]" \
-    "divide by zero.c:9:20: error: static assertion expression is not an integral constant expression" \
+/** manifest:
+syntax
+
+divide by zero.c:3:13: warning: division by zero is undefined [-Wdivision-by-zero]
+divide by zero.c:4:13: warning: remainder by zero is undefined [-Wdivision-by-zero]
+divide by zero.c:5:7: warning: division by zero is undefined [-Wdivision-by-zero]
+divide by zero.c:6:7: warning: remainder by zero is undefined [-Wdivision-by-zero]
+divide by zero.c:7:13: warning: division by zero is undefined [-Wdivision-by-zero]
+divide by zero.c:8:13: warning: remainder by zero is undefined [-Wdivision-by-zero]
+divide by zero.c:9:21: warning: division by zero is undefined [-Wdivision-by-zero]
+divide by zero.c:9:20: error: static assertion expression is not an integral constant expression
+*/

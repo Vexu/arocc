@@ -1,4 +1,3 @@
-//aro-args -E -P -CC
 #define a() 1 /*foo*/ ## /*bar*/ 2
 a()
 
@@ -15,8 +14,15 @@ d
 
 e(hello/*foo*/)
 
-#define EXPECTED_ERRORS \
-    "preserve comments in macros.c:2:15: error: pasting formed '/*foo*//*bar*/', an invalid preprocessing token" \
-    "preserve comments in macros.c:5:13: error: pasting formed '/*foo*//*bar*/', an invalid preprocessing token" \
-    "preserve comments in macros.c:14:14: error: pasting formed '/*foo*/1', an invalid preprocessing token" \
-    "preserve comments in macros.c:16:8: note: expanded from here" \
+
+// MS EOF used to stop preprocessing before nested block comment
+
+/** manifest:
+expand_error
+args = -CC -fms-extensions
+
+preserve comments in macros.c:1:15: error: pasting formed '/*foo*//*bar*/', an invalid preprocessing token
+preserve comments in macros.c:4:13: error: pasting formed '/*foo*//*bar*/', an invalid preprocessing token
+preserve comments in macros.c:13:14: error: pasting formed '/*foo*/1', an invalid preprocessing token
+preserve comments in macros.c:15:8: note: expanded from here
+*/

@@ -1,5 +1,3 @@
-//aro-args -std=c23
-
 // Example adapted from N2956 - unsequenced functions
 
 extern double sqrt(double);
@@ -13,3 +11,8 @@ int main(void) {
     (void) sqrt(2.);
     (void) distance((double[]) {1., 2.});
 }
+
+/** manifest:
+syntax
+args = -std=c23
+*/

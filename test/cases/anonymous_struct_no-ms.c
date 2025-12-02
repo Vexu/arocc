@@ -1,4 +1,3 @@
-//aro-args -fno-ms-extensions
 typedef struct {
     int a;
 } unnamed;
@@ -11,6 +10,10 @@ struct S {
     named;
 };
 
-#define EXPECTED_ERRORS \
-    "anonymous_struct_no-ms.c:10:12: warning: declaration does not declare anything [-Wmissing-declaration]" \
-    "anonymous_struct_no-ms.c:11:10: warning: declaration does not declare anything [-Wmissing-declaration]" \
+/** manifest:
+syntax
+args = -fno-ms-extensions
+
+anonymous_struct_no-ms.c:9:12: warning: declaration does not declare anything [-Wmissing-declaration]
+anonymous_struct_no-ms.c:10:10: warning: declaration does not declare anything [-Wmissing-declaration]
+*/

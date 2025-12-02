@@ -21,6 +21,10 @@ i
 j
 k
 
-#define EXPECTED_ERRORS "macro backtrace.c:12:1: error: expected external declaration" \
-    "macro backtrace.c:1:11: note: expanded from here" \
-    "<scratch space>:1:1: note: expanded from here" \
+/** manifest:
+syntax
+
+macro backtrace.c:12:1: error: expected external declaration
+macro backtrace.c:1:11: note: expanded from here
+<scratch space>:1:1: note: expanded from here
+*/

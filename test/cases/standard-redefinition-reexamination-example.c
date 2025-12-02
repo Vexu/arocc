@@ -1,4 +1,3 @@
-//aro-args -E -P
 // example from the C18 standard draft, 6.10.3.5, example 3
 #define x 3
 #define f(a) f(x * (a)) 
@@ -19,3 +18,7 @@ g(x+(3,4)-w) | h 5) & m
      (f)^m(m);
 p() i[q()] = { q(1), r(2,3), r(4,), r(,5), r(,) };
 char c[2][6] = { str(hello), str() };
+
+/** manifest:
+expand
+*/

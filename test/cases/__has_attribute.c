@@ -12,4 +12,8 @@
 #  error should have attribute aligned
 #endif
 
-#define EXPECTED_ERRORS "__has_attribute.c:3:8: error: attribute exists"
+/** manifest:
+expand_error
+
+__has_attribute.c:3:8: error: attribute exists
+*/

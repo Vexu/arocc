@@ -42,12 +42,15 @@ struct B {
 
 extern struct Tentative tentative_extern;
 
-#define EXPECTED_ERRORS "tentative definitions.c:9:15: error: variable has incomplete type 'struct S1'" \
-    "tentative definitions.c:37:14: error: field has incomplete type 'struct B'" \
-    "tentative definitions.c:2:18: error: tentative definition has type 'struct Tentative' that is never completed" \
-    "tentative definitions.c:1:8: note: forward declaration of 'struct Tentative'" \
-    "tentative definitions.c:15:8: error: tentative definition has type 'enum E' that is never completed" \
-    "tentative definitions.c:15:6: note: forward declaration of 'enum E'" \
-    "tentative definitions.c:18:38: error: tentative definition has type 'union U' that is never completed" \
-    "tentative definitions.c:17:36: note: forward declaration of 'union U'" \
+/** manifest:
+syntax
 
+tentative definitions.c:9:15: error: variable has incomplete type 'struct S1'
+tentative definitions.c:37:14: error: field has incomplete type 'struct B'
+tentative definitions.c:2:18: error: tentative definition has type 'struct Tentative' that is never completed
+tentative definitions.c:1:8: note: forward declaration of 'struct Tentative'
+tentative definitions.c:15:8: error: tentative definition has type 'enum E' that is never completed
+tentative definitions.c:15:6: note: forward declaration of 'enum E'
+tentative definitions.c:18:38: error: tentative definition has type 'union U' that is never completed
+tentative definitions.c:17:36: note: forward declaration of 'union U'
+*/

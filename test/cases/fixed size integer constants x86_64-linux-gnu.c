@@ -1,5 +1,3 @@
-//aro-args --target=x86_64-linux-gnu -std=c23
-
 #include "test_helpers.h"
 
 _Static_assert(__INT8_MAX__ == 127);
@@ -32,3 +30,8 @@ EXPECT_TYPE(__INT64_MAX__, long);
 EXPECT_TYPE(__UINT64_MAX__, unsigned long);
 EXPECT_TYPE(CAT(0, __INT64_C_SUFFIX__), long);
 EXPECT_TYPE(CAT(0, __UINT64_C_SUFFIX__), unsigned long);
+
+/** manifest:
+syntax
+args = --target=x86_64-linux-gnu -std=c23 -I include
+*/

@@ -48,16 +48,20 @@ void array_fixed(void) {
     _Static_assert(_Alignof(__typeof(a)) == 32, "");
 }
 
-#define EXPECTED_ERRORS "alignment.c:1:1: error: '_Alignas' attribute only applies to variables and fields" \
-    "alignment.c:3:3: error: '_Alignas' attribute only applies to variables and fields" \
-    "alignment.c:5:1: error: requested alignment is less than minimum alignment of 4" \
-    "alignment.c:6:10: error: requested alignment is not a power of 2" \
-    "alignment.c:8:9: error: '_Alignas' attribute cannot be applied to a function parameter" \
-    "alignment.c:9:21: warning: '_Alignas' attribute is ignored here" \
-    "alignment.c:12:10: error: requested alignment of 536870912 is too large" \
-    "alignment.c:13:10: error: requested negative alignment of -2 is invalid" \
-    "alignment.c:15:10: error: '_Alignas' attribute requires integer constant expression" \
-    "alignment.c:35:24: error: '_Alignas' attribute requires integer constant expression" \
-    "alignment.c:35:33: warning: type specifier missing, defaults to 'int' [-Wimplicit-int]" \
-    "alignment.c:36:10: error: expression is not an integer constant expression" \
-    "alignment.c:36:15: warning: type specifier missing, defaults to 'int' [-Wimplicit-int]" \
+/** manifest:
+syntax
+
+alignment.c:1:1: error: '_Alignas' attribute only applies to variables and fields
+alignment.c:3:3: error: '_Alignas' attribute only applies to variables and fields
+alignment.c:5:1: error: requested alignment is less than minimum alignment of 4
+alignment.c:6:10: error: requested alignment is not a power of 2
+alignment.c:8:9: error: '_Alignas' attribute cannot be applied to a function parameter
+alignment.c:9:21: warning: '_Alignas' attribute is ignored here
+alignment.c:12:10: error: requested alignment of 536870912 is too large
+alignment.c:13:10: error: requested negative alignment of -2 is invalid
+alignment.c:15:10: error: '_Alignas' attribute requires integer constant expression
+alignment.c:35:24: error: '_Alignas' attribute requires integer constant expression
+alignment.c:35:33: warning: type specifier missing, defaults to 'int' [-Wimplicit-int]
+alignment.c:36:10: error: expression is not an integer constant expression
+alignment.c:36:15: warning: type specifier missing, defaults to 'int' [-Wimplicit-int]
+*/

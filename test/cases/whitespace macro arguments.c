@@ -1,5 +1,3 @@
-//aro-args -E -P
-
 #define h() 1
 #define g(x) x
 #define f(x, y) g(y) x
@@ -15,3 +13,7 @@ f(,)
 p()
 q(3, 2)
 q(, 3)
+
+/** manifest:
+expand
+*/

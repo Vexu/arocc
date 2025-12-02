@@ -1,4 +1,3 @@
-//aro-args -P -E
 #define CONTINUE(k) DEFER(k##_HOOK)()
 #define DEFER(op) op EMPTY
 #define EMPTY
@@ -6,3 +5,7 @@
 
 CONTINUE( F)
 CONTINUE(F)
+
+/** manifest:
+expand
+*/

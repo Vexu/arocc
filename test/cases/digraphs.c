@@ -1,5 +1,3 @@
-//aro-args -DSTRINGIZE(X)=%:X
-
 #define PASTE(X, Y) (X %:%: Y)
 
 void baz(void) <%
@@ -12,3 +10,8 @@ void baz(void) <%
     _Static_assert(sizeof(char_arr) == sizeof("HELLO"), "bad stringify");
     _Static_assert(sizeof(no_digraph) == 5, "string literals should not produce digraph tokens");
 %>
+
+/** manifest:
+syntax
+args = -DSTRINGIZE(X)=%:X
+*/

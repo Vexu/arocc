@@ -34,27 +34,30 @@ void foo(void) {
 typedef struct Incomplete ArrayOfIncomplete[];
 ArrayOfIncomplete a;
 
-#define EXPECTED_ERRORS \
-    "invalid types.c:1:6: error: cannot combine with previous 'long' specifier" \
-    "invalid types.c:3:11: error: empty enum is invalid" \
-    "invalid types.c:5:1: error: unknown type name 'typename'" \
-    "invalid types.c:7:7: error: array has incomplete element type 'void'" \
-    "invalid types.c:8:12: error: tentative definition has type 'struct Bar' that is never completed" \
-    "invalid types.c:8:8: note: forward declaration of 'struct Bar'" \
-    "invalid types.c:9:6: error: array is too large" \
-    "invalid types.c:11:1: warning: plain '_Complex' requires a type specifier; assuming '_Complex double'" \
-    "invalid types.c:14:6: note: previous definition is here" \
-    "invalid types.c:16:15: error: expected identifier or '('" \
-    "invalid types.c:17:17: error: array has incomplete element type 'struct bar'" \
-    "invalid types.c:18:15: error: expected identifier or '('" \
-    "invalid types.c:19:17: error: array has incomplete element type 'struct bar'" \
-    "invalid types.c:20:21: error: call to undeclared function 'B'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration]" \
-    "invalid types.c:20:23: warning: passing arguments to a function without a prototype is deprecated in all versions of C and is not supported in C23 [-Wdeprecated-non-prototype]" \
-    "invalid types.c:20:17: error: array has incomplete element type 'struct bar'" \
-    "invalid types.c:23:9: error: size of array has non-integer type 'char [4]'" \
-    "invalid types.c:24:13: error: array initializer must be an initializer list or wide string literal" \
-    "invalid types.c:25:13: error: array initializer must be an initializer list or wide string literal" \
-    "invalid types.c:27:5: warning: tentative array definition assumed to have one element" \
-    "invalid types.c:29:6: error: redefinition of 'foo'" \
-    "invalid types.c:30:9: error: variable has incomplete type 'int []'" \
-    "invalid types.c:34:44: error: array has incomplete element type 'struct Incomplete'" \
+/** manifest:
+syntax
+
+invalid types.c:1:6: error: cannot combine with previous 'long' specifier
+invalid types.c:3:11: error: empty enum is invalid
+invalid types.c:5:1: error: unknown type name 'typename'
+invalid types.c:7:7: error: array has incomplete element type 'void'
+invalid types.c:9:6: error: array is too large
+invalid types.c:11:1: warning: plain '_Complex' requires a type specifier; assuming '_Complex double'
+invalid types.c:16:15: error: expected identifier or '('
+invalid types.c:17:17: error: array has incomplete element type 'struct bar'
+invalid types.c:18:15: error: expected identifier or '('
+invalid types.c:19:17: error: array has incomplete element type 'struct bar'
+invalid types.c:20:21: error: call to undeclared function 'B'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration]
+invalid types.c:20:23: warning: passing arguments to a function without a prototype is deprecated in all versions of C and is not supported in C23 [-Wdeprecated-non-prototype]
+invalid types.c:20:17: error: array has incomplete element type 'struct bar'
+invalid types.c:23:9: error: size of array has non-integer type 'char [4]'
+invalid types.c:24:13: error: array initializer must be an initializer list or wide string literal
+invalid types.c:25:13: error: array initializer must be an initializer list or wide string literal
+invalid types.c:27:5: warning: tentative array definition assumed to have one element
+invalid types.c:29:6: error: redefinition of 'foo'
+invalid types.c:14:6: note: previous definition is here
+invalid types.c:30:9: error: variable has incomplete type 'int []'
+invalid types.c:34:44: error: array has incomplete element type 'struct Incomplete'
+invalid types.c:8:12: error: tentative definition has type 'struct Bar' that is never completed
+invalid types.c:8:8: note: forward declaration of 'struct Bar'
+*/

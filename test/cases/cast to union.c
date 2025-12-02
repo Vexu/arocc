@@ -17,8 +17,11 @@ void foo(void) {
     (union DoesNotExist)1;
 }
 
-#define EXPECTED_ERRORS "cast to union.c:11:9: warning: cast to union type is a GNU extension [-Wgnu-union-cast]" \
-    "cast to union.c:15:9: error: cast to union type from type 'double' not present in union" \
-    "cast to union.c:16:5: error: cast to incomplete type 'union Forward'" \
-    "cast to union.c:17:5: error: cast to incomplete type 'union DoesNotExist'" \
+/** manifest:
+syntax
 
+cast to union.c:11:9: warning: cast to union type is a GNU extension [-Wgnu-union-cast]
+cast to union.c:15:9: error: cast to union type from type 'double' not present in union
+cast to union.c:16:5: error: cast to incomplete type 'union Forward'
+cast to union.c:17:5: error: cast to incomplete type 'union DoesNotExist'
+*/

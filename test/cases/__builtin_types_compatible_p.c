@@ -1,4 +1,3 @@
-//aro-args -std=c23
 
 #if !__has_builtin(__builtin_types_compatible_p)
 #error Missing builtin __builtin_types_compatible_p
@@ -31,6 +30,10 @@ _Static_assert(!__builtin_types_compatible_p(__typeof__("Hello"), char *));
 _Static_assert(__builtin_types_compatible_p(int, long));
 _Static_assert(__builtin_types_compatible_p(__typeof__(const int) *, int *), "Types do not match");
 
-#define EXPECTED_ERRORS "__builtin_types_compatible_p.c:31:1: error: static assertion failed '__builtin_types_compatible_p(int, long)'" \
-	"__builtin_types_compatible_p.c:32:1: error: static assertion failed '__builtin_types_compatible_p(typeof(const int) *, int *)' \"Types do not match\"" \
+/** manifest:
+syntax
+args = -std=c23
 
+__builtin_types_compatible_p.c:30:1: error: static assertion failed '__builtin_types_compatible_p(int, long)'
+__builtin_types_compatible_p.c:31:1: error: static assertion failed '__builtin_types_compatible_p(typeof(const int) *, int *)' "Types do not match"
+*/

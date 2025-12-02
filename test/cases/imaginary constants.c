@@ -18,6 +18,10 @@ void foo(void) {
 #if 1.0i
 #endif
 
-#define EXPECTED_ERRORS "imaginary constants.c:5:32: warning: imaginary constants are a GNU extension [-Wgnu-imaginary-constant]" \
-    "imaginary constants.c:18:5: error: floating point literal in preprocessor expression" \
-    "imaginary constants.c:13:9: warning: complex integer types are a GNU extension [-Wgnu-complex-integer]" \
+/** manifest:
+syntax
+
+imaginary constants.c:18:5: error: floating point literal in preprocessor expression
+imaginary constants.c:5:32: warning: imaginary constants are a GNU extension [-Wgnu-imaginary-constant]
+imaginary constants.c:13:9: warning: complex integer types are a GNU extension [-Wgnu-complex-integer]
+*/

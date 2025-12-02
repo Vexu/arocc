@@ -1,5 +1,3 @@
-//aro-args -std=c23
-
 void foo(void) {
     char8_t c = 0;
 }
@@ -17,3 +15,8 @@ const char8_t c8buf1[] = u8"text";
 const char8_t c8buf2[] = { u8"text" };
 const char8_t c8buf3[] = "text";
 const char8_t c8buf4[] = { "text" };
+
+/** manifest:
+syntax
+args = -std=c23
+*/

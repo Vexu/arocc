@@ -1,4 +1,3 @@
-//aro-args -std=c23 -pedantic -Wundef
 #include <stdbool.h>
 static_assert(1 == 1);
 static_assert(alignof(char) == 1);
@@ -37,10 +36,13 @@ typedef typeof(int) MyInt;
 #error true and false should not be defined
 #endif
 
-#define EXPECTED_ERRORS \
-    "c23 keywords.c:9:9: warning: keyword is hidden by macro definition [-Wkeyword-macro]" \
-    "c23 keywords.c:10:9: warning: keyword is hidden by macro definition [-Wkeyword-macro]" \
-    "c23 keywords.c:11:9: warning: keyword is hidden by macro definition [-Wkeyword-macro]" \
-    "c23 keywords.c:12:9: warning: keyword is hidden by macro definition [-Wkeyword-macro]" \
-    "c23 keywords.c:13:9: warning: keyword is hidden by macro definition [-Wkeyword-macro]" \
+/** manifest:
+syntax
+args = -std=c23 -pedantic -Wundef
 
+c23 keywords.c:8:9: warning: keyword is hidden by macro definition [-Wkeyword-macro]
+c23 keywords.c:9:9: warning: keyword is hidden by macro definition [-Wkeyword-macro]
+c23 keywords.c:10:9: warning: keyword is hidden by macro definition [-Wkeyword-macro]
+c23 keywords.c:11:9: warning: keyword is hidden by macro definition [-Wkeyword-macro]
+c23 keywords.c:12:9: warning: keyword is hidden by macro definition [-Wkeyword-macro]
+*/

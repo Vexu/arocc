@@ -21,16 +21,19 @@ double s = 0x1.EP-1;
 double t = 1.ep-1;
 double u = 1.pp-1;
 
-#define EXPECTED_ERRORS "numbers.c:1:9: error: invalid suffix 'b' on integer constant" \
-    "numbers.c:2:9: error: invalid suffix 'x' on integer constant" \
-    "numbers.c:3:9: error: invalid digit '2' in binary constant" \
-    "numbers.c:4:9: error: invalid suffix '.2' on integer constant" \
-    "numbers.c:6:12: error: hexadecimal floating constant requires an exponent" \
-    "numbers.c:7:9: error: invalid digit '8' in octal constant" \
-    "numbers.c:9:9: error: exponent has no digits" \
-    "numbers.c:10:12: error: exponent has no digits" \
-    "numbers.c:11:9: error: invalid suffix 'LLuf' on integer constant" \
-    "numbers.c:16:16: error: invalid suffix '+0xC' on integer constant" \
-    "numbers.c:21:12: error: exponent has no digits" \
-    "numbers.c:22:12: error: invalid suffix 'pp-1' on floating constant" \
+/** manifest:
+syntax
 
+numbers.c:1:9: error: invalid suffix 'b' on integer constant
+numbers.c:2:9: error: invalid suffix 'x' on integer constant
+numbers.c:3:9: error: invalid digit '2' in binary constant
+numbers.c:4:9: error: invalid suffix '.2' on integer constant
+numbers.c:6:12: error: hexadecimal floating constant requires an exponent
+numbers.c:7:9: error: invalid digit '8' in octal constant
+numbers.c:9:9: error: exponent has no digits
+numbers.c:10:12: error: exponent has no digits
+numbers.c:11:9: error: invalid suffix 'LLuf' on integer constant
+numbers.c:16:16: error: invalid suffix '+0xC' on integer constant
+numbers.c:21:12: error: exponent has no digits
+numbers.c:22:12: error: invalid suffix 'pp-1' on floating constant
+*/

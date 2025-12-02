@@ -1,3 +1,6 @@
-#define NO_ERROR_VALIDATION
-
 #embed "embed byte"n:
+
+/** manifest:
+syntax_ignore_errors
+args = --embed-dir=test/cases/embed
+*/

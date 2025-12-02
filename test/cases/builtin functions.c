@@ -1,4 +1,3 @@
-//aro-args --target=powerpc-freestanding-none
 int foo(void) {
     char c[] = "hello";
     return strlen(c);
@@ -13,6 +12,10 @@ void ns_constant_string(void) {
     (void)ns_str;
 }
 
-#define EXPECTED_ERRORS "builtin functions.c:4:12: error: implicitly declaring library function 'strlen' [-Wimplicit-function-declaration]" \
-    "builtin functions.c:4:12: note: include the header <string.h> or explicitly provide a declaration for 'strlen'" \
+/** manifest:
+syntax
+args = --target=powerpc-freestanding-none
 
+builtin functions.c:3:12: error: implicitly declaring library function 'strlen' [-Wimplicit-function-declaration]
+builtin functions.c:3:12: note: include the header <string.h> or explicitly provide a declaration for 'strlen'
+*/

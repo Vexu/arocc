@@ -8,7 +8,7 @@ void foo(void) {
 	typeof(b) e;
 }
 
-#define EXPECTED_TYPES "aligned_int: attributed(int)" "attributed(int)" \
-    "typeof(<expr>: aligned_int: attributed(int))" \
-	"typeof(aligned_int: attributed(int))" \
-	"typeof(<expr>: attributed(int))"
+/** manifest:
+syntax
+args = -target x86_64-linux
+*/

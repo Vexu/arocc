@@ -7,4 +7,8 @@
 #  endif
 #endif
 
-#define EXPECTED_ERRORS "__has_extension.c:3:8: error: extension exists"
+/** manifest:
+expand_error
+
+__has_extension.c:3:8: error: extension exists
+*/

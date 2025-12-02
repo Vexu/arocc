@@ -1,5 +1,3 @@
-//aro-args --target=x86_64-windows-msvc
-
 union Foo {
     int x;
     float y[];
@@ -10,3 +8,8 @@ union Bar {
     int x[];
     float y[];
 };
+
+/** manifest:
+syntax
+args = --target=x86_64-windows-msvc
+*/

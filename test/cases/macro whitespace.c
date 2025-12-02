@@ -1,4 +1,3 @@
-//aro-args -E -P
 #define FOO 1 /* fjfao */  /* fjfao */ 2
 
 #define BAR + /* fjfao */  /* fjfao */ /
@@ -25,3 +24,7 @@ STR(/**/6)
 
 #define x foo             bar
 x
+
+/** manifest:
+expand
+*/

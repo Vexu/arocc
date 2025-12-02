@@ -17,5 +17,9 @@
 #define X __has_warning("-Wextern-initializer")
 _Static_assert(X == 1, "Failed to find warning");
 
-#define EXPECTED_ERRORS "__has_warning.c:11:19: warning: __has_warning expected option name (e.g. \"-Wundef\") [-Wmalformed-warning-check]" \
-	"__has_warning.c:13:21: error: expected string literal in '__has_warning'" \
+/** manifest:
+expand_error
+
+__has_warning.c:11:19: warning: __has_warning expected option name (e.g. "-Wundef") [-Wmalformed-warning-check]
+__has_warning.c:13:21: error: expected string literal in '__has_warning'
+*/

@@ -1,4 +1,3 @@
-//aro-args -E -P
 /* comment **/
 
 int I_exist;
@@ -13,3 +12,7 @@ int I_dont;
 
 int foo/**/; int/*
 */bar;
+
+/** manifest:
+expand
+*/

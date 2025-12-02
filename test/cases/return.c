@@ -105,21 +105,24 @@ void call_return_signed(void) {
     int *y = return_signed(&x);
 }
 
-#define EXPECTED_ERRORS "return.c:2:5: error: non-void function 'b' should return a value [-Wreturn-type]" \
-    "return.c:3:5: warning: unreachable code [-Wunreachable-code]" \
-    "return.c:6:12: error: returning 'void' from a function with incompatible result type '_Bool'" \
-    "return.c:11:5: warning: unreachable code [-Wunreachable-code]" \
-    "return.c:12:12: warning: implicit pointer to integer conversion from 'int *' to 'int' [-Wint-conversion]" \
-    "return.c:17:5: warning: unreachable code [-Wunreachable-code]" \
-    "return.c:18:12: error: returning 'int *' from a function with incompatible result type 'float'" \
-    "return.c:22:12: warning: implicit integer to pointer conversion from 'int' to 'int *' [-Wint-conversion]" \
-    "return.c:23:5: warning: unreachable code [-Wunreachable-code]" \
-    "return.c:24:12: error: returning 'float *' from a function with incompatible result type 'int *'" \
-    "return.c:26:12: error: returning '_Atomic(int) (*)[3]' from a function with incompatible result type 'int *'" \
-    "return.c:30:1: warning: non-void function 'foo' does not return a value [-Wreturn-type]" \
-    "return.c:32:5: error: non-void function 'bar' should return a value [-Wreturn-type]" \
-    "return.c:35:12: error: void function 'baz' should not return a value [-Wreturn-type]" \
-    "return.c:38:17: error: function cannot return a function" \
-    "return.c:96:12: error: returning 'double' from a function with incompatible result type 'void *'" \
-    "return.c:100:12: warning: returning 'unsigned int *' from a function with incompatible result type 'int *' converts between pointers to integer types with different sign [-Wpointer-sign]" \
+/** manifest:
+syntax
 
+return.c:2:5: error: non-void function 'b' should return a value [-Wreturn-type]
+return.c:6:12: error: returning 'void' from a function with incompatible result type '_Bool'
+return.c:3:5: warning: unreachable code [-Wunreachable-code]
+return.c:12:12: warning: implicit pointer to integer conversion from 'int *' to 'int' [-Wint-conversion]
+return.c:11:5: warning: unreachable code [-Wunreachable-code]
+return.c:18:12: error: returning 'int *' from a function with incompatible result type 'float'
+return.c:17:5: warning: unreachable code [-Wunreachable-code]
+return.c:22:12: warning: implicit integer to pointer conversion from 'int' to 'int *' [-Wint-conversion]
+return.c:24:12: error: returning 'float *' from a function with incompatible result type 'int *'
+return.c:26:12: error: returning '_Atomic(int) (*)[3]' from a function with incompatible result type 'int *'
+return.c:23:5: warning: unreachable code [-Wunreachable-code]
+return.c:30:1: warning: non-void function 'foo' does not return a value [-Wreturn-type]
+return.c:32:5: error: non-void function 'bar' should return a value [-Wreturn-type]
+return.c:35:12: error: void function 'baz' should not return a value [-Wreturn-type]
+return.c:38:17: error: function cannot return a function
+return.c:96:12: error: returning 'double' from a function with incompatible result type 'void *'
+return.c:100:12: warning: returning 'unsigned int *' from a function with incompatible result type 'int *' converts between pointers to integer types with different sign [-Wpointer-sign]
+*/

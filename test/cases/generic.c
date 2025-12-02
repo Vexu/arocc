@@ -11,16 +11,20 @@ void foo(void) {
     _Generic(0, int: 8, long: bar());
 }
 
-#define EXPECTED_ERRORS "generic.c:2:15: error: expected ',', found ')'" \
-    "generic.c:3:16: error: expected a type" \
-    "generic.c:4:17: warning: generic association with qualifiers cannot be matched with [-Wgeneric-qual-type]" \
-    "generic.c:5:29: error: duplicate default generic association" \
-    "generic.c:5:17: note: previous case defined here" \
-    "generic.c:6:34: error: type 'double' in generic association compatible with previously specified type" \
-    "generic.c:6:23: note: compatible type 'double' specified here" \
-    "generic.c:6:20: error: controlling expression type 'int' not compatible with any generic association type" \
-    "generic.c:7:31: error: type 'int' in generic association compatible with previously specified type" \
-    "generic.c:7:23: note: compatible type 'int' specified here" \
-    "generic.c:8:32: warning: generic association array type cannot be matched with [-Wgeneric-qual-type]" \
-    "generic.c:8:43: warning: generic association function type cannot be matched with [-Wgeneric-qual-type]" \
-    "generic.c:11:31: error: call to undeclared function 'bar'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration]" \
+/** manifest:
+syntax
+
+generic.c:2:15: error: expected ',', found ')'
+generic.c:3:16: error: expected a type
+generic.c:4:17: warning: generic association with qualifiers cannot be matched with [-Wgeneric-qual-type]
+generic.c:5:29: error: duplicate default generic association
+generic.c:5:17: note: previous case defined here
+generic.c:6:34: error: type 'double' in generic association compatible with previously specified type
+generic.c:6:23: note: compatible type 'double' specified here
+generic.c:6:20: error: controlling expression type 'int' not compatible with any generic association type
+generic.c:7:31: error: type 'int' in generic association compatible with previously specified type
+generic.c:7:23: note: compatible type 'int' specified here
+generic.c:8:32: warning: generic association array type cannot be matched with [-Wgeneric-qual-type]
+generic.c:8:43: warning: generic association function type cannot be matched with [-Wgeneric-qual-type]
+generic.c:11:31: error: call to undeclared function 'bar'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration]
+*/

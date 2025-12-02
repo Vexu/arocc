@@ -1,4 +1,3 @@
-//aro-args --target=x86_64-linux -std=c23 -fdeclspec
 void cleanup_fn(void) {}
 void foo(void) {
     int __attribute__((access)) bar_1;
@@ -36,27 +35,32 @@ typedef struct {} A1, __declspec(deprecated) B1, C1;
 typedef struct {} A2, __attribute__((deprecated)) B2, C2;
 typedef struct {} A3, [[deprecated]] B3, C3;
 
-#define EXPECTED_ERRORS "attribute errors.c:4:24: error: 'access' attribute takes at least 2 argument(s)" \
-    "attribute errors.c:5:31: warning: unknown `access` argument. Possible values are: 'read_only', 'read_write', 'write_only', 'none' [-Wignored-attributes]" \
-    "attribute errors.c:6:24: warning: attribute 'access' ignored on variables [-Wignored-attributes]" \
-    "attribute errors.c:7:30: error: use of undeclared identifier 'bar'" \
-    "attribute errors.c:11:35: error: 'aligned' attribute takes at most 1 argument(s)" \
-    "attribute errors.c:12:32: error: requested alignment is not a power of 2" \
-    "attribute errors.c:13:39: error: requested alignment is not a power of 2" \
-    "attribute errors.c:14:24: warning: attribute 'assume_aligned' ignored on variables [-Wignored-attributes]" \
-    "attribute errors.c:15:24: warning: attribute 'assume_aligned' ignored on variables [-Wignored-attributes]" \
-    "attribute errors.c:16:24: warning: attribute 'hot' ignored on variables [-Wignored-attributes]" \
-    "attribute errors.c:16:29: warning: attribute 'pure' ignored on variables [-Wignored-attributes]" \
-    "attribute errors.c:18:32: error: attribute argument is invalid, expected an identifier but got a string" \
-    "attribute errors.c:19:24: warning: attribute 'simd' ignored on variables [-Wignored-attributes]" \
-    "attribute errors.c:20:24: warning: attribute 'simd' ignored on variables [-Wignored-attributes]" \
-    "attribute errors.c:21:29: warning: unknown `simd` argument. Possible values are: \"notinbranch\", \"inbranch\" [-Wignored-attributes]" \
-    "attribute errors.c:22:24: warning: unknown attribute 'invalid_attribute' ignored [-Wunknown-attributes]" \
-    "attribute errors.c:23:24: warning: unknown attribute 'invalid_attribute' ignored [-Wunknown-attributes]" \
-    "attribute errors.c:24:49: error: 'deprecated' attribute takes at most 1 argument(s)" \
-    "attribute errors.c:28:24: warning: attribute 'cold' ignored on types [-Wignored-attributes]" \
-    "attribute errors.c:31:5: warning: '__thiscall' calling convention is not supported for this target [-Wignored-attributes]" \
-    "attribute errors.c:32:36: error: attribute value '4294967296' out of range" \
-    "attribute errors.c:33:46: error: attribute argument is invalid, expected an integer constant but got a complex floating point number" \
-    "attribute errors.c:35:23: error: a declspec attribute cannot appear here" \
-    "attribute errors.c:37:23: error: an attribute list cannot appear here" \
+/** manifest:
+syntax
+args = --target=x86_64-linux -std=c23 -fdeclspec
+
+attribute errors.c:3:24: error: 'access' attribute takes at least 2 argument(s)
+attribute errors.c:4:31: warning: unknown `access` argument. Possible values are: 'read_only', 'read_write', 'write_only', 'none' [-Wignored-attributes]
+attribute errors.c:5:24: warning: attribute 'access' ignored on variables [-Wignored-attributes]
+attribute errors.c:6:30: error: use of undeclared identifier 'bar'
+attribute errors.c:10:35: error: 'aligned' attribute takes at most 1 argument(s)
+attribute errors.c:11:32: error: requested alignment is not a power of 2
+attribute errors.c:12:39: error: requested alignment is not a power of 2
+attribute errors.c:13:24: warning: attribute 'assume_aligned' ignored on variables [-Wignored-attributes]
+attribute errors.c:14:24: warning: attribute 'assume_aligned' ignored on variables [-Wignored-attributes]
+attribute errors.c:15:24: warning: attribute 'hot' ignored on variables [-Wignored-attributes]
+attribute errors.c:15:29: warning: attribute 'pure' ignored on variables [-Wignored-attributes]
+attribute errors.c:17:32: error: attribute argument is invalid, expected an identifier but got a string
+attribute errors.c:18:24: warning: attribute 'simd' ignored on variables [-Wignored-attributes]
+attribute errors.c:19:24: warning: attribute 'simd' ignored on variables [-Wignored-attributes]
+attribute errors.c:20:29: warning: unknown `simd` argument. Possible values are: "notinbranch", "inbranch" [-Wignored-attributes]
+attribute errors.c:21:24: warning: unknown attribute 'invalid_attribute' ignored [-Wunknown-attributes]
+attribute errors.c:22:24: warning: unknown attribute 'invalid_attribute' ignored [-Wunknown-attributes]
+attribute errors.c:23:49: error: 'deprecated' attribute takes at most 1 argument(s)
+attribute errors.c:27:24: warning: attribute 'cold' ignored on types [-Wignored-attributes]
+attribute errors.c:30:5: warning: '__thiscall' calling convention is not supported for this target [-Wignored-attributes]
+attribute errors.c:31:36: error: attribute value '4294967296' out of range
+attribute errors.c:32:46: error: attribute argument is invalid, expected an integer constant but got a complex floating point number
+attribute errors.c:34:23: error: a declspec attribute cannot appear here
+attribute errors.c:36:23: error: an attribute list cannot appear here
+*/

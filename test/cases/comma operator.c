@@ -1,4 +1,3 @@
-//aro-args -Wno-sizeof-array-argument
 void foo(void) {
     char a[1];
     _Static_assert(sizeof(((void)0, a)) == sizeof(char *), "");
@@ -6,3 +5,8 @@ void foo(void) {
     __typeof__(((void) 0, x)) y = 5;
     y = 2;
 }
+
+/** manifest:
+syntax
+args = -Wno-sizeof-array-argument
+*/

@@ -91,17 +91,21 @@ void returning_void(void) {
     return desugar_func_ty();
 }
 
-#define EXPECTED_ERRORS "functions.c:10:12: error: parameter named 'quux' is missing" \
-    "functions.c:20:14: error: illegal initializer (only variables can be initialized)" \
-    "functions.c:18:2: warning: non-void function 'foooo' does not return a value [-Wreturn-type]" \
-    "functions.c:22:13: error: variable length array must be bound in function definition" \
-    "functions.c:42:35: error: parameter has incomplete type 'struct S'" \
-    "functions.c:44:10: error: parameter has incomplete type 'struct S'" \
-    "functions.c:48:30: error: parameter has incomplete type 'U' (aka 'union Union')" \
-    "functions.c:50:3: error: parameter has incomplete type 'U' (aka 'union Union')" \
-    "functions.c:53:30: error: parameter has incomplete type 'enum E'" \
-    "functions.c:55:9: error: parameter has incomplete type 'enum EE'" \
-    "functions.c:79:6: error: redefinition of 'no_params' with a different type" \
-    "functions.c:78:6: note: previous definition is here" \
-    "functions.c:81:19: error: '__auto_type' not allowed in function prototype" \
-    "functions.c:87:16: warning: incompatible pointer types initializing 'int *' from incompatible type 'foo (foo)' (aka 'int (int)') [-Wincompatible-pointer-types]" \
+/** manifest:
+syntax
+
+functions.c:10:12: error: parameter named 'quux' is missing
+functions.c:18:2: warning: non-void function 'foooo' does not return a value [-Wreturn-type]
+functions.c:20:14: error: illegal initializer (only variables can be initialized)
+functions.c:22:13: error: variable length array must be bound in function definition
+functions.c:42:35: error: parameter has incomplete type 'struct S'
+functions.c:44:10: error: parameter has incomplete type 'struct S'
+functions.c:48:30: error: parameter has incomplete type 'U' (aka 'union Union')
+functions.c:50:3: error: parameter has incomplete type 'U' (aka 'union Union')
+functions.c:53:30: error: parameter has incomplete type 'enum E'
+functions.c:55:9: error: parameter has incomplete type 'enum EE'
+functions.c:79:6: error: redefinition of 'no_params' with a different type
+functions.c:78:6: note: previous definition is here
+functions.c:81:19: error: '__auto_type' not allowed in function prototype
+functions.c:87:16: warning: incompatible pointer types initializing 'int *' from incompatible type 'foo (foo)' (aka 'int (int)') [-Wincompatible-pointer-types]
+*/

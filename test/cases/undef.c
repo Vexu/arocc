@@ -1,5 +1,3 @@
-//aro-args -undef --target=x86_64-linux-gnu
-
 #if defined(linux) || defined(__linux) || defined(__linux__)
 #error Should not be defined
 #endif
@@ -15,4 +13,9 @@ struct Foo {
    int z;
 };
 
-#define EXPECTED_ERRORS "undef.c:7:11: error: use of undeclared identifier '__CHAR_BIT__'"
+/** manifest:
+syntax
+args = -undef --target=x86_64-linux-gnu
+
+undef.c:5:11: error: use of undeclared identifier '__CHAR_BIT__'
+*/

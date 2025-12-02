@@ -103,24 +103,27 @@ enum EA: _Atomic(int) const {
     EA
 };
 
-#define EXPECTED_ERRORS "enum fixed.c:2:7: warning: enumeration types with a fixed underlying type are a Clang extension [-Wfixed-enum-extension]" \
-    "enum fixed.c:4:6: error: enumeration previously declared with fixed underlying type" \
-    "enum fixed.c:2:6: note: previous definition is here" \
-    "enum fixed.c:7:6: error: enumeration previously declared with nonfixed underlying type" \
-    "enum fixed.c:6:6: note: previous definition is here" \
-    "enum fixed.c:10:6: error: enumeration redeclared with different underlying type 'int' (was 'char')" \
-    "enum fixed.c:9:6: note: previous definition is here" \
-    "enum fixed.c:14:5: error: enumerator value is not representable in the underlying type 'unsigned char'" \
-    "enum fixed.c:18:5: error: enumerator value is not representable in the underlying type 'char'" \
-    "enum fixed.c:66:23: warning: incompatible pointer types initializing 'enum Signed: int *' from incompatible type 'unsigned int *' converts between pointers to integer types with different sign [-Wpointer-sign]" \
-    "enum fixed.c:67:25: warning: incompatible pointer types initializing 'enum Unsigned: unsigned int *' from incompatible type 'int *' [-Wincompatible-pointer-types]" \
-    "enum fixed.c:70:27: warning: incompatible pointer types initializing 'enum Incomplete *' from incompatible type 'int *' [-Wincompatible-pointer-types]" \
-    "enum fixed.c:71:27: warning: incompatible pointer types initializing 'enum Incomplete *' from incompatible type 'unsigned int *' [-Wincompatible-pointer-types]" \
-    "enum fixed.c:82:12: error: non-integral type 'BackingStruct' (aka 'struct BackingStruct') is an invalid underlying type" \
-    "enum fixed.c:86:12: error: non-integral type 'BackingEnum' (aka 'enum BackingEnum: int') is an invalid underlying type" \
-    "enum fixed.c:90:23: error: expected identifier or '('" \
-    "enum fixed.c:97:31: warning: incompatible pointer types initializing 'enum SignedEnum: int *' from incompatible type 'unsigned int *' converts between pointers to integer types with different sign [-Wpointer-sign]" \
-    "enum fixed.c:99:38: warning: incompatible pointer types initializing 'enum CharEnum: signed char *' from incompatible type 'unsigned int *' [-Wincompatible-pointer-types]" \
-    "enum fixed.c:102:10: error: '_Atomic' qualifier ignored; operations involving the enumeration type will be non-atomic [-Wunderlying-atomic-qualifier-ignored]" \
-    "enum fixed.c:102:10: warning: qualifiers in enumeration underlying type ignored [-Wunderlying-cv-qualifier-ignored]" \
+/** manifest:
+syntax
 
+enum fixed.c:2:7: warning: enumeration types with a fixed underlying type are a Clang extension [-Wfixed-enum-extension]
+enum fixed.c:4:6: error: enumeration previously declared with fixed underlying type
+enum fixed.c:2:6: note: previous definition is here
+enum fixed.c:7:6: error: enumeration previously declared with nonfixed underlying type
+enum fixed.c:6:6: note: previous definition is here
+enum fixed.c:10:6: error: enumeration redeclared with different underlying type 'int' (was 'char')
+enum fixed.c:9:6: note: previous definition is here
+enum fixed.c:14:5: error: enumerator value is not representable in the underlying type 'unsigned char'
+enum fixed.c:18:5: error: enumerator value is not representable in the underlying type 'char'
+enum fixed.c:66:23: warning: incompatible pointer types initializing 'enum Signed: int *' from incompatible type 'unsigned int *' converts between pointers to integer types with different sign [-Wpointer-sign]
+enum fixed.c:67:25: warning: incompatible pointer types initializing 'enum Unsigned: unsigned int *' from incompatible type 'int *' [-Wincompatible-pointer-types]
+enum fixed.c:70:27: warning: incompatible pointer types initializing 'enum Incomplete *' from incompatible type 'int *' [-Wincompatible-pointer-types]
+enum fixed.c:71:27: warning: incompatible pointer types initializing 'enum Incomplete *' from incompatible type 'unsigned int *' [-Wincompatible-pointer-types]
+enum fixed.c:82:12: error: non-integral type 'BackingStruct' (aka 'struct BackingStruct') is an invalid underlying type
+enum fixed.c:86:12: error: non-integral type 'BackingEnum' (aka 'enum BackingEnum: int') is an invalid underlying type
+enum fixed.c:90:23: error: expected identifier or '('
+enum fixed.c:97:31: warning: incompatible pointer types initializing 'enum SignedEnum: int *' from incompatible type 'unsigned int *' converts between pointers to integer types with different sign [-Wpointer-sign]
+enum fixed.c:99:38: warning: incompatible pointer types initializing 'enum CharEnum: signed char *' from incompatible type 'unsigned int *' [-Wincompatible-pointer-types]
+enum fixed.c:102:10: error: '_Atomic' qualifier ignored; operations involving the enumeration type will be non-atomic [-Wunderlying-atomic-qualifier-ignored]
+enum fixed.c:102:10: warning: qualifiers in enumeration underlying type ignored [-Wunderlying-cv-qualifier-ignored]
+*/

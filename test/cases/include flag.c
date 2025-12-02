@@ -1,3 +1,6 @@
-//aro-args -include test/cases/include/iquote/iquote_test.h
-
 _Static_assert(FOO == 42, "");
+
+/** manifest:
+syntax
+args = -include include/iquote/iquote_test.h
+*/

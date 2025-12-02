@@ -1,5 +1,3 @@
-//aro-args --emulate=msvc
-
 struct A {
     char c;
     int x;
@@ -30,4 +28,8 @@ _Static_assert(sizeof(struct B) == sizeof(struct C), "");
 _Static_assert(sizeof(struct B) == sizeof(char) + sizeof(int), "");
 // _Static_assert(sizeof(struct A) == sizeof(struct D), "");
 
-#define TESTS_SKIPPED 1
+/** manifest:
+syntax
+skipped = 1
+args = --emulate=msvc
+*/

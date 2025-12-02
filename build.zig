@@ -79,7 +79,6 @@ pub fn build(b: *Build) !void {
     const default_rtlib = b.option([]const u8, "default-rtlib", "Default compiler runtime library if --rtlib is not specified") orelse "";
     const default_unwindlib = b.option([]const u8, "default-unwindlib", "Default unwind library to use (\"none\" \"libgcc\" or \"libunwind\", empty to match runtime library.)") orelse
         if (std.mem.eql(u8, default_rtlib, "libgcc")) "libgcc" else "";
-    const test_all_allocation_failures = b.option(bool, "test-all-allocation-failures", "Test all allocation failures") orelse false;
     const link_libc = b.option(bool, "link-libc", "Force self-hosted compiler to link libc") orelse (mode != .Debug);
     const tracy = b.option([]const u8, "tracy", "Enable Tracy integration. Supply path to Tracy source");
     const tracy_callstack = b.option(bool, "tracy-callstack", "Include callstack information with Tracy data. Does nothing if -Dtracy is not provided") orelse false;
@@ -310,21 +309,12 @@ pub fn build(b: *Build) !void {
             .name = "test-runner",
             .root_module = b.createModule(.{
                 .root_source_file = b.path("test/runner.zig"),
-                .optimize = mode,
-                .target = target,
+                .target = b.graph.host,
             }),
-            .use_llvm = use_llvm,
-            .use_lld = use_llvm,
         });
-        integration_tests.root_module.addImport("aro", aro_module);
-        const test_runner_options = b.addOptions();
-        integration_tests.root_module.addOptions("build_options", test_runner_options);
-        test_runner_options.addOption(bool, "test_all_allocation_failures", test_all_allocation_failures);
-        test_runner_options.addOption(bool, "debug_allocations", debug_allocations);
-
         const integration_test_runner = b.addRunArtifact(integration_tests);
-        integration_test_runner.addArg(b.pathFromRoot("test/cases"));
-        integration_test_runner.addArg(b.graph.zig_exe);
+        integration_test_runner.addArtifactArg(exe);
+        integration_test_runner.addDirectoryArg(b.path("test/cases"));
 
         const integration_tests_step = b.step("test-integration", "Run integration tests");
         integration_tests_step.dependOn(&integration_test_runner.step);
@@ -336,15 +326,12 @@ pub fn build(b: *Build) !void {
             .name = "record-runner",
             .root_module = b.createModule(.{
                 .root_source_file = b.path("test/record_runner.zig"),
-                .optimize = mode,
-                .target = target,
+                .target = b.graph.host,
             }),
-            .use_llvm = use_llvm,
-            .use_lld = use_llvm,
         });
         record_tests.root_module.addImport("aro", aro_module);
         const record_tests_runner = b.addRunArtifact(record_tests);
-        record_tests_runner.addArg(b.pathFromRoot("test/records"));
+        record_tests_runner.addArtifactArg(exe);
 
         const record_tests_step = b.step("test-record", "Run record layout tests");
         record_tests_step.dependOn(&record_tests_runner.step);

@@ -1,5 +1,3 @@
-//aro-args -std=c17
-
 void foo(void) {
     char8_t c = 0;
 }
@@ -14,4 +12,9 @@ const signed char scbuf2[] = { u8"text" };
 const unsigned char ucbuf1[] = u8"text";
 const unsigned char ucbuf2[] = { u8"text" };
 
-#define EXPECTED_ERRORS "c17 char8_t.c:4:5: error: use of undeclared identifier 'char8_t'" \
+/** manifest:
+syntax
+args = -std=c17
+
+c17 char8_t.c:2:5: error: use of undeclared identifier 'char8_t'
+*/

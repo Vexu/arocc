@@ -88,31 +88,35 @@ _Static_assert(2.0||(3.0 > 2.0), "");
 _Static_assert(2.0||(2.0 && 2.0), "");
 
 _Static_assert((-10 & -1) == -10, "");
-#define EXPECTED_ERRORS "binary expressions.c:3:7: error: invalid operands to binary expression ('_Atomic(long)' and 'float')" \
-    "binary expressions.c:6:13: error: invalid operands to binary expression ('char' and 'int *')" \
-    "binary expressions.c:8:9: error: invalid operands to binary expression ('void (*)(void)' and 'void')" \
-    "binary expressions.c:10:15: warning: comparison of distinct pointer types ('float *' and 'int *') [-Wcompare-distinct-pointer-types]" \
-    "binary expressions.c:11:7: warning: comparison between pointer and integer ('int' and 'int *') [-Wpointer-integer-compare]" \
-    "binary expressions.c:12:9: error: invalid operands to binary expression ('double' and 'int *')" \
-    "binary expressions.c:13:24: error: invalid operands to binary expression ('_Complex double' and 'int')" \
-    "binary expressions.c:15:13: error: invalid operands to binary expression ('int *' and 'int *')" \
-    "binary expressions.c:18:7: error: invalid operands to binary expression ('int' and 'int *')" \
-    "binary expressions.c:19:13: error: incompatible pointer types ('int *' and 'float *')" \
-    "binary expressions.c:21:17: warning: implicit integer to pointer conversion from 'int' to 'int *' [-Wint-conversion]" \
-    "binary expressions.c:22:11: warning: implicit integer to pointer conversion from 'int' to 'int *' [-Wint-conversion]" \
-    "binary expressions.c:24:24: warning: pointer type mismatch ('int *' and 'float *') [-Wpointer-type-mismatch]" \
-    "binary expressions.c:32:18: error: invalid operands to binary expression ('struct Foo' and 'int')" \
-    "binary expressions.c:33:5: error: expected statement" \
-    "binary expressions.c:38:5: error: expected expression" \
-    "binary expressions.c:39:13: error: expected expression" \
-    "binary expressions.c:48:11: warning: implicit conversion from 'long long' to 'int' changes non-zero value from 1099511627776 to 0 [-Wconstant-conversion]" \
-    "binary expressions.c:49:12: error: invalid operands to binary expression ('int' and 'char *')" \
-    "binary expressions.c:55:9: error: invalid operands to binary expression ('double' and 'struct S')" \
-    "binary expressions.c:56:9: error: invalid operands to binary expression ('double' and 'struct S')" \
-    "binary expressions.c:57:12: error: cannot take the address of an rvalue" \
-    "binary expressions.c:57:9: error: invalid operands to binary expression ('double' and 'int *')" \
-    "binary expressions.c:62:7: error: invalid operands to binary expression ('int' and 'float')" \
-    "binary expressions.c:67:5: error: used type 'void' where arithmetic or pointer type is required" \
-    "binary expressions.c:72:16: error: arithmetic on a pointer to an incomplete type 'struct Foo'" \
-    "binary expressions.c:77:18: error: invalid operands to binary expression ('char *' and 'char *')" \
 
+/** manifest:
+syntax
+
+binary expressions.c:3:7: error: invalid operands to binary expression ('_Atomic(long)' and 'float')
+binary expressions.c:6:13: error: invalid operands to binary expression ('char' and 'int *')
+binary expressions.c:8:9: error: invalid operands to binary expression ('void (*)(void)' and 'void')
+binary expressions.c:10:15: warning: comparison of distinct pointer types ('float *' and 'int *') [-Wcompare-distinct-pointer-types]
+binary expressions.c:11:7: warning: comparison between pointer and integer ('int' and 'int *') [-Wpointer-integer-compare]
+binary expressions.c:12:9: error: invalid operands to binary expression ('double' and 'int *')
+binary expressions.c:13:24: error: invalid operands to binary expression ('_Complex double' and 'int')
+binary expressions.c:15:13: error: invalid operands to binary expression ('int *' and 'int *')
+binary expressions.c:18:7: error: invalid operands to binary expression ('int' and 'int *')
+binary expressions.c:19:13: error: incompatible pointer types ('int *' and 'float *')
+binary expressions.c:21:17: warning: implicit integer to pointer conversion from 'int' to 'int *' [-Wint-conversion]
+binary expressions.c:22:11: warning: implicit integer to pointer conversion from 'int' to 'int *' [-Wint-conversion]
+binary expressions.c:24:24: warning: pointer type mismatch ('int *' and 'float *') [-Wpointer-type-mismatch]
+binary expressions.c:32:18: error: invalid operands to binary expression ('struct Foo' and 'int')
+binary expressions.c:33:5: error: expected statement
+binary expressions.c:38:5: error: expected expression
+binary expressions.c:39:13: error: expected expression
+binary expressions.c:48:11: warning: implicit conversion from 'long long' to 'int' changes non-zero value from 1099511627776 to 0 [-Wconstant-conversion]
+binary expressions.c:49:12: error: invalid operands to binary expression ('int' and 'char *')
+binary expressions.c:55:9: error: invalid operands to binary expression ('double' and 'struct S')
+binary expressions.c:56:9: error: invalid operands to binary expression ('double' and 'struct S')
+binary expressions.c:57:12: error: cannot take the address of an rvalue
+binary expressions.c:57:9: error: invalid operands to binary expression ('double' and 'int *')
+binary expressions.c:62:7: error: invalid operands to binary expression ('int' and 'float')
+binary expressions.c:67:5: error: used type 'void' where arithmetic or pointer type is required
+binary expressions.c:72:16: error: arithmetic on a pointer to an incomplete type 'struct Foo'
+binary expressions.c:77:18: error: invalid operands to binary expression ('char *' and 'char *')
+*/

@@ -1,3 +1,5 @@
-//aro-args -E -P
-
 %:%: %: <%<%> > <::>
+
+/** manifest:
+expand
+*/

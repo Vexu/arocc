@@ -4,4 +4,8 @@ void foo(void) {
     #pragma GCC diagnostic ignored "-Wint-conversion"
 }
 
-#define EXPECTED_ERRORS "pragma during parsing.c:3:14: error: implicit integer to pointer conversion from 'int' to 'int *' [-Werror,-Wint-conversion]"
+/** manifest:
+syntax
+
+pragma during parsing.c:3:14: error: implicit integer to pointer conversion from 'int' to 'int *' [-Werror,-Wint-conversion]
+*/

@@ -4,3 +4,7 @@ struct {
 } c [] = {};
 
 _Static_assert(sizeof(c) == 0, "");
+
+/** manifest:
+syntax
+*/

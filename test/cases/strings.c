@@ -23,12 +23,16 @@ char * const string_array[] = {
     "string",
 };
 
-#define EXPECTED_ERRORS "strings.c:2:29: error: escape sequence out of range" \
-    "strings.c:4:19: error: invalid universal character" \
-    "strings.c:5:19: error: character 'b' cannot be specified by a universal character name" \
-    "strings.c:7:9: warning: multi-character character constant [-Wmultichar]" \
-    "strings.c:7:9: warning: character constant too long for its type" \
-    "strings.c:9:19: error: invalid universal character" \
-    "strings.c:10:19: error: invalid universal character" \
-    "strings.c:11:19: error: invalid universal character" \
-    "strings.c:15:23: warning: use of non-standard escape character '\\e' [-Wpedantic]" \
+/** manifest:
+syntax
+
+strings.c:2:29: error: escape sequence out of range
+strings.c:4:19: error: invalid universal character
+strings.c:5:19: error: character 'b' cannot be specified by a universal character name
+strings.c:7:9: warning: multi-character character constant [-Wmultichar]
+strings.c:7:9: warning: character constant too long for its type
+strings.c:9:19: error: invalid universal character
+strings.c:10:19: error: invalid universal character
+strings.c:11:19: error: invalid universal character
+strings.c:15:23: warning: use of non-standard escape character '\e' [-Wpedantic]
+*/

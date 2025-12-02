@@ -13,3 +13,7 @@ _Static_assert(_Alignof(RAISED_ALIGNMENT) == 16, "");
 
 __auto_type ARRAY = (__attribute__((aligned(16))) int[]) {1, 2, 3};
 _Static_assert(_Alignof(__typeof__(ARRAY)) == _Alignof(int *), "");
+
+/** manifest:
+syntax
+*/

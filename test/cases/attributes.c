@@ -115,16 +115,18 @@ int (__attribute__((aligned)) a);
 
 __attribute__(()) // test attribute at eof
 
-#define TESTS_SKIPPED 1
+/** manifest:
+syntax
+skipped = 1
 
-#define EXPECTED_ERRORS \
-	"attributes.c:8:26: warning: attribute 'noreturn' ignored on variables [-Wignored-attributes]" \
-    "attributes.c:9:26: warning: unknown attribute 'does_not_exist' ignored [-Wunknown-attributes]" \
-    "attributes.c:27:20: warning: attribute 'deprecated' ignored on labels [-Wignored-attributes]" \
-    "attributes.c:31:29: warning: ignoring attribute 'cold' because it conflicts with attribute 'hot' [-Wignored-attributes]" \
-    "attributes.c:36:5: error: fallthrough annotation does not directly precede switch label" \
-    "attributes.c:40:20: error: 'noreturn' attribute cannot be applied to a statement" \
-    "attributes.c:76:6: error: cannot call non function type 'int'" \
-    "attributes.c:110:24: error: attribute argument is invalid, expected a string but got an integer constant" \
-    "attributes.c:112:16: warning: unknown attribute 'void' ignored [-Wunknown-attributes]" \
-    "attributes.c:116:18: error: expected identifier or '('" \
+attributes.c:8:26: warning: attribute 'noreturn' ignored on variables [-Wignored-attributes]
+attributes.c:9:26: warning: unknown attribute 'does_not_exist' ignored [-Wunknown-attributes]
+attributes.c:27:20: warning: attribute 'deprecated' ignored on labels [-Wignored-attributes]
+attributes.c:31:29: warning: ignoring attribute 'cold' because it conflicts with attribute 'hot' [-Wignored-attributes]
+attributes.c:36:5: error: fallthrough annotation does not directly precede switch label
+attributes.c:40:20: error: 'noreturn' attribute cannot be applied to a statement
+attributes.c:76:6: error: cannot call non function type 'int'
+attributes.c:110:24: error: attribute argument is invalid, expected a string but got an integer constant
+attributes.c:112:16: warning: unknown attribute 'void' ignored [-Wunknown-attributes]
+attributes.c:116:18: error: expected identifier or '('
+*/

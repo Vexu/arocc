@@ -7,4 +7,8 @@ void foo(void) {
     float f = __builtin_choose_expr(0!=0, (char *)10, 1.0f);
 }
 
-#define EXPECTED_ERRORS "builtin choose expr.c:5:27: error: '__builtin_choose_expr' requires a constant expression"
+/** manifest:
+syntax
+
+builtin choose expr.c:5:27: error: '__builtin_choose_expr' requires a constant expression
+*/

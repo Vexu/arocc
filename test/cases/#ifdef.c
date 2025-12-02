@@ -1,5 +1,3 @@
-//aro-args -E -P
-
 #define FOO
 #ifdef FOO
 long
@@ -13,3 +11,7 @@ long
 #else
 int
 #endif
+
+/** manifest:
+expand
+*/

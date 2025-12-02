@@ -1,4 +1,3 @@
-//aro-args --target=x86_64-linux -Wno-unused
 void foo(void) {
     __bf16 bf = 1.0bf16;
     __fp16 fp = 1.0;
@@ -22,7 +21,10 @@ void foo(void) {
     d64x + d128;
 }
 
-#define EXPECTED_ERRORS \
-    "float types.c:14:5: error: _Float128x is not supported on this target" \
-    "float types.c:21:9: error: cannot mix operands of decimal floating and other floating types" \
+/** manifest:
+syntax
+args = --target=x86_64-linux -Wno-unused
 
+float types.c:13:5: error: _Float128x is not supported on this target
+float types.c:20:9: error: cannot mix operands of decimal floating and other floating types
+*/

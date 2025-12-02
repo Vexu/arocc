@@ -1,5 +1,3 @@
-//aro-args -E -P
-
 #define x a
 x
 #define a 1
@@ -11,3 +9,7 @@ y
 
 #define empty
 empty
+
+/** manifest:
+expand
+*/

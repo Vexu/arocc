@@ -1,5 +1,3 @@
-//aro-args -fms-extensions -Wno-microsoft-include
-
 #include "include\other.h"
 
 #ifndef OTHER_INCLUDED
@@ -14,3 +12,8 @@
 #endif
 
 don't mind me ;)
+
+/** manifest:
+syntax
+args = -fms-extensions -Wno-microsoft-include
+*/

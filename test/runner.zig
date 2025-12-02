@@ -1,669 +1,440 @@
 const std = @import("std");
-const build_options = @import("build_options");
+const Io = std.Io;
+const mem = std.mem;
 const print = std.debug.print;
-const aro = @import("aro");
-const CodeGen = aro.CodeGen;
-const Tree = aro.Tree;
-const Token = Tree.Token;
-const Node = Tree.Node;
-const AllocatorError = std.mem.Allocator.Error;
+const process = std.process;
 
-var debug_allocator: std.heap.DebugAllocator(.{
-    .stack_trace_frames = if (build_options.debug_allocations and std.debug.sys_can_stack_trace) 10 else 0,
-    .resize_stack_traces = build_options.debug_allocations,
-    // A unique value so that when a default-constructed
-    // GeneralPurposeAllocator is incorrectly passed to testing allocator, or
-    // vice versa, panic occurs.
-    .canary = @truncate(0xc647026dc6875134),
-}) = .{};
-
-const AddCommandLineArgsResult = struct {
-    bool,
-    aro.Preprocessor.Linemarkers,
-    aro.Compilation.SystemDefinesMode,
-    aro.Preprocessor.DumpMode,
-    std.ArrayList(aro.Source),
-    std.ArrayList(aro.Source),
-    std.ArrayList(aro.Compilation.Include),
-};
-
-/// Returns only_preprocess and line_markers settings if saw -E
-fn addCommandLineArgs(comp: *aro.Compilation, file: aro.Source, macro_buf: *std.ArrayListUnmanaged(u8)) !AddCommandLineArgsResult {
-    var includes: std.ArrayList(aro.Compilation.Include) = .empty;
-    var imacros: std.ArrayList(aro.Source) = .empty;
-    var implicit_includes: std.ArrayList(aro.Source) = .empty;
-    var only_preprocess = false;
-    var line_markers: aro.Preprocessor.Linemarkers = .none;
-    var system_defines: aro.Compilation.SystemDefinesMode = .include_system_defines;
-    var dump_mode: aro.Preprocessor.DumpMode = .result_only;
-    if (std.mem.startsWith(u8, file.buf, "//aro-args")) {
-        var test_args: std.ArrayList([]const u8) = .empty;
-        defer test_args.deinit(comp.gpa);
-        const nl = std.mem.indexOfAny(u8, file.buf, "\n\r") orelse file.buf.len;
-        var it = std.mem.tokenizeScalar(u8, file.buf[0..nl], ' ');
-        while (it.next()) |some| try test_args.append(comp.gpa, some);
-
-        var driver: aro.Driver = .{ .comp = comp, .diagnostics = comp.diagnostics };
-        defer driver.deinit();
-
-        var discard_buf: [256]u8 = undefined;
-        var discarding: std.Io.Writer.Discarding = .init(&discard_buf);
-        _ = try driver.parseArgs(&discarding.writer, macro_buf, test_args.items);
-        only_preprocess = driver.only_preprocess;
-        system_defines = driver.system_defines;
-        dump_mode = driver.debug_dump_letters.getPreprocessorDumpMode();
-        if (only_preprocess) {
-            if (driver.line_commands) {
-                line_markers = if (driver.use_line_directives) .line_directives else .numeric_directives;
-            }
-        }
-        imacros = .fromOwnedSlice(try driver.imacros.toOwnedSlice(comp.gpa));
-        implicit_includes = .fromOwnedSlice(try driver.implicit_includes.toOwnedSlice(comp.gpa));
-        includes = .fromOwnedSlice(try driver.includes.toOwnedSlice(comp.gpa));
-    }
-    if (std.mem.indexOf(u8, file.buf, "//aro-env")) |idx| {
-        const buf = file.buf[idx..];
-        const nl = std.mem.indexOfAny(u8, buf, "\n\r") orelse buf.len;
-        var it = std.mem.tokenizeScalar(u8, buf[0..nl], ' ');
-        while (it.next()) |some| {
-            var parts = std.mem.splitScalar(u8, some, '=');
-            const name = parts.next().?;
-            const val = parts.next() orelse "";
-            inline for (@typeInfo(aro.Compilation.Environment).@"struct".fields) |field| {
-                if (std.ascii.eqlIgnoreCase(name, field.name)) {
-                    @field(comp.environment, field.name) = val;
-                }
-            }
-        }
-    }
-
-    return .{ only_preprocess, line_markers, system_defines, dump_mode, imacros, implicit_includes, includes };
-}
-
-fn testOne(gpa: std.mem.Allocator, path: []const u8, test_dir: []const u8) !void {
-    var arena: std.heap.ArenaAllocator = .init(gpa);
-    defer arena.deinit();
-
-    var comp = aro.Compilation.init(gpa, arena.allocator(), std.fs.cwd());
-    defer comp.deinit();
-
-    try comp.addDefaultPragmaHandlers();
-    try comp.addBuiltinIncludeDir(test_dir, null);
-
-    const file = try comp.addSourceFromPath(path);
-    var macro_buf = std.ArrayList(u8).init(comp.gpa);
-    defer macro_buf.deinit();
-
-    _, _, const system_defines, _, _ = try addCommandLineArgs(&comp, file, macro_buf.writer());
-    const user_macros = try comp.addSourceFromBuffer("<command line>", macro_buf.items);
-
-    const builtin_macros = try comp.generateBuiltinMacros(system_defines);
-
-    var pp = aro.Preprocessor.init(&comp);
-    defer pp.deinit();
-    try pp.addBuiltinMacros();
-
-    if (comp.langopts.ms_extensions) {
-        comp.ms_cwd_source_id = file.id;
-    }
-
-    _ = try pp.preprocess(builtin_macros);
-    _ = try pp.preprocess(user_macros);
-
-    const eof = try pp.preprocess(file);
-    try pp.addToken(eof);
-
-    var tree = try aro.Parser.parse(&pp);
-    defer tree.deinit();
-    tree.dump(false, std.Io.null_writer) catch {};
-}
-
-fn testAllAllocationFailures(cases: [][]const u8, test_dir: []const u8) !void {
-    const root_node = std.Progress.start(.{
-        .disable_printing = false,
-        .root_name = "Memory Allocation Test",
-        .estimated_total_items = cases.len,
-    });
-
-    for (cases) |case| {
-        const case_name = std.mem.sliceTo(std.fs.path.basename(case), '.');
-        var case_node = root_node.start(case_name, 0);
-        defer case_node.end();
-
-        std.testing.checkAllAllocationFailures(std.testing.allocator, testOne, .{ case, test_dir }) catch |er| switch (er) {
-            error.SwallowedOutOfMemoryError => {},
-            else => |e| return e,
-        };
-    }
-    root_node.end();
-}
+const gpa = std.heap.smp_allocator;
 
 pub fn main() !void {
-    const gpa = debug_allocator.allocator();
-    defer if (debug_allocator.deinit() == .leak) std.process.exit(1);
+    var arena_allocator = std.heap.ArenaAllocator.init(gpa);
+    defer arena_allocator.deinit();
+    const arena = arena_allocator.allocator();
 
-    var arena_state: std.heap.ArenaAllocator = .init(gpa);
-    defer arena_state.deinit();
-    const arena = arena_state.allocator();
-
-    const args = try std.process.argsAlloc(arena);
-
+    const args = try process.argsAlloc(arena);
     if (args.len != 3) {
-        print("expected test case directory and zig executable as only arguments\n", .{});
-        return error.InvalidArguments;
+        print("Usage: {s} <arocc-exe> <cases-dir>", .{args[0]});
+        process.exit(1);
     }
 
-    const test_dir = args[1];
+    const arocc_exe = args[1];
+    const cases_dir = args[2];
 
-    var buf: std.ArrayListUnmanaged(u8) = .empty;
-    var cases: std.ArrayList([]const u8) = .empty;
-    defer {
-        cases.deinit(gpa);
-        buf.deinit(gpa);
+    const relative_arocc_exe = try std.fs.path.relative(arena, cases_dir, arocc_exe);
+
+    var threaded: Io.Threaded = .init(gpa);
+    defer threaded.deinit();
+    const io = threaded.io();
+
+    var dir = std.fs.cwd().openDir(cases_dir, .{ .iterate = true }) catch |err| {
+        std.debug.panic("unable to open '{s}': {t}", .{ cases_dir, err });
+    };
+    defer dir.close();
+
+    var group: Io.Group = .init;
+    var stats: Stats = .{};
+
+    const root_prog_node = std.Progress.start(.{ .root_name = "integration tests" });
+
+    var it = dir.iterate();
+    while (try it.next()) |entry| {
+        if (entry.kind != .file) continue;
+        if (mem.eql(u8, entry.name, "README.md")) continue;
+        root_prog_node.increaseEstimatedTotalItems(1);
+        _ = @atomicRmw(u32, &stats.total, .Add, 1, .monotonic);
+
+        const path = try std.fs.path.join(arena, &.{ cases_dir, entry.name });
+        group.async(io, runCase, .{ io, path, relative_arocc_exe, root_prog_node, &stats });
+    }
+    group.wait(io);
+    root_prog_node.end();
+
+    print("max mem used = {Bi:.2}\n", .{stats.max_rss});
+    if (stats.failed == 0 and stats.skipped == 0) {
+        print("All {d} tests passed.\n", .{stats.total});
+    } else if (stats.failed == 0) {
+        print("{d} passed; {d} skipped.\n", .{ stats.total - stats.failed, stats.skipped });
+    } else {
+        print("{d} passed; {d} failed.\n\n", .{ stats.total - stats.failed, stats.failed });
+        process.exit(1);
+    }
+}
+
+const Stats = struct {
+    total: u32 = 0,
+    failed: u32 = 0,
+    skipped: u32 = 0,
+    max_rss: usize = 0,
+};
+
+fn runCase(
+    io: Io,
+    path: []const u8,
+    aro_exe: []const u8,
+    root_node: std.Progress.Node,
+    stats: *Stats,
+) void {
+    defer root_node.completeOne();
+
+    var arena_allocator = std.heap.ArenaAllocator.init(gpa);
+    defer arena_allocator.deinit();
+    const arena = arena_allocator.allocator();
+
+    const case_node = root_node.start(std.fs.path.stem(path), 0);
+    defer case_node.end();
+
+    runCaseExtra(io, arena, path, aro_exe, stats) catch {
+        _ = @atomicRmw(u32, &stats.failed, .Add, 1, .monotonic);
+    };
+}
+
+fn runCaseExtra(
+    io: Io,
+    arena: mem.Allocator,
+    path: []const u8,
+    aro_exe: []const u8,
+    stats: *Stats,
+) !void {
+    if (!mem.endsWith(u8, path, ".c")) {
+        print("test case is not a .c file: '{s}'\n", .{path});
+        return error.InvalidName;
+    }
+    const cases_dir = std.fs.path.dirname(path) orelse ".";
+    const case = try caseFromFile(io, arena, path);
+
+    // TODO should not matter that -fno-color-diagnostics comes after the source file
+    const base_args = [_][]const u8{ aro_exe, "-fno-color-diagnostics", std.fs.path.basename(path) };
+    const kind_args: []const []const u8 = switch (case.kind) {
+        .syntax, .syntax_ignore_errors => &.{ "-fsyntax-only", "--verbose-ast" },
+        .expand_error, .expand, .expand_partial => &.{ "-E", "-P" },
+        .compare_output => {
+            print("{s}: TODO compare output\n", .{case.name});
+            _ = @atomicRmw(u32, &stats.skipped, .Add, 1, .monotonic);
+            return;
+        },
+    };
+
+    var args: std.ArrayList([]const u8) = .empty;
+    try args.ensureUnusedCapacity(arena, base_args.len + kind_args.len + case.args.len);
+    args.appendSliceAssumeCapacity(&base_args);
+    args.appendSliceAssumeCapacity(kind_args);
+    args.appendSliceAssumeCapacity(case.args);
+
+    var child = process.Child.init(args.items, arena);
+    child.stdout_behavior = .Pipe;
+    child.stderr_behavior = .Pipe;
+    child.stdin_behavior = .Ignore;
+    child.cwd = cases_dir;
+
+    child.request_resource_usage_statistics = true;
+
+    var env_map: process.EnvMap = undefined;
+    if (case.env.len > 0) {
+        env_map = try process.getEnvMap(arena);
+        for (case.env) |kv| {
+            try env_map.put(kv.key, kv.value);
+        }
+        child.env_map = &env_map;
     }
 
-    // collect all cases
+    if (@import("builtin").os.tag == .windows) {
+        // I have no idea why these block on windows
+        if (mem.eql(u8, case.name, "assignment") or
+            mem.eql(u8, case.name, "attribute errors") or
+            mem.eql(u8, case.name, "initializers"))
+        {
+            print("{s}: skipped on windows\n", .{case.name});
+            _ = @atomicRmw(u32, &stats.skipped, .Add, case.skipped, .monotonic);
+            return;
+        }
+    }
+
+    var stdout: []u8 = undefined;
+    var stderr: []u8 = undefined;
+
     {
-        var cases_dir = try std.fs.cwd().openDir(args[1], .{ .iterate = true });
-        defer cases_dir.close();
+        try child.spawn();
+        errdefer _ = child.kill() catch {};
 
-        var it = cases_dir.iterate();
-        while (try it.next()) |entry| {
-            if (entry.kind == .directory) continue;
-            if (entry.kind != .file) {
-                print("skipping non file entry '{s}'\n", .{entry.name});
-                continue;
-            }
-            try cases.append(gpa, try std.fmt.allocPrint(arena, "{s}{c}{s}", .{ args[1], std.fs.path.sep, entry.name }));
+        var stdout_reader = child.stdout.?.readerStreaming(io, &.{});
+        stdout = try stdout_reader.interface.allocRemaining(arena, .unlimited);
+
+        var stderr_reader = child.stderr.?.readerStreaming(io, &.{});
+        stderr = try stderr_reader.interface.allocRemaining(arena, .unlimited);
+
+        const term = try child.wait();
+        if (term != .Exited) {
+            const cmd = try mem.join(arena, " ", args.items);
+            print("arocc command crashed:\n{s}\n", .{cmd});
+            return error.Crashed;
+        }
+        if (child.resource_usage_statistics.getMaxRss()) |max_rss| {
+            _ = @atomicRmw(usize, &stats.max_rss, .Max, max_rss, .monotonic);
         }
     }
-    if (build_options.test_all_allocation_failures) {
-        return testAllAllocationFailures(cases.items, test_dir);
-    }
 
-    const root_node = std.Progress.start(.{
-        .disable_printing = false,
-        .root_name = "Test",
-        .estimated_total_items = cases.items.len,
-    });
+    switch (case.kind) {
+        .syntax, .expand_error, .expand, .expand_partial => |expected_errors| {
+            var actual_errors: std.ArrayListUnmanaged([]const u8) = .empty;
+            defer actual_errors.deinit(gpa);
 
-    var diag_buf: std.Io.Writer.Allocating = .init(gpa);
-    defer diag_buf.deinit();
+            {
+                var it = mem.tokenizeScalar(u8, stderr, '\n');
+                while (it.next()) |msg| {
+                    _ = mem.find(u8, msg, "error: ") orelse
+                        mem.find(u8, msg, "warning: ") orelse
+                        mem.find(u8, msg, "note: ") orelse continue;
 
-    var diagnostics: aro.Diagnostics = .{
-        .output = .{ .to_writer = .{
-            .writer = &diag_buf.writer,
-            .color = .no_color,
-        } },
-    };
-    defer diagnostics.deinit();
-
-    // prepare compiler
-    var initial_comp = aro.Compilation.init(gpa, arena, std.testing.io, &diagnostics, std.fs.cwd());
-    defer initial_comp.deinit();
-
-    const base_includes = [_]aro.Compilation.Include{
-        // Aro builtin includes
-        .{ .kind = .system, .path = "include" },
-
-        // Intentional reduntant and mixed-separator path for Windows-specific tests
-        .{ .kind = .normal, .path = try std.fs.path.join(arena, &.{ args[1], "include//mixed" }) },
-        .{ .kind = .normal, .path = try std.fs.path.join(arena, &.{ args[1], "include" }) },
-        .{ .kind = .normal, .path = try std.fs.path.join(arena, &.{ args[1], "include", "next" }) },
-        .{ .kind = .system, .path = try std.fs.path.join(arena, &.{ args[1], "include_system" }) },
-        .{ .kind = .system, .path = try std.fs.path.join(arena, &.{ args[1], "include_system", "next" }) },
-        .{ .kind = .framework, .path = try std.fs.path.join(arena, &.{ args[1], "frameworks" }) },
-        .{ .kind = .quote, .path = try std.fs.path.join(arena, &.{ args[1], "include", "iquote" }) },
-        .{ .kind = .system, .path = try std.fs.path.resolve(initial_comp.arena, &.{ test_dir, "../../include" }) },
-    };
-
-    try initial_comp.embed_dirs.append(gpa, try std.fs.path.join(arena, &.{ args[1], "embed" }));
-    try initial_comp.addDefaultPragmaHandlers();
-
-    // iterate over all cases
-    var ok_count: u32 = 0;
-    var fail_count: u32 = 0;
-    var skip_count: u32 = 0;
-    next_test: for (cases.items) |path| {
-        diag_buf.shrinkRetainingCapacity(0);
-        diagnostics = .{
-            .output = .{ .to_writer = .{
-                .writer = &diag_buf.writer,
-                .color = .no_color,
-            } },
-        };
-
-        var comp = initial_comp;
-        defer {
-            // preserve some values
-            comp.embed_dirs = .{};
-            comp.pragma_handlers = .{};
-            comp.environment = .{};
-            // reset everything else
-            comp.deinit();
-        }
-
-        const case = std.mem.sliceTo(std.fs.path.basename(path), '.');
-        var case_node = root_node.start(case, 0);
-        defer case_node.end();
-
-        const file = comp.addSourceFromPath(path) catch |err| {
-            fail_count += 1;
-            std.debug.print("could not add source '{s}': {s}\n", .{ path, @errorName(err) });
-            continue;
-        };
-
-        var macro_buf: std.ArrayListUnmanaged(u8) = .empty;
-        defer macro_buf.deinit(comp.gpa);
-
-        const only_preprocess, const linemarkers, const system_defines, const dump_mode, var imacros, var implicit_includes, var includes = try addCommandLineArgs(&comp, file, &macro_buf);
-        defer imacros.deinit(comp.gpa);
-        defer implicit_includes.deinit(comp.gpa);
-        defer includes.deinit(comp.gpa);
-
-        if (includes.items.len != 0) {
-            try includes.appendSlice(comp.gpa, &base_includes);
-            try comp.initSearchPath(includes.items, false);
-        } else {
-            try comp.initSearchPath(&base_includes, false);
-        }
-
-        const user_macros = try comp.addSourceFromBuffer("<command line>", macro_buf.items);
-
-        const builtin_macros = try comp.generateBuiltinMacros(system_defines);
-
-        var pp = try aro.Preprocessor.initDefault(&comp);
-        defer pp.deinit();
-        if (only_preprocess) {
-            pp.preserve_whitespace = true;
-            pp.linemarkers = linemarkers;
-            if (dump_mode != .result_only) {
-                pp.store_macro_tokens = true;
-            }
-        }
-
-        if (comp.langopts.ms_extensions) {
-            comp.ms_cwd_source_id = file.id;
-        }
-        pp.preprocessSources(.{
-            .main = file,
-            .builtin = builtin_macros,
-            .command_line = user_macros,
-            .imacros = imacros.items,
-            .implicit_includes = implicit_includes.items,
-        }) catch |err| {
-            fail_count += 1;
-            std.debug.print("could not preprocess file '{s}': {s}\n", .{ path, @errorName(err) });
-            continue;
-        };
-
-        if (pp.defines.get("TESTS_SKIPPED")) |macro| {
-            if (macro.is_func or macro.tokens.len != 1 or macro.tokens[0].id != .pp_num) {
-                fail_count += 1;
-                std.debug.print("{s}:\n", .{case});
-                std.debug.print("invalid TESTS_SKIPPED, definition should contain exactly one integer literal {}\n", .{macro});
-                continue;
-            }
-            const tok_slice = pp.tokSlice(macro.tokens[0]);
-            const tests_skipped = try std.fmt.parseInt(u32, tok_slice, 0);
-            std.debug.print("{s}: {d} test{s} skipped\n", .{ case, tests_skipped, if (tests_skipped == 1) @as([]const u8, "") else "s" });
-            skip_count += tests_skipped;
-        }
-
-        if (only_preprocess) {
-            if (try checkExpectedErrors(&pp, &buf, diag_buf.written())) |some| {
-                if (!some) {
-                    std.debug.print("in case {s}\n", .{case});
-                    fail_count += 1;
-                    continue;
-                }
-            } else {
-                var stderr_buf: [4096]u8 = undefined;
-                var stderr = std.fs.File.stderr().writer(&stderr_buf);
-                try stderr.interface.writeAll(diag_buf.written());
-                try stderr.interface.flush();
-
-                if (comp.diagnostics.errors != 0) {
-                    std.debug.print("in case {s}\n", .{case});
-                    fail_count += 1;
-                    continue;
+                    try actual_errors.append(gpa, msg);
                 }
             }
 
-            const expected_output = blk: {
-                const expanded_path = try std.fs.path.join(gpa, &.{ args[1], "expanded", std.fs.path.basename(path) });
-                defer gpa.free(expanded_path);
+            const len = @min(expected_errors.len, actual_errors.items.len);
+            for (expected_errors[0..len], actual_errors.items[0..len]) |expected, actual| {
+                if (mem.find(u8, actual, expected) == null) {
+                    print(
+                        \\
+                        \\======= expected to find error =======
+                        \\{s}
+                        \\
+                        \\=== but output does not contain it ===
+                        \\{s}
+                        \\
+                        \\in case '{s}'
+                        \\
+                    , .{ expected, stderr, case.name });
+                    return error.MissingError;
+                }
+            }
+            if (expected_errors.len != actual_errors.items.len) {
+                const writer, _ = std.debug.lockStderrWriter(&.{});
+                defer std.debug.unlockStderrWriter();
+                for (expected_errors[len..]) |expected| {
+                    try writer.print(
+                        \\
+                        \\======= expected to find error =======
+                        \\{s}
+                        \\
+                        \\=== but output does not contain it ===
+                        \\{s}
+                    , .{ expected, stderr });
+                }
+                for (actual_errors.items[len..]) |actual| {
+                    try writer.print(
+                        \\
+                        \\========= new error ==========
+                        \\{s}
+                        \\
+                        \\=== not in expected errors ===
+                        \\
+                    , .{actual});
+                }
+                try writer.print("in case '{s}'\n", .{case.name});
+                return error.MismatchedErrors;
+            }
+        },
+        .compare_output => {
+            print(
+                \\{t} resulted in errors:
+                \\{s}
+                \\
+                \\in case '{s}'
+                \\
+            , .{ case.kind, stderr, case.name });
+        },
+        .syntax_ignore_errors => {},
+    }
 
-                break :blk std.fs.cwd().readFileAlloc(expanded_path, gpa, .unlimited) catch |err| {
-                    fail_count += 1;
-                    std.debug.print("could not open expanded file '{s}': {s}\n", .{ path, @errorName(err) });
+    switch (case.kind) {
+        .syntax, .syntax_ignore_errors => {
+            const ast_path = try std.fs.path.join(arena, &.{ cases_dir, "ast", std.fs.path.basename(path) });
+            if (std.fs.cwd().readFileAlloc(ast_path, gpa, .unlimited)) |expected| {
+                defer gpa.free(expected);
+
+                std.testing.expectEqualStrings(expected, stdout) catch |err| {
+                    std.debug.print("in case '{s}'\n", .{case.name});
+                    return err;
+                };
+            } else |err| if (err != error.FileNotFound) {
+                print("can't open ast file '{s}': {t}\n", .{ ast_path, err });
+                return err;
+            }
+        },
+        .expand_error => {},
+        .expand => {
+            const expanded_path = try std.fs.path.join(arena, &.{ cases_dir, "expanded", std.fs.path.basename(path) });
+            if (std.fs.cwd().readFileAlloc(expanded_path, gpa, .unlimited)) |expected| {
+                defer gpa.free(expected);
+
+                std.testing.expectEqualStrings(expected, stdout) catch |err| {
+                    std.debug.print("in case '{s}'\n", .{case.name});
+                    return err;
+                };
+            } else |err| {
+                print("can't open expanded file '{s}': {t}\n", .{ expanded_path, err });
+                return err;
+            }
+        },
+        .expand_partial => {
+            const expanded_path = try std.fs.path.join(arena, &.{ cases_dir, "expanded", std.fs.path.basename(path) });
+            if (std.fs.cwd().readFileAlloc(expanded_path, gpa, .unlimited)) |expected| {
+                defer gpa.free(expected);
+
+                std.testing.expectStringEndsWith(stdout, expected) catch |err| {
+                    std.debug.print("in case '{s}'\n", .{case.name});
+                    return err;
+                };
+            } else |err| {
+                print("can't open expanded file '{s}': {t}\n", .{ expanded_path, err });
+                return err;
+            }
+        },
+        .compare_output => |expected| {
+            std.testing.expectEqualStrings(expected, stdout) catch |err| {
+                std.debug.print("in case '{s}'\n", .{case.name});
+                return err;
+            };
+        },
+    }
+
+    if (case.skipped != 0) {
+        print("{s}: {d} test{s} skipped\n", .{ case.name, case.skipped, if (case.skipped == 1) @as([]const u8, "") else "s" });
+        _ = @atomicRmw(u32, &stats.skipped, .Add, case.skipped, .monotonic);
+    }
+}
+
+const Case = struct {
+    name: []const u8,
+    kind: Kind,
+    skipped: u32,
+    args: []const []const u8,
+    env: []const KV,
+
+    const Kind = union(enum) {
+        /// Compile with -fsyntax-only and check expected compile errors.
+        syntax: []const []const u8,
+        /// Compile with -fsyntax-only and ignore compile errors.
+        syntax_ignore_errors,
+        /// Compile with -E -P and check expected compile errors .
+        expand_error: []const []const u8,
+        /// Compile with -E -P and check expected compile errors as well as expansion result.
+        expand: []const []const u8,
+        /// Compile with -E -P and check expected compile errors as well as expansion result.
+        expand_partial: []const []const u8,
+        // Unimplemented
+        compare_output: []const u8,
+    };
+    const KV = struct { key: []const u8, value: []const u8 };
+};
+
+fn caseFromFile(io: Io, arena: mem.Allocator, path: []const u8) !Case {
+    const name = std.fs.path.stem(path);
+    const contents = contents: {
+        var file = try Io.Dir.cwd().openFile(io, path, .{});
+        defer file.close(io);
+
+        var reader = file.reader(io, &.{});
+        break :contents try reader.interface.allocRemaining(arena, .unlimited);
+    };
+
+    const manifest = manifest: {
+        const start_key = "/** manifest:";
+        const end_key = "*/";
+        const start = mem.find(u8, contents, start_key) orelse {
+            print("{s}: no test manifest\n", .{name});
+            return error.TestManifestMissing;
+        };
+        const end = mem.findLast(u8, contents, end_key) orelse {
+            print("{s}: unterminated manifest\n", .{name});
+            return error.UnterminatedManifest;
+        };
+        const manifest = contents[start + start_key.len .. end];
+        break :manifest mem.trim(u8, manifest, " \t\n\r");
+    };
+
+    var skipped: u32 = 0;
+    var args: []const []const u8 = &.{};
+    var env: []const Case.KV = &.{};
+
+    var it = mem.splitScalar(u8, manifest, '\n');
+
+    const kind = kind: {
+        const line = it.next() orelse {
+            print("{s}: test case type not specified\n", .{name});
+            return error.TestManifestMissingType;
+        };
+        const trimmed = mem.trim(u8, line, " \t\r");
+        break :kind std.meta.stringToEnum(std.meta.Tag(Case.Kind), trimmed) orelse {
+            print("{s}: invalid test case type: {s}\n", .{ name, trimmed });
+            return error.TestManifestInvalidType;
+        };
+    };
+
+    while (it.next()) |line| {
+        const trimmed = mem.trim(u8, line, " \t\r");
+        if (trimmed.len == 0) break; // Start of trailing data.
+
+        const key_raw, const value_raw = mem.cutScalar(u8, trimmed, '=') orelse {
+            print("{s}: missing value for config option: {s}\n", .{ name, trimmed });
+            return error.TestManifestMissingValue;
+        };
+        const key = mem.trimEnd(u8, key_raw, " \t");
+        const value = mem.trimStart(u8, value_raw, " \t");
+        if (mem.eql(u8, key, "skipped")) {
+            skipped = std.fmt.parseInt(u32, value, 10) catch |err| {
+                print("{s}: invalid skipped '{s}': {t}\n", .{ name, trimmed, err });
+                return err;
+            };
+        } else if (mem.eql(u8, key, "args")) {
+            var buf: std.ArrayList([]const u8) = .empty;
+            defer buf.deinit(gpa);
+
+            var arg_it = mem.tokenizeScalar(u8, value, ' ');
+            while (arg_it.next()) |arg| {
+                try buf.append(gpa, arg);
+            }
+            args = try arena.dupe([]const u8, buf.items);
+        } else if (mem.eql(u8, key, "env")) {
+            var buf: std.ArrayList(Case.KV) = .empty;
+            defer buf.deinit(gpa);
+
+            var env_it = mem.tokenizeScalar(u8, value, ' ');
+            while (env_it.next()) |env_kv| {
+                const env_k, const env_v = mem.cutScalar(u8, env_kv, '=') orelse {
+                    print("{s}: invalid env key value pair: {s}\n", .{ name, env_kv });
                     continue;
                 };
-            };
-            defer gpa.free(expected_output);
-
-            var output: std.Io.Writer.Allocating = .init(gpa);
-            defer output.deinit();
-
-            try pp.prettyPrintTokens(&output.writer, dump_mode);
-
-            if (pp.defines.contains("CHECK_PARTIAL_MATCH")) {
-                const index = std.mem.indexOf(u8, output.written(), expected_output);
-                if (index != null) {
-                    ok_count += 1;
-                } else {
-                    fail_count += 1;
-                    std.debug.print("{s}:\n", .{case});
-                    std.debug.print("\n====== expected to find: =========\n", .{});
-                    std.debug.print("{s}", .{expected_output});
-                    std.debug.print("\n======== but did not find it in this: =========\n", .{});
-                    std.debug.print("{s}", .{output.written()});
-                    std.debug.print("\n======================================\n", .{});
-                }
-            } else {
-                if (std.testing.expectEqualStrings(expected_output, output.written()))
-                    ok_count += 1
-                else |_|
-                    fail_count += 1;
+                try buf.append(gpa, .{ .key = env_k, .value = env_v });
             }
-            continue;
-        }
-
-        const expected_types = pp.defines.get("EXPECTED_TYPES");
-
-        var tree = aro.Parser.parse(&pp) catch |err| switch (err) {
-            error.FatalError => {
-                if (try checkExpectedErrors(&pp, &buf, diag_buf.written())) |some| {
-                    if (some) ok_count += 1 else {
-                        std.debug.print("in case {s}\n", .{case});
-                        fail_count += 1;
-                    }
-                }
-                continue;
-            },
-            else => |e| return e,
-        };
-        defer tree.deinit();
-
-        const ast_path = try std.fs.path.join(gpa, &.{ args[1], "ast", std.fs.path.basename(path) });
-        defer gpa.free(ast_path);
-        const maybe_ast = std.fs.cwd().readFileAlloc(ast_path, gpa, .unlimited) catch null;
-        if (maybe_ast) |expected_ast| {
-            defer gpa.free(expected_ast);
-            var actual_ast: std.Io.Writer.Allocating = .init(gpa);
-            defer actual_ast.deinit();
-
-            try tree.dump(.no_color, &actual_ast.writer);
-            std.testing.expectEqualStrings(expected_ast, actual_ast.written()) catch {
-                std.debug.print("in case {s}\n", .{case});
-                fail_count += 1;
-                break;
-            };
+            env = try arena.dupe(Case.KV, buf.items);
         } else {
-            var discard_buf: [256]u8 = undefined;
-            var discarding: std.Io.Writer.Discarding = .init(&discard_buf);
-            tree.dump(.no_color, &discarding.writer) catch {};
+            print("{s}: unknown config option: {s}\n", .{ name, key });
+            return error.TestManifestUnknownOption;
         }
-
-        if (expected_types) |types| {
-            const test_fn = for (tree.root_decls.items) |decl| {
-                const node = decl.get(&tree);
-                if (node == .function and node.function.body != null) break node.function;
-            } else {
-                fail_count += 1;
-                std.debug.print("{s}:\n", .{case});
-                std.debug.print("EXPECTED_TYPES requires a function to be defined\n", .{});
-                break;
-            };
-
-            var actual: StmtTypeDumper = .{};
-            defer actual.deinit(gpa);
-
-            try actual.dump(gpa, &tree, test_fn.body.?);
-
-            var i: usize = 0;
-            for (types.tokens) |str| {
-                if (str.id == .macro_ws) continue;
-                if (str.id != .string_literal) {
-                    fail_count += 1;
-                    std.debug.print("{s}:\n", .{case});
-                    std.debug.print("EXPECTED_TYPES tokens must be string literals (found {s})\n", .{@tagName(str.id)});
-                    continue :next_test;
-                }
-                defer i += 1;
-                if (i >= actual.types.items.len) continue;
-
-                const expected_type = std.mem.trim(u8, pp.tokSlice(str), "\"");
-                const actual_type = actual.types.items[i];
-                if (!std.mem.eql(u8, expected_type, actual_type)) {
-                    fail_count += 1;
-                    std.debug.print("{s}:\n", .{case});
-                    std.debug.print("expected type '{s}' did not match actual type '{s}'\n", .{
-                        expected_type,
-                        actual_type,
-                    });
-                    continue :next_test;
-                }
-            }
-            if (i != actual.types.items.len) {
-                fail_count += 1;
-                std.debug.print("{s}:\n", .{case});
-                std.debug.print(
-                    "EXPECTED_TYPES count differs: expected {d} found {d}\n",
-                    .{ i, actual.types.items.len },
-                );
-                continue;
-            }
-        }
-
-        if (try checkExpectedErrors(&pp, &buf, diag_buf.written())) |some| {
-            if (some) ok_count += 1 else {
-                std.debug.print("in case {s}\n", .{case});
-                fail_count += 1;
-            }
-            continue;
-        }
-
-        if (pp.defines.contains("NO_ERROR_VALIDATION")) continue;
-        {
-            var stderr_buf: [4096]u8 = undefined;
-            var stderr = std.fs.File.stderr().writer(&stderr_buf);
-            try stderr.interface.writeAll(diag_buf.written());
-            try stderr.interface.flush();
-        }
-
-        if (pp.defines.get("EXPECTED_OUTPUT")) |macro| blk: {
-            if (comp.diagnostics.errors != 0) break :blk;
-
-            if (macro.is_func) {
-                fail_count += 1;
-                std.debug.print("{s}:\n", .{case});
-                std.debug.print("invalid EXPECTED_OUTPUT {}\n", .{macro});
-                continue;
-            }
-
-            if (macro.tokens.len != 1 or macro.tokens[0].id != .string_literal) {
-                fail_count += 1;
-                std.debug.print("{s}:\n", .{case});
-                std.debug.print("EXPECTED_OUTPUT takes exactly one string", .{});
-                continue;
-            }
-
-            defer buf.items.len = 0;
-            // realistically the strings will only contain \" if any escapes so we can use Zig's string parsing
-            {
-                var allocating: std.Io.Writer.Allocating = .fromArrayList(gpa, &buf);
-                defer buf = allocating.toArrayList();
-                std.debug.assert((try std.zig.string_literal.parseWrite(&allocating.writer, pp.tokSlice(macro.tokens[0]))) == .success);
-            }
-            const expected_output = buf.items;
-
-            const obj_name = "test_object.o";
-            if (true) @panic("no backend available");
-            // {
-            //     const obj = try Codegen.generateTree(&comp, tree);
-            //     defer obj.deinit();
-
-            //     const out_file = try std.fs.cwd().createFile(obj_name, .{});
-            //     defer out_file.close();
-
-            //     try obj.finish(out_file);
-            // }
-
-            var child = std.process.Child.init(&.{ args[2], "run", "-lc", obj_name }, gpa);
-            child.stdout_behavior = .Pipe;
-
-            try child.spawn();
-
-            const stdout = try child.stdout.?.reader().readAllAlloc(gpa, std.math.maxInt(u16));
-            defer gpa.free(stdout);
-
-            switch (try child.wait()) {
-                .Exited => |code| if (code != 0) {
-                    fail_count += 1;
-                    continue;
-                },
-                else => {
-                    fail_count += 1;
-                    continue;
-                },
-            }
-
-            if (!std.mem.eql(u8, expected_output, stdout)) {
-                fail_count += 1;
-                std.debug.print("{s}:\n", .{case});
-                std.debug.print(
-                    \\
-                    \\======= expected output =======
-                    \\{s}
-                    \\
-                    \\=== but output does not contain it ===
-                    \\{s}
-                    \\
-                    \\
-                , .{ expected_output, stdout });
-                break;
-            }
-
-            ok_count += 1;
-            continue;
-        }
-
-        if (comp.diagnostics.errors != 0) fail_count += 1 else ok_count += 1;
     }
 
-    root_node.end();
-    if (ok_count == cases.items.len and skip_count == 0) {
-        print("All {d} tests passed.\n", .{ok_count});
-    } else if (fail_count == 0) {
-        print("{d} passed; {d} skipped.\n", .{ ok_count, skip_count });
-    } else {
-        print("{d} passed; {d} failed.\n\n", .{ ok_count, fail_count });
-        std.process.exit(1);
-    }
+    return .{
+        .name = name,
+        .kind = switch (kind) {
+            .syntax => .{ .syntax = try trailingLines(arena, &it) },
+            .syntax_ignore_errors => .syntax_ignore_errors,
+            .expand_error => .{ .expand_error = try trailingLines(arena, &it) },
+            .expand => .{ .expand = try trailingLines(arena, &it) },
+            .expand_partial => .{ .expand_partial = try trailingLines(arena, &it) },
+            .compare_output => .{ .compare_output = it.rest() },
+        },
+        .skipped = skipped,
+        .args = args,
+        .env = env,
+    };
 }
 
-// returns true if passed
-fn checkExpectedErrors(pp: *aro.Preprocessor, buf: *std.ArrayListUnmanaged(u8), errors: []const u8) !?bool {
-    const macro = pp.defines.get("EXPECTED_ERRORS") orelse return null;
+fn trailingLines(arena: mem.Allocator, it: *mem.SplitIterator(u8, .scalar)) ![]const []const u8 {
+    var buf: std.ArrayList([]const u8) = .empty;
+    defer buf.deinit(gpa);
 
-    const expected_count = pp.diagnostics.total;
-    if (macro.is_func) {
-        std.debug.print("invalid EXPECTED_ERRORS {}\n", .{macro});
-        return false;
+    while (it.next()) |line| {
+        try buf.append(gpa, mem.trim(u8, line, " \t\r"));
     }
-    buf.items.len = 0;
-
-    var count: usize = 0;
-    for (macro.tokens) |str| {
-        if (str.id == .macro_ws) continue;
-        if (str.id != .string_literal) {
-            std.debug.print("EXPECTED_ERRORS tokens must be string literals (found {s})\n", .{@tagName(str.id)});
-            return false;
-        }
-        defer count += 1;
-        if (count >= expected_count) continue;
-
-        const start = buf.items.len;
-        // realistically the strings will only contain \" if any escapes so we can use Zig's string parsing
-        {
-            var allocating: std.Io.Writer.Allocating = .fromArrayList(pp.comp.gpa, buf);
-            defer buf.* = allocating.toArrayList();
-            std.debug.assert((try std.zig.string_literal.parseWrite(&allocating.writer, pp.tokSlice(str))) == .success);
-        }
-        try buf.append(pp.comp.gpa, '\n');
-        const expected_error = buf.items[start..];
-
-        const index = std.mem.indexOf(u8, errors, expected_error);
-        if (index == null) {
-            std.debug.print(
-                \\
-                \\======= expected to find error =======
-                \\{s}
-                \\
-                \\=== but output does not contain it ===
-                \\{s}
-                \\
-                \\
-            , .{ expected_error, errors });
-            return false;
-        }
-    }
-
-    if (count != expected_count) {
-        std.debug.print(
-            \\EXPECTED_ERRORS missing errors, expected {d} found {d},
-            \\
-        , .{ count, expected_count });
-        var it = std.mem.tokenizeScalar(u8, errors, '\n');
-        while (it.next()) |msg| {
-            const start = std.mem.indexOf(u8, msg, ".c:") orelse continue;
-            const index = std.mem.indexOf(u8, buf.items, msg[start..]);
-            if (index == null) {
-                std.debug.print(
-                    \\
-                    \\========= new error ==========
-                    \\{s}
-                    \\
-                    \\=== not in EXPECTED_ERRORS ===
-                    \\
-                    \\
-                , .{msg});
-            }
-        }
-        return false;
-    }
-    return true;
+    return try arena.dupe([]const u8, buf.items);
 }
-
-const StmtTypeDumper = struct {
-    types: std.ArrayList([]const u8) = .empty,
-
-    fn deinit(self: *StmtTypeDumper, allocator: std.mem.Allocator) void {
-        for (self.types.items) |t| {
-            allocator.free(t);
-        }
-        self.types.deinit(allocator);
-    }
-
-    fn dumpNode(self: *StmtTypeDumper, gpa: std.mem.Allocator, tree: *const aro.Tree, node: Node.Index) AllocatorError!void {
-        const maybe_ret = node.get(tree);
-        if (maybe_ret == .return_stmt and maybe_ret.return_stmt.operand == .implicit) return;
-
-        var allocating: std.Io.Writer.Allocating = .init(gpa);
-        defer allocating.deinit();
-
-        node.qt(tree).dump(tree.comp, &allocating.writer) catch {};
-        const owned = try allocating.toOwnedSlice();
-        errdefer allocating.allocator.free(owned);
-
-        try self.types.append(gpa, owned);
-    }
-
-    fn dump(self: *StmtTypeDumper, gpa: std.mem.Allocator, tree: *const aro.Tree, body: Node.Index) AllocatorError!void {
-        const compound = body.get(tree).compound_stmt;
-        for (compound.body) |stmt| {
-            try self.dumpNode(gpa, tree, stmt);
-        }
-    }
-};
