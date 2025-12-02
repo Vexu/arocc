@@ -220,6 +220,8 @@ pub const usage =
     \\  -fuse-line-directives   Use `#line <num>` linemarkers in preprocessed output
     \\  -fno-use-line-directives
     \\                          Use `# <num>` linemarkers in preprocessed output
+    \\  -fvisibility=[default||hidden|protected]
+    \\                          Set the default ELF image symbol visibility to the specified option—all symbols are marked with this unless overridden within the code
     \\  -iquote <dir>           Add directory to QUOTE include search path
     \\  -I <dir>                Add directory to include search path
     \\  -idirafter <dir>        Add directory to AFTER include search path
@@ -377,6 +379,9 @@ pub fn parseArgs(
                 d.use_line_directives = false;
             } else if (mem.eql(u8, arg, "-fapple-kext")) {
                 d.apple_kext = true;
+            } else if (option(arg, "-fvisibility=")) |visibility| {
+                d.comp.langopts.default_symbol_visibility = std.meta.stringToEnum(std.builtin.SymbolVisibility, visibility) orelse
+                    return d.fatal("unsupported value '{s}'' in '{s}'", .{ visibility, arg });
             } else if (option(arg, "-mcmodel=")) |cmodel| {
                 d.comp.cmodel = std.meta.stringToEnum(std.builtin.CodeModel, cmodel) orelse
                     return d.fatal("unsupported machine code model: '{s}'", .{arg});
