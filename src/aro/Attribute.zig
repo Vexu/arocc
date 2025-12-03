@@ -1368,3 +1368,15 @@ fn applySelected(qt: QualType, p: *Parser) !QualType {
         .attributes = p.attr_application_buf.items,
     } })).withQualifiers(qt);
 }
+
+pub fn visibilityFromString(s: []const u8) ?std.builtin.SymbolVisibility {
+    if (mem.eql(u8, s, "internal")) {
+        return .hidden;
+    }
+    const visibility = std.meta.stringToEnum(std.builtin.SymbolVisibility, s) orelse return null;
+    // compiler will notify us if .internal is added as a visibility type
+    switch (visibility) {
+        .default, .hidden, .protected => {},
+    }
+    return visibility;
+}
