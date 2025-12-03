@@ -638,6 +638,7 @@ const attributes = struct {
         visibility_type: enum {
             default,
             hidden,
+            internal,
             protected,
 
             const opts = struct {

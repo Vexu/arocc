@@ -9,5 +9,5 @@ int __attribute__((visibility("none"))) bad_visibility;
 /** manifest:
 syntax
 
-visibility.c:7:31: warning: unknown `visibility` argument. Possible values are: "default", "hidden", "protected" [-Wignored-attributes]
+visibility.c:7:31: warning: unknown `visibility` argument. Possible values are: "default", "hidden", "internal", "protected" [-Wignored-attributes]
 */
