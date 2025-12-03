@@ -1845,18 +1845,18 @@ fn attribute(p: *Parser, kind: Attribute.Kind, namespace: ?[]const u8) Error!?Te
                 if (try p.eatIdentifier()) |ident| {
                     if (try Attribute.diagnoseIdent(attr, &arguments, ident, p)) {
                         p.skipTo(.r_paren);
-                        return error.ParsingFailed;
+                        return null;
                     }
                 } else {
                     try p.err(name_tok, .attribute_requires_identifier, .{name});
-                    return error.ParsingFailed;
+                    return null;
                 }
             } else {
                 const arg_start = p.tok_i;
                 const first_expr = try p.expect(assignExpr);
                 if (try p.diagnose(attr, &arguments, arg_idx, first_expr, arg_start)) {
                     p.skipTo(.r_paren);
-                    return error.ParsingFailed;
+                    return null;
                 }
             }
             arg_idx += 1;
@@ -1867,7 +1867,7 @@ fn attribute(p: *Parser, kind: Attribute.Kind, namespace: ?[]const u8) Error!?Te
                 const arg_expr = try p.expect(assignExpr);
                 if (try p.diagnose(attr, &arguments, arg_idx, arg_expr, arg_start)) {
                     p.skipTo(.r_paren);
-                    return error.ParsingFailed;
+                    return null;
                 }
             }
         },
@@ -1877,9 +1877,9 @@ fn attribute(p: *Parser, kind: Attribute.Kind, namespace: ?[]const u8) Error!?Te
         try p.err(name_tok, .attribute_not_enough_args, .{
             @tagName(attr), required_count,
         });
-        return error.ParsingFailed;
+        return null;
     }
-    return TentativeAttribute{ .attr = .{ .tag = attr, .args = arguments, .syntax = kind.toSyntax() }, .tok = name_tok };
+    return .{ .attr = .{ .tag = attr, .args = arguments, .syntax = kind.toSyntax() }, .tok = name_tok };
 }
 
 fn diagnose(p: *Parser, attr: Attribute.Tag, arguments: *Attribute.Arguments, arg_idx: u32, res: Result, arg_start: TokenIndex) !bool {
