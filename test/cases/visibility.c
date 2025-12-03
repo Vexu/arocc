@@ -4,11 +4,10 @@ int __attribute__((visibility("default"))) default_func(void) {
 
 int __attribute__((visibility("hidden"))) hidden_global;
 
-int __attribute__((visibility("none"))) bad_visibility;  // Should be a warning that does not prevent parsing the decl
+int __attribute__((visibility("none"))) bad_visibility;
 
-#define TESTS_SKIPPED 1
+/** manifest:
+syntax
 
-#define EXPECTED_ERRORS \
-	"visibility.c:7:31: warning: unknown `visibility` argument. Possible values are: \"default\", \"hidden\", \"protected\" [-Wignored-attributes]" \
-	"visibility.c:7:41: warning: type specifier missing, defaults to 'int' [-Wimplicit-int]" \
-
+visibility.c:7:31: warning: unknown `visibility` argument. Possible values are: "default", "hidden", "protected" [-Wignored-attributes]
+*/
