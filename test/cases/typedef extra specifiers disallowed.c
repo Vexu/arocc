@@ -6,7 +6,7 @@ typedef long baz;
 
 /** manifest:
 syntax
-skipped = 1
+skip = TODO no missing type error after missing semicolon/comma
 
 typedef extra specifiers disallowed.c:2:18: error: typedef redefinition with different types ('unsigned int' vs 'long')
 typedef extra specifiers disallowed.c:1:14: note: previous definition is here

@@ -108,7 +108,7 @@ void bad_nullptr_use(void) {
 /** manifest:
 syntax
 args = -std=c23
-skipped = 1
+skip = TODO clang allows nullptr to bool cast
 
 nullptr.c:88:27: error: invalid operands to binary expression ('nullptr_t' and 'int')
 nullptr.c:89:27: error: invalid operands to binary expression ('nullptr_t' and 'bool')

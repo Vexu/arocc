@@ -53,7 +53,7 @@ void member_access_incomplete_struct(struct Foo f) {
 
 /** manifest:
 syntax
-skipped = 1
+skip = TODO visibility warning for struct declared in function parameter
 
 incomplete types.c:4:5: error: dereferencing pointer to incomplete type 'struct S'
 incomplete types.c:5:11: error: dereferencing pointer to incomplete type 'struct S'

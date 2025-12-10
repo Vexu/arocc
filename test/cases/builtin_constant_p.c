@@ -36,7 +36,7 @@ _Static_assert(!__builtin_constant_p("ABC"[0]), ""); // Should be constant
 
 /** manifest:
 syntax
-skipped = 1
+skip = array access of string literal should result in a constant
 
 builtin_constant_p.c:32:59: error: expected 1 argument(s) got 0
 builtin_constant_p.c:33:62: error: expected 1 argument(s) got 2

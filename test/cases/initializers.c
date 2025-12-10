@@ -197,7 +197,7 @@ union { int x; char c[4]; }
 
 /** manifest:
 syntax
-skipped = 4
+skip = TODO missing uninitialized in own initializer warning
 
 initializers.c:2:17: error: variable-sized object may not be initialized
 initializers.c:3:15: error: illegal initializer type

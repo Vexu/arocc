@@ -30,6 +30,6 @@ _Static_assert(sizeof(struct B) == sizeof(char) + sizeof(int), "");
 
 /** manifest:
 syntax
-skipped = 1
 args = --emulate=msvc
+skip = TODO per field pragma pack
 */

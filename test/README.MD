@@ -17,32 +17,31 @@ and finally by trailing data.
 
 Currently 4 test kinds are supported:
 
-- syntax: Run the compiler on the test case with `-fsyntax-only` and check the resulting errors
+- `syntax`: Run the compiler on the test case with `-fsyntax-only` and check the resulting errors
   against those potentially specified in the trailing data. `--verbose-ast` is also used
   the output of which can be checked against an expected result in `test/cases/ast/<test name>`.
 
-- syntax_ignore_errors: Same as syntax but any errors are ignored.
+- `syntax_ignore_errors`: Same as syntax but any errors are ignored.
 
-- expand: Run the compiler on the test case with `-E -P`, checks any warnings match those specified
+- `expand`: Run the compiler on the test case with `-E -P`, checks any warnings match those specified
   in the trailing data, and that the expansion output matches the expected result specified in
   `test/cases/expanded/<test name>`.
 
-- expand_partial: Like expand but only checks that the result contains the output
+- `expand_partial`: Like expand but only checks that the result contains the output
   specified in the trailing data instead of a complete match.
 
-- expand_error: Like expand but checks errors like syntax instead of the expansion output.
+- `expand_error`: Like expand but checks errors like syntax instead of the expansion output.
   (there is no expansion output when the preprocessor emits an error)
 
 #### Arguments
 
 Currently 3 different arguments are supported:
 
-- skipped: The value is an integer representing how many steps in the test case were skipped
-  due to missing features or bugs.
+- `skip`: Specify reason why some check was skipped. The manifest can have multiple `skip`s.
 
-- args: Takes an array of arguments to be passed to the compiler.
+- `args`: Takes an array of arguments to be passed to the compiler.
 
-- env: Takes an array of KEY=VALUE pairs to be specified in the environment variables
+- `env`: Takes an array of KEY=VALUE pairs to be specified in the environment variables
   passed to the compiler.
 
 ### Example manifest
@@ -51,7 +50,7 @@ Currently 3 different arguments are supported:
 /** manifest:
 syntax
 args = -Iinclude -Wfoo
-skipped = 1
+skip = thing is broken
 env = MYENV=1
 
 foo.c: 1:4: error: something went wrong

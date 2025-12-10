@@ -22,7 +22,8 @@ _Static_assert(H == C, "enumerator value was truncated");
 /** manifest:
 syntax
 args = -target x86_64-windows-msvc
-skipped = 2
+skip = should not warn about overflow
+skip = should not warn about enumerator value not being representable
 
 enum overflow msvc.c:3:5: warning: overflow in enumeration value
 enum overflow msvc.c:5:5: warning: overflow in enumeration value
