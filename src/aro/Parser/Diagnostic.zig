@@ -79,9 +79,9 @@ pub const expected_integer_constant_expr: Diagnostic = .{
 };
 
 pub const missing_type_specifier: Diagnostic = .{
-    .fmt = "type specifier missing, defaults to 'int'",
+    .fmt = "type specifier missing, defaults to 'int'; ISO C99 and later do not support implicit int",
     .opt = .@"implicit-int",
-    .kind = .warning,
+    .kind = .@"error",
 };
 
 pub const missing_type_specifier_c23: Diagnostic = .{
@@ -90,9 +90,9 @@ pub const missing_type_specifier_c23: Diagnostic = .{
 };
 
 pub const param_not_declared: Diagnostic = .{
-    .fmt = "parameter '{s}' was not declared, defaults to 'int'",
+    .fmt = "parameter '{s}' was not declared, defaults to 'int'; ISO C99 and later do not support implicit int",
     .opt = .@"implicit-int",
-    .kind = .warning,
+    .kind = .@"error",
     .extension = true,
 };
 
@@ -2288,11 +2288,11 @@ pub const unterminated_char_literal_error: Diagnostic = .{
     .kind = .@"error",
 };
 
-// pub const def_no_proto_deprecated: Diagnostic = .{
-//     .fmt = "a function definition without a prototype is deprecated in all versions of C and is not supported in C23",
-//     .kind = .warning,
-//     .opt = .@"deprecated-non-prototype",
-// };
+pub const def_no_proto_deprecated: Diagnostic = .{
+    .fmt = "a function definition without a prototype is deprecated in all versions of C and is not supported in C23",
+    .kind = .warning,
+    .opt = .@"deprecated-non-prototype",
+};
 
 pub const passing_args_to_kr: Diagnostic = .{
     .fmt = "passing arguments to a function without a prototype is deprecated in all versions of C and is not supported in C23",

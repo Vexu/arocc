@@ -93,6 +93,7 @@ void returning_void(void) {
 
 /** manifest:
 syntax
+args = -Wno-deprecated-non-prototype -std=c17
 
 functions.c:10:12: error: parameter named 'quux' is missing
 functions.c:18:2: warning: non-void function 'foooo' does not return a value [-Wreturn-type]

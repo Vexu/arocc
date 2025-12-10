@@ -118,6 +118,7 @@ __attribute__(()) // test attribute at eof
 /** manifest:
 syntax
 skipped = 1
+args = -Wno-deprecated-non-prototype
 
 attributes.c:8:26: warning: attribute 'noreturn' ignored on variables [-Wignored-attributes]
 attributes.c:9:26: warning: unknown attribute 'does_not_exist' ignored [-Wunknown-attributes]

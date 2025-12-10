@@ -1177,6 +1177,7 @@ fn decl(p: *Parser) Error!bool {
 
         // Collect old style parameter declarations.
         if (init_d.d.old_style_func != null) {
+            try p.err(init_d.d.name, .def_no_proto_deprecated, .{});
             const param_buf_top = p.param_buf.items.len;
             defer p.param_buf.items.len = param_buf_top;
 
@@ -2293,14 +2294,13 @@ fn typeSpec(p: *Parser, builder: *TypeStore.Builder) Error!bool {
                         }, .syntax = .keyword },
                         .tok = align_tok,
                     });
-                } else {
+                } else check: {
                     const arg_start = p.tok_i;
                     const res = try p.integerConstExpr(.no_const_decl_folding);
                     if (!res.val.isZero(p.comp)) {
                         var args = Attribute.initArguments(.aligned, align_tok);
                         if (try p.diagnose(.aligned, &args, 0, res, arg_start)) {
-                            p.skipTo(.r_paren);
-                            return error.ParsingFailed;
+                            break :check;
                         }
                         args.aligned.alignment.?.node = .pack(res.node);
                         try p.attr_buf.append(gpa, .{

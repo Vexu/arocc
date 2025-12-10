@@ -98,6 +98,7 @@ enum E {
 
 /** manifest:
 syntax
+args = -Wno-implicit-int -std=c17 
 
 redefinitions.c:4:5: error: redefinition of 'foo' as different kind of symbol
 redefinitions.c:1:5: note: previous definition is here
@@ -120,7 +121,6 @@ redefinitions.c:26:9: error: redefinition of 'a'
 redefinitions.c:25:15: note: previous definition is here
 redefinitions.c:30:5: error: redefinition of 'func5'
 redefinitions.c:25:5: note: previous definition is here
-redefinitions.c:38:1: warning: type specifier missing, defaults to 'int' [-Wimplicit-int]
 redefinitions.c:38:1: error: variable length arrays not allowed at file scope
 redefinitions.c:45:5: error: redefinition of 'f2' with a different type
 redefinitions.c:44:5: note: previous definition is here

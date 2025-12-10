@@ -70,6 +70,7 @@ void bool_init(void) {
 
 /** manifest:
 syntax
+args = -Wno-deprecated-non-prototype
 
 parser using typeof types.c:26:14: warning: array index 5 is past the end of the array [-Warray-bounds]
 parser using typeof types.c:27:15: warning: array index 5 is past the end of the array [-Warray-bounds]

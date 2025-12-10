@@ -63,7 +63,6 @@ const decl folding.c:17:21: warning: expression is not an integer constant expre
 const decl folding.c:18:22: error: expression is not an integer constant expression
 const decl folding.c:22:16: warning: expression is not an integer constant expression; folding it to a constant is a GNU extension [-Wgnu-folding-constant]
 const decl folding.c:23:14: error: '_Alignas' attribute requires integer constant expression
-const decl folding.c:23:17: warning: type specifier missing, defaults to 'int' [-Wimplicit-int]
 const decl folding.c:27:14: warning: expression is not an integer constant expression; folding it to a constant is a GNU extension [-Wgnu-folding-constant]
 const decl folding.c:28:14: error: duplicate case value '1'
 const decl folding.c:27:14: note: previous case defined here
