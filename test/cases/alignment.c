@@ -61,7 +61,6 @@ alignment.c:12:10: error: requested alignment of 536870912 is too large
 alignment.c:13:10: error: requested negative alignment of -2 is invalid
 alignment.c:15:10: error: '_Alignas' attribute requires integer constant expression
 alignment.c:35:24: error: '_Alignas' attribute requires integer constant expression
-alignment.c:35:33: error: expected identifier or '('
 alignment.c:35:33: warning: type specifier missing, defaults to 'int' [-Wimplicit-int]
 alignment.c:36:10: error: expression is not an integer constant expression
 alignment.c:36:15: warning: type specifier missing, defaults to 'int' [-Wimplicit-int]

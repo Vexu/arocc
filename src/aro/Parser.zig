@@ -1079,14 +1079,15 @@ fn decl(p: *Parser) Error!bool {
 
     try p.attributeSpecifier();
 
+    const decl_spec_start = p.tok_i;
     var decl_spec = (try p.declSpec()) orelse blk: {
         if (p.func.qt != null) {
             p.tok_i = first_tok;
             return false;
         }
-        switch (p.tok_ids[first_tok]) {
+        switch (p.tok_ids[decl_spec_start]) {
             .asterisk, .l_paren => {},
-            .identifier, .extended_identifier => switch (p.tok_ids[first_tok + 1]) {
+            .identifier, .extended_identifier => switch (p.tok_ids[decl_spec_start + 1]) {
                 .identifier, .extended_identifier => {
                     // The most likely reason for `identifier identifier` is
                     // an unknown type name.
@@ -1096,7 +1097,7 @@ fn decl(p: *Parser) Error!bool {
                 },
                 else => {},
             },
-            else => if (p.tok_i != first_tok) {
+            else => if (p.tok_i != decl_spec_start) {
                 try p.err(p.tok_i, .expected_ident_or_l_paren, .{});
                 return error.ParsingFailed;
             } else return false,

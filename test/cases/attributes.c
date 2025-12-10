@@ -128,5 +128,5 @@ attributes.c:40:20: error: 'noreturn' attribute cannot be applied to a statement
 attributes.c:76:6: error: cannot call non function type 'int'
 attributes.c:110:24: error: attribute argument is invalid, expected a string but got an integer constant
 attributes.c:112:16: warning: unknown attribute 'void' ignored [-Wunknown-attributes]
-attributes.c:116:18: error: expected identifier or '('
+attributes.c:116:18: error: expected external declaration
 */
