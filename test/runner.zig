@@ -144,7 +144,7 @@ fn runCaseExtra(
             mem.eql(u8, case.name, "initializers"))
         {
             print("{s}: skipped on windows\n", .{case.name});
-            _ = @atomicRmw(u32, &stats.skipped, .Add, case.skips.len, .monotonic);
+            _ = @atomicRmw(u32, &stats.skipped, .Add, @intCast(case.skips.len), .monotonic);
             return;
         }
     }
