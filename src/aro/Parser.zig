@@ -1079,14 +1079,15 @@ fn decl(p: *Parser) Error!bool {
 
     try p.attributeSpecifier();
 
+    const decl_spec_start = p.tok_i;
     var decl_spec = (try p.declSpec()) orelse blk: {
         if (p.func.qt != null) {
             p.tok_i = first_tok;
             return false;
         }
-        switch (p.tok_ids[first_tok]) {
+        switch (p.tok_ids[decl_spec_start]) {
             .asterisk, .l_paren => {},
-            .identifier, .extended_identifier => switch (p.tok_ids[first_tok + 1]) {
+            .identifier, .extended_identifier => switch (p.tok_ids[decl_spec_start + 1]) {
                 .identifier, .extended_identifier => {
                     // The most likely reason for `identifier identifier` is
                     // an unknown type name.
@@ -1096,7 +1097,7 @@ fn decl(p: *Parser) Error!bool {
                 },
                 else => {},
             },
-            else => if (p.tok_i != first_tok) {
+            else => if (p.tok_i != decl_spec_start) {
                 try p.err(p.tok_i, .expected_ident_or_l_paren, .{});
                 return error.ParsingFailed;
             } else return false,
@@ -1845,18 +1846,18 @@ fn attribute(p: *Parser, kind: Attribute.Kind, namespace: ?[]const u8) Error!?Te
                 if (try p.eatIdentifier()) |ident| {
                     if (try Attribute.diagnoseIdent(attr, &arguments, ident, p)) {
                         p.skipTo(.r_paren);
-                        return error.ParsingFailed;
+                        return null;
                     }
                 } else {
                     try p.err(name_tok, .attribute_requires_identifier, .{name});
-                    return error.ParsingFailed;
+                    return null;
                 }
             } else {
                 const arg_start = p.tok_i;
                 const first_expr = try p.expect(assignExpr);
                 if (try p.diagnose(attr, &arguments, arg_idx, first_expr, arg_start)) {
                     p.skipTo(.r_paren);
-                    return error.ParsingFailed;
+                    return null;
                 }
             }
             arg_idx += 1;
@@ -1867,7 +1868,7 @@ fn attribute(p: *Parser, kind: Attribute.Kind, namespace: ?[]const u8) Error!?Te
                 const arg_expr = try p.expect(assignExpr);
                 if (try p.diagnose(attr, &arguments, arg_idx, arg_expr, arg_start)) {
                     p.skipTo(.r_paren);
-                    return error.ParsingFailed;
+                    return null;
                 }
             }
         },
@@ -1877,9 +1878,9 @@ fn attribute(p: *Parser, kind: Attribute.Kind, namespace: ?[]const u8) Error!?Te
         try p.err(name_tok, .attribute_not_enough_args, .{
             @tagName(attr), required_count,
         });
-        return error.ParsingFailed;
+        return null;
     }
-    return TentativeAttribute{ .attr = .{ .tag = attr, .args = arguments, .syntax = kind.toSyntax() }, .tok = name_tok };
+    return .{ .attr = .{ .tag = attr, .args = arguments, .syntax = kind.toSyntax() }, .tok = name_tok };
 }
 
 fn diagnose(p: *Parser, attr: Attribute.Tag, arguments: *Attribute.Arguments, arg_idx: u32, res: Result, arg_start: TokenIndex) !bool {

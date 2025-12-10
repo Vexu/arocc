@@ -65,3 +65,4 @@ alignment.c:35:33: warning: type specifier missing, defaults to 'int' [-Wimplici
 alignment.c:36:10: error: expression is not an integer constant expression
 alignment.c:36:15: warning: type specifier missing, defaults to 'int' [-Wimplicit-int]
 */
+

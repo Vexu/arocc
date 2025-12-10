@@ -157,6 +157,8 @@ gnuc_version: ?u32 = null,
 
 bounds_safety: BoundsSafety = .none,
 
+default_symbol_visibility: std.builtin.SymbolVisibility = .default,
+
 pub fn setStandard(self: *LangOpts, name: []const u8) error{InvalidStandard}!void {
     self.standard = Standard.NameMap.get(name) orelse return error.InvalidStandard;
 }
