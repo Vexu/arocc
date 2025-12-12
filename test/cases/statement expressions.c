@@ -8,8 +8,8 @@ int g = ({
 
 void foo(void) {
     int x = ({});
-    ({ 1; }); // TODO missing error -- expression result unused [-Wunused-value]
-    ({ 2; 3; }); // TODO should be on line 5
+    ({ 1; });
+    ({ 2; 3; });
     int y = ({
         int z = 5;
         z += 10;
@@ -27,7 +27,7 @@ void self_referential_initializer(void) {
 
 /** manifest:
 syntax
-skipped = 5
+skip = incorrect unused warning when statement expresssion result used
 
 statement expressions.c:3:10: warning: use of GNU statement expression extension [-Wgnu-statement-expression]
 statement expressions.c:3:10: error: statement expression not allowed at file scope

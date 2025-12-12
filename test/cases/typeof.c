@@ -130,7 +130,7 @@ void initializers(void) {
 /** manifest:
 syntax
 args = -std=gnu17
-skipped = 1
+skip = typeof type in error message missing const
 
 typeof.c:23:9: warning: incompatible pointer types assigning to 'typeof(typeof(int)) *' (aka 'int *') from incompatible type 'typeof(float) *' (aka 'float *') [-Wincompatible-pointer-types]
 typeof.c:27:7: error: cannot assign to variable 'x' with const-qualified type 'typeof(const int)' (aka 'const int')

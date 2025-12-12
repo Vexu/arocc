@@ -30,8 +30,8 @@ constexpr struct S s3 = { 1, non_const};
 
 /** manifest:
 syntax
-skipped = 1
 args = -std=c23 -Wpedantic
+skip = TODO constexpr record field access
 
 constexpr.c:3:14: error: cannot combine with previous 'thread_local' specifier
 constexpr.c:5:19: error: invalid storage class on function parameter

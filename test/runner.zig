@@ -144,7 +144,7 @@ fn runCaseExtra(
             mem.eql(u8, case.name, "initializers"))
         {
             print("{s}: skipped on windows\n", .{case.name});
-            _ = @atomicRmw(u32, &stats.skipped, .Add, case.skipped, .monotonic);
+            _ = @atomicRmw(u32, &stats.skipped, .Add, @intCast(case.skips.len), .monotonic);
             return;
         }
     }
@@ -297,16 +297,20 @@ fn runCaseExtra(
         },
     }
 
-    if (case.skipped != 0) {
-        print("{s}: {d} test{s} skipped\n", .{ case.name, case.skipped, if (case.skipped == 1) @as([]const u8, "") else "s" });
-        _ = @atomicRmw(u32, &stats.skipped, .Add, case.skipped, .monotonic);
+    if (case.skips.len != 0) {
+        const writer, _ = std.debug.lockStderrWriter(&.{});
+        defer std.debug.unlockStderrWriter();
+        for (case.skips) |skip| {
+            try writer.print("{s}: {s}\n", .{ case.name, skip });
+        }
+        _ = @atomicRmw(u32, &stats.skipped, .Add, @intCast(case.skips.len), .monotonic);
     }
 }
 
 const Case = struct {
     name: []const u8,
     kind: Kind,
-    skipped: u32,
+    skips: []const []const u8,
     args: []const []const u8,
     env: []const KV,
 
@@ -352,7 +356,8 @@ fn caseFromFile(io: Io, arena: mem.Allocator, path: []const u8) !Case {
         break :manifest mem.trim(u8, manifest, " \t\n\r");
     };
 
-    var skipped: u32 = 0;
+    var skips: std.ArrayList([]const u8) = .empty;
+    defer skips.deinit(gpa);
     var args: []const []const u8 = &.{};
     var env: []const Case.KV = &.{};
 
@@ -380,11 +385,8 @@ fn caseFromFile(io: Io, arena: mem.Allocator, path: []const u8) !Case {
         };
         const key = mem.trimEnd(u8, key_raw, " \t");
         const value = mem.trimStart(u8, value_raw, " \t");
-        if (mem.eql(u8, key, "skipped")) {
-            skipped = std.fmt.parseInt(u32, value, 10) catch |err| {
-                print("{s}: invalid skipped '{s}': {t}\n", .{ name, trimmed, err });
-                return err;
-            };
+        if (mem.eql(u8, key, "skip")) {
+            try skips.append(gpa, try arena.dupe(u8, value));
         } else if (mem.eql(u8, key, "args")) {
             var buf: std.ArrayList([]const u8) = .empty;
             defer buf.deinit(gpa);
@@ -423,7 +425,7 @@ fn caseFromFile(io: Io, arena: mem.Allocator, path: []const u8) !Case {
             .expand_partial => .{ .expand_partial = try trailingLines(arena, &it) },
             .compare_output => .{ .compare_output = it.rest() },
         },
-        .skipped = skipped,
+        .skips = try arena.dupe([]const u8, skips.items),
         .args = args,
         .env = env,
     };

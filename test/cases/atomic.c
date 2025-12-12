@@ -16,7 +16,7 @@ void test_coerce() {
     long b;
     b = a; // TODO atomic to non atomic
     a = b; // TODO non atomic to atomic
-    a += 1; // TODO result non atomic
+    a += 1;
 
     _Atomic float f;
     a = f; // TODO atomic to non atomic, float to int, non atomic to atomic
@@ -40,8 +40,11 @@ void test_member_access() {
 
 /** manifest:
 syntax
-skipped = 6
 args = -std=c23 --target=x86_64-linux-gnu
+skip = TODO _Atomic __auto_type
+skip = TODO atomic to non atomic cast
+skip = TODO non atomic to atomic cast
+skip = TODO atomic casts combined with other casts
 
 atomic.c:1:1: error: _Atomic cannot be applied to qualified type 'const int'
 atomic.c:2:1: error: _Atomic cannot be applied to array type 'int [2]'
