@@ -34,7 +34,7 @@ pub const TokenWithExpansionLocs = struct {
     expansion_locs: ?[*]Source.Location = null,
 
     pub fn expansionSlice(tok: TokenWithExpansionLocs) []const Source.Location {
-        const locs = tok.expansion_locs orelse return &[0]Source.Location{};
+        const locs = tok.expansion_locs orelse return &.{};
         var i: usize = 0;
         while (locs[i].id.index != .unused) : (i += 1) {}
         return locs[0..i];

@@ -1983,7 +1983,7 @@ fn expandFuncMacro(
             },
             .macro_param_no_expand => {
                 if (tok_i + 1 < func_macro.tokens.len and func_macro.tokens[tok_i + 1].id == .hash_hash) {
-                    hideset = pp.hideset.get(tokFromRaw(func_macro.tokens[tok_i + 1]).loc);
+                    hideset = .none;
                 }
                 const slice = getPasteArgs(args.items[raw.end]);
                 const raw_loc = Source.Location{ .id = raw.source, .byte_offset = raw.start, .line = raw.line };
@@ -1991,7 +1991,7 @@ fn expandFuncMacro(
             },
             .macro_param => {
                 if (tok_i + 1 < func_macro.tokens.len and func_macro.tokens[tok_i + 1].id == .hash_hash) {
-                    hideset = pp.hideset.get(tokFromRaw(func_macro.tokens[tok_i + 1]).loc);
+                    hideset = .none;
                 }
                 const arg = expanded_args.items[raw.end];
                 const raw_loc = Source.Location{ .id = raw.source, .byte_offset = raw.start, .line = raw.line };
@@ -2341,9 +2341,10 @@ fn expandFuncMacro(
     for (buf.items) |*tok| {
         try tok.addExpansionLocation(gpa, &.{macro_tok.loc});
         try tok.addExpansionLocation(gpa, macro_expansion_locs);
-        const tok_hidelist = pp.hideset.get(tok.loc);
-        const new_hidelist = try pp.hideset.@"union"(tok_hidelist, hideset);
-        try pp.hideset.put(tok.loc, new_hidelist);
+        if (tok.id.shouldTrackHideset(.func)) {
+            const new_hideset = try pp.hideset.@"union"(pp.hideset.get(tok.loc), hideset);
+            try pp.hideset.put(tok.loc, new_hideset);
+        }
     }
 
     return buf;
@@ -2709,9 +2710,10 @@ fn expandMacroExhaustive(
                         try tok.addExpansionLocation(gpa, &.{macro_tok.loc});
                         try tok.addExpansionLocation(gpa, macro_expansion_locs);
 
-                        const tok_hidelist = pp.hideset.get(tok.loc);
-                        const new_hidelist = try pp.hideset.@"union"(tok_hidelist, hs);
-                        try pp.hideset.put(tok.loc, new_hidelist);
+                        if (tok.id.shouldTrackHideset(.obj)) {
+                            const new_hideset = try pp.hideset.@"union"(pp.hideset.get(tok.loc), hs);
+                            try pp.hideset.put(tok.loc, new_hideset);
+                        }
 
                         if (tok.id == .keyword_defined and eval_ctx == .expr) {
                             if (macro.is_func) {
@@ -2925,7 +2927,10 @@ fn pasteTokens(pp: *Preprocessor, lhs_toks: *ExpandBuf, rhs_toks: []const TokenW
         .placemarker
     else
         pasted_token.id;
-    try lhs_toks.append(gpa, try pp.makeGeneratedToken(start, pasted_id, lhs));
+
+    const hideset = try pp.hideset.intersection(pp.hideset.get(lhs.loc), pp.hideset.get(rhs.loc));
+    const generated_token = try pp.makeGeneratedTokenExtra(start, pasted_id, lhs, hideset);
+    try lhs_toks.append(gpa, generated_token);
 
     if (next.id != .nl and next.id != .eof) {
         try pp.err(lhs, .pasting_formed_invalid, .{pp.comp.generated_buf.items[start..end]});
@@ -2935,7 +2940,7 @@ fn pasteTokens(pp: *Preprocessor, lhs_toks: *ExpandBuf, rhs_toks: []const TokenW
     try bufCopyTokens(gpa, lhs_toks, rhs_toks[rhs_rest..], &.{});
 }
 
-fn makeGeneratedToken(pp: *Preprocessor, start: usize, id: Token.Id, source: TokenWithExpansionLocs) !TokenWithExpansionLocs {
+fn makeGeneratedTokenExtra(pp: *Preprocessor, start: usize, id: Token.Id, source: TokenWithExpansionLocs, hideset: Hideset.Index) !TokenWithExpansionLocs {
     const gpa = pp.comp.gpa;
     var pasted_token = TokenWithExpansionLocs{ .id = id, .loc = .{
         .id = .generated,
@@ -2945,7 +2950,13 @@ fn makeGeneratedToken(pp: *Preprocessor, start: usize, id: Token.Id, source: Tok
     pp.generated_line += 1;
     try pasted_token.addExpansionLocation(gpa, &.{source.loc});
     try pasted_token.addExpansionLocation(gpa, source.expansionSlice());
+    try pp.hideset.put(pasted_token.loc, hideset);
+
     return pasted_token;
+}
+
+fn makeGeneratedToken(pp: *Preprocessor, start: usize, id: Token.Id, source: TokenWithExpansionLocs) !TokenWithExpansionLocs {
+    return pp.makeGeneratedTokenExtra(start, id, source, pp.hideset.get(source.loc));
 }
 
 /// Defines a new macro and warns if it is a duplicate
