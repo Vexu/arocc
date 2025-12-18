@@ -890,6 +890,14 @@ pub const Token = struct {
                 else => false,
             };
         }
+
+        pub fn shouldTrackHideset(id: Id, context: enum { func, obj }) bool {
+            return switch (id) {
+                .identifier, .extended_identifier => true,
+                .r_paren => context == .func,
+                else => false,
+            };
+        }
     };
 
     /// double underscore and underscore + capital letter identifiers
