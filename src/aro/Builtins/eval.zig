@@ -3,6 +3,7 @@ const assert = std.debug.assert;
 
 const backend = @import("backend");
 const Interner = backend.Interner;
+
 const Builtins = @import("../Builtins.zig");
 const Parser = @import("../Parser.zig");
 const Tree = @import("../Tree.zig");
@@ -12,7 +13,7 @@ const Type = TypeStore.Type;
 const Value = @import("../Value.zig");
 
 fn makeNan(comptime T: type, str: []const u8) T {
-    const UnsignedSameSize = std.meta.Int(.unsigned, @bitSizeOf(T));
+    const UnsignedSameSize = @Int(.unsigned, @bitSizeOf(T));
     const parsed = std.fmt.parseUnsigned(UnsignedSameSize, str[0 .. str.len - 1], 0) catch 0;
     const bits: switch (T) {
         f32 => u23,
