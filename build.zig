@@ -45,7 +45,7 @@ fn addFuzzStep(b: *Build, target: std.Build.ResolvedTarget, afl_clang_lto_path: 
         .use_llvm = true,
         .use_lld = true,
     });
-    fuzz_lib.want_lto = true;
+    fuzz_lib.lto = .full;
     fuzz_lib.bundle_compiler_rt = true;
     fuzz_lib.pie = true;
 
@@ -266,18 +266,18 @@ pub fn build(b: *Build) !void {
         else
             &[_][]const u8{ "-DTRACY_ENABLE=1", "-fno-sanitize=undefined" };
 
-        exe.addIncludePath(b.path(tracy_path));
-        exe.addCSourceFile(.{ .file = b.path(client_cpp), .flags = tracy_c_flags });
-        exe.linkLibCpp();
-        exe.linkLibC();
+        exe.root_module.addIncludePath(b.path(tracy_path));
+        exe.root_module.addCSourceFile(.{ .file = b.path(client_cpp), .flags = tracy_c_flags });
+        exe.root_module.link_libcpp = true;
+        exe.root_module.link_libc = true;
 
         if (target.result.os.tag == .windows) {
-            exe.linkSystemLibrary("dbghelp");
-            exe.linkSystemLibrary("ws2_32");
+            exe.root_module.linkSystemLibrary("dbghelp", .{});
+            exe.root_module.linkSystemLibrary("ws2_32", .{});
         }
     }
     if (link_libc) {
-        exe.linkLibC();
+        exe.root_module.link_libc = true;
     }
 
     if (no_bin) {

@@ -8,8 +8,8 @@ const BigIntSpace = Interner.Tag.Int.BigIntSpace;
 
 const annex_g = @import("annex_g.zig");
 const Compilation = @import("Compilation.zig");
-const Target = @import("Target.zig");
 const QualType = @import("TypeStore.zig").QualType;
+const Target = @import("Target.zig");
 
 const Value = @This();
 
@@ -1048,9 +1048,9 @@ fn twosCompIntLimit(limit: std.math.big.int.TwosCompIntLimit, qt: QualType, comp
     const mag_bits: usize = @intCast(qt.bitSizeof(comp));
     switch (mag_bits) {
         inline 8, 16, 32, 64 => |bits| {
-            if (limit == .min) return Value.int(@as(i64, std.math.minInt(std.meta.Int(.signed, bits))), comp);
+            if (limit == .min) return Value.int(@as(i64, std.math.minInt(@Int(.signed, bits))), comp);
             return switch (signedness) {
-                inline else => |sign| Value.int(std.math.maxInt(std.meta.Int(sign, bits)), comp),
+                inline else => |sign| Value.int(std.math.maxInt(@Int(sign, bits)), comp),
             };
         },
         else => {},

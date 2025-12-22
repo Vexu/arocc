@@ -1,8 +1,9 @@
 const std = @import("std");
-const build_options = @import("build_options");
-const Allocator = mem.Allocator;
 const mem = std.mem;
 const process = std.process;
+const Allocator = mem.Allocator;
+const build_options = @import("build_options");
+
 const aro = @import("aro");
 const Compilation = aro.Compilation;
 const Diagnostics = aro.Diagnostics;
@@ -21,7 +22,7 @@ var debug_allocator: std.heap.DebugAllocator(.{
 
 pub fn main() u8 {
     const gpa = if (@import("builtin").link_libc)
-        std.heap.raw_c_allocator
+        std.heap.c_allocator
     else
         debug_allocator.allocator();
     defer if (!@import("builtin").link_libc) {

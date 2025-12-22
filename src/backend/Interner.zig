@@ -102,13 +102,13 @@ pub const Key = union(enum) {
             .float => |repr| switch (repr) {
                 inline else => |data| std.hash.autoHash(
                     &hasher,
-                    @as(std.meta.Int(.unsigned, @bitSizeOf(@TypeOf(data))), @bitCast(data)),
+                    @as(@Int(.unsigned, @bitSizeOf(@TypeOf(data))), @bitCast(data)),
                 ),
             },
             .complex => |repr| switch (repr) {
                 inline else => |data| std.hash.autoHash(
                     &hasher,
-                    @as(std.meta.Int(.unsigned, @bitSizeOf(@TypeOf(data))), @bitCast(data)),
+                    @as(@Int(.unsigned, @bitSizeOf(@TypeOf(data))), @bitCast(data)),
                 ),
             },
             .int => |repr| {
