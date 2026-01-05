@@ -154,7 +154,7 @@ gpa: Allocator,
 /// Allocations in this arena live all the way until `Compilation.deinit`.
 arena: Allocator,
 io: Io,
-cwd: std.fs.Dir,
+cwd: std.Io.Dir,
 diagnostics: *Diagnostics,
 
 sources: std.StringArrayHashMapUnmanaged(Source) = .empty,
@@ -181,7 +181,7 @@ pragma_handlers: std.StringArrayHashMapUnmanaged(*Pragma) = .empty,
 /// Used by MS extensions which allow searching for includes relative to the directory of the main source file.
 ms_cwd_source_id: ?Source.Id = null,
 
-pub fn init(gpa: Allocator, arena: Allocator, io: Io, diagnostics: *Diagnostics, cwd: std.fs.Dir) Compilation {
+pub fn init(gpa: Allocator, arena: Allocator, io: Io, diagnostics: *Diagnostics, cwd: std.Io.Dir) Compilation {
     return .{
         .gpa = gpa,
         .arena = arena,
@@ -193,7 +193,7 @@ pub fn init(gpa: Allocator, arena: Allocator, io: Io, diagnostics: *Diagnostics,
 
 /// Initialize Compilation with default environment,
 /// pragma handlers and emulation mode set to target.
-pub fn initDefault(gpa: Allocator, arena: Allocator, io: Io, diagnostics: *Diagnostics, cwd: std.fs.Dir) !Compilation {
+pub fn initDefault(gpa: Allocator, arena: Allocator, io: Io, diagnostics: *Diagnostics, cwd: std.Io.Dir) !Compilation {
     var comp: Compilation = .{
         .gpa = gpa,
         .arena = arena,
@@ -1655,12 +1655,12 @@ fn addSourceFromPathExtra(comp: *Compilation, path: []const u8, kind: Source.Kin
         return error.FileNotFound;
     }
 
-    const file = try comp.cwd.openFile(path, .{});
-    defer file.close();
+    const file = try comp.cwd.openFile(comp.io, path, .{});
+    defer file.close(comp.io);
     return comp.addSourceFromFile(file, path, kind);
 }
 
-pub fn addSourceFromFile(comp: *Compilation, file: std.fs.File, path: []const u8, kind: Source.Kind) !Source {
+pub fn addSourceFromFile(comp: *Compilation, file: std.Io.File, path: []const u8, kind: Source.Kind) !Source {
     const contents = try comp.getFileContents(file, .unlimited);
     errdefer comp.gpa.free(contents);
     return comp.addSourceFromOwnedBuffer(path, contents, kind);
@@ -1727,7 +1727,7 @@ pub fn initSearchPath(comp: *Compilation, includes: []const Include, verbose: bo
     }
 }
 fn addToSearchPath(comp: *Compilation, include: Include, verbose: bool) !void {
-    comp.cwd.access(include.path, .{}) catch {
+    comp.cwd.access(comp.io, include.path, .{}) catch {
         if (verbose) {
             std.debug.print("ignoring nonexistent directory \"{s}\"\n", .{include.path});
             return;
@@ -1987,12 +1987,12 @@ fn getPathContents(comp: *Compilation, path: []const u8, limit: Io.Limit) ![]u8 
         return error.FileNotFound;
     }
 
-    const file = try comp.cwd.openFile(path, .{});
-    defer file.close();
+    const file = try comp.cwd.openFile(comp.io, path, .{});
+    defer file.close(comp.io);
     return comp.getFileContents(file, limit);
 }
 
-fn getFileContents(comp: *Compilation, file: std.fs.File, limit: Io.Limit) ![]u8 {
+fn getFileContents(comp: *Compilation, file: std.Io.File, limit: Io.Limit) ![]u8 {
     var file_buf: [4096]u8 = undefined;
     var file_reader = file.reader(comp.io, &file_buf);
 
@@ -2175,7 +2175,7 @@ pub fn locSlice(comp: *const Compilation, loc: Source.Location) []const u8 {
 
 pub fn getSourceMTimeUncached(comp: *const Compilation, source_id: Source.Id) ?u64 {
     const source = comp.getSource(source_id);
-    if (comp.cwd.statFile(source.path)) |stat| {
+    if (comp.cwd.statFile(comp.io, source.path, .{})) |stat| {
         return std.math.cast(u64, stat.mtime.toSeconds());
     } else |_| {
         return null;
