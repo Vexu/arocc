@@ -1348,6 +1348,18 @@ pub fn isPIEDefault(target: *const Target) DefaultPIStatus {
     };
 }
 
+pub fn ppcElfVersion(target: *const Target) u32 {
+    std.debug.assert(target.cpu.arch.isPowerPC());
+    return switch (target.cpu.arch) {
+        .powerpc64le => 2,
+        .powerpc64 => if ((target.os.isAtLeast(.freebsd, .{ .major = 13, .minor = 0, .patch = 0 }) orelse false) or target.os.tag == .openbsd or target.abi.isMusl())
+            2
+        else
+            1,
+        else => 1,
+    };
+}
+
 pub fn isPICdefault(target: *const Target) DefaultPIStatus {
     return switch (target.os.tag) {
         .haiku,
