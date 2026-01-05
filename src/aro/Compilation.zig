@@ -646,6 +646,7 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
             try define(w, "__ppc__");
             try define(w, "__PPC__");
             try define(w, "_ARCH_PPC");
+            try w.print("#define _CALL_ELF {d}\n", .{target.ppcElfVersion()});
         },
         .powerpc64,
         .powerpc64le,
@@ -660,6 +661,7 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
             try define(w, "__PPC64__");
             try define(w, "_ARCH_PPC");
             try define(w, "_ARCH_PPC64");
+            try w.print("#define _CALL_ELF {d}\n", .{target.ppcElfVersion()});
         },
         .sparc64 => {
             try defineStd(w, "sparc", is_gnu);
