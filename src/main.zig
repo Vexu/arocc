@@ -33,7 +33,7 @@ pub fn main() u8 {
     defer arena_instance.deinit();
     const arena = arena_instance.allocator();
 
-    var threaded: std.Io.Threaded = .init(gpa);
+    var threaded: std.Io.Threaded = .init(gpa, .{});
     defer threaded.deinit();
     const io = threaded.io();
 
@@ -45,7 +45,7 @@ pub fn main() u8 {
         return 1;
     };
 
-    const aro_name = std.fs.selfExePathAlloc(gpa) catch {
+    const aro_name = std.process.executableDirPathAlloc(io, gpa) catch {
         std.debug.print("unable to find Aro executable path\n", .{});
         if (fast_exit) process.exit(1);
         return 1;
@@ -53,15 +53,15 @@ pub fn main() u8 {
     defer gpa.free(aro_name);
 
     var stderr_buf: [1024]u8 = undefined;
-    var stderr = std.fs.File.stderr().writer(&stderr_buf);
+    var stderr = std.Io.File.stderr().writer(io, &stderr_buf);
     var diagnostics: Diagnostics = .{
         .output = .{ .to_writer = .{
-            .color = .detect(stderr.file),
+            .mode = std.Io.Terminal.Mode.detect(io, stderr.file, false, false) catch .no_color,
             .writer = &stderr.interface,
         } },
     };
 
-    var comp = Compilation.initDefault(gpa, arena, io, &diagnostics, std.fs.cwd()) catch |er| switch (er) {
+    var comp = Compilation.initDefault(gpa, arena, io, &diagnostics, std.Io.Dir.cwd()) catch |er| switch (er) {
         error.OutOfMemory => {
             std.debug.print("out of memory\n", .{});
             if (fast_exit) process.exit(1);
@@ -87,6 +87,7 @@ pub fn main() u8 {
             if (fast_exit) process.exit(1);
             return 1;
         },
+        error.Canceled => unreachable,
     };
     if (fast_exit) process.exit(@intFromBool(comp.diagnostics.errors != 0));
     return @intFromBool(diagnostics.errors != 0);
