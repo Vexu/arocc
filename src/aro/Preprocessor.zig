@@ -3920,11 +3920,9 @@ test "Preserve pragma tokens sometimes" {
     const gpa = std.testing.allocator;
     const Test = struct {
         fn runPreprocessor(source_text: []const u8) ![]const u8 {
-            var arena: std.heap.ArenaAllocator = .init(gpa);
-            defer arena.deinit();
-
             var diagnostics: Diagnostics = .{ .output = .ignore };
-            var comp = Compilation.init(gpa, arena.allocator(), std.testing.io, &diagnostics, std.fs.cwd());
+            var comp = Compilation.initTesting();
+            comp.diagnostics = &diagnostics;
             defer comp.deinit();
 
             try comp.addDefaultPragmaHandlers();
@@ -3988,11 +3986,9 @@ test "destringify" {
             try std.testing.expectEqualStrings(destringified, pp.char_buf.items);
         }
     };
-    var arena: std.heap.ArenaAllocator = .init(gpa);
-    defer arena.deinit();
-    var diagnostics: Diagnostics = .{ .output = .ignore };
-    var comp = Compilation.init(gpa, arena.allocator(), std.testing.io, &diagnostics, std.fs.cwd());
+    var comp = Compilation.initTesting();
     defer comp.deinit();
+
     var pp = Preprocessor.init(&comp, .default);
     defer pp.deinit();
 
@@ -4048,18 +4044,18 @@ test "Include guards" {
             };
         }
 
-        fn testIncludeGuard(gpa: std.mem.Allocator, comptime template: []const u8, tok_id: RawToken.Id, expected_guards: u32) !void {
-            var arena_state: std.heap.ArenaAllocator = .init(gpa);
-            defer arena_state.deinit();
-            const arena = arena_state.allocator();
+        fn testIncludeGuard(comptime template: []const u8, tok_id: RawToken.Id, expected_guards: u32) !void {
+            const gpa = std.testing.allocator;
 
             var diagnostics: Diagnostics = .{ .output = .ignore };
-            var comp = Compilation.init(gpa, arena, std.testing.io, &diagnostics, std.fs.cwd());
+            var comp = Compilation.initTesting();
+            comp.diagnostics = &diagnostics;
             defer comp.deinit();
             var pp = Preprocessor.init(&comp, .default);
             defer pp.deinit();
 
-            const path = try std.fs.path.join(arena, &.{ ".", "bar.h" });
+            const path = try std.fs.path.join(gpa, &.{ ".", "bar.h" });
+            defer gpa.free(path);
 
             _ = try comp.addSourceFromBuffer(path, "int bar = 5;\n");
 
@@ -4096,14 +4092,14 @@ test "Include guards" {
                 \\#endif
             ;
             const expected_guards: u32 = if (Test.pairsWithIfndef(tag)) 0 else 1;
-            try Test.testIncludeGuard(std.testing.allocator, inside_ifndef_template, tag, expected_guards);
+            try Test.testIncludeGuard(inside_ifndef_template, tag, expected_guards);
 
             const outside_ifndef_template =
                 \\#ifndef FOO
                 \\#endif
                 \\#{s}{s}
             ;
-            try Test.testIncludeGuard(std.testing.allocator, outside_ifndef_template, tag, 0);
+            try Test.testIncludeGuard(outside_ifndef_template, tag, 0);
         }
     }
 }

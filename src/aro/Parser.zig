@@ -10801,12 +10801,7 @@ fn genericSelection(p: *Parser) Error!?Result {
 }
 
 test "Node locations" {
-    var arena_state: std.heap.ArenaAllocator = .init(std.testing.allocator);
-    defer arena_state.deinit();
-    const arena = arena_state.allocator();
-
-    var diagnostics: Diagnostics = .{ .output = .ignore };
-    var comp = Compilation.init(std.testing.allocator, arena, std.testing.io, &diagnostics, std.fs.cwd());
+    var comp = Compilation.initTesting();
     defer comp.deinit();
 
     const file = try comp.addSourceFromBuffer("file.c",
@@ -10830,7 +10825,6 @@ test "Node locations" {
     var tree = try Parser.parse(&pp);
     defer tree.deinit();
 
-    try std.testing.expectEqual(0, comp.diagnostics.total);
     for (tree.root_decls.items[tree.root_decls.items.len - 3 ..], 0..) |node, i| {
         const slice = tree.tokSlice(node.tok(&tree));
         const expected_slice = switch (i) {

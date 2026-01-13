@@ -74,23 +74,16 @@ pub const Environment = struct {
         pub const default: @This() = .{ .provided = 0 };
     };
 
-    /// Load all of the environment variables using the std.process API. Do not use if using Aro as a shared library on Linux without libc
-    /// See https://github.com/ziglang/zig/issues/4524
-    pub fn loadAll(allocator: std.mem.Allocator) !Environment {
+    /// Load all of the environment variables from an environ map. Does not copy values.
+    pub fn loadAll(environ_map: *const std.process.Environ.Map) Environment {
         var env: Environment = .{};
-        errdefer env.deinit(allocator);
 
         inline for (@typeInfo(@TypeOf(env)).@"struct".fields) |field| {
             std.debug.assert(@field(env, field.name) == null);
 
             var env_var_buf: [field.name.len]u8 = undefined;
             const env_var_name = std.ascii.upperString(&env_var_buf, field.name);
-            const val: ?[]const u8 = std.process.getEnvVarOwned(allocator, env_var_name) catch |err| switch (err) {
-                error.OutOfMemory => |e| return e,
-                error.EnvironmentVariableNotFound => null,
-                error.InvalidWtf8 => null,
-            };
-            @field(env, field.name) = val;
+            @field(env, field.name) = environ_map.get(env_var_name);
         }
         return env;
     }
@@ -181,30 +174,46 @@ pragma_handlers: std.StringArrayHashMapUnmanaged(*Pragma) = .empty,
 /// Used by MS extensions which allow searching for includes relative to the directory of the main source file.
 ms_cwd_source_id: ?Source.Id = null,
 
-pub fn init(gpa: Allocator, arena: Allocator, io: Io, diagnostics: *Diagnostics, cwd: std.Io.Dir) Compilation {
-    return .{
-        .gpa = gpa,
-        .arena = arena,
-        .io = io,
-        .diagnostics = diagnostics,
-        .cwd = cwd,
-    };
-}
-
 /// Initialize Compilation with default environment,
 /// pragma handlers and emulation mode set to target.
-pub fn initDefault(gpa: Allocator, arena: Allocator, io: Io, diagnostics: *Diagnostics, cwd: std.Io.Dir) !Compilation {
+pub fn init(
+    options: struct {
+        gpa: Allocator,
+        arena: Allocator,
+        io: Io,
+        diagnostics: *Diagnostics,
+        environ_map: *const std.process.Environ.Map,
+
+        // Defaults to `std.Io.Dir.cwd()`
+        cwd: ?std.Io.Dir = null,
+
+        add_default_pragma_handlers: bool = true,
+    },
+) !Compilation {
     var comp: Compilation = .{
-        .gpa = gpa,
-        .arena = arena,
-        .io = io,
-        .diagnostics = diagnostics,
-        .environment = try Environment.loadAll(gpa),
-        .cwd = cwd,
+        .gpa = options.gpa,
+        .arena = options.arena,
+        .io = options.io,
+        .diagnostics = options.diagnostics,
+        .environment = .loadAll(options.environ_map),
+        .cwd = options.cwd orelse .cwd(),
     };
     errdefer comp.deinit();
-    try comp.addDefaultPragmaHandlers();
+
+    if (options.add_default_pragma_handlers) {
+        try comp.addDefaultPragmaHandlers();
+    }
     return comp;
+}
+
+pub fn initTesting() Compilation {
+    return .{
+        .gpa = std.testing.allocator,
+        .arena = undefined,
+        .io = std.testing.io,
+        .diagnostics = undefined,
+        .cwd = .cwd(),
+    };
 }
 
 pub fn deinit(comp: *Compilation) void {
@@ -2262,10 +2271,9 @@ pub const Diagnostic = struct {
 test "addSourceFromBuffer" {
     const Test = struct {
         fn addSourceFromBuffer(str: []const u8, expected: []const u8, warning_count: u32, splices: []const u32) !void {
-            var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
-            defer arena.deinit();
             var diagnostics: Diagnostics = .{ .output = .ignore };
-            var comp = Compilation.init(std.testing.allocator, arena.allocator(), std.testing.io, &diagnostics, std.fs.cwd());
+            var comp = Compilation.initTesting();
+            comp.diagnostics = &diagnostics;
             defer comp.deinit();
 
             const source = try comp.addSourceFromBuffer("path", str);
@@ -2276,10 +2284,8 @@ test "addSourceFromBuffer" {
         }
 
         fn withAllocationFailures(allocator: std.mem.Allocator) !void {
-            var arena: std.heap.ArenaAllocator = .init(allocator);
-            defer arena.deinit();
-            var diagnostics: Diagnostics = .{ .output = .ignore };
-            var comp = Compilation.init(allocator, arena.allocator(), std.testing.io, &diagnostics, std.fs.cwd());
+            var comp = Compilation.initTesting();
+            comp.gpa = allocator;
             defer comp.deinit();
 
             _ = try comp.addSourceFromBuffer("path", "spliced\\\nbuffer\n");
@@ -2325,7 +2331,8 @@ test "addSourceFromBuffer - exhaustive check for carriage return elimination" {
     var buf: [alphabet.len]u8 = @splat(alphabet[0]);
 
     var diagnostics: Diagnostics = .{ .output = .ignore };
-    var comp = Compilation.init(std.testing.allocator, arena.allocator(), std.testing.io, &diagnostics, std.fs.cwd());
+    var comp = Compilation.initTesting();
+    comp.diagnostics = &diagnostics;
     defer comp.deinit();
 
     var source_count: u32 = 0;
@@ -2351,9 +2358,8 @@ test "addSourceFromBuffer - exhaustive check for carriage return elimination" {
 test "ignore BOM at beginning of file" {
     const BOM = "\xEF\xBB\xBF";
     const Test = struct {
-        fn run(arena: Allocator, buf: []const u8) !void {
-            var diagnostics: Diagnostics = .{ .output = .ignore };
-            var comp = Compilation.init(std.testing.allocator, arena, std.testing.io, &diagnostics, std.fs.cwd());
+        fn run(buf: []const u8) !void {
+            var comp = Compilation.initTesting();
             defer comp.deinit();
 
             const source = try comp.addSourceFromBuffer("file.c", buf);
@@ -2362,19 +2368,15 @@ test "ignore BOM at beginning of file" {
         }
     };
 
-    var arena_state: std.heap.ArenaAllocator = .init(std.testing.allocator);
-    defer arena_state.deinit();
-    const arena = arena_state.allocator();
+    try Test.run(BOM);
+    try Test.run(BOM ++ "x");
+    try Test.run("x" ++ BOM);
+    try Test.run(BOM ++ " ");
+    try Test.run(BOM ++ "\n");
+    try Test.run(BOM ++ "\\");
 
-    try Test.run(arena, BOM);
-    try Test.run(arena, BOM ++ "x");
-    try Test.run(arena, "x" ++ BOM);
-    try Test.run(arena, BOM ++ " ");
-    try Test.run(arena, BOM ++ "\n");
-    try Test.run(arena, BOM ++ "\\");
-
-    try Test.run(arena, BOM[0..1] ++ "x");
-    try Test.run(arena, BOM[0..2] ++ "x");
-    try Test.run(arena, BOM[1..] ++ "x");
-    try Test.run(arena, BOM[2..] ++ "x");
+    try Test.run(BOM[0..1] ++ "x");
+    try Test.run(BOM[0..2] ++ "x");
+    try Test.run(BOM[1..] ++ "x");
+    try Test.run(BOM[2..] ++ "x");
 }

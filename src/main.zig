@@ -20,26 +20,14 @@ var debug_allocator: std.heap.DebugAllocator(.{
     .canary = @truncate(0xc647026dc6875134),
 }) = .{};
 
-pub fn main() u8 {
-    const gpa = if (@import("builtin").link_libc)
-        std.heap.c_allocator
-    else
-        debug_allocator.allocator();
-    defer if (!@import("builtin").link_libc) {
-        _ = debug_allocator.deinit();
-    };
-
-    var arena_instance = std.heap.ArenaAllocator.init(gpa);
-    defer arena_instance.deinit();
-    const arena = arena_instance.allocator();
-
-    var threaded: std.Io.Threaded = .init(gpa, .{});
-    defer threaded.deinit();
-    const io = threaded.io();
+pub fn main(init: process.Init) u8 {
+    const gpa = init.gpa;
+    const arena = init.arena.allocator();
+    const io = init.io;
 
     const fast_exit = @import("builtin").mode != .Debug;
 
-    const args = process.argsAlloc(arena) catch {
+    const args = init.minimal.args.toSlice(arena) catch {
         std.debug.print("out of memory\n", .{});
         if (fast_exit) process.exit(1);
         return 1;
@@ -61,7 +49,13 @@ pub fn main() u8 {
         } },
     };
 
-    var comp = Compilation.initDefault(gpa, arena, io, &diagnostics, std.Io.Dir.cwd()) catch |er| switch (er) {
+    var comp = Compilation.init(.{
+        .gpa = gpa,
+        .arena = arena,
+        .io = io,
+        .diagnostics = &diagnostics,
+        .environ_map = init.environ_map,
+    }) catch |er| switch (er) {
         error.OutOfMemory => {
             std.debug.print("out of memory\n", .{});
             if (fast_exit) process.exit(1);

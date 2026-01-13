@@ -1262,7 +1262,7 @@ fn getRandomFilename(d: *Driver, buf: *[std.fs.max_name_bytes]u8, extension: []c
     const sub_path_len = comptime std.fs.base64_encoder.calcSize(random_bytes_count);
 
     var random_bytes: [random_bytes_count]u8 = undefined;
-    std.crypto.random.bytes(&random_bytes);
+    d.comp.io.random(&random_bytes);
     var random_name: [sub_path_len]u8 = undefined;
     _ = std.fs.base64_encoder.encode(&random_name, &random_bytes);
 
@@ -1295,17 +1295,20 @@ fn invokeAssembler(d: *Driver, tc: *Toolchain, input_path: []const u8, output_pa
     const assembler_path = try tc.getAssemblerPath(&assembler_path_buf);
     const argv = [_][]const u8{ assembler_path, input_path, "-o", output_path };
 
-    var child = std.process.Child.init(&argv, d.comp.gpa);
-    // TODO handle better
-    child.stdin_behavior = .Inherit;
-    child.stdout_behavior = .Inherit;
-    child.stderr_behavior = .Inherit;
-
-    const term = child.spawnAndWait(d.comp.io) catch |er| {
+    var child = std.process.spawn(d.comp.io, .{
+        .argv = &argv,
+        // TODO handle better
+        .stdin = .inherit,
+        .stdout = .inherit,
+        .stderr = .inherit,
+    }) catch |er| {
         return d.fatal("unable to spawn linker: {s}", .{errorDescription(er)});
     };
+    const term = child.wait(d.comp.io) catch |er| {
+        return d.fatal("error waiting for linker: {s}", .{errorDescription(er)});
+    };
     switch (term) {
-        .Exited => |code| if (code != 0) {
+        .exited => |code| if (code != 0) {
             const e = d.fatal("assembler exited with an error code", .{});
             return e;
         },
@@ -1556,17 +1559,21 @@ pub fn invokeLinker(d: *Driver, tc: *Toolchain, comptime fast_exit: bool) Compil
             return d.fatal("unable to dump linker args: {s}", .{errorDescription(stdout.err.?)});
         };
     }
-    var child = std.process.Child.init(argv.items, gpa);
-    // TODO handle better
-    child.stdin_behavior = .Inherit;
-    child.stdout_behavior = .Inherit;
-    child.stderr_behavior = .Inherit;
-
-    const term = child.spawnAndWait(io) catch |er| {
+    var child = std.process.spawn(io, .{
+        .argv = argv.items,
+        // TODO handle better
+        .stdin = .inherit,
+        .stdout = .inherit,
+        .stderr = .inherit,
+    }) catch |er| {
         return d.fatal("unable to spawn linker: {s}", .{errorDescription(er)});
     };
+
+    const term = child.wait(io) catch |er| {
+        return d.fatal("error waiting for linker: {s}", .{errorDescription(er)});
+    };
     switch (term) {
-        .Exited => |code| if (code != 0) {
+        .exited => |code| if (code != 0) {
             const e = d.fatal("linker exited with an error code", .{});
             if (fast_exit) d.exitWithCleanup(code);
             return e;
@@ -1582,7 +1589,7 @@ pub fn invokeLinker(d: *Driver, tc: *Toolchain, comptime fast_exit: bool) Compil
 
 fn exitWithCleanup(d: *Driver, code: u8) noreturn {
     for (d.link_objects.items[d.link_objects.items.len - d.temp_file_count ..]) |obj| {
-        std.fs.deleteFileAbsolute(obj) catch {};
+        std.Io.Dir.deleteFileAbsolute(d.comp.io, obj) catch {};
     }
     std.process.exit(code);
 }

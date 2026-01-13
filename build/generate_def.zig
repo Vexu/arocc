@@ -1,7 +1,7 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 
-pub fn main() !void {
+pub fn main(init: std.process.Init.Minimal) !void {
     var debug_allocator: std.heap.DebugAllocator(.{ .stack_trace_frames = 0 }) = .{};
     defer _ = debug_allocator.deinit();
     const gpa = debug_allocator.allocator();
@@ -10,12 +10,14 @@ pub fn main() !void {
     defer arena_allocator.deinit();
     const arena = arena_allocator.allocator();
 
-    var threaded_io = std.Io.Threaded.init(gpa, .{});
+    var threaded_io = std.Io.Threaded.init(gpa, .{
+        .environ = init.environ,
+    });
     defer threaded_io.deinit();
     const io = threaded_io.io();
     const cwd = std.Io.Dir.cwd();
 
-    const args = try std.process.argsAlloc(arena);
+    const args = try init.args.toSlice(arena);
     if (args.len != 3) {
         const stderr = std.debug.lockStderr(&.{});
         stderr.file_writer.interface.print("Usage: {s} <input-file> <output-path>", .{args[0]}) catch {};
