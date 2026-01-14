@@ -238,7 +238,7 @@ fn runCaseExtra(io: Io, aro_exe: []const u8, test_case: TestCase, stats: *Stats)
 
             .request_resource_usage_statistics = true,
         });
-        errdefer child.kill(io);
+        defer child.kill(io);
 
         var stderr_reader = child.stderr.?.readerStreaming(io, &.{});
         stderr = try stderr_reader.interface.allocRemaining(arena, .unlimited);

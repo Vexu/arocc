@@ -19,7 +19,9 @@ pub fn main(init: process.Init) !void {
     const arocc_exe = args[1];
     const cases_dir = args[2];
 
-    const relative_arocc_exe = try std.fs.path.relative(arena, ".", null, cases_dir, arocc_exe);
+    var cwd_buf: [std.fs.max_path_bytes]u8 = undefined;
+    const cwd = try process.getCwd(&cwd_buf);
+    const relative_arocc_exe = try std.fs.path.relative(arena, cwd, null, cases_dir, arocc_exe);
 
     var dir = std.Io.Dir.cwd().openDir(io, cases_dir, .{ .iterate = true }) catch |err| {
         std.debug.panic("unable to open '{s}': {t}", .{ cases_dir, err });
@@ -140,10 +142,7 @@ fn runCaseExtra(
         }
     }
 
-    var stdout: []u8 = undefined;
-    var stderr: []u8 = undefined;
-
-    {
+    const stdout, const stderr = run: {
         var child = try process.spawn(io, .{
             .argv = args.items,
 
@@ -156,13 +155,14 @@ fn runCaseExtra(
 
             .environ_map = child_env_p,
         });
-        errdefer child.kill(io);
+        defer child.kill(io);
 
-        var stdout_reader = child.stdout.?.readerStreaming(io, &.{});
-        stdout = try stdout_reader.interface.allocRemaining(arena, .unlimited);
+        var stdout: std.ArrayList(u8) = .empty;
+        defer stdout.deinit(gpa);
+        var stderr: std.ArrayList(u8) = .empty;
+        defer stderr.deinit(gpa);
 
-        var stderr_reader = child.stderr.?.readerStreaming(io, &.{});
-        stderr = try stderr_reader.interface.allocRemaining(arena, .unlimited);
+        try child.collectOutput(gpa, &stdout, &stderr, 50 * 1024);
 
         const term = try child.wait(io);
         if (term != .exited) {
@@ -173,7 +173,8 @@ fn runCaseExtra(
         if (child.resource_usage_statistics.getMaxRss()) |max_rss| {
             _ = @atomicRmw(usize, &stats.max_rss, .Max, max_rss, .monotonic);
         }
-    }
+        break :run .{ try stdout.toOwnedSlice(arena), try stderr.toOwnedSlice(arena) };
+    };
 
     switch (case.kind) {
         .syntax, .expand_error, .expand, .expand_partial => |expected_errors| {
