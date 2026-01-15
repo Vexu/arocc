@@ -88,16 +88,6 @@ pub const Environment = struct {
         return env;
     }
 
-    /// Use this only if environment slices were allocated with `allocator` (such as via `loadAll`)
-    pub fn deinit(self: *Environment, allocator: std.mem.Allocator) void {
-        inline for (@typeInfo(@TypeOf(self.*)).@"struct".fields) |field| {
-            if (@field(self, field.name)) |slice| {
-                allocator.free(slice);
-            }
-        }
-        self.* = undefined;
-    }
-
     pub fn sourceEpoch(self: *const Environment, io: Io) !SourceEpoch {
         const max_timestamp = 253402300799; // Dec 31 9999 23:59:59
 
@@ -235,7 +225,6 @@ pub fn deinit(comp: *Compilation) void {
     comp.builtins.deinit(gpa);
     comp.string_interner.deinit(gpa);
     comp.interner.deinit(gpa);
-    comp.environment.deinit(gpa);
     comp.type_store.deinit(gpa);
     comp.* = undefined;
 }

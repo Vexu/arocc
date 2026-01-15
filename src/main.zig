@@ -20,18 +20,37 @@ var debug_allocator: std.heap.DebugAllocator(.{
     .canary = @truncate(0xc647026dc6875134),
 }) = .{};
 
-pub fn main(init: process.Init) u8 {
-    const gpa = init.gpa;
-    const arena = init.arena.allocator();
-    const io = init.io;
+pub fn main(init: process.Init.Minimal) u8 {
+    const gpa = if (@import("builtin").link_libc)
+        std.heap.c_allocator
+    else
+        debug_allocator.allocator();
+    defer if (!@import("builtin").link_libc) {
+        _ = debug_allocator.deinit();
+    };
+
+    var arena_instance = std.heap.ArenaAllocator.init(gpa);
+    defer arena_instance.deinit();
+    const arena = arena_instance.allocator();
+
+    var threaded: std.Io.Threaded = .init(gpa, .{
+        .argv0 = .init(init.args),
+        .environ = init.environ,
+    });
+    defer threaded.deinit();
+    const io = threaded.io();
 
     const fast_exit = @import("builtin").mode != .Debug;
 
-    const args = init.minimal.args.toSlice(arena) catch {
+    const args = init.args.toSlice(arena) catch {
         std.debug.print("out of memory\n", .{});
         if (fast_exit) process.exit(1);
         return 1;
     };
+
+    var environ_map = std.process.Environ.createMap(init.environ, gpa) catch |err|
+        std.process.fatal("failed to parse environment variables: {t}", .{err});
+    defer environ_map.deinit();
 
     const aro_name = std.process.executableDirPathAlloc(io, gpa) catch {
         std.debug.print("unable to find Aro executable path\n", .{});
@@ -54,7 +73,7 @@ pub fn main(init: process.Init) u8 {
         .arena = arena,
         .io = io,
         .diagnostics = &diagnostics,
-        .environ_map = init.environ_map,
+        .environ_map = &environ_map,
     }) catch |er| switch (er) {
         error.OutOfMemory => {
             std.debug.print("out of memory\n", .{});

@@ -81,15 +81,23 @@ const ExpectedFailure = struct {
 
 const gpa = std.heap.smp_allocator;
 
-pub fn main(init: process.Init) !void {
-    const arena = init.arena.allocator();
-    const io = init.io;
+pub fn main(init: process.Init.Minimal) !void {
+    var arena_allocator = std.heap.ArenaAllocator.init(gpa);
+    defer arena_allocator.deinit();
+    const arena = arena_allocator.allocator();
 
-    const args = try init.minimal.args.toSlice(arena);
+    const args = try init.args.toSlice(arena);
     if (args.len != 2) {
         print("Usage: {s} <arocc-exe>", .{args[0]});
         process.exit(1);
     }
+
+    var threaded: std.Io.Threaded = .init(gpa, .{
+        .argv0 = .init(init.args),
+        .environ = init.environ,
+    });
+    defer threaded.deinit();
+    const io = threaded.io();
 
     const arocc_exe = args[1];
 

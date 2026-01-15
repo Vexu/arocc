@@ -6,15 +6,27 @@ const process = std.process;
 
 const gpa = std.heap.smp_allocator;
 
-pub fn main(init: process.Init) !void {
-    const arena = init.arena.allocator();
-    const io = init.io;
+pub fn main(init: process.Init.Minimal) !void {
+    var arena_allocator = std.heap.ArenaAllocator.init(gpa);
+    defer arena_allocator.deinit();
+    const arena = arena_allocator.allocator();
 
-    const args = try init.minimal.args.toSlice(arena);
+    const args = try init.args.toSlice(arena);
     if (args.len != 3) {
         print("Usage: {s} <arocc-exe> <cases-dir>", .{args[0]});
         process.exit(1);
     }
+
+    var threaded: std.Io.Threaded = .init(gpa, .{
+        .argv0 = .init(init.args),
+        .environ = init.environ,
+    });
+    defer threaded.deinit();
+    const io = threaded.io();
+
+    var environ_map = std.process.Environ.createMap(init.environ, gpa) catch |err|
+        std.process.fatal("failed to parse environment variables: {t}", .{err});
+    defer environ_map.deinit();
 
     const arocc_exe = args[1];
     const cases_dir = args[2];
@@ -41,7 +53,7 @@ pub fn main(init: process.Init) !void {
         _ = @atomicRmw(u32, &stats.total, .Add, 1, .monotonic);
 
         const path = try std.fs.path.join(arena, &.{ cases_dir, entry.name });
-        group.async(io, runCase, .{ io, init.environ_map, path, relative_arocc_exe, root_prog_node, &stats });
+        group.async(io, runCase, .{ io, &environ_map, path, relative_arocc_exe, root_prog_node, &stats });
     }
     try group.await(io);
     root_prog_node.end();
