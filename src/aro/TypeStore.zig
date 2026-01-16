@@ -1810,6 +1810,7 @@ attributes: std.ArrayList(Attribute) = .empty,
 anon_name_arena: std.heap.ArenaAllocator.State = .{},
 
 wchar: QualType = .invalid,
+wint: QualType = .invalid,
 uint_least16_t: QualType = .invalid,
 uint_least32_t: QualType = .invalid,
 ptrdiff: QualType = .invalid,
@@ -2098,18 +2099,36 @@ pub fn set(ts: *TypeStore, gpa: std.mem.Allocator, ty: Type, index: usize) !void
 
 pub fn initNamedTypes(ts: *TypeStore, comp: *Compilation) !void {
     const os = comp.target.os.tag;
+    const arch = comp.target.cpu.arch;
     ts.wchar = switch (os) {
         .openbsd, .netbsd => .int,
         .ps4, .ps5 => .ushort,
         .uefi => .ushort,
         .windows => .ushort,
         .driverkit, .ios, .maccatalyst, .macos, .tvos, .visionos, .watchos => .int,
-        else => switch (comp.target.cpu.arch) {
+        else => switch (arch) {
             .aarch64, .aarch64_be => .uint,
             .arm, .armeb, .thumb, .thumbeb => .uint,
             .ve, .msp430 => .uint,
             .x86_64, .x86 => .int,
             .xcore => .uchar,
+            else => .int,
+        },
+    };
+
+    ts.wint = switch (os) {
+        .fuchsia => .uint,
+        .linux => .uint,
+        .openbsd => .int,
+        .uefi => .ushort,
+        .windows => .ushort,
+        else => switch (arch) {
+            .csky => .uint,
+            .loongarch32, .loongarch64 => .uint,
+            .riscv32, .riscv32be, .riscv64, .riscv64be => .uint,
+            .ve => .uint,
+            .xcore => .uint,
+            .xtensa, .xtensaeb => .uint,
             else => .int,
         },
     };

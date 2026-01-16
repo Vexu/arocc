@@ -923,6 +923,7 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
         \\#define __ATOMIC_CHAR16_T_LOCK_FREE 1
         \\#define __ATOMIC_CHAR32_T_LOCK_FREE 1
         \\#define __ATOMIC_WCHAR_T_LOCK_FREE 1
+        \\#define __ATOMIC_WINT_T_LOCK_FREE 1
         \\#define __ATOMIC_SHORT_LOCK_FREE 1
         \\#define __ATOMIC_INT_LOCK_FREE 1
         \\#define __ATOMIC_LONG_LOCK_FREE 1
@@ -935,7 +936,15 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
     }
 
     // types
-    if (comp.getCharSignedness() == .unsigned) try w.writeAll("#define __CHAR_UNSIGNED__ 1\n");
+    if (comp.getCharSignedness() == .unsigned) {
+        try w.writeAll("#define __CHAR_UNSIGNED__ 1\n");
+    }
+    if (comp.type_store.wchar.signedness(comp) == .unsigned) {
+        try w.writeAll("#define __WCHAR_UNSIGNED__ 1\n");
+    }
+    if (comp.type_store.wint.signedness(comp) == .unsigned) {
+        try w.writeAll("#define __WINT_UNSIGNED__ 1\n");
+    }
     try w.writeAll("#define __CHAR_BIT__ 8\n");
 
     // int maxs
@@ -946,7 +955,7 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
     try comp.generateIntMaxAndWidth(w, "LONG", .long);
     try comp.generateIntMaxAndWidth(w, "LONG_LONG", .long_long);
     try comp.generateIntMaxAndWidth(w, "WCHAR", comp.type_store.wchar);
-    // try comp.generateIntMax(w, "WINT", comp.type_store.wchar);
+    try comp.generateIntMaxAndWidth(w, "WINT", comp.type_store.wint);
     try comp.generateIntMaxAndWidth(w, "INTMAX", comp.type_store.intmax);
     try comp.generateIntMaxAndWidth(w, "SIZE", comp.type_store.size);
     try comp.generateIntMaxAndWidth(w, "UINTMAX", try comp.type_store.intmax.makeIntUnsigned(comp));
@@ -970,7 +979,7 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
     try comp.generateSizeofType(w, "__SIZEOF_PTRDIFF_T__", comp.type_store.ptrdiff);
     try comp.generateSizeofType(w, "__SIZEOF_SIZE_T__", comp.type_store.size);
     try comp.generateSizeofType(w, "__SIZEOF_WCHAR_T__", comp.type_store.wchar);
-    // try comp.generateSizeofType(w, "__SIZEOF_WINT_T__", .void_pointer);
+    try comp.generateSizeofType(w, "__SIZEOF_WINT_T__", comp.type_store.wint);
 
     if (target.hasInt128()) {
         try comp.generateSizeofType(w, "__SIZEOF_INT128__", .int128);
@@ -989,6 +998,7 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
     try comp.generateTypeMacro(w, "__PTRDIFF_TYPE__", comp.type_store.ptrdiff);
     try comp.generateTypeMacro(w, "__SIZE_TYPE__", comp.type_store.size);
     try comp.generateTypeMacro(w, "__WCHAR_TYPE__", comp.type_store.wchar);
+    try comp.generateTypeMacro(w, "__WINT_TYPE__", comp.type_store.wint);
     try comp.generateTypeMacro(w, "__CHAR16_TYPE__", comp.type_store.uint_least16_t);
     try comp.generateTypeMacro(w, "__CHAR32_TYPE__", comp.type_store.uint_least32_t);
 
