@@ -936,7 +936,15 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
     }
 
     // types
-    if (comp.getCharSignedness() == .unsigned) try w.writeAll("#define __CHAR_UNSIGNED__ 1\n");
+    if (comp.getCharSignedness() == .unsigned) {
+        try w.writeAll("#define __CHAR_UNSIGNED__ 1\n");
+    }
+    if (comp.type_store.wchar.signedness(comp) == .unsigned) {
+        try w.writeAll("#define __WCHAR_UNSIGNED__ 1\n");
+    }
+    if (comp.type_store.wint.signedness(comp) == .unsigned) {
+        try w.writeAll("#define __WINT_UNSIGNED__ 1\n");
+    }
     try w.writeAll("#define __CHAR_BIT__ 8\n");
 
     // int maxs
