@@ -164,46 +164,49 @@ pragma_handlers: std.StringArrayHashMapUnmanaged(*Pragma) = .empty,
 /// Used by MS extensions which allow searching for includes relative to the directory of the main source file.
 ms_cwd_source_id: ?Source.Id = null,
 
+pub const InitOptions = struct {
+    gpa: Allocator,
+    arena: Allocator,
+    io: Io,
+    diagnostics: *Diagnostics,
+
+    /// Used to initiate `Compilation.Environment`, values are not copied.
+    environ_map: ?*const std.process.Environ.Map,
+    /// Defaults to `std.Io.Dir.cwd()`
+    cwd: ?std.Io.Dir = null,
+
+    add_default_pragma_handlers: bool = true,
+
+    pub const testing: InitOptions = .{
+        .gpa = std.testing.allocator,
+        .arena = undefined,
+        .io = std.testing.io,
+        .diagnostics = undefined,
+        .environ_map = null,
+        .add_default_pragma_handlers = false,
+    };
+};
+
 /// Initialize Compilation with default environment,
 /// pragma handlers and emulation mode set to target.
-pub fn init(
-    options: struct {
-        gpa: Allocator,
-        arena: Allocator,
-        io: Io,
-        diagnostics: *Diagnostics,
-        environ_map: *const std.process.Environ.Map,
-
-        // Defaults to `std.Io.Dir.cwd()`
-        cwd: ?std.Io.Dir = null,
-
-        add_default_pragma_handlers: bool = true,
-    },
-) !Compilation {
+pub fn init(options: InitOptions) !Compilation {
     var comp: Compilation = .{
         .gpa = options.gpa,
         .arena = options.arena,
         .io = options.io,
         .diagnostics = options.diagnostics,
-        .environment = .loadAll(options.environ_map),
         .cwd = options.cwd orelse .cwd(),
     };
     errdefer comp.deinit();
+
+    if (options.environ_map) |map| {
+        comp.environment = .loadAll(map);
+    }
 
     if (options.add_default_pragma_handlers) {
         try comp.addDefaultPragmaHandlers();
     }
     return comp;
-}
-
-pub fn initTesting() Compilation {
-    return .{
-        .gpa = std.testing.allocator,
-        .arena = undefined,
-        .io = std.testing.io,
-        .diagnostics = undefined,
-        .cwd = .cwd(),
-    };
 }
 
 pub fn deinit(comp: *Compilation) void {
@@ -2261,7 +2264,7 @@ test "addSourceFromBuffer" {
     const Test = struct {
         fn addSourceFromBuffer(str: []const u8, expected: []const u8, warning_count: u32, splices: []const u32) !void {
             var diagnostics: Diagnostics = .{ .output = .ignore };
-            var comp = Compilation.initTesting();
+            var comp = try Compilation.init(.testing);
             comp.diagnostics = &diagnostics;
             defer comp.deinit();
 
@@ -2273,7 +2276,7 @@ test "addSourceFromBuffer" {
         }
 
         fn withAllocationFailures(allocator: std.mem.Allocator) !void {
-            var comp = Compilation.initTesting();
+            var comp = try Compilation.init(.testing);
             comp.gpa = allocator;
             defer comp.deinit();
 
@@ -2320,7 +2323,7 @@ test "addSourceFromBuffer - exhaustive check for carriage return elimination" {
     var buf: [alphabet.len]u8 = @splat(alphabet[0]);
 
     var diagnostics: Diagnostics = .{ .output = .ignore };
-    var comp = Compilation.initTesting();
+    var comp = try Compilation.init(.testing);
     comp.diagnostics = &diagnostics;
     defer comp.deinit();
 
@@ -2348,7 +2351,7 @@ test "ignore BOM at beginning of file" {
     const BOM = "\xEF\xBB\xBF";
     const Test = struct {
         fn run(buf: []const u8) !void {
-            var comp = Compilation.initTesting();
+            var comp = try Compilation.init(.testing);
             defer comp.deinit();
 
             const source = try comp.addSourceFromBuffer("file.c", buf);

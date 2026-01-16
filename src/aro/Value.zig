@@ -76,7 +76,7 @@ test "minUnsignedBits" {
         }
     };
 
-    var comp = Compilation.initTesting();
+    var comp = try Compilation.init(.testing);
     defer comp.deinit();
     const target_query = try std.Target.Query.parse(.{ .arch_os_abi = "x86_64-linux-gnu" });
     comp.target = .fromZigTarget(try std.zig.system.resolveTargetQuery(std.testing.io, target_query));
@@ -111,7 +111,7 @@ test "minSignedBits" {
         }
     };
 
-    var comp = Compilation.initTesting();
+    var comp = try Compilation.init(.testing);
     defer comp.deinit();
     const target_query = try std.Target.Query.parse(.{ .arch_os_abi = "x86_64-linux-gnu" });
     comp.target = .fromZigTarget(try std.zig.system.resolveTargetQuery(std.testing.io, target_query));

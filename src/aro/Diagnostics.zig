@@ -546,7 +546,7 @@ fn addMessage(d: *Diagnostics, msg: Message) Compilation.Error!void {
             var mode = terminal.mode;
             if (d.color == false) mode = .no_color;
             if (d.color == true and mode == .no_color) mode = .escape_codes;
-            msg.write(terminal, d.details) catch {
+            msg.write(.{ .mode = mode, .writer = terminal.writer }, d.details) catch {
                 return error.FatalError;
             };
         },

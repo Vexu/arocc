@@ -2344,7 +2344,7 @@ test "Universal character names" {
 test "Tokenizer fuzz test" {
     const Context = struct {
         fn testOne(_: @This(), input_bytes: []const u8) anyerror!void {
-            var comp = Compilation.initTesting();
+            var comp = try Compilation.init(.testing);
             defer comp.deinit();
 
             const source = try comp.addSourceFromBuffer("fuzz.c", input_bytes);
@@ -2367,7 +2367,7 @@ test "Tokenizer fuzz test" {
 }
 
 fn expectTokensExtra(contents: []const u8, expected_tokens: []const Token.Id, langopts: ?LangOpts) !void {
-    var comp = Compilation.initTesting();
+    var comp = try Compilation.init(.testing);
     defer comp.deinit();
     if (langopts) |provided| {
         comp.langopts = provided;

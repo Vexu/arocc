@@ -474,7 +474,7 @@ test Linux {
         .vtable = &testing_io_vtable,
     };
 
-    var comp = Compilation.initTesting();
+    var comp = try Compilation.init(.testing);
     comp.io = fake_io;
     comp.arena = arena;
     defer comp.deinit();

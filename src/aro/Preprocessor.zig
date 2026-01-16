@@ -3921,7 +3921,7 @@ test "Preserve pragma tokens sometimes" {
     const Test = struct {
         fn runPreprocessor(source_text: []const u8) ![]const u8 {
             var diagnostics: Diagnostics = .{ .output = .ignore };
-            var comp = Compilation.initTesting();
+            var comp = try Compilation.init(.testing);
             comp.diagnostics = &diagnostics;
             defer comp.deinit();
 
@@ -3986,7 +3986,7 @@ test "destringify" {
             try std.testing.expectEqualStrings(destringified, pp.char_buf.items);
         }
     };
-    var comp = Compilation.initTesting();
+    var comp = try Compilation.init(.testing);
     defer comp.deinit();
 
     var pp = Preprocessor.init(&comp, .default);
@@ -4048,7 +4048,7 @@ test "Include guards" {
             const gpa = std.testing.allocator;
 
             var diagnostics: Diagnostics = .{ .output = .ignore };
-            var comp = Compilation.initTesting();
+            var comp = try Compilation.init(.testing);
             comp.diagnostics = &diagnostics;
             defer comp.deinit();
             var pp = Preprocessor.init(&comp, .default);

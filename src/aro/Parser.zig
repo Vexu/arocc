@@ -10801,7 +10801,7 @@ fn genericSelection(p: *Parser) Error!?Result {
 }
 
 test "Node locations" {
-    var comp = Compilation.initTesting();
+    var comp = try Compilation.init(.testing);
     defer comp.deinit();
 
     const file = try comp.addSourceFromBuffer("file.c",
