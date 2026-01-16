@@ -108,7 +108,7 @@ pub fn build(b: *Build) !void {
         var code: u8 = undefined;
         const git_describe_untrimmed = b.runAllowFail(&[_][]const u8{
             "git", "-C", b.build_root.path orelse ".", "describe", "--match", "*.*.*", "--tags",
-        }, &code, .Ignore) catch version_string;
+        }, &code, .ignore) catch version_string;
         const git_describe = std.mem.trim(u8, git_describe_untrimmed, " \n\r");
 
         switch (std.mem.count(u8, git_describe, "-")) {

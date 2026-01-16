@@ -450,8 +450,8 @@ test Linux {
             if (!std.mem.eql(u8, sub_path, "/etc/lsb-release")) return error.FileNotFound;
             return .{ .handle = undefined };
         }
-        fn fileClose(_: ?*anyopaque, _: std.Io.File) void {}
-        fn fileReadPositional(_: ?*anyopaque, _: std.Io.File, data: [][]u8, offset: u64) std.Io.File.ReadPositionalError!usize {
+        fn fileClose(_: ?*anyopaque, _: []const std.Io.File) void {}
+        fn fileReadPositional(_: ?*anyopaque, _: std.Io.File, data: []const []u8, offset: u64) std.Io.File.ReadPositionalError!usize {
             const contents =
                 \\DISTRIB_ID=Ubuntu
                 \\DISTRIB_RELEASE=20.04
@@ -474,7 +474,9 @@ test Linux {
         .vtable = &testing_io_vtable,
     };
 
-    var comp = Compilation.init(gpa, arena, fake_io, undefined, std.fs.cwd());
+    var comp = try Compilation.init(.testing);
+    comp.io = fake_io;
+    comp.arena = arena;
     defer comp.deinit();
     comp.environment = .{
         .path = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",

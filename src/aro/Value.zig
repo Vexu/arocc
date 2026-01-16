@@ -76,11 +76,7 @@ test "minUnsignedBits" {
         }
     };
 
-    var arena_state: std.heap.ArenaAllocator = .init(std.testing.allocator);
-    defer arena_state.deinit();
-    const arena = arena_state.allocator();
-
-    var comp = Compilation.init(std.testing.allocator, arena, std.testing.io, undefined, std.fs.cwd());
+    var comp = try Compilation.init(.testing);
     defer comp.deinit();
     const target_query = try std.Target.Query.parse(.{ .arch_os_abi = "x86_64-linux-gnu" });
     comp.target = .fromZigTarget(try std.zig.system.resolveTargetQuery(std.testing.io, target_query));
@@ -115,11 +111,7 @@ test "minSignedBits" {
         }
     };
 
-    var arena_state: std.heap.ArenaAllocator = .init(std.testing.allocator);
-    defer arena_state.deinit();
-    const arena = arena_state.allocator();
-
-    var comp = Compilation.init(std.testing.allocator, arena, std.testing.io, undefined, std.fs.cwd());
+    var comp = try Compilation.init(.testing);
     defer comp.deinit();
     const target_query = try std.Target.Query.parse(.{ .arch_os_abi = "x86_64-linux-gnu" });
     comp.target = .fromZigTarget(try std.zig.system.resolveTargetQuery(std.testing.io, target_query));

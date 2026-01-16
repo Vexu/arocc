@@ -74,35 +74,18 @@ pub const Environment = struct {
         pub const default: @This() = .{ .provided = 0 };
     };
 
-    /// Load all of the environment variables using the std.process API. Do not use if using Aro as a shared library on Linux without libc
-    /// See https://github.com/ziglang/zig/issues/4524
-    pub fn loadAll(allocator: std.mem.Allocator) !Environment {
+    /// Load all of the environment variables from an environ map. Does not copy values.
+    pub fn loadAll(environ_map: *const std.process.Environ.Map) Environment {
         var env: Environment = .{};
-        errdefer env.deinit(allocator);
 
         inline for (@typeInfo(@TypeOf(env)).@"struct".fields) |field| {
             std.debug.assert(@field(env, field.name) == null);
 
             var env_var_buf: [field.name.len]u8 = undefined;
             const env_var_name = std.ascii.upperString(&env_var_buf, field.name);
-            const val: ?[]const u8 = std.process.getEnvVarOwned(allocator, env_var_name) catch |err| switch (err) {
-                error.OutOfMemory => |e| return e,
-                error.EnvironmentVariableNotFound => null,
-                error.InvalidWtf8 => null,
-            };
-            @field(env, field.name) = val;
+            @field(env, field.name) = environ_map.get(env_var_name);
         }
         return env;
-    }
-
-    /// Use this only if environment slices were allocated with `allocator` (such as via `loadAll`)
-    pub fn deinit(self: *Environment, allocator: std.mem.Allocator) void {
-        inline for (@typeInfo(@TypeOf(self.*)).@"struct".fields) |field| {
-            if (@field(self, field.name)) |slice| {
-                allocator.free(slice);
-            }
-        }
-        self.* = undefined;
     }
 
     pub fn sourceEpoch(self: *const Environment, io: Io) !SourceEpoch {
@@ -154,7 +137,7 @@ gpa: Allocator,
 /// Allocations in this arena live all the way until `Compilation.deinit`.
 arena: Allocator,
 io: Io,
-cwd: std.fs.Dir,
+cwd: std.Io.Dir,
 diagnostics: *Diagnostics,
 
 sources: std.StringArrayHashMapUnmanaged(Source) = .empty,
@@ -181,29 +164,48 @@ pragma_handlers: std.StringArrayHashMapUnmanaged(*Pragma) = .empty,
 /// Used by MS extensions which allow searching for includes relative to the directory of the main source file.
 ms_cwd_source_id: ?Source.Id = null,
 
-pub fn init(gpa: Allocator, arena: Allocator, io: Io, diagnostics: *Diagnostics, cwd: std.fs.Dir) Compilation {
-    return .{
-        .gpa = gpa,
-        .arena = arena,
-        .io = io,
-        .diagnostics = diagnostics,
-        .cwd = cwd,
+pub const InitOptions = struct {
+    gpa: Allocator,
+    arena: Allocator,
+    io: Io,
+    diagnostics: *Diagnostics,
+
+    /// Used to initiate `Compilation.Environment`, values are not copied.
+    environ_map: ?*const std.process.Environ.Map,
+    /// Defaults to `std.Io.Dir.cwd()`
+    cwd: ?std.Io.Dir = null,
+
+    add_default_pragma_handlers: bool = true,
+
+    pub const testing: InitOptions = .{
+        .gpa = std.testing.allocator,
+        .arena = undefined,
+        .io = std.testing.io,
+        .diagnostics = undefined,
+        .environ_map = null,
+        .add_default_pragma_handlers = false,
     };
-}
+};
 
 /// Initialize Compilation with default environment,
 /// pragma handlers and emulation mode set to target.
-pub fn initDefault(gpa: Allocator, arena: Allocator, io: Io, diagnostics: *Diagnostics, cwd: std.fs.Dir) !Compilation {
+pub fn init(options: InitOptions) !Compilation {
     var comp: Compilation = .{
-        .gpa = gpa,
-        .arena = arena,
-        .io = io,
-        .diagnostics = diagnostics,
-        .environment = try Environment.loadAll(gpa),
-        .cwd = cwd,
+        .gpa = options.gpa,
+        .arena = options.arena,
+        .io = options.io,
+        .diagnostics = options.diagnostics,
+        .cwd = options.cwd orelse .cwd(),
     };
     errdefer comp.deinit();
-    try comp.addDefaultPragmaHandlers();
+
+    if (options.environ_map) |map| {
+        comp.environment = .loadAll(map);
+    }
+
+    if (options.add_default_pragma_handlers) {
+        try comp.addDefaultPragmaHandlers();
+    }
     return comp;
 }
 
@@ -226,7 +228,6 @@ pub fn deinit(comp: *Compilation) void {
     comp.builtins.deinit(gpa);
     comp.string_interner.deinit(gpa);
     comp.interner.deinit(gpa);
-    comp.environment.deinit(gpa);
     comp.type_store.deinit(gpa);
     comp.* = undefined;
 }
@@ -1655,12 +1656,12 @@ fn addSourceFromPathExtra(comp: *Compilation, path: []const u8, kind: Source.Kin
         return error.FileNotFound;
     }
 
-    const file = try comp.cwd.openFile(path, .{});
-    defer file.close();
+    const file = try comp.cwd.openFile(comp.io, path, .{});
+    defer file.close(comp.io);
     return comp.addSourceFromFile(file, path, kind);
 }
 
-pub fn addSourceFromFile(comp: *Compilation, file: std.fs.File, path: []const u8, kind: Source.Kind) !Source {
+pub fn addSourceFromFile(comp: *Compilation, file: std.Io.File, path: []const u8, kind: Source.Kind) !Source {
     const contents = try comp.getFileContents(file, .unlimited);
     errdefer comp.gpa.free(contents);
     return comp.addSourceFromOwnedBuffer(path, contents, kind);
@@ -1727,7 +1728,7 @@ pub fn initSearchPath(comp: *Compilation, includes: []const Include, verbose: bo
     }
 }
 fn addToSearchPath(comp: *Compilation, include: Include, verbose: bool) !void {
-    comp.cwd.access(include.path, .{}) catch {
+    comp.cwd.access(comp.io, include.path, .{}) catch {
         if (verbose) {
             std.debug.print("ignoring nonexistent directory \"{s}\"\n", .{include.path});
             return;
@@ -1987,12 +1988,12 @@ fn getPathContents(comp: *Compilation, path: []const u8, limit: Io.Limit) ![]u8 
         return error.FileNotFound;
     }
 
-    const file = try comp.cwd.openFile(path, .{});
-    defer file.close();
+    const file = try comp.cwd.openFile(comp.io, path, .{});
+    defer file.close(comp.io);
     return comp.getFileContents(file, limit);
 }
 
-fn getFileContents(comp: *Compilation, file: std.fs.File, limit: Io.Limit) ![]u8 {
+fn getFileContents(comp: *Compilation, file: std.Io.File, limit: Io.Limit) ![]u8 {
     var file_buf: [4096]u8 = undefined;
     var file_reader = file.reader(comp.io, &file_buf);
 
@@ -2175,7 +2176,7 @@ pub fn locSlice(comp: *const Compilation, loc: Source.Location) []const u8 {
 
 pub fn getSourceMTimeUncached(comp: *const Compilation, source_id: Source.Id) ?u64 {
     const source = comp.getSource(source_id);
-    if (comp.cwd.statFile(source.path)) |stat| {
+    if (comp.cwd.statFile(comp.io, source.path, .{})) |stat| {
         return std.math.cast(u64, stat.mtime.toSeconds());
     } else |_| {
         return null;
@@ -2262,10 +2263,9 @@ pub const Diagnostic = struct {
 test "addSourceFromBuffer" {
     const Test = struct {
         fn addSourceFromBuffer(str: []const u8, expected: []const u8, warning_count: u32, splices: []const u32) !void {
-            var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
-            defer arena.deinit();
             var diagnostics: Diagnostics = .{ .output = .ignore };
-            var comp = Compilation.init(std.testing.allocator, arena.allocator(), std.testing.io, &diagnostics, std.fs.cwd());
+            var comp = try Compilation.init(.testing);
+            comp.diagnostics = &diagnostics;
             defer comp.deinit();
 
             const source = try comp.addSourceFromBuffer("path", str);
@@ -2276,10 +2276,8 @@ test "addSourceFromBuffer" {
         }
 
         fn withAllocationFailures(allocator: std.mem.Allocator) !void {
-            var arena: std.heap.ArenaAllocator = .init(allocator);
-            defer arena.deinit();
-            var diagnostics: Diagnostics = .{ .output = .ignore };
-            var comp = Compilation.init(allocator, arena.allocator(), std.testing.io, &diagnostics, std.fs.cwd());
+            var comp = try Compilation.init(.testing);
+            comp.gpa = allocator;
             defer comp.deinit();
 
             _ = try comp.addSourceFromBuffer("path", "spliced\\\nbuffer\n");
@@ -2325,7 +2323,8 @@ test "addSourceFromBuffer - exhaustive check for carriage return elimination" {
     var buf: [alphabet.len]u8 = @splat(alphabet[0]);
 
     var diagnostics: Diagnostics = .{ .output = .ignore };
-    var comp = Compilation.init(std.testing.allocator, arena.allocator(), std.testing.io, &diagnostics, std.fs.cwd());
+    var comp = try Compilation.init(.testing);
+    comp.diagnostics = &diagnostics;
     defer comp.deinit();
 
     var source_count: u32 = 0;
@@ -2351,9 +2350,8 @@ test "addSourceFromBuffer - exhaustive check for carriage return elimination" {
 test "ignore BOM at beginning of file" {
     const BOM = "\xEF\xBB\xBF";
     const Test = struct {
-        fn run(arena: Allocator, buf: []const u8) !void {
-            var diagnostics: Diagnostics = .{ .output = .ignore };
-            var comp = Compilation.init(std.testing.allocator, arena, std.testing.io, &diagnostics, std.fs.cwd());
+        fn run(buf: []const u8) !void {
+            var comp = try Compilation.init(.testing);
             defer comp.deinit();
 
             const source = try comp.addSourceFromBuffer("file.c", buf);
@@ -2362,19 +2360,15 @@ test "ignore BOM at beginning of file" {
         }
     };
 
-    var arena_state: std.heap.ArenaAllocator = .init(std.testing.allocator);
-    defer arena_state.deinit();
-    const arena = arena_state.allocator();
+    try Test.run(BOM);
+    try Test.run(BOM ++ "x");
+    try Test.run("x" ++ BOM);
+    try Test.run(BOM ++ " ");
+    try Test.run(BOM ++ "\n");
+    try Test.run(BOM ++ "\\");
 
-    try Test.run(arena, BOM);
-    try Test.run(arena, BOM ++ "x");
-    try Test.run(arena, "x" ++ BOM);
-    try Test.run(arena, BOM ++ " ");
-    try Test.run(arena, BOM ++ "\n");
-    try Test.run(arena, BOM ++ "\\");
-
-    try Test.run(arena, BOM[0..1] ++ "x");
-    try Test.run(arena, BOM[0..2] ++ "x");
-    try Test.run(arena, BOM[1..] ++ "x");
-    try Test.run(arena, BOM[2..] ++ "x");
+    try Test.run(BOM[0..1] ++ "x");
+    try Test.run(BOM[0..2] ++ "x");
+    try Test.run(BOM[1..] ++ "x");
+    try Test.run(BOM[2..] ++ "x");
 }

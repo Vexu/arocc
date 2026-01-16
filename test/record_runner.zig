@@ -81,16 +81,23 @@ const ExpectedFailure = struct {
 
 const gpa = std.heap.smp_allocator;
 
-pub fn main() !void {
+pub fn main(init: process.Init.Minimal) !void {
     var arena_allocator = std.heap.ArenaAllocator.init(gpa);
     defer arena_allocator.deinit();
     const arena = arena_allocator.allocator();
 
-    const args = try process.argsAlloc(arena);
+    const args = try init.args.toSlice(arena);
     if (args.len != 2) {
         print("Usage: {s} <arocc-exe>", .{args[0]});
         process.exit(1);
     }
+
+    var threaded: std.Io.Threaded = .init(gpa, .{
+        .argv0 = .init(init.args),
+        .environ = init.environ,
+    });
+    defer threaded.deinit();
+    const io = threaded.io();
 
     const arocc_exe = args[1];
 
@@ -99,11 +106,11 @@ pub fn main() !void {
 
     // Collect all cases. Set scope to clean when done.
     {
-        var cases_dir = try std.fs.cwd().openDir("test/records", .{ .iterate = true });
-        defer cases_dir.close();
+        var cases_dir = try Io.Dir.cwd().openDir(io, "test/records", .{ .iterate = true });
+        defer cases_dir.close(io);
 
         var it = cases_dir.iterate();
-        while (try it.next()) |entry| {
+        while (try it.next(io)) |entry| {
             if (entry.kind != .file) continue;
 
             if (std.ascii.indexOfIgnoreCase(entry.name, "_test.c") != null) {
@@ -118,17 +125,13 @@ pub fn main() !void {
     defer test_cases.deinit(gpa);
 
     for (cases.items) |path| {
-        try parseTargetsFromCode(&test_cases, arena, path);
+        try parseTargetsFromCode(io, &test_cases, arena, path);
     }
 
-    const root_node = std.Progress.start(.{
+    const root_node = std.Progress.start(io, .{
         .root_name = "record layout tests",
         .estimated_total_items = test_cases.items.len,
     });
-
-    var threaded: Io.Threaded = .init(gpa);
-    defer threaded.deinit();
-    const io = threaded.io();
 
     var group: Io.Group = .init;
     var stats: Stats = .{
@@ -139,7 +142,7 @@ pub fn main() !void {
         group.async(io, runCase, .{ io, arocc_exe, case, &stats });
     }
 
-    group.wait(io);
+    try group.await(io);
     root_node.end();
 
     print("max mem used = {Bi:.2}\n", .{stats.max_alloc});
@@ -232,23 +235,24 @@ fn runCaseExtra(io: Io, aro_exe: []const u8, test_case: TestCase, stats: *Stats)
         try args.append(gpa, "-DMSVC");
     }
 
-    var child = process.Child.init(args.items, arena);
-    child.stdout_behavior = .Ignore;
-    child.stderr_behavior = .Pipe;
-    child.stdin_behavior = .Ignore;
-
-    child.request_resource_usage_statistics = true;
-
     var stderr: []u8 = undefined;
     const code = code: {
-        try child.spawn();
-        errdefer _ = child.kill() catch {};
+        var child = try process.spawn(io, .{
+            .argv = args.items,
+
+            .stdout = .ignore,
+            .stderr = .pipe,
+            .stdin = .ignore,
+
+            .request_resource_usage_statistics = true,
+        });
+        defer child.kill(io);
 
         var stderr_reader = child.stderr.?.readerStreaming(io, &.{});
         stderr = try stderr_reader.interface.allocRemaining(arena, .unlimited);
 
-        const term = try child.wait();
-        if (term != .Exited) {
+        const term = try child.wait(io);
+        if (term != .exited) {
             const cmd = try mem.join(arena, " ", args.items);
             print("arocc command crashed:\n{s}\n", .{cmd});
             return error.Crashed;
@@ -257,7 +261,7 @@ fn runCaseExtra(io: Io, aro_exe: []const u8, test_case: TestCase, stats: *Stats)
             stats.updateMaxMemUsage(max_rss);
         }
 
-        break :code term.Exited;
+        break :code term.exited;
     };
 
     if (global_test_exclude.has(test_name)) {
@@ -306,8 +310,8 @@ fn runCaseExtra(io: Io, aro_exe: []const u8, test_case: TestCase, stats: *Stats)
     }
 }
 
-fn parseTargetsFromCode(cases: *TestCase.List, arena: mem.Allocator, path: []const u8) !void {
-    const source = try std.fs.cwd().readFileAlloc(path, gpa, .unlimited);
+fn parseTargetsFromCode(io: Io, cases: *TestCase.List, arena: mem.Allocator, path: []const u8) !void {
+    const source = try Io.Dir.cwd().readFileAlloc(io, path, gpa, .unlimited);
     defer gpa.free(source);
 
     var index: usize = 0;

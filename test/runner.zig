@@ -6,47 +6,56 @@ const process = std.process;
 
 const gpa = std.heap.smp_allocator;
 
-pub fn main() !void {
+pub fn main(init: process.Init.Minimal) !void {
     var arena_allocator = std.heap.ArenaAllocator.init(gpa);
     defer arena_allocator.deinit();
     const arena = arena_allocator.allocator();
 
-    const args = try process.argsAlloc(arena);
+    const args = try init.args.toSlice(arena);
     if (args.len != 3) {
         print("Usage: {s} <arocc-exe> <cases-dir>", .{args[0]});
         process.exit(1);
     }
 
-    const arocc_exe = args[1];
-    const cases_dir = args[2];
-
-    const relative_arocc_exe = try std.fs.path.relative(arena, cases_dir, arocc_exe);
-
-    var threaded: Io.Threaded = .init(gpa);
+    var threaded: std.Io.Threaded = .init(gpa, .{
+        .argv0 = .init(init.args),
+        .environ = init.environ,
+    });
     defer threaded.deinit();
     const io = threaded.io();
 
-    var dir = std.fs.cwd().openDir(cases_dir, .{ .iterate = true }) catch |err| {
+    var environ_map = std.process.Environ.createMap(init.environ, gpa) catch |err|
+        std.process.fatal("failed to parse environment variables: {t}", .{err});
+    defer environ_map.deinit();
+
+    const arocc_exe = args[1];
+    const cases_dir = args[2];
+
+    var cwd_buf: [std.fs.max_path_bytes]u8 = undefined;
+    const cwd = try process.getCwd(&cwd_buf);
+    const relative_arocc_exe = try std.fs.path.relative(arena, cwd, null, cases_dir, arocc_exe);
+
+    var dir = std.Io.Dir.cwd().openDir(io, cases_dir, .{ .iterate = true }) catch |err| {
         std.debug.panic("unable to open '{s}': {t}", .{ cases_dir, err });
     };
-    defer dir.close();
+    defer dir.close(io);
 
     var group: Io.Group = .init;
     var stats: Stats = .{};
 
-    const root_prog_node = std.Progress.start(.{ .root_name = "integration tests" });
+    const root_prog_node = std.Progress.start(io, .{ .root_name = "integration tests" });
 
     var it = dir.iterate();
-    while (try it.next()) |entry| {
+    while (try it.next(io)) |entry| {
         if (entry.kind != .file) continue;
         if (mem.eql(u8, entry.name, "README.md")) continue;
         root_prog_node.increaseEstimatedTotalItems(1);
         _ = @atomicRmw(u32, &stats.total, .Add, 1, .monotonic);
 
         const path = try std.fs.path.join(arena, &.{ cases_dir, entry.name });
-        group.async(io, runCase, .{ io, path, relative_arocc_exe, root_prog_node, &stats });
+        group.async(io, runCase, .{ io, &environ_map, path, relative_arocc_exe, root_prog_node, &stats });
     }
-    group.wait(io);
+    try group.await(io);
     root_prog_node.end();
 
     print("max mem used = {Bi:.2}\n", .{stats.max_rss});
@@ -69,6 +78,7 @@ const Stats = struct {
 
 fn runCase(
     io: Io,
+    environ_map: *process.Environ.Map,
     path: []const u8,
     aro_exe: []const u8,
     root_node: std.Progress.Node,
@@ -83,13 +93,14 @@ fn runCase(
     const case_node = root_node.start(std.fs.path.stem(path), 0);
     defer case_node.end();
 
-    runCaseExtra(io, arena, path, aro_exe, stats) catch {
+    runCaseExtra(io, environ_map, arena, path, aro_exe, stats) catch {
         _ = @atomicRmw(u32, &stats.failed, .Add, 1, .monotonic);
     };
 }
 
 fn runCaseExtra(
     io: Io,
+    environ_map: *process.Environ.Map,
     arena: mem.Allocator,
     path: []const u8,
     aro_exe: []const u8,
@@ -120,21 +131,14 @@ fn runCaseExtra(
     args.appendSliceAssumeCapacity(kind_args);
     args.appendSliceAssumeCapacity(case.args);
 
-    var child = process.Child.init(args.items, arena);
-    child.stdout_behavior = .Pipe;
-    child.stderr_behavior = .Pipe;
-    child.stdin_behavior = .Ignore;
-    child.cwd = cases_dir;
-
-    child.request_resource_usage_statistics = true;
-
-    var env_map: process.EnvMap = undefined;
+    var child_env_p = environ_map;
+    var child_env: process.Environ.Map = undefined;
     if (case.env.len > 0) {
-        env_map = try process.getEnvMap(arena);
+        child_env = try child_env_p.clone(gpa);
+        child_env_p = &child_env;
         for (case.env) |kv| {
-            try env_map.put(kv.key, kv.value);
+            try child_env.put(kv.key, kv.value);
         }
-        child.env_map = &env_map;
     }
 
     if (@import("builtin").os.tag == .windows) {
@@ -150,21 +154,30 @@ fn runCaseExtra(
         }
     }
 
-    var stdout: []u8 = undefined;
-    var stderr: []u8 = undefined;
+    const stdout, const stderr = run: {
+        var child = try process.spawn(io, .{
+            .argv = args.items,
 
-    {
-        try child.spawn();
-        errdefer _ = child.kill() catch {};
+            .stdout = .pipe,
+            .stderr = .pipe,
+            .stdin = .ignore,
+            .cwd = cases_dir,
 
-        var stdout_reader = child.stdout.?.readerStreaming(io, &.{});
-        stdout = try stdout_reader.interface.allocRemaining(arena, .unlimited);
+            .request_resource_usage_statistics = true,
 
-        var stderr_reader = child.stderr.?.readerStreaming(io, &.{});
-        stderr = try stderr_reader.interface.allocRemaining(arena, .unlimited);
+            .environ_map = child_env_p,
+        });
+        defer child.kill(io);
 
-        const term = try child.wait();
-        if (term != .Exited) {
+        var stdout: std.ArrayList(u8) = .empty;
+        defer stdout.deinit(gpa);
+        var stderr: std.ArrayList(u8) = .empty;
+        defer stderr.deinit(gpa);
+
+        try child.collectOutput(gpa, &stdout, &stderr, 50 * 1024);
+
+        const term = try child.wait(io);
+        if (term != .exited) {
             const cmd = try mem.join(arena, " ", args.items);
             print("arocc command crashed:\n{s}\n", .{cmd});
             return error.Crashed;
@@ -172,7 +185,8 @@ fn runCaseExtra(
         if (child.resource_usage_statistics.getMaxRss()) |max_rss| {
             _ = @atomicRmw(usize, &stats.max_rss, .Max, max_rss, .monotonic);
         }
-    }
+        break :run .{ try stdout.toOwnedSlice(arena), try stderr.toOwnedSlice(arena) };
+    };
 
     switch (case.kind) {
         .syntax, .expand_error, .expand, .expand_partial => |expected_errors| {
@@ -208,10 +222,12 @@ fn runCaseExtra(
                 }
             }
             if (expected_errors.len != actual_errors.items.len) {
-                const writer, _ = std.debug.lockStderrWriter(&.{});
-                defer std.debug.unlockStderrWriter();
+                const locked_stderr = std.debug.lockStderr(&.{});
+                defer std.debug.unlockStderr();
+                const w = &locked_stderr.file_writer.interface;
+
                 for (expected_errors[len..]) |expected| {
-                    try writer.print(
+                    try w.print(
                         \\
                         \\======= expected to find error =======
                         \\{s}
@@ -221,7 +237,7 @@ fn runCaseExtra(
                     , .{ expected, stderr });
                 }
                 for (actual_errors.items[len..]) |actual| {
-                    try writer.print(
+                    try w.print(
                         \\
                         \\========= new error ==========
                         \\{s}
@@ -230,7 +246,7 @@ fn runCaseExtra(
                         \\
                     , .{actual});
                 }
-                try writer.print("in case '{s}'\n", .{case.name});
+                try w.print("in case '{s}'\n", .{case.name});
                 return error.MismatchedErrors;
             }
         },
@@ -249,7 +265,7 @@ fn runCaseExtra(
     switch (case.kind) {
         .syntax, .syntax_ignore_errors => {
             const ast_path = try std.fs.path.join(arena, &.{ cases_dir, "ast", std.fs.path.basename(path) });
-            if (std.fs.cwd().readFileAlloc(ast_path, gpa, .unlimited)) |expected| {
+            if (std.Io.Dir.cwd().readFileAlloc(io, ast_path, gpa, .unlimited)) |expected| {
                 defer gpa.free(expected);
 
                 std.testing.expectEqualStrings(expected, stdout) catch |err| {
@@ -264,7 +280,7 @@ fn runCaseExtra(
         .expand_error => {},
         .expand => {
             const expanded_path = try std.fs.path.join(arena, &.{ cases_dir, "expanded", std.fs.path.basename(path) });
-            if (std.fs.cwd().readFileAlloc(expanded_path, gpa, .unlimited)) |expected| {
+            if (std.Io.Dir.cwd().readFileAlloc(io, expanded_path, gpa, .unlimited)) |expected| {
                 defer gpa.free(expected);
 
                 std.testing.expectEqualStrings(expected, stdout) catch |err| {
@@ -278,7 +294,7 @@ fn runCaseExtra(
         },
         .expand_partial => {
             const expanded_path = try std.fs.path.join(arena, &.{ cases_dir, "expanded", std.fs.path.basename(path) });
-            if (std.fs.cwd().readFileAlloc(expanded_path, gpa, .unlimited)) |expected| {
+            if (std.Io.Dir.cwd().readFileAlloc(io, expanded_path, gpa, .unlimited)) |expected| {
                 defer gpa.free(expected);
 
                 std.testing.expectStringEndsWith(stdout, expected) catch |err| {
@@ -299,10 +315,12 @@ fn runCaseExtra(
     }
 
     if (case.skips.len != 0) {
-        const writer, _ = std.debug.lockStderrWriter(&.{});
-        defer std.debug.unlockStderrWriter();
+        const locked_stderr = std.debug.lockStderr(&.{});
+        defer std.debug.unlockStderr();
+        const w = &locked_stderr.file_writer.interface;
+
         for (case.skips) |skip| {
-            try writer.print("{s}: {s}\n", .{ case.name, skip });
+            try w.print("{s}: {s}\n", .{ case.name, skip });
         }
         _ = @atomicRmw(u32, &stats.skipped, .Add, @intCast(case.skips.len), .monotonic);
     }

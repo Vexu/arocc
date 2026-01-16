@@ -24,20 +24,21 @@ pub const Message = struct {
         @"fatal error",
     };
 
-    pub fn write(msg: Message, w: *std.Io.Writer, config: std.Io.tty.Config, details: bool) std.Io.tty.Config.SetColorError!void {
-        try config.setColor(w, .bold);
+    pub fn write(msg: Message, term: std.Io.Terminal, details: bool) std.Io.Terminal.SetColorError!void {
+        const w = term.writer;
+        try term.setColor(.bold);
         if (msg.location) |loc| {
             try w.print("{s}:{d}:{d}: ", .{ loc.path, loc.line_no, loc.col });
         }
         switch (msg.effective_kind) {
-            .@"fatal error", .@"error" => try config.setColor(w, .bright_red),
-            .note => try config.setColor(w, .bright_cyan),
-            .warning => try config.setColor(w, .bright_magenta),
+            .@"fatal error", .@"error" => try term.setColor(.bright_red),
+            .note => try term.setColor(.bright_cyan),
+            .warning => try term.setColor(.bright_magenta),
             .off => unreachable,
         }
         try w.print("{s}: ", .{@tagName(msg.effective_kind)});
 
-        try config.setColor(w, .white);
+        try term.setColor(.white);
         try w.writeAll(msg.text);
         if (msg.opt) |some| {
             if (msg.effective_kind == .@"error" and msg.kind != .@"error") {
@@ -55,17 +56,17 @@ pub const Message = struct {
 
         if (!details or msg.location == null) {
             try w.writeAll("\n");
-            try config.setColor(w, .reset);
+            try term.setColor(.reset);
         } else {
             const loc = msg.location.?;
             const trailer = if (loc.end_with_splice) "\\ " else "";
-            try config.setColor(w, .reset);
+            try term.setColor(.reset);
             try w.print("\n{s}{s}\n", .{ loc.line, trailer });
             try w.splatByteAll(' ', loc.width);
-            try config.setColor(w, .bold);
-            try config.setColor(w, .bright_green);
+            try term.setColor(.bold);
+            try term.setColor(.bright_green);
             try w.writeAll("^\n");
-            try config.setColor(w, .reset);
+            try term.setColor(.reset);
         }
         try w.flush();
     }
@@ -291,10 +292,7 @@ pub const State = struct {
 const Diagnostics = @This();
 
 output: union(enum) {
-    to_writer: struct {
-        writer: *std.Io.Writer,
-        color: std.Io.tty.Config,
-    },
+    to_writer: std.Io.Terminal,
     to_list: struct {
         messages: std.ArrayList(Message) = .empty,
         arena: std.heap.ArenaAllocator,
@@ -544,11 +542,11 @@ fn addMessage(d: *Diagnostics, msg: Message) Compilation.Error!void {
 
     switch (d.output) {
         .ignore => {},
-        .to_writer => |writer| {
-            var config = writer.color;
-            if (d.color == false) config = .no_color;
-            if (d.color == true and config == .no_color) config = .escape_codes;
-            msg.write(writer.writer, config, d.details) catch {
+        .to_writer => |terminal| {
+            var mode = terminal.mode;
+            if (d.color == false) mode = .no_color;
+            if (d.color == true and mode == .no_color) mode = .escape_codes;
+            msg.write(.{ .mode = mode, .writer = terminal.writer }, d.details) catch {
                 return error.FatalError;
             };
         },
