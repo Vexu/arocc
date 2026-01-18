@@ -2181,6 +2181,26 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec, attr_buf_top: usize, decl_no
     return init_d;
 }
 
+fn exactTypeKeywordToSpecMSVC(id: Tokenizer.Token.Id) TypeStore.Builder.Specifier {
+    return switch (id) {
+        .keyword_int8, .keyword_int8_2 => .char,
+        .keyword_int16, .keyword_int16_2 => .short,
+        .keyword_int32, .keyword_int32_2 => .int,
+        .keyword_int64, .keyword_int64_2 => .long_long,
+        else => unreachable,
+    };
+}
+
+fn getMSVCExactWidthType(p: *Parser, tok_id: Tokenizer.Token.Id, signedness: std.builtin.Signedness) QualType {
+    var builder: TypeStore.Builder = .{ .parser = p };
+    builder.combine(exactTypeKeywordToSpecMSVC(tok_id), undefined) catch unreachable;
+    switch (signedness) {
+        .signed => {},
+        .unsigned => builder.combine(.unsigned, undefined) catch unreachable,
+    }
+    return builder.finish() catch unreachable;
+}
+
 /// typeSpec
 ///  : keyword_void
 ///  | keyword_char
@@ -2220,11 +2240,21 @@ fn typeSpec(p: *Parser, builder: *TypeStore.Builder) Error!bool {
         switch (p.tok_ids[p.tok_i]) {
             .keyword_void => try builder.combine(.void, p.tok_i),
             .keyword_bool, .keyword_c23_bool => try builder.combine(.bool, p.tok_i),
-            .keyword_int8, .keyword_int8_2, .keyword_char => try builder.combine(.char, p.tok_i),
-            .keyword_int16, .keyword_int16_2, .keyword_short => try builder.combine(.short, p.tok_i),
-            .keyword_int32, .keyword_int32_2, .keyword_int => try builder.combine(.int, p.tok_i),
+            .keyword_char => try builder.combine(.char, p.tok_i),
+            .keyword_short => try builder.combine(.short, p.tok_i),
+            .keyword_int => try builder.combine(.int, p.tok_i),
             .keyword_long => try builder.combine(.long, p.tok_i),
-            .keyword_int64, .keyword_int64_2 => try builder.combine(.long_long, p.tok_i),
+
+            .keyword_int8,
+            .keyword_int8_2,
+            .keyword_int16,
+            .keyword_int16_2,
+            .keyword_int32,
+            .keyword_int32_2,
+            .keyword_int64,
+            .keyword_int64_2,
+            => |tok_id| try builder.combine(exactTypeKeywordToSpecMSVC(tok_id), p.tok_i),
+
             .keyword_int128 => try builder.combine(.int128, p.tok_i),
             .keyword_signed, .keyword_signed1, .keyword_signed2 => try builder.combine(.signed, p.tok_i),
             .keyword_unsigned => try builder.combine(.unsigned, p.tok_i),
@@ -10472,21 +10502,34 @@ fn fixedSizeInt(p: *Parser, base: u8, buf: []const u8, suffix: NumberSuffix, tok
         .ULL, .IULL => .ulong_long,
         .L, .IL => .long,
         .LL, .ILL => .long_long,
+        .I8 => p.getMSVCExactWidthType(.keyword_int8, .signed),
+        .UI8 => p.getMSVCExactWidthType(.keyword_int8, .unsigned),
+        .I16 => p.getMSVCExactWidthType(.keyword_int16, .signed),
+        .UI16 => p.getMSVCExactWidthType(.keyword_int16, .unsigned),
+        .I32 => p.getMSVCExactWidthType(.keyword_int32, .signed),
+        .UI32 => p.getMSVCExactWidthType(.keyword_int32, .unsigned),
+        .I64 => p.getMSVCExactWidthType(.keyword_int64, .signed),
+        .UI64 => p.getMSVCExactWidthType(.keyword_int64, .unsigned),
         else => unreachable,
     };
 
-    for (qts) |qt| {
-        res.qt = qt;
-        if (res.qt.intRankOrder(suffix_qt, p.comp).compare(.lt)) continue;
-        const max_int = try Value.maxInt(res.qt, p.comp);
-        if (interned_val.compare(.lte, max_int, p.comp)) break;
-    } else switch (p.comp.langopts.emulate) {
-        .no, .gcc => if (p.comp.target.hasInt128()) {
-            res.qt = .int128;
-        } else {
-            res.qt = .long_long;
-        },
-        .msvc, .clang => res.qt = .ulong_long,
+    if (suffix.isMSVCExtension()) {
+        res.qt = suffix_qt; // No type promotion for MSVC suffixes
+        _ = try res.val.intCast(suffix_qt, p.comp); // No diagnostic for truncation or sign change for MSVC exact-width types
+    } else {
+        for (qts) |qt| {
+            res.qt = qt;
+            if (res.qt.intRankOrder(suffix_qt, p.comp).compare(.lt)) continue;
+            const max_int = try Value.maxInt(res.qt, p.comp);
+            if (interned_val.compare(.lte, max_int, p.comp)) break;
+        } else switch (p.comp.langopts.emulate) {
+            .no, .gcc => if (p.comp.target.hasInt128()) {
+                res.qt = .int128;
+            } else {
+                res.qt = .long_long;
+            },
+            .msvc, .clang => res.qt = .ulong_long,
+        }
     }
 
     res.node = try p.addNode(.{ .int_literal = .{ .qt = res.qt, .literal_tok = tok_i } });
@@ -10607,7 +10650,8 @@ fn getExponent(p: *Parser, buf: []const u8, prefix: NumberPrefix, tok_i: TokenIn
 /// to parse numbers in pragma handlers.
 pub fn parseNumberToken(p: *Parser, tok_i: TokenIndex) !Result {
     const buf = p.tokSlice(tok_i);
-    const prefix = NumberPrefix.fromString(buf);
+    const is_msvc = p.comp.langopts.emulate == .msvc;
+    const prefix = NumberPrefix.fromString(buf, is_msvc);
     const after_prefix = buf[prefix.stringLen()..];
 
     const int_part = try p.getIntegerPart(after_prefix, prefix, tok_i);
@@ -10620,7 +10664,7 @@ pub fn parseNumberToken(p: *Parser, tok_i: TokenIndex) !Result {
     const exponent = try p.getExponent(after_frac, prefix, tok_i);
     const suffix_str = after_frac[exponent.len..];
     const is_float = (exponent.len > 0 or frac.len > 0);
-    const suffix = NumberSuffix.fromString(suffix_str, if (is_float) .float else .int) orelse {
+    const suffix = NumberSuffix.fromString(suffix_str, if (is_float) .float else .int, is_msvc) orelse {
         if (is_float) {
             try p.err(tok_i, .invalid_float_suffix, .{suffix_str});
         } else {
