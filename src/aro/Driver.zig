@@ -664,7 +664,7 @@ pub fn parseArgs(
                     continue;
                 }
                 d.sysroot = args[i];
-            } else if (mem.startsWith(u8, arg, "-isysroot")){
+            } else if (mem.startsWith(u8, arg, "-isysroot")) {
                 var path = arg["-isysroot".len..];
                 if (path.len == 0) {
                     i += 1;
