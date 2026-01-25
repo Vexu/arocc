@@ -657,6 +657,24 @@ pub fn parseArgs(
                 d.output_name = file;
             } else if (option(arg, "--sysroot=")) |sysroot| {
                 d.sysroot = sysroot;
+            } else if (mem.eql(u8, arg, "--sysroot")) {
+                i += 1;
+                if (i >= args.len) {
+                    try d.err("expected argument after --sysroot", .{});
+                    continue;
+                }
+                d.sysroot = args[i];
+            } else if (mem.startsWith(u8, arg, "-isysroot")) {
+                var path = arg["-isysroot".len..];
+                if (path.len == 0) {
+                    i += 1;
+                    if (i >= args.len) {
+                        try d.err("expected argument after -isysroot", .{});
+                        continue;
+                    }
+                    path = args[i];
+                }
+                d.sysroot = path;
             } else if (mem.eql(u8, arg, "-rpath")) {
                 i += 1;
                 if (i >= args.len) {
