@@ -31,8 +31,8 @@ pub fn main(init: process.Init.Minimal) !void {
     const arocc_exe = args[1];
     const cases_dir = args[2];
 
-    var cwd_buf: [std.fs.max_path_bytes]u8 = undefined;
-    const cwd = try process.getCwd(&cwd_buf);
+    const cwd = try std.process.currentPathAlloc(io, arena);
+    defer arena.free(cwd);
     const relative_arocc_exe = try std.fs.path.relative(arena, cwd, null, cases_dir, arocc_exe);
 
     var dir = std.Io.Dir.cwd().openDir(io, cases_dir, .{ .iterate = true }) catch |err| {
