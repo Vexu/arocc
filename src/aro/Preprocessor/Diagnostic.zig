@@ -479,3 +479,10 @@ pub const file_name_is_clang_extension: Diagnostic = .{
     .kind = .off,
     .extension = true,
 };
+
+pub const base_file_is_clang_extension: Diagnostic = .{
+    .fmt = "__BASE_FILE__ is a clang extension",
+    .opt = .@"base-file-extension",
+    .kind = .off,
+    .extension = true,
+};

@@ -79,6 +79,7 @@ pub const Macro = struct {
         });
 
         const Object = enum {
+            base_file,
             file,
             file_basename,
             line,
@@ -365,6 +366,7 @@ pub fn addBuiltinMacros(pp: *Preprocessor) !void {
     try pp.addBuiltinMacro("__TIMESTAMP__", .{ .obj = .timestamp });
 
     if (pp.comp.langopts.emulate == .clang) {
+        try pp.addBuiltinMacro("__BASE_FILE__", .{ .obj = .base_file });
         try pp.addBuiltinMacro("__FILE_NAME__", .{ .obj = .file_basename });
     }
 }
@@ -1448,6 +1450,20 @@ fn expandObjMacro(pp: *Preprocessor, simple_macro: *const Macro) Error!ExpandBuf
                         }
                     } else {
                         try pp.comp.generated_buf.print(gpa, "\"{f}\"\n", .{fmtEscapes(source.path)});
+                    }
+
+                    buf.appendAssumeCapacity(try pp.makeGeneratedToken(start, .string_literal, tok));
+                },
+                .base_file => {
+                    try pp.err(pp.expansion_source_loc, .base_file_is_clang_extension, .{});
+                    const start = pp.comp.generated_buf.items.len;
+                    const base_file = pp.comp.getSource(.{ .index = @enumFromInt(0) });
+                    for (pp.path_replacements) |replacement| {
+                        if (mem.cutPrefix(u8, base_file.path, replacement[0])) |rest| {
+                            try pp.comp.generated_buf.print(gpa, "\"{f}{f}\"", .{ fmtEscapes(replacement[1]), fmtEscapes(rest) });
+                        }
+                    } else {
+                        try pp.comp.generated_buf.print(gpa, "\"{f}\"", .{fmtEscapes(base_file.path)});
                     }
 
                     buf.appendAssumeCapacity(try pp.makeGeneratedToken(start, .string_literal, tok));
