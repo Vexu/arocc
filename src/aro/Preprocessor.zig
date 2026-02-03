@@ -1,5 +1,6 @@
 const std = @import("std");
 const mem = std.mem;
+const path = std.Io.Dir.path;
 const Allocator = mem.Allocator;
 const assert = std.debug.assert;
 
@@ -79,6 +80,7 @@ pub const Macro = struct {
 
         const Object = enum {
             file,
+            file_basename,
             line,
             counter,
             date,
@@ -361,6 +363,10 @@ pub fn addBuiltinMacros(pp: *Preprocessor) !void {
     try pp.addBuiltinMacro("__DATE__", .{ .obj = .date });
     try pp.addBuiltinMacro("__TIME__", .{ .obj = .time });
     try pp.addBuiltinMacro("__TIMESTAMP__", .{ .obj = .timestamp });
+
+    if (pp.comp.langopts.emulate == .clang) {
+        try pp.addBuiltinMacro("__FILE_NAME__", .{ .obj = .file_basename });
+    }
 }
 
 pub fn deinit(pp: *Preprocessor) void {
@@ -1443,6 +1449,15 @@ fn expandObjMacro(pp: *Preprocessor, simple_macro: *const Macro) Error!ExpandBuf
                     } else {
                         try pp.comp.generated_buf.print(gpa, "\"{f}\"\n", .{fmtEscapes(source.path)});
                     }
+
+                    buf.appendAssumeCapacity(try pp.makeGeneratedToken(start, .string_literal, tok));
+                },
+                .file_basename => {
+                    try pp.err(pp.expansion_source_loc, .file_name_is_clang_extension, .{});
+                    const start = pp.comp.generated_buf.items.len;
+                    const source = pp.comp.getSource(pp.expansion_source_loc.id);
+                    const basename = path.basename(source.path);
+                    try pp.comp.generated_buf.print(gpa, "\"{f}\"", .{fmtEscapes(basename)});
 
                     buf.appendAssumeCapacity(try pp.makeGeneratedToken(start, .string_literal, tok));
                 },
@@ -4054,10 +4069,10 @@ test "Include guards" {
             var pp = Preprocessor.init(&comp, .default);
             defer pp.deinit();
 
-            const path = try std.fs.path.join(gpa, &.{ ".", "bar.h" });
-            defer gpa.free(path);
+            const file_path = try path.join(gpa, &.{ ".", "bar.h" });
+            defer gpa.free(file_path);
 
-            _ = try comp.addSourceFromBuffer(path, "int bar = 5;\n");
+            _ = try comp.addSourceFromBuffer(file_path, "int bar = 5;\n");
 
             var buf: std.ArrayList(u8) = .empty;
             defer buf.deinit(gpa);

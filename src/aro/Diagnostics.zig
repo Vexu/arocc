@@ -200,6 +200,7 @@ pub const Option = enum {
     @"underlying-atomic-qualifier-ignored",
     @"underlying-cv-qualifier-ignored",
     @"bounds-attributes-redundant",
+    @"file-name-extension",
 
     /// GNU extensions
     pub const gnu = [_]Option{
