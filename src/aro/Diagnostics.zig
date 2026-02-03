@@ -202,6 +202,7 @@ pub const Option = enum {
     @"bounds-attributes-redundant",
     @"file-name-extension",
     @"base-file-extension",
+    @"include-level-extension",
 
     /// GNU extensions
     pub const gnu = [_]Option{

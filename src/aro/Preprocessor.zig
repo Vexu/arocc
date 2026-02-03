@@ -87,6 +87,7 @@ pub const Macro = struct {
             date,
             time,
             timestamp,
+            include_level,
         };
 
         const Func = enum {
@@ -368,6 +369,7 @@ pub fn addBuiltinMacros(pp: *Preprocessor) !void {
     if (pp.comp.langopts.emulate == .clang) {
         try pp.addBuiltinMacro("__BASE_FILE__", .{ .obj = .base_file });
         try pp.addBuiltinMacro("__FILE_NAME__", .{ .obj = .file_basename });
+        try pp.addBuiltinMacro("__INCLUDE_LEVEL__", .{ .obj = .include_level });
     }
 }
 
@@ -1509,6 +1511,13 @@ fn expandObjMacro(pp: *Preprocessor, simple_macro: *const Macro) Error!ExpandBuf
 
                     try pp.writeDateTimeStamp(.fromBuiltin(builtin_kind), timestamp);
                     buf.appendAssumeCapacity(try pp.makeGeneratedToken(start, .string_literal, tok));
+                },
+                .include_level => {
+                    try pp.err(pp.expansion_source_loc, .include_level_is_clang_extension, .{});
+                    const start = pp.comp.generated_buf.items.len;
+                    try pp.comp.generated_buf.print(gpa, "{d}\n", .{pp.include_depth});
+
+                    buf.appendAssumeCapacity(try pp.makeGeneratedToken(start, .pp_num, tok));
                 },
             },
             else => buf.appendAssumeCapacity(tok),

@@ -486,3 +486,10 @@ pub const base_file_is_clang_extension: Diagnostic = .{
     .kind = .off,
     .extension = true,
 };
+
+pub const include_level_is_clang_extension: Diagnostic = .{
+    .fmt = "__INCLUDE_LEVEL__ is a clang extension",
+    .opt = .@"include-level-extension",
+    .kind = .off,
+    .extension = true,
+};
