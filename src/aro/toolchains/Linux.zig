@@ -448,7 +448,7 @@ test Linux {
         }
         fn dirOpenFile(_: ?*anyopaque, _: std.Io.Dir, sub_path: []const u8, _: std.Io.File.OpenFlags) std.Io.File.OpenError!std.Io.File {
             if (!std.mem.eql(u8, sub_path, "/etc/lsb-release")) return error.FileNotFound;
-            return .{ .handle = undefined };
+            return .{ .handle = undefined, .flags = undefined };
         }
         fn fileClose(_: ?*anyopaque, _: []const std.Io.File) void {}
         fn fileReadPositional(_: ?*anyopaque, _: std.Io.File, data: []const []u8, offset: u64) std.Io.File.ReadPositionalError!usize {
