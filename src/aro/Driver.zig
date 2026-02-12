@@ -1133,14 +1133,15 @@ pub fn detectMode(d: *Driver, file: std.Io.File) std.Io.Cancelable!std.Io.Termin
     const io = d.comp.io;
     if (try file.supportsAnsiEscapeCodes(io)) return .escape_codes;
     if (@import("builtin").os.tag == .windows and try file.isTty(io)) {
-        var info: std.os.windows.CONSOLE_SCREEN_BUFFER_INFO = undefined;
-        if (std.os.windows.kernel32.GetConsoleScreenBufferInfo(file.handle, &info) == std.os.windows.FALSE) {
-            return if (force_color) .escape_codes else .no_color;
+        var get_console_info = std.os.windows.CONSOLE.USER_IO.GET_SCREEN_BUFFER_INFO;
+        switch (try get_console_info.operate(io, file)) {
+            .SUCCESS => return .{ .windows_api = .{
+                .io = io,
+                .file = file,
+                .reset_attributes = get_console_info.Data.wAttributes,
+            } },
+            else => {},
         }
-        return .{ .windows_api = .{
-            .handle = file.handle,
-            .reset_attributes = info.wAttributes,
-        } };
     }
 
     return if (force_color) .escape_codes else .no_color;

@@ -303,7 +303,7 @@ pub fn init(comp: *Compilation, source_epoch: SourceEpoch) Preprocessor {
 /// Initialize Preprocessor with builtin macros.
 pub fn initDefault(comp: *Compilation) !Preprocessor {
     const source_epoch: SourceEpoch = comp.environment.sourceEpoch(comp.io) catch |er| switch (er) {
-        error.InvalidEpoch, error.UnsupportedClock, error.Unexpected => blk: {
+        error.InvalidEpoch => blk: {
             const diagnostic: Diagnostic = .invalid_source_epoch;
             try comp.diagnostics.add(.{ .text = diagnostic.fmt, .kind = diagnostic.kind, .opt = diagnostic.opt, .location = null });
             break :blk .default;

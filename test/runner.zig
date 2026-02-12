@@ -31,8 +31,7 @@ pub fn main(init: process.Init.Minimal) !void {
     const arocc_exe = args[1];
     const cases_dir = args[2];
 
-    var cwd_buf: [std.fs.max_path_bytes]u8 = undefined;
-    const cwd = try process.getCwd(&cwd_buf);
+    const cwd = try std.process.currentPathAlloc(io, arena);
     const relative_arocc_exe = try std.fs.path.relative(arena, cwd, null, cases_dir, arocc_exe);
 
     var dir = std.Io.Dir.cwd().openDir(io, cases_dir, .{ .iterate = true }) catch |err| {
@@ -161,7 +160,7 @@ fn runCaseExtra(
             .stdout = .pipe,
             .stderr = .pipe,
             .stdin = .ignore,
-            .cwd = cases_dir,
+            .cwd = .{ .path = cases_dir },
 
             .request_resource_usage_statistics = true,
 
@@ -169,12 +168,17 @@ fn runCaseExtra(
         });
         defer child.kill(io);
 
-        var stdout: std.ArrayList(u8) = .empty;
-        defer stdout.deinit(gpa);
-        var stderr: std.ArrayList(u8) = .empty;
-        defer stderr.deinit(gpa);
+        var multi_reader_buffer: Io.File.MultiReader.Buffer(2) = undefined;
+        var multi_reader: Io.File.MultiReader = undefined;
+        multi_reader.init(gpa, io, multi_reader_buffer.toStreams(), &.{ child.stdout.?, child.stderr.? });
+        defer multi_reader.deinit();
 
-        try child.collectOutput(gpa, &stdout, &stderr, 50 * 1024);
+        while (multi_reader.fill(64, .none)) |_| {} else |err| switch (err) {
+            error.EndOfStream => {},
+            else => |e| return e,
+        }
+
+        try multi_reader.checkAnyError();
 
         const term = try child.wait(io);
         if (term != .exited) {
@@ -185,8 +189,17 @@ fn runCaseExtra(
         if (child.resource_usage_statistics.getMaxRss()) |max_rss| {
             _ = @atomicRmw(usize, &stats.max_rss, .Max, max_rss, .monotonic);
         }
-        break :run .{ try stdout.toOwnedSlice(arena), try stderr.toOwnedSlice(arena) };
+
+        const stdout_slice = try multi_reader.toOwnedSlice(0);
+        errdefer gpa.free(stdout_slice);
+
+        const stderr_slice = try multi_reader.toOwnedSlice(1);
+        errdefer gpa.free(stderr_slice);
+
+        break :run .{ stdout_slice, stderr_slice };
     };
+    defer gpa.free(stdout);
+    defer gpa.free(stderr);
 
     switch (case.kind) {
         .syntax, .expand_error, .expand, .expand_partial => |expected_errors| {

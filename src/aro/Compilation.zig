@@ -96,7 +96,7 @@ pub const Environment = struct {
             if (parsed > max_timestamp) return error.InvalidEpoch;
             return .{ .provided = parsed };
         } else {
-            const timestamp = try Io.Clock.real.now(io);
+            const timestamp = Io.Clock.real.now(io);
             const seconds = std.math.cast(u64, timestamp.toSeconds()) orelse return error.InvalidEpoch;
             return .{ .system = std.math.clamp(seconds, 0, max_timestamp) };
         }
