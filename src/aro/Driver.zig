@@ -1353,9 +1353,11 @@ fn processSource(
     comp.generated_buf.items.len = 0;
     const prev_total = d.diagnostics.errors;
 
-    var pp = try Preprocessor.initDefault(comp);
+    var pp = try Preprocessor.init(comp, .{
+        .base_file = source.id,
+        .path_replacements = d.macro_prefix_map.items,
+    });
     defer pp.deinit();
-    pp.path_replacements = d.macro_prefix_map.items;
 
     var name_buf: [std.fs.max_name_bytes]u8 = undefined;
     var opt_dep_file = try d.initDepFile(source, &name_buf);
