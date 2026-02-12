@@ -71,7 +71,7 @@ pub const Environment = struct {
         /// used for __DATE__, __TIME__, and __TIMESTAMP__
         provided: u64,
 
-        pub const default: @This() = .{ .provided = 0 };
+        pub const default: SourceEpoch = .{ .provided = 0 };
     };
 
     /// Load all of the environment variables from an environ map. Does not copy values.

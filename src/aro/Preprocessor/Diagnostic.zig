@@ -472,3 +472,24 @@ pub const pragma_once_in_main_file: Diagnostic = .{
     .kind = .warning,
     .opt = .@"pragma-once-outside-header",
 };
+
+pub const file_name_is_clang_extension: Diagnostic = .{
+    .fmt = "__FILE_NAME__ is a clang extension",
+    .opt = .@"file-name-extension",
+    .kind = .off,
+    .extension = true,
+};
+
+pub const base_file_is_clang_extension: Diagnostic = .{
+    .fmt = "__BASE_FILE__ is a clang extension",
+    .opt = .@"base-file-extension",
+    .kind = .off,
+    .extension = true,
+};
+
+pub const include_level_is_clang_extension: Diagnostic = .{
+    .fmt = "__INCLUDE_LEVEL__ is a clang extension",
+    .opt = .@"include-level-extension",
+    .kind = .off,
+    .extension = true,
+};

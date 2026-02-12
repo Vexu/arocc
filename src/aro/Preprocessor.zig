@@ -1,5 +1,6 @@
 const std = @import("std");
 const mem = std.mem;
+const path = std.Io.Dir.path;
 const Allocator = mem.Allocator;
 const assert = std.debug.assert;
 
@@ -78,12 +79,15 @@ pub const Macro = struct {
         });
 
         const Object = enum {
+            base_file,
             file,
+            file_basename,
             line,
             counter,
             date,
             time,
             timestamp,
+            include_level,
         };
 
         const Func = enum {
@@ -277,6 +281,9 @@ dep_file: ?*DepFile = null,
 /// Path prefixes to replace when expanding __FILE__
 path_replacements: []const struct { []const u8, []const u8 } = &.{},
 
+/// File used for __BASE_FILE__ macro.
+base_file: Source.Id,
+
 pub const parse = Parser.parse;
 
 pub const Linemarkers = enum {
@@ -288,21 +295,22 @@ pub const Linemarkers = enum {
     numeric_directives,
 };
 
-pub fn init(comp: *Compilation, source_epoch: SourceEpoch) Preprocessor {
-    const pp: Preprocessor = .{
-        .comp = comp,
-        .diagnostics = comp.diagnostics,
-        .arena = .init(comp.gpa),
-        .hideset = .{ .comp = comp },
-        .source_epoch = source_epoch,
-    };
-    comp.pragmaEvent(.before_preprocess);
-    return pp;
-}
+pub const InitOptions = struct {
+    base_file: Source.Id,
 
-/// Initialize Preprocessor with builtin macros.
-pub fn initDefault(comp: *Compilation) !Preprocessor {
-    const source_epoch: SourceEpoch = comp.environment.sourceEpoch(comp.io) catch |er| switch (er) {
+    source_epoch: ?SourceEpoch = null,
+    add_builtin_macros: bool = true,
+    path_replacements: []const struct { []const u8, []const u8 } = &.{},
+
+    pub const testing: InitOptions = .{
+        .base_file = undefined,
+        .source_epoch = .default,
+        .add_builtin_macros = false,
+    };
+};
+
+pub fn init(comp: *Compilation, options: InitOptions) !Preprocessor {
+    const source_epoch: SourceEpoch = options.source_epoch orelse comp.environment.sourceEpoch(comp.io) catch |er| switch (er) {
         error.InvalidEpoch => blk: {
             const diagnostic: Diagnostic = .invalid_source_epoch;
             try comp.diagnostics.add(.{ .text = diagnostic.fmt, .kind = diagnostic.kind, .opt = diagnostic.opt, .location = null });
@@ -310,9 +318,18 @@ pub fn initDefault(comp: *Compilation) !Preprocessor {
         },
     };
 
-    var pp = init(comp, source_epoch);
+    var pp: Preprocessor = .{
+        .comp = comp,
+        .diagnostics = comp.diagnostics,
+        .arena = .init(comp.gpa),
+        .hideset = .{ .comp = comp },
+        .source_epoch = source_epoch,
+        .base_file = options.base_file,
+        .path_replacements = options.path_replacements,
+    };
     errdefer pp.deinit();
-    try pp.addBuiltinMacros();
+    comp.pragmaEvent(.before_preprocess);
+    if (options.add_builtin_macros) try pp.addBuiltinMacros();
     return pp;
 }
 
@@ -361,6 +378,12 @@ pub fn addBuiltinMacros(pp: *Preprocessor) !void {
     try pp.addBuiltinMacro("__DATE__", .{ .obj = .date });
     try pp.addBuiltinMacro("__TIME__", .{ .obj = .time });
     try pp.addBuiltinMacro("__TIMESTAMP__", .{ .obj = .timestamp });
+
+    if (pp.comp.langopts.emulate == .no or pp.comp.langopts.emulate == .clang) {
+        try pp.addBuiltinMacro("__BASE_FILE__", .{ .obj = .base_file });
+        try pp.addBuiltinMacro("__FILE_NAME__", .{ .obj = .file_basename });
+        try pp.addBuiltinMacro("__INCLUDE_LEVEL__", .{ .obj = .include_level });
+    }
 }
 
 pub fn deinit(pp: *Preprocessor) void {
@@ -1446,6 +1469,29 @@ fn expandObjMacro(pp: *Preprocessor, simple_macro: *const Macro) Error!ExpandBuf
 
                     buf.appendAssumeCapacity(try pp.makeGeneratedToken(start, .string_literal, tok));
                 },
+                .base_file => {
+                    try pp.err(pp.expansion_source_loc, .base_file_is_clang_extension, .{});
+                    const start = pp.comp.generated_buf.items.len;
+                    const base_file = pp.comp.getSource(pp.base_file);
+                    for (pp.path_replacements) |replacement| {
+                        if (mem.cutPrefix(u8, base_file.path, replacement[0])) |rest| {
+                            try pp.comp.generated_buf.print(gpa, "\"{f}{f}\"", .{ fmtEscapes(replacement[1]), fmtEscapes(rest) });
+                        }
+                    } else {
+                        try pp.comp.generated_buf.print(gpa, "\"{f}\"", .{fmtEscapes(base_file.path)});
+                    }
+
+                    buf.appendAssumeCapacity(try pp.makeGeneratedToken(start, .string_literal, tok));
+                },
+                .file_basename => {
+                    try pp.err(pp.expansion_source_loc, .file_name_is_clang_extension, .{});
+                    const start = pp.comp.generated_buf.items.len;
+                    const source = pp.comp.getSource(pp.expansion_source_loc.id);
+                    const basename = path.basename(source.path);
+                    try pp.comp.generated_buf.print(gpa, "\"{f}\"", .{fmtEscapes(basename)});
+
+                    buf.appendAssumeCapacity(try pp.makeGeneratedToken(start, .string_literal, tok));
+                },
                 .line => {
                     const start = pp.comp.generated_buf.items.len;
                     try pp.comp.generated_buf.print(gpa, "{d}\n", .{pp.expansion_source_loc.line});
@@ -1478,6 +1524,13 @@ fn expandObjMacro(pp: *Preprocessor, simple_macro: *const Macro) Error!ExpandBuf
 
                     try pp.writeDateTimeStamp(.fromBuiltin(builtin_kind), timestamp);
                     buf.appendAssumeCapacity(try pp.makeGeneratedToken(start, .string_literal, tok));
+                },
+                .include_level => {
+                    try pp.err(pp.expansion_source_loc, .include_level_is_clang_extension, .{});
+                    const start = pp.comp.generated_buf.items.len;
+                    try pp.comp.generated_buf.print(gpa, "{d}\n", .{pp.include_depth});
+
+                    buf.appendAssumeCapacity(try pp.makeGeneratedToken(start, .pp_num, tok));
                 },
             },
             else => buf.appendAssumeCapacity(tok),
@@ -3927,7 +3980,7 @@ test "Preserve pragma tokens sometimes" {
 
             try comp.addDefaultPragmaHandlers();
 
-            var pp = Preprocessor.init(&comp, .default);
+            var pp = try Preprocessor.init(&comp, .testing);
             defer pp.deinit();
 
             pp.preserve_whitespace = true;
@@ -3989,7 +4042,7 @@ test "destringify" {
     var comp = try Compilation.init(.testing);
     defer comp.deinit();
 
-    var pp = Preprocessor.init(&comp, .default);
+    var pp = try Preprocessor.init(&comp, .testing);
     defer pp.deinit();
 
     try Test.testDestringify(&pp, "hello\tworld\n", "hello\tworld\n");
@@ -4051,13 +4104,13 @@ test "Include guards" {
             var comp = try Compilation.init(.testing);
             comp.diagnostics = &diagnostics;
             defer comp.deinit();
-            var pp = Preprocessor.init(&comp, .default);
+            var pp = try Preprocessor.init(&comp, .testing);
             defer pp.deinit();
 
-            const path = try std.fs.path.join(gpa, &.{ ".", "bar.h" });
-            defer gpa.free(path);
+            const file_path = try path.join(gpa, &.{ ".", "bar.h" });
+            defer gpa.free(file_path);
 
-            _ = try comp.addSourceFromBuffer(path, "int bar = 5;\n");
+            _ = try comp.addSourceFromBuffer(file_path, "int bar = 5;\n");
 
             var buf: std.ArrayList(u8) = .empty;
             defer buf.deinit(gpa);
