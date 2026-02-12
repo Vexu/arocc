@@ -375,6 +375,7 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
         .watchos,
         => {
             try define(w, "__APPLE__");
+            try w.writeAll("#define __APPLE_CC__ 6000\n");
 
             const version = target.os.version_range.semver.min;
             var version_buf: [8]u8 = undefined;
