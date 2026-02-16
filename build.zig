@@ -105,6 +105,10 @@ pub fn build(b: *Build) !void {
     const version_str = v: {
         const version_string = b.fmt("{d}.{d}.{d}", .{ aro_version.major, aro_version.minor, aro_version.patch });
 
+        // TODO detect when Aro is being used as a dependency.
+        // https://github.com/Vexu/arocc/issues/965
+        if (true) break :v version_string;
+
         var code: u8 = undefined;
         const git_describe_untrimmed = b.runAllowFail(&[_][]const u8{
             "git", "-C", b.build_root.path orelse ".", "describe", "--match", "*.*.*", "--tags",
