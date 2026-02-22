@@ -9,7 +9,7 @@ const Tree = @import("Tree.zig");
 const Token = Tree.Token;
 const TokenIndex = Tree.TokenIndex;
 const Node = Tree.Node;
-const QualType = @import("TypeStore.zig").QualType;
+const QualType = @import("TypeMap.zig").QualType;
 const Value = @import("Value.zig");
 
 const SymbolStack = @This();

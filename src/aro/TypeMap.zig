@@ -104,7 +104,7 @@ const Index = enum(u29) {
     _,
 };
 
-const TypeStore = @This();
+const TypeMap = @This();
 
 pub const QualType = packed struct(u32) {
     @"const": bool = false,
@@ -1827,7 +1827,7 @@ intptr: QualType = .invalid,
 int16: QualType = .invalid,
 int64: QualType = .invalid,
 
-pub fn deinit(ts: *TypeStore, gpa: std.mem.Allocator) void {
+pub fn deinit(ts: *TypeMap, gpa: std.mem.Allocator) void {
     ts.types.deinit(gpa);
     ts.extra.deinit(gpa);
     ts.attributes.deinit(gpa);
@@ -1835,11 +1835,11 @@ pub fn deinit(ts: *TypeStore, gpa: std.mem.Allocator) void {
     ts.* = undefined;
 }
 
-pub fn put(ts: *TypeStore, gpa: std.mem.Allocator, ty: Type) !QualType {
+pub fn put(ts: *TypeMap, gpa: std.mem.Allocator, ty: Type) !QualType {
     return .{ ._index = try ts.putExtra(gpa, ty) };
 }
 
-pub fn putExtra(ts: *TypeStore, gpa: std.mem.Allocator, ty: Type) !Index {
+pub fn putExtra(ts: *TypeMap, gpa: std.mem.Allocator, ty: Type) !Index {
     switch (ty) {
         .void => return .void,
         .bool => return .bool,
@@ -1884,7 +1884,7 @@ pub fn putExtra(ts: *TypeStore, gpa: std.mem.Allocator, ty: Type) !Index {
     return @enumFromInt(index);
 }
 
-pub fn set(ts: *TypeStore, gpa: std.mem.Allocator, ty: Type, index: usize) !void {
+pub fn set(ts: *TypeMap, gpa: std.mem.Allocator, ty: Type, index: usize) !void {
     var repr: Repr = undefined;
     switch (ty) {
         .void => unreachable,
@@ -2097,7 +2097,7 @@ pub fn set(ts: *TypeStore, gpa: std.mem.Allocator, ty: Type, index: usize) !void
     ts.types.set(index, repr);
 }
 
-pub fn initNamedTypes(ts: *TypeStore, comp: *Compilation) !void {
+pub fn initNamedTypes(ts: *TypeMap, comp: *Compilation) !void {
     const os = comp.target.os.tag;
     const arch = comp.target.cpu.arch;
     ts.wchar = switch (os) {
@@ -2170,7 +2170,7 @@ pub fn initNamedTypes(ts: *TypeStore, comp: *Compilation) !void {
     ts.va_list = try ts.generateVaListType(comp);
 }
 
-fn generateNsConstantStringType(ts: *TypeStore, comp: *Compilation) !QualType {
+fn generateNsConstantStringType(ts: *TypeMap, comp: *Compilation) !QualType {
     const const_int_ptr: QualType = .{ .@"const" = true, ._index = .int_pointer };
     const const_char_ptr: QualType = .{ .@"const" = true, ._index = .char_pointer };
 
@@ -2195,7 +2195,7 @@ fn generateNsConstantStringType(ts: *TypeStore, comp: *Compilation) !QualType {
     return qt;
 }
 
-fn generateVaListType(ts: *TypeStore, comp: *Compilation) !QualType {
+fn generateVaListType(ts: *TypeMap, comp: *Compilation) !QualType {
     const Kind = enum {
         aarch64_va_list,
         arm_va_list,
@@ -2902,7 +2902,7 @@ pub const Builder = struct {
         if (b.typedef) return b.parser.err(source_tok, .cannot_combine_spec, .{"type-name"});
         if (b.typeof) return b.parser.err(source_tok, .cannot_combine_spec, .{"typeof"});
 
-        const new_spec = TypeStore.Builder.fromType(b.parser.comp, base_qt);
+        const new_spec = TypeMap.Builder.fromType(b.parser.comp, base_qt);
         try b.combine(new_spec, source_tok);
 
         b.atomic_type = source_tok;

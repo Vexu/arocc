@@ -20,9 +20,9 @@ const StringInterner = @import("StringInterner.zig");
 const Target = @import("Target.zig");
 const Tokenizer = @import("Tokenizer.zig");
 const Token = Tokenizer.Token;
-const TypeStore = @import("TypeStore.zig");
-const Type = TypeStore.Type;
-const QualType = TypeStore.QualType;
+const TypeMap = @import("TypeMap.zig");
+const Type = TypeMap.Type;
+const QualType = TypeMap.QualType;
 
 pub const Error = error{
     /// A fatal error has ocurred and compilation has stopped.
@@ -158,7 +158,7 @@ generated_buf: std.ArrayList(u8) = .empty,
 builtins: Builtins = .{},
 string_interner: StringInterner = .{},
 interner: Interner = .{},
-type_store: TypeStore = .{},
+type_store: TypeMap = .{},
 pragma_handlers: std.StringArrayHashMapUnmanaged(*Pragma) = .empty,
 /// If this is not null, the directory containing the specified Source will be searched for includes
 /// Used by MS extensions which allow searching for includes relative to the directory of the main source file.

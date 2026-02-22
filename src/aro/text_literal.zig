@@ -6,7 +6,7 @@ const mem = std.mem;
 const Compilation = @import("Compilation.zig");
 const Diagnostics = @import("Diagnostics.zig");
 const Tokenizer = @import("Tokenizer.zig");
-const QualType = @import("TypeStore.zig").QualType;
+const QualType = @import("TypeMap.zig").QualType;
 const Source = @import("Source.zig");
 
 pub const Item = union(enum) {

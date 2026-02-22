@@ -4,9 +4,9 @@ const Compilation = @import("Compilation.zig");
 const LangOpts = @import("LangOpts.zig");
 const Parser = @import("Parser.zig");
 const Target = @import("Target.zig");
-const TypeStore = @import("TypeStore.zig");
-const QualType = TypeStore.QualType;
-const Builder = TypeStore.Builder;
+const TypeMap = @import("TypeMap.zig");
+const QualType = TypeMap.QualType;
+const Builder = TypeMap.Builder;
 const TypeDescription = @import("Builtins/TypeDescription.zig");
 const properties = @import("Builtins/properties.zig");
 
@@ -77,7 +77,7 @@ pub fn deinit(b: *Builtins, gpa: std.mem.Allocator) void {
     b._name_to_type_map.deinit(gpa);
 }
 
-fn specForSize(comp: *const Compilation, size_bits: u32) TypeStore.Builder.Specifier {
+fn specForSize(comp: *const Compilation, size_bits: u32) TypeMap.Builder.Specifier {
     var qt: QualType = .short;
     if (qt.bitSizeof(comp) == size_bits) return .short;
 
@@ -96,7 +96,7 @@ fn specForSize(comp: *const Compilation, size_bits: u32) TypeStore.Builder.Speci
 fn createType(desc: TypeDescription, it: *TypeDescription.TypeIterator, comp: *Compilation) !QualType {
     var parser: Parser = undefined;
     parser.comp = comp;
-    var builder: TypeStore.Builder = .{ .parser = &parser, .error_on_invalid = true };
+    var builder: TypeMap.Builder = .{ .parser = &parser, .error_on_invalid = true };
     var actual_suffix = desc.suffix;
 
     var require_native_int32 = false;
@@ -285,7 +285,7 @@ fn createBuiltin(comp: *Compilation, param_str: [*:0]const u8) !QualType {
     const ret_ty_desc = it.next().?;
     const ret_ty = try createType(ret_ty_desc, &it, comp);
     var param_count: usize = 0;
-    var params: [32]TypeStore.Type.Func.Param = undefined;
+    var params: [32]TypeMap.Type.Func.Param = undefined;
     while (it.next()) |desc| : (param_count += 1) {
         params[param_count] = .{ .name_tok = 0, .qt = try createType(desc, &it, comp), .name = .empty, .node = .null };
     }

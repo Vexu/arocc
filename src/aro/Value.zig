@@ -8,7 +8,7 @@ const BigIntSpace = Interner.Tag.Int.BigIntSpace;
 
 const annex_g = @import("annex_g.zig");
 const Compilation = @import("Compilation.zig");
-const QualType = @import("TypeStore.zig").QualType;
+const QualType = @import("TypeMap.zig").QualType;
 const Target = @import("Target.zig");
 
 const Value = @This();

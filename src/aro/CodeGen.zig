@@ -12,7 +12,7 @@ const Compilation = @import("Compilation.zig");
 const StringId = @import("StringInterner.zig").StringId;
 const Tree = @import("Tree.zig");
 const Node = Tree.Node;
-const QualType = @import("TypeStore.zig").QualType;
+const QualType = @import("TypeMap.zig").QualType;
 const Value = @import("Value.zig");
 
 const WipSwitch = struct {

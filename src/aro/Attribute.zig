@@ -7,9 +7,9 @@ const Diagnostics = @import("Diagnostics.zig");
 const Parser = @import("Parser.zig");
 const Tree = @import("Tree.zig");
 const TokenIndex = Tree.TokenIndex;
-const TypeStore = @import("TypeStore.zig");
-const Type = TypeStore.Type;
-const QualType = TypeStore.QualType;
+const TypeMap = @import("TypeMap.zig");
+const Type = TypeMap.Type;
+const QualType = TypeMap.QualType;
 const Value = @import("Value.zig");
 
 const Attribute = @This();

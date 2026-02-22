@@ -8,7 +8,7 @@ const Compilation = @import("Compilation.zig");
 const number_affixes = @import("Tree/number_affixes.zig");
 const Source = @import("Source.zig");
 const Tokenizer = @import("Tokenizer.zig");
-const QualType = @import("TypeStore.zig").QualType;
+const QualType = @import("TypeMap.zig").QualType;
 const Value = @import("Value.zig");
 
 pub const Token = struct {

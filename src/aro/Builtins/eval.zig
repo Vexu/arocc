@@ -7,9 +7,9 @@ const Interner = backend.Interner;
 const Builtins = @import("../Builtins.zig");
 const Parser = @import("../Parser.zig");
 const Tree = @import("../Tree.zig");
-const TypeStore = @import("../TypeStore.zig");
-const QualType = TypeStore.QualType;
-const Type = TypeStore.Type;
+const TypeMap = @import("../TypeMap.zig");
+const QualType = TypeMap.QualType;
+const Type = TypeMap.Type;
 const Value = @import("../Value.zig");
 
 fn makeNan(comptime T: type, str: []const u8) T {

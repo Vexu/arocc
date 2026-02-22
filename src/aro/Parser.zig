@@ -25,9 +25,9 @@ const NumberPrefix = Token.NumberPrefix;
 const NumberSuffix = Token.NumberSuffix;
 const TokenIndex = Tree.TokenIndex;
 const Node = Tree.Node;
-const TypeStore = @import("TypeStore.zig");
-const Type = TypeStore.Type;
-const QualType = TypeStore.QualType;
+const TypeMap = @import("TypeMap.zig");
+const Type = TypeMap.Type;
+const QualType = TypeMap.QualType;
 const Value = @import("Value.zig");
 
 const NodeList = std.ArrayList(Node.Index);
@@ -1102,7 +1102,7 @@ fn decl(p: *Parser) Error!bool {
                 return error.ParsingFailed;
             } else return false,
         }
-        var builder: TypeStore.Builder = .{ .parser = p };
+        var builder: TypeMap.Builder = .{ .parser = p };
         break :blk DeclSpec{ .qt = try builder.finish() };
     };
     if (decl_spec.noreturn) |tok| {
@@ -1670,7 +1670,7 @@ fn typeof(p: *Parser) Error!?QualType {
 /// autoTypeSpec : keyword_auto_type
 fn declSpec(p: *Parser) Error!?DeclSpec {
     var d: DeclSpec = .{ .qt = .invalid };
-    var builder: TypeStore.Builder = .{ .parser = p };
+    var builder: TypeMap.Builder = .{ .parser = p };
 
     const start = p.tok_i;
     while (true) {
@@ -2207,7 +2207,7 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec, attr_buf_top: usize, decl_no
 ///  | keyword_alignas '(' integerConstExpr ')'
 ///  | keyword_c23_alignas '(' typeName ')'
 ///  | keyword_c23_alignas '(' integerConstExpr ')'
-fn typeSpec(p: *Parser, builder: *TypeStore.Builder) Error!bool {
+fn typeSpec(p: *Parser, builder: *TypeMap.Builder) Error!bool {
     const start = p.tok_i;
     while (true) {
         try p.attributeSpecifier();
@@ -2656,7 +2656,7 @@ fn recordDecl(p: *Parser) Error!bool {
 
     const base_qt: QualType = blk: {
         const start = p.tok_i;
-        var builder: TypeStore.Builder = .{ .parser = p };
+        var builder: TypeMap.Builder = .{ .parser = p };
         while (true) {
             if (try p.typeSpec(&builder)) continue;
             const id = p.tok_ids[p.tok_i];
@@ -2874,7 +2874,7 @@ fn recordDecl(p: *Parser) Error!bool {
 
 /// specQual : typeSpec+
 fn specQual(p: *Parser) Error!?QualType {
-    var builder: TypeStore.Builder = .{ .parser = p };
+    var builder: TypeMap.Builder = .{ .parser = p };
     if (try p.typeSpec(&builder)) {
         return try builder.finish();
     }
@@ -3305,7 +3305,7 @@ fn enumerator(p: *Parser, e: *Enumerator) Error!?EnumFieldAndNode {
 }
 
 /// typeQual : keyword_const | keyword_restrict | keyword_volatile | keyword_atomic
-fn typeQual(p: *Parser, b: *TypeStore.Builder, allow_attr: bool) Error!bool {
+fn typeQual(p: *Parser, b: *TypeMap.Builder, allow_attr: bool) Error!bool {
     var any = false;
     while (true) {
         if (allow_attr and try p.msTypeAttribute()) continue;
@@ -3346,7 +3346,7 @@ fn typeQual(p: *Parser, b: *TypeStore.Builder, allow_attr: bool) Error!bool {
             .keyword_nonnull, .keyword_nullable, .keyword_nullable_result, .keyword_null_unspecified => |tok_id| {
                 const sym_str = p.tok_ids[p.tok_i].symbol();
                 try p.err(p.tok_i, .nullability_extension, .{sym_str});
-                const new: @FieldType(TypeStore.Builder, "nullability") = switch (tok_id) {
+                const new: @FieldType(TypeMap.Builder, "nullability") = switch (tok_id) {
                     .keyword_nonnull => .{ .nonnull = p.tok_i },
                     .keyword_nullable => .{ .nullable = p.tok_i },
                     .keyword_nullable_result => .{ .nullable_result = p.tok_i },
@@ -3554,7 +3554,7 @@ fn declarator(
     // Parse potential pointer declarators first.
     while (p.eatToken(.asterisk)) |_| {
         d.declarator_type = .pointer;
-        var builder: TypeStore.Builder = .{ .parser = p };
+        var builder: TypeMap.Builder = .{ .parser = p };
         _ = try p.typeQual(&builder, true);
 
         const pointer_qt = try p.comp.type_store.put(p.comp.gpa, .{ .pointer = .{
@@ -3686,7 +3686,7 @@ fn directDeclarator(
             return error.ParsingFailed;
         }
 
-        var builder: TypeStore.Builder = .{ .parser = p };
+        var builder: TypeMap.Builder = .{ .parser = p };
 
         var got_quals = try p.typeQual(&builder, false);
         var static = p.eatToken(.keyword_static);
