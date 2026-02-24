@@ -1668,6 +1668,14 @@ pub fn addSourceFromPath(comp: *Compilation, path: []const u8) !Source {
 /// Caller retains ownership of `path`.
 fn addSourceFromPathExtra(comp: *Compilation, path: []const u8, kind: Source.Kind) !Source {
     if (comp.sources.get(path)) |some| return some;
+    // Normalize the path by collapsing "/./" and "X/../" segments so that
+    // different relative paths to the same file resolve to one cache entry.
+    // This prevents #pragma once failures and redundant preprocessing.
+    const normalized = try std.fs.path.resolvePosix(comp.gpa, &.{path});
+    defer comp.gpa.free(normalized);
+    if (!mem.eql(u8, normalized, path)) {
+        if (comp.sources.get(normalized)) |some| return some;
+    }
 
     if (mem.indexOfScalar(u8, path, 0) != null) {
         return error.FileNotFound;
@@ -1675,7 +1683,7 @@ fn addSourceFromPathExtra(comp: *Compilation, path: []const u8, kind: Source.Kin
 
     const file = try comp.cwd.openFile(comp.io, path, .{});
     defer file.close(comp.io);
-    return comp.addSourceFromFile(file, path, kind);
+    return comp.addSourceFromFile(file, normalized, kind);
 }
 
 pub fn addSourceFromFile(comp: *Compilation, file: std.Io.File, path: []const u8, kind: Source.Kind) !Source {
