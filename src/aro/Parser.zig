@@ -4157,7 +4157,10 @@ fn designation(p: *Parser, il: *InitList, init_qt: QualType, index_list: *IndexL
                 const field = record_ty.fields[field_index];
                 if (field.name_tok == 0) if (field.qt.getRecord(p.comp)) |field_record_ty| {
                     // Recurse into anonymous field if it has a field by the name.
-                    if (!field_record_ty.hasField(p.comp, target_name)) continue;
+                    if (!field_record_ty.hasField(p.comp, target_name)) {
+                        field_index += 1;
+                        continue;
+                    }
                     try index_list.append(gpa, field_index);
                     cur_il = try il.find(gpa, field_index);
                     record_ty = field_record_ty;
