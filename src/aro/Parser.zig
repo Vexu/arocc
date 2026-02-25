@@ -2022,12 +2022,17 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec, attr_buf_top: usize, decl_no
     try p.attributeSpecifierExtra(init_d.d.name);
 
     switch (init_d.d.declarator_type) {
-        .func => {
+        inline .func, .block => |tag| {
+            const kind = switch (tag) {
+                .func => "function",
+                .block => "block",
+                else => comptime unreachable,
+            };
             if (decl_spec.auto_type) |tok_i| {
-                try p.err(tok_i, .auto_type_not_allowed, .{"function return type"});
+                try p.err(tok_i, .auto_type_not_allowed, .{kind ++ " return type"});
                 init_d.d.qt = .invalid;
             } else if (decl_spec.c23_auto) |tok_i| {
-                try p.err(tok_i, .c23_auto_not_allowed, .{"function return type"});
+                try p.err(tok_i, .c23_auto_not_allowed, .{kind ++ " return type"});
                 init_d.d.qt = .invalid;
             }
         },
@@ -3443,7 +3448,7 @@ const Declarator = struct {
 
     /// What kind of a type did this declarator declare?
     /// Used redundantly with `qt` in case it was set to `.invalid` by `validate`.
-    declarator_type: enum { other, func, array, pointer } = .other,
+    declarator_type: enum { other, func, array, pointer, block } = .other,
 
     const Kind = enum { normal, abstract, param, record };
 
@@ -3535,14 +3540,20 @@ const Declarator = struct {
                 }
                 return .normal;
             },
+            .block => |block_ty| {
+                const func_qt = block_ty.func;
+                if (func_qt._index == .declarator_combine) return .normal;
+                const func_type = func_qt.type(p.comp);
+                if (func_type != .func) try p.err(source_tok, .block_to_non_function, .{});
+                return validateExtra(p, func_qt, source_tok);
+            },
             else => return .normal,
         }
     }
 };
 
-/// declarator : pointer? (IDENTIFIER | '(' declarator ')') directDeclarator*
-/// abstractDeclarator
-/// : pointer? ('(' abstractDeclarator ')')? directAbstractDeclarator*
+/// declarator : '^'? pointer? (IDENTIFIER | '(' declarator ')') directDeclarator*
+/// abstractDeclarator : '^'? pointer? ('(' abstractDeclarator ')')? directAbstractDeclarator*
 /// pointer : '*' typeQual* pointer?
 fn declarator(
     p: *Parser,
@@ -3550,6 +3561,23 @@ fn declarator(
     kind: Declarator.Kind,
 ) Error!?Declarator {
     var d = Declarator{ .name = 0, .qt = base_qt };
+
+    if (p.eatToken(.caret)) |caret| {
+        if (!p.comp.isBlocksEnabled()) try p.err(caret, .blocks_not_enabled, .{});
+        switch (p.comp.langopts.emulate) {
+            .clang => {},
+            else => try p.err(caret, .blocks_are_clang_extension, .{}),
+        }
+
+        d.declarator_type = .block;
+        var builder: TypeStore.Builder = .{ .parser = p };
+        _ = try p.typeQual(&builder, true);
+
+        const block_qt = try p.comp.type_store.put(p.comp.gpa, .{ .block = .{
+            .func = d.qt,
+        } });
+        d.qt = try builder.finishQuals(block_qt);
+    }
 
     // Parse potential pointer declarators first.
     while (p.eatToken(.asterisk)) |_| {
@@ -3611,6 +3639,10 @@ fn declarator(
                     },
                     .func => |func_ty| if (func_ty.return_type._index != .declarator_combine) {
                         cur = func_ty.return_type;
+                        continue;
+                    },
+                    .block => |block_ty| if (block_ty.func._index != .declarator_combine) {
+                        cur = block_ty.func;
                         continue;
                     },
                     else => unreachable,
@@ -9431,7 +9463,7 @@ fn callExpr(p: *Parser, lhs: Result) Error!Result {
     // type_store.extra might get invalidated while parsing args.
     const func_qt, const typed_params_len, const func_kind_base = blk: {
         var base_qt = lhs.qt;
-        if (base_qt.get(p.comp, .pointer)) |pointer_ty| base_qt = pointer_ty.child;
+        if (base_qt.get(p.comp, .pointer)) |pointer_ty| base_qt = pointer_ty.child else if (base_qt.get(p.comp, .block)) |block_ty| base_qt = block_ty.func;
         if (base_qt.isInvalid()) break :blk .{ base_qt, std.math.maxInt(usize), undefined };
 
         const func_type_qt = base_qt.base(p.comp);
