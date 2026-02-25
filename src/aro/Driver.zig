@@ -225,6 +225,7 @@ pub const usage =
     \\                          Use `# <num>` linemarkers in preprocessed output
     \\  -fvisibility=[default|hidden|internal|protected]
     \\                          Set the default ELF image symbol visibility to the specified option—all symbols are marked with this unless overridden within the code
+    \\  -fblocks                Enable support for clang's Blocks language extension
     \\  -iquote <dir>           Add directory to QUOTE include search path
     \\  -I <dir>                Add directory to include search path
     \\  -idirafter <dir>        Add directory to AFTER include search path
@@ -848,6 +849,8 @@ pub fn parseArgs(
                 }
             } else if (mem.eql(u8, arg, "-fno-lto")) {
                 // nothing to do
+            } else if (mem.eql(u8, arg, "-fblocks")) {
+                d.comp.langopts.blocks = true;
             } else {
                 try d.warn("unknown argument '{s}'", .{arg});
             }
