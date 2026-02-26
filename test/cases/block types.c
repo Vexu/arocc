@@ -33,6 +33,25 @@ void my_func_accepting_block(double (*afunc)(int), double (^ablock)(int)) {
 
   int (^f)(int) = a;
   a = f;
+
+  ablock = ^double (int arg) {};
+
+  __block int prev = 0;
+  ablock = ^double (int arg) {
+    int res = prev;
+    prev = arg;
+    return (double)res;
+  };
+
+  arg;
+
+  int (^anotherBlock)(void) = ^{};
+  void (^yetAnotherBlock)(void) = ^{};
+  void (^andYetAnother)() = ^{
+    int shouldNotBeAccessible = 0;
+  };
+
+  shouldNotBeAccessible;
 }
 
 /** manifest:
@@ -50,4 +69,9 @@ block types.c:28:5: error: assignment to 'MyInt (^)(MyInt)' from incompatible ty
 block types.c:29:5: error: assignment to 'MyInt (^)(MyInt)' from incompatible type 'MyInt (*)(MyInt)' (aka 'int (*)(int)')
 block types.c:31:9: error: assignment to 'double (*)(int)' from incompatible type 'double (^)(int)'
 block types.c:32:10: error: assignment to 'double (^)(int)' from incompatible type 'double (*)(int)'
+block types.c:37:31: warning: non-void block does not return a value [-Wreturn-type]
+block types.c:37:12: note: block defined here
+block types.c:46:3: error: use of undeclared identifier 'arg'
+block types.c:48:31: error: initializing 'int (^)(void)' from incompatible type 'void (^)(void)'
+block types.c:54:3: error: use of undeclared identifier 'shouldNotBeAccessible'
 */

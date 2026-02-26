@@ -37,6 +37,10 @@ pub fn pointer(r: Interner.Key.Pointer, comp: *Compilation) !Value {
     return intern(comp, .{ .pointer = r });
 }
 
+pub fn block(lit: u32, comp: *Compilation) !Value {
+    return intern(comp, .{ .block = lit });
+}
+
 pub fn ref(v: Value) Interner.Ref {
     std.debug.assert(v.opt_ref != .none);
     return @enumFromInt(@intFromEnum(v.opt_ref));

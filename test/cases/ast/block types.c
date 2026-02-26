@@ -152,5 +152,76 @@ function: 'fn (afunc: *fn (int) double, ablock: block (int) double) void'
         decl_ref_expr: 'block (int) int' lvalue
          name: f
 
+    assign_expr: 'block (int) double'
+     lhs:
+      decl_ref_expr: 'block (int) double' lvalue
+       name: ablock
+     rhs:
+      block_literal: 'block (arg: int) double'
+       body:
+        compound_stmt
+          implicit return_stmt: 'double'
+
+    variable: 'int'
+     name: prev
+     init:
+      int_literal: 'int' (value: 0)
+
+    assign_expr: 'block (int) double'
+     lhs:
+      decl_ref_expr: 'block (int) double' lvalue
+       name: ablock
+     rhs:
+      block_literal: 'block (arg: int) double'
+       body:
+        compound_stmt
+          variable: 'int'
+           name: res
+           init:
+            implicit cast: (lval_to_rval) 'int'
+              decl_ref_expr: 'int' lvalue
+               name: prev
+
+          assign_expr: 'int'
+           lhs:
+            decl_ref_expr: 'int' lvalue
+             name: prev
+           rhs:
+            implicit cast: (lval_to_rval) 'int'
+              decl_ref_expr: 'int' lvalue
+               name: arg
+
+          return_stmt: 'double'
+           expr:
+            cast: (int_to_float) 'double'
+              implicit cast: (lval_to_rval) 'int'
+                decl_ref_expr: 'int' lvalue
+                 name: res
+
+    variable: 'block () int'
+     name: anotherBlock
+     init:
+      block_literal: 'block () void'
+       body:
+        compound_stmt
+
+    variable: 'block () void'
+     name: yetAnotherBlock
+     init:
+      block_literal: 'block () void'
+       body:
+        compound_stmt
+
+    variable: 'block (...) void'
+     name: andYetAnother
+     init:
+      block_literal: 'block () void'
+       body:
+        compound_stmt
+          variable: 'int'
+           name: shouldNotBeAccessible
+           init:
+            int_literal: 'int' (value: 0)
+
     implicit return_stmt: 'void'
 
