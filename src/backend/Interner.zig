@@ -66,6 +66,8 @@ pub const Key = union(enum) {
     complex: Complex,
     bytes: []const u8,
     pointer: Pointer,
+    /// NodeIndex of block literal
+    block: u32,
 
     pub const Float = union(enum) {
         f16: f16,
@@ -238,6 +240,7 @@ pub const Ref = enum(u32) {
     cf64 = max - 21,
     cf80 = max - 22,
     cf128 = max - 23,
+    block = max - 24,
     _,
 };
 
@@ -268,6 +271,7 @@ pub const OptRef = enum(u32) {
     cf64 = max - 21,
     cf80 = max - 22,
     cf128 = max - 23,
+    block = max - 24,
     _,
 };
 
@@ -314,8 +318,10 @@ pub const Tag = enum(u8) {
     bytes,
     /// `data` is `Record`
     record_ty,
-    /// `data` is Pointer
+    /// `data` is `Pointer`
     pointer,
+    /// `data` is `Block`
+    block,
 
     pub const Array = struct {
         len0: u32,
@@ -333,6 +339,10 @@ pub const Tag = enum(u8) {
     pub const Vector = struct {
         len: u32,
         child: Ref,
+    };
+
+    pub const Block = struct {
+        node: u32,
     };
 
     pub const Pointer = struct {
@@ -743,6 +753,14 @@ pub fn put(i: *Interner, gpa: Allocator, key: Key) !Ref {
             });
             i.extra.appendSliceAssumeCapacity(@ptrCast(elems));
         },
+        .block => |block| {
+            i.items.appendAssumeCapacity(.{
+                .tag = .block,
+                .data = try i.addExtra(gpa, Tag.Block{
+                    .node = block,
+                }),
+            });
+        },
         .ptr_ty,
         .noreturn_ty,
         .void_ty,
@@ -881,6 +899,10 @@ pub fn get(i: *const Interner, ref: Ref) Key {
             return .{
                 .record_ty = @ptrCast(i.extra.items[extra.end..][0..extra.data.elements_len]),
             };
+        },
+        .block => {
+            const extra = i.extraData(Tag.Block, data);
+            return .{ .block = extra.node };
         },
     };
 }
