@@ -141,6 +141,7 @@ pub const Macro = struct {
         };
         obj: Object,
         func: Func,
+        defined,
 
         const params_placeholder: []const []const u8 = &[_][]const u8{"X"};
         const func_tokens: []const RawToken = &[1]RawToken{.{ .id = .macro_param_builtin_func, .source = .generated }};
@@ -149,7 +150,7 @@ pub const Macro = struct {
         fn isFunc(kind: Builtin) bool {
             return switch (kind) {
                 .func => true,
-                .obj => false,
+                .obj, .defined => false,
             };
         }
 
@@ -159,7 +160,7 @@ pub const Macro = struct {
 
         fn params(kind: Builtin) []const []const u8 {
             return switch (kind) {
-                .obj => &.{},
+                .obj, .defined => &.{},
                 .func => params_placeholder,
             };
         }
@@ -168,6 +169,7 @@ pub const Macro = struct {
             return switch (kind) {
                 .obj => obj_tokens,
                 .func => func_tokens,
+                .defined => &.{},
             };
         }
     };
@@ -383,6 +385,10 @@ pub fn addBuiltinMacros(pp: *Preprocessor) !void {
         try pp.addBuiltinMacro("__BASE_FILE__", .{ .obj = .base_file });
         try pp.addBuiltinMacro("__FILE_NAME__", .{ .obj = .file_basename });
         try pp.addBuiltinMacro("__INCLUDE_LEVEL__", .{ .obj = .include_level });
+    }
+
+    if (pp.comp.langopts.blocks) {
+        try pp.addBuiltinMacro("__BLOCKS__", .defined);
     }
 }
 
