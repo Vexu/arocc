@@ -158,6 +158,12 @@ func: struct {
     pretty_ident: ?Result = null,
 } = .{},
 
+/// null if not in block
+block: ?struct {
+    caret: TokenIndex,
+    return_type: ?QualType = null,
+} = null,
+
 /// Various variables that are different for each record.
 record: struct {
     // invalid means we're not parsing a record
@@ -1567,6 +1573,7 @@ pub const DeclSpec = struct {
         register: TokenIndex,
         static: TokenIndex,
         typedef: TokenIndex,
+        block: TokenIndex,
         none,
     } = .none,
     thread_local: ?TokenIndex = null,
@@ -1579,7 +1586,7 @@ pub const DeclSpec = struct {
 
     fn validateParam(d: DeclSpec, p: *Parser) Error!void {
         switch (d.storage_class) {
-            .none, .register => {},
+            .none, .register, .block => {},
             .auto, .@"extern", .static, .typedef => |tok_i| try p.err(tok_i, .invalid_storage_on_param, .{}),
         }
         if (d.thread_local) |tok_i| try p.err(tok_i, .threadlocal_non_var, .{});
@@ -1591,7 +1598,7 @@ pub const DeclSpec = struct {
     fn validateFnDef(d: DeclSpec, p: *Parser) Error!void {
         switch (d.storage_class) {
             .none, .@"extern", .static => {},
-            .auto, .register, .typedef => |tok_i| try p.err(tok_i, .illegal_storage_on_func, .{}),
+            .auto, .register, .typedef, .block => |tok_i| try p.err(tok_i, .illegal_storage_on_func, .{}),
         }
         if (d.thread_local) |tok_i| try p.err(tok_i, .threadlocal_non_var, .{});
         if (d.constexpr) |tok_i| try p.err(tok_i, .illegal_storage_on_func, .{});
@@ -1602,7 +1609,7 @@ pub const DeclSpec = struct {
             .none, .@"extern" => {},
             .static => |tok_i| if (p.func.qt != null) try p.err(tok_i, .static_func_not_global, .{}),
             .typedef => unreachable,
-            .auto, .register => |tok_i| try p.err(tok_i, .illegal_storage_on_func, .{}),
+            .auto, .register, .block => |tok_i| try p.err(tok_i, .illegal_storage_on_func, .{}),
         }
         if (d.thread_local) |tok_i| try p.err(tok_i, .threadlocal_non_var, .{});
         if (d.constexpr) |tok_i| try p.err(tok_i, .illegal_storage_on_func, .{});
@@ -1732,6 +1739,7 @@ fn declSpec(p: *Parser) Error!?DeclSpec {
 ///  | keyword_threadlocal
 ///  | keyword_auto
 ///  | keyword_register
+///  | keyword_block
 fn storageClassSpec(p: *Parser, d: *DeclSpec) Error!bool {
     const start = p.tok_i;
     while (true) {
@@ -1742,6 +1750,7 @@ fn storageClassSpec(p: *Parser, d: *DeclSpec) Error!bool {
             .keyword_static,
             .keyword_auto,
             .keyword_register,
+            .keyword_block,
             => {
                 if (d.storage_class != .none) {
                     try p.err(p.tok_i, .multiple_storage_class, .{@tagName(d.storage_class)});
@@ -1756,7 +1765,7 @@ fn storageClassSpec(p: *Parser, d: *DeclSpec) Error!bool {
                 }
                 if (d.constexpr != null) {
                     switch (id) {
-                        .keyword_auto, .keyword_register, .keyword_static => {},
+                        .keyword_auto, .keyword_register, .keyword_static, .keyword_block => {},
                         else => try p.err(p.tok_i, .cannot_combine_spec, .{id.lexeme().?}),
                     }
                     if (d.thread_local) |tok| try p.err(p.tok_i, .cannot_combine_spec, .{p.tok_ids[tok].lexeme().?});
@@ -1767,6 +1776,7 @@ fn storageClassSpec(p: *Parser, d: *DeclSpec) Error!bool {
                     .keyword_static => d.storage_class = .{ .static = p.tok_i },
                     .keyword_auto => d.storage_class = .{ .auto = p.tok_i },
                     .keyword_register => d.storage_class = .{ .register = p.tok_i },
+                    .keyword_block => d.storage_class = .{ .block = p.tok_i },
                     else => unreachable,
                 }
             },
@@ -5542,37 +5552,62 @@ fn compoundStmt(p: *Parser, is_fn_body: bool, stmt_expr_state: ?*StmtExprState) 
         else
             p.nodeIsNoreturn(p.decl_buf.items[p.decl_buf.items.len - 1]);
 
-        const ret_qt: QualType = if (p.func.qt.?.get(p.comp, .func)) |func_ty| func_ty.return_type else .invalid;
-        if (last_noreturn != .yes and !ret_qt.isInvalid()) {
-            var return_zero = false;
-            if (last_noreturn == .no) switch (ret_qt.base(p.comp).type) {
-                .void => {},
-                .func, .array => {}, // Invalid, error reported elsewhere
-                else => {
-                    const func_name = p.tokSlice(p.func.name);
-                    const interned_name = try p.comp.internString(func_name);
+        if (p.block) |*block| {
+            if (block.return_type) |ret_qt| {
+                if (last_noreturn != .yes) {
+                    if (last_noreturn == .no) switch (ret_qt.type(p.comp)) {
+                        .void => {},
+                        .func, .array => {}, // Invalid, error reported elsewhere
+                        else => {
+                            try p.err(r_brace, .non_void_block_does_not_return, .{});
+                            try p.err(block.caret, .block_return_block_defined_here, .{});
+                        },
+                    };
 
-                    if (interned_name == p.string_ids.main_id) {
-                        if (ret_qt.get(p.comp, .int)) |int_ty| {
-                            if (int_ty == .int) return_zero = true;
+                    const implicit_ret = try p.addNode(.{ .return_stmt = .{
+                        .return_tok = r_brace,
+                        .return_qt = ret_qt,
+                        .operand = .{ .implicit = false },
+                    } });
+                    try p.decl_buf.append(gpa, implicit_ret);
+                }
+            } else {
+                block.return_type = .void;
+            }
+        } else {
+            const ret_qt: QualType = if (p.func.qt.?.get(p.comp, .func)) |func_ty| func_ty.return_type else .invalid;
+
+            if (last_noreturn != .yes and !ret_qt.isInvalid()) {
+                var return_zero = false;
+                if (last_noreturn == .no) switch (ret_qt.base(p.comp).type) {
+                    .void => {},
+                    .func, .array => {}, // Invalid, error reported elsewhere
+                    else => {
+                        const func_name = p.tokSlice(p.func.name);
+                        const interned_name = try p.comp.internString(func_name);
+
+                        if (interned_name == p.string_ids.main_id) {
+                            if (ret_qt.get(p.comp, .int)) |int_ty| {
+                                if (int_ty == .int) return_zero = true;
+                            }
                         }
-                    }
 
-                    if (!return_zero) {
-                        try p.err(p.tok_i - 1, .func_does_not_return, .{func_name});
-                    }
-                },
-            };
+                        if (!return_zero) {
+                            try p.err(p.tok_i - 1, .func_does_not_return, .{func_name});
+                        }
+                    },
+                };
 
-            const implicit_ret = try p.addNode(.{ .return_stmt = .{
-                .return_tok = r_brace,
-                .return_qt = ret_qt,
-                .operand = .{ .implicit = return_zero },
-            } });
-            try p.decl_buf.append(gpa, implicit_ret);
+                const implicit_ret = try p.addNode(.{ .return_stmt = .{
+                    .return_tok = r_brace,
+                    .return_qt = ret_qt,
+                    .operand = .{ .implicit = return_zero },
+                } });
+                try p.decl_buf.append(gpa, implicit_ret);
+            }
+            if (p.func.ident) |some| try p.decl_buf.insert(gpa, decl_buf_top, some.node);
+            if (p.func.pretty_ident) |some| try p.decl_buf.insert(gpa, decl_buf_top, some.node);
         }
-        if (p.func.ident) |some| try p.decl_buf.insert(gpa, decl_buf_top, some.node);
-        if (p.func.pretty_ident) |some| try p.decl_buf.insert(gpa, decl_buf_top, some.node);
     }
 
     return try p.addNode(.{ .compound_stmt = .{
@@ -5715,27 +5750,54 @@ fn returnStmt(p: *Parser) Error!?Node.Index {
     var ret_expr = try p.expr();
     _ = try p.expectToken(.semicolon);
 
-    const func_qt = p.func.qt.?; // `return` cannot be parsed outside of a function.
-    const ret_qt: QualType = if (func_qt.get(p.comp, .func)) |func_ty| func_ty.return_type else .invalid;
-    const ret_void = !ret_qt.isInvalid() and ret_qt.is(p.comp, .void);
+    const ret_qt: QualType = if (p.block) |*block| ret_qt: {
+        if (block.return_type) |ret_qt| {
+            if (ret_qt.hasAttribute(p.comp, .noreturn)) {
+                try p.err(e_tok, .invalid_block_noreturn, .{});
+                try p.err(block.caret, .invalid_block_noreturn_block_defined_here, .{});
+            }
 
-    if (func_qt.hasAttribute(p.comp, .noreturn)) {
-        try p.err(e_tok, .invalid_noreturn, .{p.tokSlice(p.func.name)});
-    }
-
-    if (ret_expr) |*some| {
-        if (ret_void) {
-            if (!some.qt.is(p.comp, .void)) {
-                try p.err(e_tok, .void_func_returns_value, .{p.tokSlice(p.func.name)});
+            if (ret_expr) |*some| {
+                if (ret_qt.is(p.comp, .void)) {
+                    if (!some.qt.is(p.comp, .void)) {
+                        try p.err(e_tok, .void_block_returns_value, .{});
+                        try p.err(block.caret, .block_return_block_defined_here, .{});
+                    }
+                } else {
+                    try some.coerce(p, ret_qt, e_tok, .ret);
+                    try some.saveValue(p);
+                }
+            } else if (!ret_qt.is(p.comp, .void)) {
+                try p.err(ret_tok, .block_should_return, .{});
+                try p.err(block.caret, .block_return_block_defined_here, .{});
             }
         } else {
-            try some.coerce(p, ret_qt, e_tok, .ret);
-
-            try some.saveValue(p);
+            block.return_type = if (ret_expr) |*some| some.qt else .void;
         }
-    } else if (!ret_void) {
-        try p.err(ret_tok, .func_should_return, .{p.tokSlice(p.func.name)});
-    }
+        break :ret_qt block.return_type.?;
+    } else if (p.func.qt) |func_qt| ret_qt: {
+        const ret_qt: QualType = if (func_qt.get(p.comp, .func)) |func_ty| func_ty.return_type else .invalid;
+        const ret_void = !ret_qt.isInvalid() and ret_qt.is(p.comp, .void);
+
+        if (func_qt.hasAttribute(p.comp, .noreturn)) {
+            try p.err(e_tok, .invalid_noreturn, .{p.tokSlice(p.func.name)});
+        }
+
+        if (ret_expr) |*some| {
+            if (ret_void) {
+                if (!some.qt.is(p.comp, .void)) {
+                    try p.err(e_tok, .void_func_returns_value, .{p.tokSlice(p.func.name)});
+                }
+            } else {
+                try some.coerce(p, ret_qt, e_tok, .ret);
+
+                try some.saveValue(p);
+            }
+        } else if (!ret_void) {
+            try p.err(ret_tok, .func_should_return, .{p.tokSlice(p.func.name)});
+        }
+        break :ret_qt ret_qt;
+    } else unreachable; // `return` cannot be parsed outside of a function or block.
 
     return try p.addNode(.{ .return_stmt = .{
         .return_tok = ret_tok,
@@ -7414,6 +7476,10 @@ pub const Result = struct {
         } else if (dest_unqual.is(p.comp, .vector)) {
             if (dest_unqual.eql(res.qt, p.comp)) {
                 return; // ok
+            }
+        } else if (dest_unqual.is(p.comp, .block)) {
+            if (dest_unqual.eql(res.qt, p.comp)) {
+                return;
             }
         } else {
             if (c == .assign) {
@@ -9695,6 +9761,73 @@ fn checkArrayBounds(p: *Parser, index: Result, array: Result, tok: TokenIndex) !
     }
 }
 
+/// blockLiteral: '^' typeSpec? paramDecls? compoundStmt
+fn blockLiteral(p: *Parser) Error!?Result {
+    const restore_block = p.block;
+    defer p.block = restore_block;
+
+    const caret = try p.expectToken(.caret);
+    if (!p.comp.langopts.blocks) {
+        try p.err(caret, .blocks_not_enabled, .{});
+    }
+    try p.err(caret, .blocks_are_clang_extension, .{});
+
+    p.block = .{ .caret = caret };
+    try p.syms.pushScope(p);
+    defer p.syms.popScope();
+
+    var maybe_ret_builder: TypeStore.Builder = .{ .parser = p };
+    if (try p.typeSpec(&maybe_ret_builder)) {
+        p.block.?.return_type = try maybe_ret_builder.finish();
+    }
+
+    const params: []const Type.Func.Param, const is_variadic: bool = if (p.eatToken(.l_paren)) |l_paren| params: {
+        const params = try p.paramDecls();
+        const is_variadic = p.eatToken(.ellipsis) != null;
+        try p.expectClosing(l_paren, .r_paren);
+        break :params .{ params orelse &.{}, is_variadic };
+    } else .{ &.{}, false };
+
+    for (params) |param| {
+        try p.syms.define(p.comp.gpa, .{
+            .kind = .def,
+            .name = param.name,
+            .tok = param.name_tok,
+            .qt = param.qt,
+            .val = .{},
+            .node = param.node,
+        });
+    }
+
+    var compound_stmt_state: StmtExprState = .{};
+    const body = try p.compoundStmt(true, &compound_stmt_state) orelse {
+        try p.err(p.tok_i, .missing_block_literal_body, .{});
+        try p.err(caret, .block_defined_here, .{});
+        unreachable;
+    };
+
+    const block_func_type = try p.comp.type_store.put(p.comp.gpa, .{ .func = .{
+        .return_type = p.block.?.return_type orelse .void,
+        .kind = if (is_variadic) .variadic else .normal,
+        .params = params,
+    } });
+    const block_type = try p.comp.type_store.put(p.comp.gpa, .{ .block = .{
+        .func = block_func_type,
+    } });
+
+    const node = try p.addNode(.{ .block_literal = .{
+        .caret = caret,
+        .body = body,
+        .qt = block_type,
+    } });
+
+    return .{
+        .node = node,
+        .qt = block_type,
+        .val = try .block(@intFromEnum(node), p.comp),
+    };
+}
+
 /// primaryExpr
 ///  : IDENTIFIER
 ///  | keyword_true
@@ -9713,6 +9846,7 @@ fn checkArrayBounds(p: *Parser, index: Result, array: Result, tok: TokenIndex) !
 ///  | chooseExpr
 ///  | vaStart
 ///  | offsetof
+///  | blockLiteral
 fn primaryExpr(p: *Parser) Error!?Result {
     if (p.eatToken(.l_paren)) |l_paren| {
         var grouped_expr = try p.expect(expr);
@@ -10034,6 +10168,7 @@ fn primaryExpr(p: *Parser) Error!?Result {
             return res;
         },
         .keyword_generic => return p.genericSelection(),
+        .caret => return p.blockLiteral(),
         else => return null,
     }
 }
