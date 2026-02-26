@@ -32,7 +32,7 @@ pub fn hasFeature(comp: *Compilation, ext: []const u8) bool {
         .attribute_unavailable_with_message = true,
         .attribute_unused_on_fields = true,
         .attribute_diagnose_if_objc = true,
-        .blocks = false, // TODO
+        .blocks = comp.langopts.blocks,
         .c_thread_safety_attributes = true,
         .enumerator_attributes = true,
         .nullability = true,
@@ -69,6 +69,7 @@ pub fn hasExtension(comp: *Compilation, ext: []const u8) bool {
         .gnu_asm_goto_with_outputs = true,
         .matrix_types = false, // TODO
         .matrix_types_scalar_division = false, // TODO
+        .blocks = comp.langopts.blocks,
     };
     inline for (@typeInfo(@TypeOf(list)).@"struct".field_names) |f_name| {
         if (std.mem.eql(u8, f_name, ext)) return @field(list, f_name);
