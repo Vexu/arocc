@@ -3563,11 +3563,8 @@ fn declarator(
     var d = Declarator{ .name = 0, .qt = base_qt };
 
     if (p.eatToken(.caret)) |caret| {
-        if (!p.comp.isBlocksEnabled()) try p.err(caret, .blocks_not_enabled, .{});
-        switch (p.comp.langopts.emulate) {
-            .clang => {},
-            else => try p.err(caret, .blocks_are_clang_extension, .{}),
-        }
+        if (!p.comp.langopts.blocks) try p.err(caret, .blocks_not_enabled, .{});
+        try p.err(caret, .blocks_are_clang_extension, .{});
 
         d.declarator_type = .block;
         var builder: TypeStore.Builder = .{ .parser = p };
