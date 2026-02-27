@@ -226,7 +226,7 @@ pub const QualType = packed struct(u32) {
             else => {},
         }
 
-        const repr = comp.type_store.types.get(@intFromEnum(qt._index));
+        const repr = comp.type_map.types.get(@intFromEnum(qt._index));
         return switch (repr.tag) {
             .complex => .{ .complex = @bitCast(repr.data[0]) },
             .atomic => .{ .atomic = @bitCast(repr.data[0]) },
@@ -259,7 +259,7 @@ pub const QualType = packed struct(u32) {
                 const param_size = 4;
                 comptime std.debug.assert(@sizeOf(Type.Func.Param) == @sizeOf(u32) * param_size);
 
-                const extra = comp.type_store.extra.items;
+                const extra = comp.type_map.extra.items;
                 const params_len = switch (repr.tag) {
                     .func_one, .func_variadic_one, .func_old_style_one => 1,
                     .func, .func_variadic, .func_old_style => extra[repr.data[1]],
@@ -292,11 +292,11 @@ pub const QualType = packed struct(u32) {
             } },
             .array_fixed => .{ .array = .{
                 .elem = @bitCast(repr.data[0]),
-                .len = .{ .fixed = @bitCast(comp.type_store.extra.items[repr.data[1]..][0..2].*) },
+                .len = .{ .fixed = @bitCast(comp.type_map.extra.items[repr.data[1]..][0..2].*) },
             } },
             .array_static => .{ .array = .{
                 .elem = @bitCast(repr.data[0]),
-                .len = .{ .static = @bitCast(comp.type_store.extra.items[repr.data[1]..][0..2].*) },
+                .len = .{ .static = @bitCast(comp.type_map.extra.items[repr.data[1]..][0..2].*) },
             } },
             .array_variable => .{ .array = .{
                 .elem = @bitCast(repr.data[0]),
@@ -316,7 +316,7 @@ pub const QualType = packed struct(u32) {
                 const field_size = 10;
                 comptime std.debug.assert(@sizeOf(Type.Record.Field) == @sizeOf(u32) * field_size);
 
-                const extra = comp.type_store.extra.items;
+                const extra = comp.type_map.extra.items;
                 const layout = @as(*Type.Record.Layout, @ptrCast(extra[repr.data[1] + 1 ..][0..layout_size])).*;
                 const fields_len = extra[repr.data[1] + layout_size + 1];
                 const extra_fields = extra[repr.data[1] + layout_size + 2 ..][0 .. fields_len * field_size];
@@ -346,7 +346,7 @@ pub const QualType = packed struct(u32) {
                 .fields = &.{},
             } },
             .@"enum", .enum_fixed => {
-                const extra = comp.type_store.extra.items;
+                const extra = comp.type_map.extra.items;
                 const field_size = 3;
                 comptime std.debug.assert(@sizeOf(Type.Enum.Field) == @sizeOf(u32) * field_size);
 
@@ -375,8 +375,8 @@ pub const QualType = packed struct(u32) {
             .enum_incomplete_fixed => .{
                 .@"enum" = .{
                     .tag = @bitCast(repr.data[0]),
-                    .name = @enumFromInt(comp.type_store.extra.items[repr.data[1]]),
-                    .decl_node = @enumFromInt(comp.type_store.extra.items[repr.data[1] + 1]),
+                    .name = @enumFromInt(comp.type_map.extra.items[repr.data[1]]),
+                    .decl_node = @enumFromInt(comp.type_map.extra.items[repr.data[1] + 1]),
                     .incomplete = true,
                     .fixed = true,
                     .fields = &.{},
@@ -392,19 +392,19 @@ pub const QualType = packed struct(u32) {
             } },
             .typedef => .{ .typedef = .{
                 .base = @bitCast(repr.data[0]),
-                .name = @enumFromInt(comp.type_store.extra.items[repr.data[1]]),
-                .decl_node = @enumFromInt(comp.type_store.extra.items[repr.data[1] + 1]),
+                .name = @enumFromInt(comp.type_map.extra.items[repr.data[1]]),
+                .decl_node = @enumFromInt(comp.type_map.extra.items[repr.data[1] + 1]),
             } },
             .attributed => {
-                const extra = comp.type_store.extra.items;
+                const extra = comp.type_map.extra.items;
                 return .{ .attributed = .{
                     .base = @bitCast(repr.data[0]),
-                    .attributes = comp.type_store.attributes.items[extra[repr.data[1]]..][0..extra[repr.data[1] + 1]],
+                    .attributes = comp.type_map.attributes.items[extra[repr.data[1]]..][0..extra[repr.data[1] + 1]],
                 } };
             },
             .attributed_one => .{ .attributed = .{
                 .base = @bitCast(repr.data[0]),
-                .attributes = comp.type_store.attributes.items[repr.data[1]..][0..1],
+                .attributes = comp.type_map.attributes.items[repr.data[1]..][0..1],
             } },
         };
     }
@@ -742,7 +742,7 @@ pub const QualType = packed struct(u32) {
                 .uint128 => return .uint128,
             },
             .bit_int => |bit_int| {
-                return try comp.type_store.put(comp.gpa, .{ .bit_int = .{
+                return try comp.type_map.put(comp.gpa, .{ .bit_int = .{
                     .signedness = .unsigned,
                     .bits = bit_int.bits,
                 } });
@@ -767,7 +767,7 @@ pub const QualType = packed struct(u32) {
                 else => unreachable,
             }
         }
-        return comp.type_store.put(comp.gpa, .{ .complex = qt });
+        return comp.type_map.put(comp.gpa, .{ .complex = qt });
     }
 
     pub fn decay(qt: QualType, comp: *Compilation) !QualType {
@@ -779,7 +779,7 @@ pub const QualType = packed struct(u32) {
                 elem_qt.@"const" = qt.@"const" or elem_qt.@"const";
                 elem_qt.@"volatile" = qt.@"volatile" or elem_qt.@"volatile";
 
-                var pointer_qt = try comp.type_store.put(comp.gpa, .{ .pointer = .{
+                var pointer_qt = try comp.type_map.put(comp.gpa, .{ .pointer = .{
                     .child = elem_qt,
                     .decayed = qt,
                 } });
@@ -798,7 +798,7 @@ pub const QualType = packed struct(u32) {
                     }
                 }
 
-                return comp.type_store.put(comp.gpa, .{ .pointer = .{
+                return comp.type_map.put(comp.gpa, .{ .pointer = .{
                     .child = qt,
                 } });
             },
@@ -1705,7 +1705,7 @@ pub const Type = union(enum) {
             _attr_len: u32 = 0,
 
             pub fn attributes(field: Field, comp: *const Compilation) []const Attribute {
-                return comp.type_store.attributes.items[field._attr_index..][0..field._attr_len];
+                return comp.type_map.attributes.items[field._attr_index..][0..field._attr_len];
             }
 
             pub const Layout = extern struct {
@@ -2740,7 +2740,7 @@ pub const Builder = struct {
                 }
                 if (b.complex_tok) |tok| try b.parser.err(tok, .complex_int, .{});
 
-                const qt = try b.parser.comp.type_store.put(b.parser.comp.gpa, .{ .bit_int = .{
+                const qt = try b.parser.comp.type_map.put(b.parser.comp.gpa, .{ .bit_int = .{
                     .signedness = if (unsigned) .unsigned else .signed,
                     .bits = @intCast(bits),
                 } });
@@ -2831,7 +2831,7 @@ pub const Builder = struct {
                     return .invalid;
                 },
                 else => {
-                    result_qt = try b.parser.comp.type_store.put(gpa, .{ .atomic = result_qt });
+                    result_qt = try b.parser.comp.type_map.put(gpa, .{ .atomic = result_qt });
                 },
             }
         }
@@ -2840,7 +2840,7 @@ pub const Builder = struct {
         const is_pointer = qt.isAutoType() or qt.isC23Auto() or qt.base(b.parser.comp).type == .pointer;
 
         if (b.unaligned != null and !is_pointer) {
-            result_qt = (try b.parser.comp.type_store.put(gpa, .{ .attributed = .{
+            result_qt = (try b.parser.comp.type_map.put(gpa, .{ .attributed = .{
                 .base = result_qt,
                 .attributes = &.{.{ .tag = .unaligned, .args = .{ .unaligned = .{} }, .syntax = .keyword }},
             } })).withQualifiers(result_qt);

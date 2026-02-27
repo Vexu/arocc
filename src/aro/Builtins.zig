@@ -164,25 +164,25 @@ fn createType(desc: TypeDescription, it: *TypeDescription.TypeIterator, comp: *C
         },
         .z => {
             std.debug.assert(builder.type == .none);
-            builder.type = Builder.fromType(comp, comp.type_store.size);
+            builder.type = Builder.fromType(comp, comp.type_map.size);
         },
         .w => {
             std.debug.assert(builder.type == .none);
-            builder.type = Builder.fromType(comp, comp.type_store.wchar);
+            builder.type = Builder.fromType(comp, comp.type_map.wchar);
         },
         .F => {
             std.debug.assert(builder.type == .none);
-            builder.type = Builder.fromType(comp, comp.type_store.ns_constant_string);
+            builder.type = Builder.fromType(comp, comp.type_map.ns_constant_string);
         },
         .a => {
             std.debug.assert(builder.type == .none);
             std.debug.assert(desc.suffix.len == 0);
-            builder.type = Builder.fromType(comp, comp.type_store.va_list);
+            builder.type = Builder.fromType(comp, comp.type_map.va_list);
         },
         .A => {
             std.debug.assert(builder.type == .none);
             std.debug.assert(desc.suffix.len == 0);
-            var va_list = comp.type_store.va_list;
+            var va_list = comp.type_map.va_list;
             std.debug.assert(!va_list.is(comp, .array));
             builder.type = Builder.fromType(comp, va_list);
         },
@@ -192,7 +192,7 @@ fn createType(desc: TypeDescription, it: *TypeDescription.TypeIterator, comp: *C
             actual_suffix = child_desc.suffix;
             child_desc.suffix = &.{};
             const elem_qt = try createType(child_desc, undefined, comp);
-            const vector_qt = try comp.type_store.put(comp.gpa, .{ .vector = .{
+            const vector_qt = try comp.type_map.put(comp.gpa, .{ .vector = .{
                 .elem = elem_qt,
                 .len = element_count,
             } });
@@ -220,49 +220,49 @@ fn createType(desc: TypeDescription, it: *TypeDescription.TypeIterator, comp: *C
         .Y => {
             std.debug.assert(builder.type == .none);
             std.debug.assert(desc.suffix.len == 0);
-            builder.type = Builder.fromType(comp, comp.type_store.ptrdiff);
+            builder.type = Builder.fromType(comp, comp.type_map.ptrdiff);
         },
         .P => {
             std.debug.assert(builder.type == .none);
-            if (comp.type_store.file.isInvalid()) {
-                return comp.type_store.file;
+            if (comp.type_map.file.isInvalid()) {
+                return comp.type_map.file;
             }
-            builder.type = Builder.fromType(comp, comp.type_store.file);
+            builder.type = Builder.fromType(comp, comp.type_map.file);
         },
         .J => {
             std.debug.assert(builder.type == .none);
             std.debug.assert(desc.suffix.len == 0);
-            if (comp.type_store.jmp_buf.isInvalid()) {
-                return comp.type_store.jmp_buf;
+            if (comp.type_map.jmp_buf.isInvalid()) {
+                return comp.type_map.jmp_buf;
             }
-            builder.type = Builder.fromType(comp, comp.type_store.jmp_buf);
+            builder.type = Builder.fromType(comp, comp.type_map.jmp_buf);
         },
         .SJ => {
             std.debug.assert(builder.type == .none);
             std.debug.assert(desc.suffix.len == 0);
-            if (comp.type_store.sigjmp_buf.isInvalid()) {
-                return comp.type_store.sigjmp_buf;
+            if (comp.type_map.sigjmp_buf.isInvalid()) {
+                return comp.type_map.sigjmp_buf;
             }
-            builder.type = Builder.fromType(comp, comp.type_store.sigjmp_buf);
+            builder.type = Builder.fromType(comp, comp.type_map.sigjmp_buf);
         },
         .K => {
             std.debug.assert(builder.type == .none);
-            if (comp.type_store.ucontext_t.isInvalid()) {
-                return comp.type_store.ucontext_t;
+            if (comp.type_map.ucontext_t.isInvalid()) {
+                return comp.type_map.ucontext_t;
             }
-            builder.type = Builder.fromType(comp, comp.type_store.ucontext_t);
+            builder.type = Builder.fromType(comp, comp.type_map.ucontext_t);
         },
         .p => {
             std.debug.assert(builder.type == .none);
             std.debug.assert(desc.suffix.len == 0);
-            builder.type = Builder.fromType(comp, comp.type_store.pid_t);
+            builder.type = Builder.fromType(comp, comp.type_map.pid_t);
         },
     }
     for (actual_suffix) |suffix| {
         switch (suffix) {
             .@"*" => |address_space| {
                 _ = address_space; // TODO: handle address space
-                const pointer_qt = try comp.type_store.put(comp.gpa, .{ .pointer = .{
+                const pointer_qt = try comp.type_map.put(comp.gpa, .{ .pointer = .{
                     .child = builder.finish() catch unreachable,
                 } });
 
@@ -290,7 +290,7 @@ fn createBuiltin(comp: *Compilation, param_str: [*:0]const u8) !QualType {
         params[param_count] = .{ .name_tok = 0, .qt = try createType(desc, &it, comp), .name = .empty, .node = .null };
     }
 
-    return comp.type_store.put(comp.gpa, .{ .func = .{
+    return comp.type_map.put(comp.gpa, .{ .func = .{
         .return_type = ret_ty,
         .kind = if (properties.isVarArgs(param_str)) .variadic else .normal,
         .params = params[0..param_count],

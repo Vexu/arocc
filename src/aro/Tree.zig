@@ -3143,7 +3143,7 @@ fn dumpNode(
                 switch (tree.nodes.items(.tag)[ptr.node]) {
                     .compound_literal_expr => {
                         try w.writeAll("(compound literal) ");
-                        _ = try ptr.offset.print(tree.comp.type_store.ptrdiff, tree.comp, w);
+                        _ = try ptr.offset.print(tree.comp.type_map.ptrdiff, tree.comp, w);
                     },
                     else => {
                         const ptr_node: Node.Index = @enumFromInt(ptr.node);

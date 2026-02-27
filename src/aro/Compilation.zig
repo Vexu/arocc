@@ -158,7 +158,7 @@ generated_buf: std.ArrayList(u8) = .empty,
 builtins: Builtins = .{},
 string_interner: StringInterner = .{},
 interner: Interner = .{},
-type_store: TypeMap = .{},
+type_map: TypeMap = .{},
 pragma_handlers: std.StringArrayHashMapUnmanaged(*Pragma) = .empty,
 /// If this is not null, the directory containing the specified Source will be searched for includes
 /// Used by MS extensions which allow searching for includes relative to the directory of the main source file.
@@ -228,7 +228,7 @@ pub fn deinit(comp: *Compilation) void {
     comp.builtins.deinit(gpa);
     comp.string_interner.deinit(gpa);
     comp.interner.deinit(gpa);
-    comp.type_store.deinit(gpa);
+    comp.type_map.deinit(gpa);
     comp.* = undefined;
 }
 
@@ -940,10 +940,10 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
     if (comp.getCharSignedness() == .unsigned) {
         try w.writeAll("#define __CHAR_UNSIGNED__ 1\n");
     }
-    if (comp.type_store.wchar.signedness(comp) == .unsigned) {
+    if (comp.type_map.wchar.signedness(comp) == .unsigned) {
         try w.writeAll("#define __WCHAR_UNSIGNED__ 1\n");
     }
-    if (comp.type_store.wint.signedness(comp) == .unsigned) {
+    if (comp.type_map.wint.signedness(comp) == .unsigned) {
         try w.writeAll("#define __WINT_UNSIGNED__ 1\n");
     }
     try w.writeAll("#define __CHAR_BIT__ 8\n");
@@ -955,14 +955,14 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
     try comp.generateIntMaxAndWidth(w, "INT", .int);
     try comp.generateIntMaxAndWidth(w, "LONG", .long);
     try comp.generateIntMaxAndWidth(w, "LONG_LONG", .long_long);
-    try comp.generateIntMaxAndWidth(w, "WCHAR", comp.type_store.wchar);
-    try comp.generateIntMaxAndWidth(w, "WINT", comp.type_store.wint);
-    try comp.generateIntMaxAndWidth(w, "INTMAX", comp.type_store.intmax);
-    try comp.generateIntMaxAndWidth(w, "SIZE", comp.type_store.size);
-    try comp.generateIntMaxAndWidth(w, "UINTMAX", try comp.type_store.intmax.makeIntUnsigned(comp));
-    try comp.generateIntMaxAndWidth(w, "PTRDIFF", comp.type_store.ptrdiff);
-    try comp.generateIntMaxAndWidth(w, "INTPTR", comp.type_store.intptr);
-    try comp.generateIntMaxAndWidth(w, "UINTPTR", try comp.type_store.intptr.makeIntUnsigned(comp));
+    try comp.generateIntMaxAndWidth(w, "WCHAR", comp.type_map.wchar);
+    try comp.generateIntMaxAndWidth(w, "WINT", comp.type_map.wint);
+    try comp.generateIntMaxAndWidth(w, "INTMAX", comp.type_map.intmax);
+    try comp.generateIntMaxAndWidth(w, "SIZE", comp.type_map.size);
+    try comp.generateIntMaxAndWidth(w, "UINTMAX", try comp.type_map.intmax.makeIntUnsigned(comp));
+    try comp.generateIntMaxAndWidth(w, "PTRDIFF", comp.type_map.ptrdiff);
+    try comp.generateIntMaxAndWidth(w, "INTPTR", comp.type_map.intptr);
+    try comp.generateIntMaxAndWidth(w, "UINTPTR", try comp.type_map.intptr.makeIntUnsigned(comp));
     try comp.generateIntMaxAndWidth(w, "SIG_ATOMIC", target.sigAtomicType());
 
     // int widths
@@ -977,31 +977,31 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
     try comp.generateSizeofType(w, "__SIZEOF_LONG__", .long);
     try comp.generateSizeofType(w, "__SIZEOF_LONG_LONG__", .long_long);
     try comp.generateSizeofType(w, "__SIZEOF_POINTER__", .void_pointer);
-    try comp.generateSizeofType(w, "__SIZEOF_PTRDIFF_T__", comp.type_store.ptrdiff);
-    try comp.generateSizeofType(w, "__SIZEOF_SIZE_T__", comp.type_store.size);
-    try comp.generateSizeofType(w, "__SIZEOF_WCHAR_T__", comp.type_store.wchar);
-    try comp.generateSizeofType(w, "__SIZEOF_WINT_T__", comp.type_store.wint);
+    try comp.generateSizeofType(w, "__SIZEOF_PTRDIFF_T__", comp.type_map.ptrdiff);
+    try comp.generateSizeofType(w, "__SIZEOF_SIZE_T__", comp.type_map.size);
+    try comp.generateSizeofType(w, "__SIZEOF_WCHAR_T__", comp.type_map.wchar);
+    try comp.generateSizeofType(w, "__SIZEOF_WINT_T__", comp.type_map.wint);
 
     if (target.hasInt128()) {
         try comp.generateSizeofType(w, "__SIZEOF_INT128__", .int128);
     }
 
     // various int types
-    try comp.generateTypeMacro(w, "__INTPTR_TYPE__", comp.type_store.intptr);
-    try comp.generateTypeMacro(w, "__UINTPTR_TYPE__", try comp.type_store.intptr.makeIntUnsigned(comp));
+    try comp.generateTypeMacro(w, "__INTPTR_TYPE__", comp.type_map.intptr);
+    try comp.generateTypeMacro(w, "__UINTPTR_TYPE__", try comp.type_map.intptr.makeIntUnsigned(comp));
 
-    try comp.generateTypeMacro(w, "__INTMAX_TYPE__", comp.type_store.intmax);
-    try comp.generateSuffixMacro("__INTMAX", w, comp.type_store.intptr);
+    try comp.generateTypeMacro(w, "__INTMAX_TYPE__", comp.type_map.intmax);
+    try comp.generateSuffixMacro("__INTMAX", w, comp.type_map.intptr);
 
-    try comp.generateTypeMacro(w, "__UINTMAX_TYPE__", try comp.type_store.intmax.makeIntUnsigned(comp));
-    try comp.generateSuffixMacro("__UINTMAX", w, try comp.type_store.intptr.makeIntUnsigned(comp));
+    try comp.generateTypeMacro(w, "__UINTMAX_TYPE__", try comp.type_map.intmax.makeIntUnsigned(comp));
+    try comp.generateSuffixMacro("__UINTMAX", w, try comp.type_map.intptr.makeIntUnsigned(comp));
 
-    try comp.generateTypeMacro(w, "__PTRDIFF_TYPE__", comp.type_store.ptrdiff);
-    try comp.generateTypeMacro(w, "__SIZE_TYPE__", comp.type_store.size);
-    try comp.generateTypeMacro(w, "__WCHAR_TYPE__", comp.type_store.wchar);
-    try comp.generateTypeMacro(w, "__WINT_TYPE__", comp.type_store.wint);
-    try comp.generateTypeMacro(w, "__CHAR16_TYPE__", comp.type_store.uint_least16_t);
-    try comp.generateTypeMacro(w, "__CHAR32_TYPE__", comp.type_store.uint_least32_t);
+    try comp.generateTypeMacro(w, "__PTRDIFF_TYPE__", comp.type_map.ptrdiff);
+    try comp.generateTypeMacro(w, "__SIZE_TYPE__", comp.type_map.size);
+    try comp.generateTypeMacro(w, "__WCHAR_TYPE__", comp.type_map.wchar);
+    try comp.generateTypeMacro(w, "__WINT_TYPE__", comp.type_map.wint);
+    try comp.generateTypeMacro(w, "__CHAR16_TYPE__", comp.type_map.uint_least16_t);
+    try comp.generateTypeMacro(w, "__CHAR32_TYPE__", comp.type_map.uint_least32_t);
 
     try comp.generateExactWidthTypes(w);
     try comp.generateFastAndLeastWidthTypes(w);
@@ -1045,7 +1045,7 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
 
 /// Generate builtin macros that will be available to each source file.
 pub fn generateBuiltinMacros(comp: *Compilation, system_defines_mode: SystemDefinesMode) AddSourceError!Source {
-    try comp.type_store.initNamedTypes(comp);
+    try comp.type_map.initNamedTypes(comp);
 
     var allocating: Io.Writer.Allocating = try .initCapacity(comp.gpa, 2 << 13);
     defer allocating.deinit();
@@ -1332,9 +1332,9 @@ fn generateExactWidthType(comp: *Compilation, w: *Io.Writer, original_qt: QualTy
     const unsigned = qt.signedness(comp) == .unsigned;
 
     if (width == 16) {
-        qt = if (unsigned) try comp.type_store.int16.makeIntUnsigned(comp) else comp.type_store.int16;
+        qt = if (unsigned) try comp.type_map.int16.makeIntUnsigned(comp) else comp.type_map.int16;
     } else if (width == 64) {
-        qt = if (unsigned) try comp.type_store.int64.makeIntUnsigned(comp) else comp.type_store.int64;
+        qt = if (unsigned) try comp.type_map.int64.makeIntUnsigned(comp) else comp.type_map.int64;
     }
 
     var buffer: [16]u8 = undefined;
@@ -1374,8 +1374,8 @@ fn generateIntMax(comp: *const Compilation, w: *Io.Writer, name: []const u8, qt:
 
 /// Largest value that can be stored in wchar_t
 pub fn wcharMax(comp: *const Compilation) u32 {
-    const unsigned = comp.type_store.wchar.signedness(comp) == .unsigned;
-    return switch (comp.type_store.wchar.bitSizeof(comp)) {
+    const unsigned = comp.type_map.wchar.signedness(comp) == .unsigned;
+    return switch (comp.type_map.wchar.bitSizeof(comp)) {
         8 => if (unsigned) std.math.maxInt(u8) else std.math.maxInt(i8),
         16 => if (unsigned) std.math.maxInt(u16) else std.math.maxInt(i16),
         32 => if (unsigned) std.math.maxInt(u32) else std.math.maxInt(i32),
@@ -1389,7 +1389,7 @@ fn generateExactWidthIntMax(comp: *Compilation, w: *Io.Writer, original_qt: Qual
     const unsigned = qt.signedness(comp) == .unsigned;
 
     if (bit_count == 64) {
-        qt = if (unsigned) try comp.type_store.int64.makeIntUnsigned(comp) else comp.type_store.int64;
+        qt = if (unsigned) try comp.type_map.int64.makeIntUnsigned(comp) else comp.type_map.int64;
     }
 
     var name_buffer: [6]u8 = undefined;

@@ -1204,7 +1204,7 @@ fn applyVectorSize(attr: Attribute, p: *Parser, tok: TokenIndex, qt: *QualType) 
         return p.err(tok, .vec_size_not_multiple, .{});
     }
 
-    qt.* = try p.comp.type_store.put(p.comp.gpa, .{ .vector = .{
+    qt.* = try p.comp.type_map.put(p.comp.gpa, .{ .vector = .{
         .elem = qt.*,
         .len = @intCast(vec_bytes / elem_size),
     } });
@@ -1328,7 +1328,7 @@ fn applyBoundsSafetyAttr(bounds: Type.Pointer.Bounds, p: *Parser, tok: TokenInde
     if (pointer.bounds != .c) {
         return p.err(tok, .multiple_bounds_annotations, .{});
     }
-    qt.* = try p.comp.type_store.put(p.comp.gpa, .{ .pointer = .{
+    qt.* = try p.comp.type_map.put(p.comp.gpa, .{ .pointer = .{
         .child = pointer.child,
         .decayed = pointer.decayed,
         .bounds = bounds,
@@ -1364,7 +1364,7 @@ fn applyKeywordCallingConvention(attr: Attribute, p: *Parser, tok: TokenIndex, q
 fn applySelected(qt: QualType, p: *Parser) !QualType {
     if (p.attr_application_buf.items.len == 0) return qt;
     if (qt.isInvalid()) return qt;
-    return (try p.comp.type_store.put(p.comp.gpa, .{ .attributed = .{
+    return (try p.comp.type_map.put(p.comp.gpa, .{ .attributed = .{
         .base = qt,
         .attributes = p.attr_application_buf.items,
     } })).withQualifiers(qt);

@@ -556,10 +556,10 @@ pub fn add(res: *Value, lhs: Value, rhs: Value, qt: QualType, comp: *Compilation
 
         const elem_size = try int(qt.childType(comp).sizeofOrNull(comp) orelse 1, comp);
         var total_offset: Value = undefined;
-        const mul_overflow = try total_offset.mul(elem_size, index, comp.type_store.ptrdiff, comp);
+        const mul_overflow = try total_offset.mul(elem_size, index, comp.type_map.ptrdiff, comp);
         const old_offset = fromRef(rel.offset);
-        const add_overflow = try total_offset.add(total_offset, old_offset, comp.type_store.ptrdiff, comp);
-        _ = try total_offset.intCast(comp.type_store.ptrdiff, comp);
+        const add_overflow = try total_offset.add(total_offset, old_offset, comp.type_map.ptrdiff, comp);
+        _ = try total_offset.intCast(comp.type_map.ptrdiff, comp);
         res.* = try pointer(.{ .node = rel.node, .offset = total_offset.ref() }, comp);
         return mul_overflow or add_overflow;
     }
@@ -631,19 +631,19 @@ pub fn sub(res: *Value, lhs: Value, rhs: Value, qt: QualType, elem_size: u64, co
         }
         const lhs_offset = fromRef(lhs_pointer.offset);
         const rhs_offset = fromRef(rhs_pointer.offset);
-        const overflowed = try res.sub(lhs_offset, rhs_offset, comp.type_store.ptrdiff, undefined, comp);
+        const overflowed = try res.sub(lhs_offset, rhs_offset, comp.type_map.ptrdiff, undefined, comp);
         const rhs_size = try int(elem_size, comp);
-        _ = try res.div(res.*, rhs_size, comp.type_store.ptrdiff, comp);
+        _ = try res.div(res.*, rhs_size, comp.type_map.ptrdiff, comp);
         return overflowed;
     } else if (lhs_key == .pointer) {
         const rel = lhs_key.pointer;
 
         const lhs_size = try int(elem_size, comp);
         var total_offset: Value = undefined;
-        const mul_overflow = try total_offset.mul(lhs_size, rhs, comp.type_store.ptrdiff, comp);
+        const mul_overflow = try total_offset.mul(lhs_size, rhs, comp.type_map.ptrdiff, comp);
         const old_offset = fromRef(rel.offset);
-        const add_overflow = try total_offset.sub(old_offset, total_offset, comp.type_store.ptrdiff, undefined, comp);
-        _ = try total_offset.intCast(comp.type_store.ptrdiff, comp);
+        const add_overflow = try total_offset.sub(old_offset, total_offset, comp.type_map.ptrdiff, undefined, comp);
+        _ = try total_offset.intCast(comp.type_map.ptrdiff, comp);
         res.* = try pointer(.{ .node = rel.node, .offset = total_offset.ref() }, comp);
         return mul_overflow or add_overflow;
     }
@@ -1081,7 +1081,7 @@ pub fn printPointer(offset: Value, base: []const u8, comp: *const Compilation, w
     try w.writeByte('&');
     try w.writeAll(base);
     if (!offset.isZero(comp)) {
-        const maybe_nested = try offset.print(comp.type_store.ptrdiff, comp, w);
+        const maybe_nested = try offset.print(comp.type_map.ptrdiff, comp, w);
         std.debug.assert(maybe_nested == null);
     }
 }
