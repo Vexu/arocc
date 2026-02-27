@@ -1827,7 +1827,7 @@ intptr: QualType = .invalid,
 int16: QualType = .invalid,
 int64: QualType = .invalid,
 
-pub fn deinit(ts: *TypeMap, gpa: std.mem.Allocator) void {
+pub fn deinit(tm: *TypeMap, gpa: std.mem.Allocator) void {
     ts.types.deinit(gpa);
     ts.extra.deinit(gpa);
     ts.attributes.deinit(gpa);
@@ -1835,11 +1835,11 @@ pub fn deinit(ts: *TypeMap, gpa: std.mem.Allocator) void {
     ts.* = undefined;
 }
 
-pub fn put(ts: *TypeMap, gpa: std.mem.Allocator, ty: Type) !QualType {
+pub fn put(tm: *TypeMap, gpa: std.mem.Allocator, ty: Type) !QualType {
     return .{ ._index = try ts.putExtra(gpa, ty) };
 }
 
-pub fn putExtra(ts: *TypeMap, gpa: std.mem.Allocator, ty: Type) !Index {
+pub fn putExtra(tm: *TypeMap, gpa: std.mem.Allocator, ty: Type) !Index {
     switch (ty) {
         .void => return .void,
         .bool => return .bool,
@@ -1884,7 +1884,7 @@ pub fn putExtra(ts: *TypeMap, gpa: std.mem.Allocator, ty: Type) !Index {
     return @enumFromInt(index);
 }
 
-pub fn set(ts: *TypeMap, gpa: std.mem.Allocator, ty: Type, index: usize) !void {
+pub fn set(tm: *TypeMap, gpa: std.mem.Allocator, ty: Type, index: usize) !void {
     var repr: Repr = undefined;
     switch (ty) {
         .void => unreachable,
@@ -2097,7 +2097,7 @@ pub fn set(ts: *TypeMap, gpa: std.mem.Allocator, ty: Type, index: usize) !void {
     ts.types.set(index, repr);
 }
 
-pub fn initNamedTypes(ts: *TypeMap, comp: *Compilation) !void {
+pub fn initNamedTypes(tm: *TypeMap, comp: *Compilation) !void {
     const os = comp.target.os.tag;
     const arch = comp.target.cpu.arch;
     ts.wchar = switch (os) {
@@ -2170,7 +2170,7 @@ pub fn initNamedTypes(ts: *TypeMap, comp: *Compilation) !void {
     ts.va_list = try ts.generateVaListType(comp);
 }
 
-fn generateNsConstantStringType(ts: *TypeMap, comp: *Compilation) !QualType {
+fn generateNsConstantStringType(tm: *TypeMap, comp: *Compilation) !QualType {
     const const_int_ptr: QualType = .{ .@"const" = true, ._index = .int_pointer };
     const const_char_ptr: QualType = .{ .@"const" = true, ._index = .char_pointer };
 
@@ -2195,7 +2195,7 @@ fn generateNsConstantStringType(ts: *TypeMap, comp: *Compilation) !QualType {
     return qt;
 }
 
-fn generateVaListType(ts: *TypeMap, comp: *Compilation) !QualType {
+fn generateVaListType(tm: *TypeMap, comp: *Compilation) !QualType {
     const Kind = enum {
         aarch64_va_list,
         arm_va_list,
