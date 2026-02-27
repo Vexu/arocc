@@ -2541,6 +2541,11 @@ pub const multiple_bounds_annotations: Diagnostic = .{
     .kind = .@"error",
 };
 
+pub const blocks_not_enabled: Diagnostic = .{
+    .fmt = "Blocks are not enabled",
+    .kind = .@"error",
+};
+
 pub const blocks_are_clang_extension: Diagnostic = .{
     .fmt = "Blocks are a Clang extension",
     .opt = .@"blocks-extension",
@@ -2548,16 +2553,7 @@ pub const blocks_are_clang_extension: Diagnostic = .{
     .extension = true,
 };
 
-pub const blocks_not_enabled: Diagnostic = .{
-    .fmt = "Blocks are not enabled",
-    .opt = .@"blocks-extension",
-    .kind = .warning,
-    .extension = true,
-};
-
 pub const block_to_non_function: Diagnostic = .{
     .fmt = "Blocks must be a function type",
-    .opt = .@"blocks-extension",
     .kind = .@"error",
-    .extension = true,
 };

@@ -1492,7 +1492,13 @@ pub const QualType = packed struct(u32) {
                 try func.return_type.dump(comp, w);
             },
             .block => |block| {
-                const func = block.func.type(comp).func;
+                const func = switch (block.func.type(comp)) {
+                    .func => |func| func,
+                    else => |other| {
+                        try w.print("<invalid block to {t}>", .{other});
+                        return;
+                    },
+                };
                 try w.writeAll("block (");
                 for (func.params, 0..) |param, i| {
                     if (i != 0) try w.writeAll(", ");

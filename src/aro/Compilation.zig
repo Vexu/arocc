@@ -2201,17 +2201,6 @@ pub fn getSourceMTimeUncached(comp: *const Compilation, source_id: Source.Id) ?u
     }
 }
 
-pub fn isBlocksEnabled(comp: *const Compilation) bool {
-    switch (comp.langopts.emulate) {
-        .clang, .no => {
-            if (comp.langopts.blocks) return true;
-            if (comp.target.isBlocksSupported()) return true;
-        },
-        else => {},
-    }
-    return false;
-}
-
 pub fn isTargetArch(comp: *const Compilation, query: []const u8) bool {
     const arch, const opt_sub_arch = Target.parseArchName(query) orelse return false;
     if (arch != comp.target.cpu.arch) return false;
