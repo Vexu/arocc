@@ -22,6 +22,9 @@ typedef: 'block (int) int'
 typedef: '*block () void'
  name: PointerToBlockNoParamsReturnsVoid
 
+typedef: '<invalid block to int>'
+ name: invalidBlock
+
 function: 'fn (afunc: *fn (int) double, ablock: block (int) double) void'
  name: my_func_accepting_block
  body:
