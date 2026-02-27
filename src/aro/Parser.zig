@@ -2593,8 +2593,8 @@ fn recordSpec(p: *Parser) Error!QualType {
 
         // Override previous incomplete layout and fields.
         const base_qt = qt.base(p.comp).qt;
-        const ts = &p.comp.type_map;
-        var extra_index = ts.types.items(.data)[@intFromEnum(base_qt._index)][1];
+        const tm = &p.comp.type_map;
+        var extra_index = tm.types.items(.data)[@intFromEnum(base_qt._index)][1];
 
         const layout_size = 5;
         comptime std.debug.assert(@sizeOf(Type.Record.Layout) == @sizeOf(u32) * layout_size);
@@ -2603,13 +2603,13 @@ fn recordSpec(p: *Parser) Error!QualType {
 
         extra_index += 1; // For decl_node
         const casted_layout: *const [layout_size]u32 = @ptrCast(&record_ty.layout);
-        ts.extra.items[extra_index..][0..layout_size].* = casted_layout.*;
+        tm.extra.items[extra_index..][0..layout_size].* = casted_layout.*;
         extra_index += layout_size;
         extra_index += 1; // For field length
 
         for (record_ty.fields) |*field| {
             const casted: *const [field_size]u32 = @ptrCast(field);
-            ts.extra.items[extra_index..][0..field_size].* = casted.*;
+            tm.extra.items[extra_index..][0..field_size].* = casted.*;
             extra_index += field_size;
         }
     }

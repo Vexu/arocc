@@ -1828,15 +1828,15 @@ int16: QualType = .invalid,
 int64: QualType = .invalid,
 
 pub fn deinit(tm: *TypeMap, gpa: std.mem.Allocator) void {
-    ts.types.deinit(gpa);
-    ts.extra.deinit(gpa);
-    ts.attributes.deinit(gpa);
-    ts.anon_name_arena.promote(gpa).deinit();
-    ts.* = undefined;
+    tm.types.deinit(gpa);
+    tm.extra.deinit(gpa);
+    tm.attributes.deinit(gpa);
+    tm.anon_name_arena.promote(gpa).deinit();
+    tm.* = undefined;
 }
 
 pub fn put(tm: *TypeMap, gpa: std.mem.Allocator, ty: Type) !QualType {
-    return .{ ._index = try ts.putExtra(gpa, ty) };
+    return .{ ._index = try tm.putExtra(gpa, ty) };
 }
 
 pub fn putExtra(tm: *TypeMap, gpa: std.mem.Allocator, ty: Type) !Index {
@@ -1879,8 +1879,8 @@ pub fn putExtra(tm: *TypeMap, gpa: std.mem.Allocator, ty: Type) !Index {
         },
         else => {},
     }
-    const index = try ts.types.addOne(gpa);
-    try ts.set(gpa, ty, index);
+    const index = try tm.types.addOne(gpa);
+    try tm.set(gpa, ty, index);
     return @enumFromInt(index);
 }
 
@@ -1909,19 +1909,19 @@ pub fn set(tm: *TypeMap, gpa: std.mem.Allocator, ty: Type, index: usize) !void {
         .func => |func| {
             repr.data[0] = @bitCast(func.return_type);
 
-            const extra_index: u32 = @intCast(ts.extra.items.len);
+            const extra_index: u32 = @intCast(tm.extra.items.len);
             repr.data[1] = extra_index;
             if (func.params.len > 1) {
-                try ts.extra.append(gpa, @intCast(func.params.len));
+                try tm.extra.append(gpa, @intCast(func.params.len));
             }
 
             const param_size = 4;
             comptime std.debug.assert(@sizeOf(Type.Func.Param) == @sizeOf(u32) * param_size);
 
-            try ts.extra.ensureUnusedCapacity(gpa, func.params.len * param_size);
+            try tm.extra.ensureUnusedCapacity(gpa, func.params.len * param_size);
             for (func.params) |*param| {
                 const casted: *const [param_size]u32 = @ptrCast(param);
-                ts.extra.appendSliceAssumeCapacity(casted);
+                tm.extra.appendSliceAssumeCapacity(casted);
             }
 
             repr.tag = switch (func.kind) {
@@ -1956,7 +1956,7 @@ pub fn set(tm: *TypeMap, gpa: std.mem.Allocator, ty: Type, index: usize) !void {
         .array => |array| {
             repr.data[0] = @bitCast(array.elem);
 
-            const extra_index: u32 = @intCast(ts.extra.items.len);
+            const extra_index: u32 = @intCast(tm.extra.items.len);
             switch (array.len) {
                 .incomplete => {
                     repr.tag = .array_incomplete;
@@ -1964,12 +1964,12 @@ pub fn set(tm: *TypeMap, gpa: std.mem.Allocator, ty: Type, index: usize) !void {
                 .fixed => |len| {
                     repr.tag = .array_fixed;
                     repr.data[1] = extra_index;
-                    try ts.extra.appendSlice(gpa, &@as([2]u32, @bitCast(len)));
+                    try tm.extra.appendSlice(gpa, &@as([2]u32, @bitCast(len)));
                 },
                 .static => |len| {
                     repr.tag = .array_static;
                     repr.data[1] = extra_index;
-                    try ts.extra.appendSlice(gpa, &@as([2]u32, @bitCast(len)));
+                    try tm.extra.appendSlice(gpa, &@as([2]u32, @bitCast(len)));
                 },
                 .variable => |expr| {
                     repr.tag = .array_variable;
@@ -2003,23 +2003,23 @@ pub fn set(tm: *TypeMap, gpa: std.mem.Allocator, ty: Type, index: usize) !void {
                 else => unreachable,
             };
 
-            const extra_index: u32 = @intCast(ts.extra.items.len);
+            const extra_index: u32 = @intCast(tm.extra.items.len);
             repr.data[1] = extra_index;
 
             const layout_size = 5;
             comptime std.debug.assert(@sizeOf(Type.Record.Layout) == @sizeOf(u32) * layout_size);
             const field_size = 10;
             comptime std.debug.assert(@sizeOf(Type.Record.Field) == @sizeOf(u32) * field_size);
-            try ts.extra.ensureUnusedCapacity(gpa, record.fields.len * field_size + layout_size + 2);
+            try tm.extra.ensureUnusedCapacity(gpa, record.fields.len * field_size + layout_size + 2);
 
-            ts.extra.appendAssumeCapacity(@intFromEnum(record.decl_node));
+            tm.extra.appendAssumeCapacity(@intFromEnum(record.decl_node));
             const casted_layout: *const [layout_size]u32 = @ptrCast(&layout);
-            ts.extra.appendSliceAssumeCapacity(casted_layout);
-            ts.extra.appendAssumeCapacity(@intCast(record.fields.len));
+            tm.extra.appendSliceAssumeCapacity(casted_layout);
+            tm.extra.appendAssumeCapacity(@intCast(record.fields.len));
 
             for (record.fields) |*field| {
                 const casted: *const [field_size]u32 = @ptrCast(field);
-                ts.extra.appendSliceAssumeCapacity(casted);
+                tm.extra.appendSliceAssumeCapacity(casted);
             }
         },
         .@"enum" => |@"enum"| @"enum": {
@@ -2028,8 +2028,8 @@ pub fn set(tm: *TypeMap, gpa: std.mem.Allocator, ty: Type, index: usize) !void {
                 if (@"enum".fixed) {
                     repr.tag = .enum_incomplete_fixed;
                     repr.data[0] = @bitCast(@"enum".tag.?);
-                    repr.data[1] = @intCast(ts.extra.items.len);
-                    try ts.extra.appendSlice(gpa, &.{
+                    repr.data[1] = @intCast(tm.extra.items.len);
+                    try tm.extra.appendSlice(gpa, &.{
                         @intFromEnum(@"enum".name),
                         @intFromEnum(@"enum".decl_node),
                     });
@@ -2043,20 +2043,20 @@ pub fn set(tm: *TypeMap, gpa: std.mem.Allocator, ty: Type, index: usize) !void {
             repr.tag = if (@"enum".fixed) .enum_fixed else .@"enum";
             repr.data[0] = @bitCast(@"enum".tag.?);
 
-            const extra_index: u32 = @intCast(ts.extra.items.len);
+            const extra_index: u32 = @intCast(tm.extra.items.len);
             repr.data[1] = extra_index;
 
             const field_size = 3;
             comptime std.debug.assert(@sizeOf(Type.Enum.Field) == @sizeOf(u32) * field_size);
-            try ts.extra.ensureUnusedCapacity(gpa, @"enum".fields.len * field_size + 3);
+            try tm.extra.ensureUnusedCapacity(gpa, @"enum".fields.len * field_size + 3);
 
-            ts.extra.appendAssumeCapacity(@intFromEnum(@"enum".name));
-            ts.extra.appendAssumeCapacity(@intFromEnum(@"enum".decl_node));
-            ts.extra.appendAssumeCapacity(@intCast(@"enum".fields.len));
+            tm.extra.appendAssumeCapacity(@intFromEnum(@"enum".name));
+            tm.extra.appendAssumeCapacity(@intFromEnum(@"enum".decl_node));
+            tm.extra.appendAssumeCapacity(@intCast(@"enum".fields.len));
 
             for (@"enum".fields) |*field| {
                 const casted: *const [field_size]u32 = @ptrCast(field);
-                ts.extra.appendSliceAssumeCapacity(casted);
+                tm.extra.appendSliceAssumeCapacity(casted);
             }
         },
         .typeof => |typeof| {
@@ -2071,8 +2071,8 @@ pub fn set(tm: *TypeMap, gpa: std.mem.Allocator, ty: Type, index: usize) !void {
         .typedef => |typedef| {
             repr.tag = .typedef;
             repr.data[0] = @bitCast(typedef.base);
-            repr.data[1] = @intCast(ts.extra.items.len);
-            try ts.extra.appendSlice(gpa, &.{
+            repr.data[1] = @intCast(tm.extra.items.len);
+            try tm.extra.appendSlice(gpa, &.{
                 @intFromEnum(typedef.name),
                 @intFromEnum(typedef.decl_node),
             });
@@ -2080,27 +2080,27 @@ pub fn set(tm: *TypeMap, gpa: std.mem.Allocator, ty: Type, index: usize) !void {
         .attributed => |attributed| {
             repr.data[0] = @bitCast(attributed.base);
 
-            const attr_index: u32 = @intCast(ts.attributes.items.len);
+            const attr_index: u32 = @intCast(tm.attributes.items.len);
             const attr_count: u32 = @intCast(attributed.attributes.len);
-            try ts.attributes.appendSlice(gpa, attributed.attributes);
+            try tm.attributes.appendSlice(gpa, attributed.attributes);
             if (attr_count > 1) {
                 repr.tag = .attributed;
-                const extra_index: u32 = @intCast(ts.extra.items.len);
+                const extra_index: u32 = @intCast(tm.extra.items.len);
                 repr.data[1] = extra_index;
-                try ts.extra.appendSlice(gpa, &.{ attr_index, attr_count });
+                try tm.extra.appendSlice(gpa, &.{ attr_index, attr_count });
             } else {
                 repr.tag = .attributed_one;
                 repr.data[1] = attr_index;
             }
         },
     }
-    ts.types.set(index, repr);
+    tm.types.set(index, repr);
 }
 
 pub fn initNamedTypes(tm: *TypeMap, comp: *Compilation) !void {
     const os = comp.target.os.tag;
     const arch = comp.target.cpu.arch;
-    ts.wchar = switch (os) {
+    tm.wchar = switch (os) {
         .openbsd, .netbsd => .int,
         .ps4, .ps5 => .ushort,
         .uefi => .ushort,
@@ -2116,7 +2116,7 @@ pub fn initNamedTypes(tm: *TypeMap, comp: *Compilation) !void {
         },
     };
 
-    ts.wint = switch (os) {
+    tm.wint = switch (os) {
         .fuchsia => .uint,
         .linux => .uint,
         .openbsd => .int,
@@ -2134,7 +2134,7 @@ pub fn initNamedTypes(tm: *TypeMap, comp: *Compilation) !void {
     };
 
     const ptr_width = comp.target.ptrBitWidth();
-    ts.ptrdiff = if (os == .windows and ptr_width == 64)
+    tm.ptrdiff = if (os == .windows and ptr_width == 64)
         .long_long
     else switch (ptr_width) {
         16 => .int,
@@ -2143,7 +2143,7 @@ pub fn initNamedTypes(tm: *TypeMap, comp: *Compilation) !void {
         else => unreachable,
     };
 
-    ts.size = if (os == .windows and ptr_width == 64)
+    tm.size = if (os == .windows and ptr_width == 64)
         .ulong_long
     else switch (ptr_width) {
         16 => .uint,
@@ -2152,22 +2152,22 @@ pub fn initNamedTypes(tm: *TypeMap, comp: *Compilation) !void {
         else => unreachable,
     };
 
-    ts.pid_t = switch (os) {
+    tm.pid_t = switch (os) {
         .haiku => .long,
         // Todo: pid_t is required to "a signed integer type"; are there any systems
         // on which it is `short int`?
         else => .int,
     };
 
-    ts.intmax = comp.target.intMaxType();
-    ts.intptr = comp.target.intPtrType();
-    ts.int16 = comp.target.int16Type();
-    ts.int64 = comp.target.int64Type();
-    ts.uint_least16_t = comp.intLeastN(16, .unsigned);
-    ts.uint_least32_t = comp.intLeastN(32, .unsigned);
+    tm.intmax = comp.target.intMaxType();
+    tm.intptr = comp.target.intPtrType();
+    tm.int16 = comp.target.int16Type();
+    tm.int64 = comp.target.int64Type();
+    tm.uint_least16_t = comp.intLeastN(16, .unsigned);
+    tm.uint_least32_t = comp.intLeastN(32, .unsigned);
 
-    ts.ns_constant_string = try ts.generateNsConstantStringType(comp);
-    ts.va_list = try ts.generateVaListType(comp);
+    tm.ns_constant_string = try tm.generateNsConstantStringType(comp);
+    tm.va_list = try tm.generateVaListType(comp);
 }
 
 fn generateNsConstantStringType(tm: *TypeMap, comp: *Compilation) !QualType {
@@ -2180,7 +2180,7 @@ fn generateNsConstantStringType(tm: *TypeMap, comp: *Compilation) !QualType {
         .decl_node = undefined, // TODO
         .fields = &.{},
     };
-    const qt = try ts.put(comp.gpa, .{ .@"struct" = record });
+    const qt = try tm.put(comp.gpa, .{ .@"struct" = record });
 
     var fields: [4]Type.Record.Field = .{
         .{ .name = try comp.internString("isa"), .qt = const_int_ptr },
@@ -2190,7 +2190,7 @@ fn generateNsConstantStringType(tm: *TypeMap, comp: *Compilation) !QualType {
     };
     record.fields = &fields;
     record.layout = record_layout.compute(&fields, qt, comp, null) catch unreachable;
-    try ts.set(comp.gpa, .{ .@"struct" = record }, @intFromEnum(qt._index));
+    try tm.set(comp.gpa, .{ .@"struct" = record }, @intFromEnum(qt._index));
 
     return qt;
 }
@@ -2267,7 +2267,7 @@ fn generateVaListType(tm: *TypeMap, comp: *Compilation) !QualType {
                 .layout = null,
                 .fields = &.{},
             };
-            const qt = try ts.put(comp.gpa, .{ .@"struct" = record });
+            const qt = try tm.put(comp.gpa, .{ .@"struct" = record });
 
             var fields: [5]Type.Record.Field = .{
                 .{ .name = try comp.internString("__stack"), .qt = .void_pointer },
@@ -2278,7 +2278,7 @@ fn generateVaListType(tm: *TypeMap, comp: *Compilation) !QualType {
             };
             record.fields = &fields;
             record.layout = record_layout.compute(&fields, qt, comp, null) catch unreachable;
-            try ts.set(comp.gpa, .{ .@"struct" = record }, @intFromEnum(qt._index));
+            try tm.set(comp.gpa, .{ .@"struct" = record }, @intFromEnum(qt._index));
 
             return qt;
         },
@@ -2289,14 +2289,14 @@ fn generateVaListType(tm: *TypeMap, comp: *Compilation) !QualType {
                 .layout = null,
                 .fields = &.{},
             };
-            const qt = try ts.put(comp.gpa, .{ .@"struct" = record });
+            const qt = try tm.put(comp.gpa, .{ .@"struct" = record });
 
             var fields: [1]Type.Record.Field = .{
                 .{ .name = try comp.internString("__ap"), .qt = .void_pointer },
             };
             record.fields = &fields;
             record.layout = record_layout.compute(&fields, qt, comp, null) catch unreachable;
-            try ts.set(comp.gpa, .{ .@"struct" = record }, @intFromEnum(qt._index));
+            try tm.set(comp.gpa, .{ .@"struct" = record }, @intFromEnum(qt._index));
 
             return qt;
         },
@@ -2307,7 +2307,7 @@ fn generateVaListType(tm: *TypeMap, comp: *Compilation) !QualType {
                 .layout = null,
                 .fields = &.{},
             };
-            const qt = try ts.put(comp.gpa, .{ .@"struct" = record });
+            const qt = try tm.put(comp.gpa, .{ .@"struct" = record });
 
             var fields: [4]Type.Record.Field = .{
                 .{ .name = try comp.internString("__gpr"), .qt = .long },
@@ -2317,7 +2317,7 @@ fn generateVaListType(tm: *TypeMap, comp: *Compilation) !QualType {
             };
             record.fields = &fields;
             record.layout = record_layout.compute(&fields, qt, comp, null) catch unreachable;
-            try ts.set(comp.gpa, .{ .@"struct" = record }, @intFromEnum(qt._index));
+            try tm.set(comp.gpa, .{ .@"struct" = record }, @intFromEnum(qt._index));
 
             break :blk qt;
         },
@@ -2328,7 +2328,7 @@ fn generateVaListType(tm: *TypeMap, comp: *Compilation) !QualType {
                 .layout = null,
                 .fields = &.{},
             };
-            const qt = try ts.put(comp.gpa, .{ .@"struct" = record });
+            const qt = try tm.put(comp.gpa, .{ .@"struct" = record });
 
             var fields: [5]Type.Record.Field = .{
                 .{ .name = try comp.internString("gpr"), .qt = .uchar },
@@ -2339,7 +2339,7 @@ fn generateVaListType(tm: *TypeMap, comp: *Compilation) !QualType {
             };
             record.fields = &fields;
             record.layout = record_layout.compute(&fields, qt, comp, null) catch unreachable;
-            try ts.set(comp.gpa, .{ .@"struct" = record }, @intFromEnum(qt._index));
+            try tm.set(comp.gpa, .{ .@"struct" = record }, @intFromEnum(qt._index));
 
             break :blk qt;
         },
@@ -2350,7 +2350,7 @@ fn generateVaListType(tm: *TypeMap, comp: *Compilation) !QualType {
                 .layout = null,
                 .fields = &.{},
             };
-            const qt = try ts.put(comp.gpa, .{ .@"struct" = record });
+            const qt = try tm.put(comp.gpa, .{ .@"struct" = record });
 
             var fields: [3]Type.Record.Field = .{
                 .{ .name = try comp.internString("__current_saved_reg_area_pointer"), .qt = .void_pointer },
@@ -2359,7 +2359,7 @@ fn generateVaListType(tm: *TypeMap, comp: *Compilation) !QualType {
             };
             record.fields = &fields;
             record.layout = record_layout.compute(&fields, qt, comp, null) catch unreachable;
-            try ts.set(comp.gpa, .{ .@"struct" = record }, @intFromEnum(qt._index));
+            try tm.set(comp.gpa, .{ .@"struct" = record }, @intFromEnum(qt._index));
 
             break :blk qt;
         },
@@ -2370,7 +2370,7 @@ fn generateVaListType(tm: *TypeMap, comp: *Compilation) !QualType {
                 .layout = null,
                 .fields = &.{},
             };
-            const qt = try ts.put(comp.gpa, .{ .@"struct" = record });
+            const qt = try tm.put(comp.gpa, .{ .@"struct" = record });
 
             var fields: [4]Type.Record.Field = .{
                 .{ .name = try comp.internString("gp_offset"), .qt = .uint },
@@ -2380,7 +2380,7 @@ fn generateVaListType(tm: *TypeMap, comp: *Compilation) !QualType {
             };
             record.fields = &fields;
             record.layout = record_layout.compute(&fields, qt, comp, null) catch unreachable;
-            try ts.set(comp.gpa, .{ .@"struct" = record }, @intFromEnum(qt._index));
+            try tm.set(comp.gpa, .{ .@"struct" = record }, @intFromEnum(qt._index));
 
             break :blk qt;
         },
@@ -2391,7 +2391,7 @@ fn generateVaListType(tm: *TypeMap, comp: *Compilation) !QualType {
                 .layout = null,
                 .fields = &.{},
             };
-            const qt = try ts.put(comp.gpa, .{ .@"struct" = record });
+            const qt = try tm.put(comp.gpa, .{ .@"struct" = record });
 
             var fields: [3]Type.Record.Field = .{
                 .{ .name = try comp.internString("__va_stk"), .qt = .int_pointer },
@@ -2400,13 +2400,13 @@ fn generateVaListType(tm: *TypeMap, comp: *Compilation) !QualType {
             };
             record.fields = &fields;
             record.layout = record_layout.compute(&fields, qt, comp, null) catch unreachable;
-            try ts.set(comp.gpa, .{ .@"struct" = record }, @intFromEnum(qt._index));
+            try tm.set(comp.gpa, .{ .@"struct" = record }, @intFromEnum(qt._index));
 
             return qt;
         },
     };
 
-    return ts.put(comp.gpa, .{ .array = .{
+    return tm.put(comp.gpa, .{ .array = .{
         .elem = struct_qt,
         .len = .{ .fixed = 1 },
     } });
