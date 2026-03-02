@@ -2134,7 +2134,9 @@ pub fn initNamedTypes(ts: *TypeStore, comp: *Compilation) !void {
     };
 
     const ptr_width = comp.target.ptrBitWidth();
-    ts.ptrdiff = if (os == .windows and ptr_width == 64)
+    ts.ptrdiff = if (arch == .wasm32)
+        .long
+    else if (os == .windows and ptr_width == 64)
         .long_long
     else switch (ptr_width) {
         16 => .int,
@@ -2143,7 +2145,9 @@ pub fn initNamedTypes(ts: *TypeStore, comp: *Compilation) !void {
         else => unreachable,
     };
 
-    ts.size = if (os == .windows and ptr_width == 64)
+    ts.size = if (arch == .wasm32)
+        .ulong
+    else if (os == .windows and ptr_width == 64)
         .ulong_long
     else switch (ptr_width) {
         16 => .uint,
