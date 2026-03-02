@@ -2134,7 +2134,9 @@ pub fn initNamedTypes(tm: *TypeMap, comp: *Compilation) !void {
     };
 
     const ptr_width = comp.target.ptrBitWidth();
-    tm.ptrdiff = if (os == .windows and ptr_width == 64)
+    tm.ptrdiff = if (arch == .wasm32)
+        .long
+    else if (os == .windows and ptr_width == 64)
         .long_long
     else switch (ptr_width) {
         16 => .int,
@@ -2143,7 +2145,9 @@ pub fn initNamedTypes(tm: *TypeMap, comp: *Compilation) !void {
         else => unreachable,
     };
 
-    tm.size = if (os == .windows and ptr_width == 64)
+    tm.size = if (arch == .wasm32)
+        .ulong
+    else if (os == .windows and ptr_width == 64)
         .ulong_long
     else switch (ptr_width) {
         16 => .uint,
