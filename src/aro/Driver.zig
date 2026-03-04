@@ -1205,6 +1205,7 @@ pub fn main(d: *Driver, tc: *Toolchain, args: []const []const u8, comptime fast_
 
     tc.discover() catch |er| switch (er) {
         error.OutOfMemory => return error.OutOfMemory,
+        error.FatalError => return error.FatalError,
         error.TooManyMultilibs => return d.fatal("found more than one multilib with the same priority", .{}),
     };
     tc.defineSystemIncludes() catch |er| switch (er) {
