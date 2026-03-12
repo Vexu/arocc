@@ -356,7 +356,7 @@ const DafsaBuilder = struct {
             .root = root,
             .allocator = allocator,
             .arena = arena.state,
-            .unchecked_nodes = .{},
+            .unchecked_nodes = .empty,
             .minimized_nodes = .{},
         };
     }

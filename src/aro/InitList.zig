@@ -22,9 +22,15 @@ const Item = struct {
 
 const InitList = @This();
 
-list: std.ArrayList(Item) = .empty,
-node: Node.OptIndex = .null,
-tok: TokenIndex = 0,
+list: std.ArrayList(Item),
+node: Node.OptIndex,
+tok: TokenIndex,
+
+pub const empty: InitList = .{
+    .list = .empty,
+    .node = .null,
+    .tok = 0,
+};
 
 /// Deinitialize freeing all memory.
 pub fn deinit(il: *InitList, gpa: Allocator) void {
@@ -43,7 +49,7 @@ pub fn find(il: *InitList, gpa: Allocator, index: u64) !*InitList {
     if (il.list.items.len == 0) {
         const item = try il.list.addOne(gpa);
         item.* = .{
-            .list = .{},
+            .list = .empty,
             .index = index,
         };
         return &item.list;
@@ -51,7 +57,7 @@ pub fn find(il: *InitList, gpa: Allocator, index: u64) !*InitList {
         // Append a new value to the end of the list.
         const new = try il.list.addOne(gpa);
         new.* = .{
-            .list = .{},
+            .list = .empty,
             .index = index,
         };
         return &new.list;
@@ -70,7 +76,7 @@ pub fn find(il: *InitList, gpa: Allocator, index: u64) !*InitList {
 
     // Insert a new value into a sorted position.
     try il.list.insert(gpa, left, .{
-        .list = .{},
+        .list = .empty,
         .index = index,
     });
     return &il.list.items[left].list;
@@ -78,7 +84,7 @@ pub fn find(il: *InitList, gpa: Allocator, index: u64) !*InitList {
 
 test "basic usage" {
     const gpa = testing.allocator;
-    var il: InitList = .{};
+    var il: InitList = .empty;
     defer il.deinit(gpa);
 
     {

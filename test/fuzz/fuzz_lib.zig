@@ -23,18 +23,25 @@ export fn compile_c_buf(buf: [*]const u8, len: c_int) void {
 fn compileSlice(buf: []const u8) !void {
     var fixed_allocator = std.heap.FixedBufferAllocator.init(&fixed_buffer_mem);
     const allocator = fixed_allocator.allocator();
+    const io = std.Io.Threaded.global_single_threaded.io();
 
-    const aro_dir = try std.fs.selfExePathAlloc(allocator);
+    const aro_dir = try std.process.executablePathAlloc(io, allocator);
     defer allocator.free(aro_dir);
 
     var diagnostics: aro.Diagnostics = .{ .output = .ignore };
 
     // FBA is a valid "arena" because leaks are OK and FBA doesn't tend to reuse memory anyway.
-    var comp = Compilation.init(allocator, allocator, &diagnostics, std.fs.cwd());
+    var comp = try Compilation.init(.{
+        .gpa = allocator,
+        .arena = allocator,
+        .io = io,
+        .diagnostics = &diagnostics,
+        .environ_map = null,
+    });
     defer comp.deinit();
 
     try comp.addDefaultPragmaHandlers();
-    try comp.addSystemIncludeDir(aro_dir);
+    try comp.initSearchPath(&.{.{ .kind = .system, .path = aro_dir }}, false);
 
     const user_source = try comp.addSourceFromBuffer("<STDIN>", buf);
     const builtin = try comp.generateBuiltinMacros(.include_system_defines);
@@ -44,7 +51,7 @@ fn compileSlice(buf: []const u8) !void {
 }
 
 fn processSource(comp: *Compilation, builtin: Source, user_source: Source) !void {
-    var pp = Preprocessor.init(comp, .default);
+    var pp = try Preprocessor.init(comp, .{ .base_file = user_source.id });
     defer pp.deinit();
     try pp.addBuiltinMacros();
 
@@ -57,5 +64,5 @@ fn processSource(comp: *Compilation, builtin: Source, user_source: Source) !void
 
     var discard_buf: [256]u8 = undefined;
     var discarding: std.Io.Writer.Discarding = .init(&discard_buf);
-    try tree.dump(.no_color, &discarding.writer);
+    try tree.dump(.{ .writer = &discarding.writer, .mode = .no_color });
 }

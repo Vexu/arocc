@@ -3993,7 +3993,7 @@ fn initializer(p: *Parser, init_qt: QualType) Error!Result {
         final_init_qt = .invalid;
     }
 
-    var il: InitList = .{};
+    var il: InitList = .empty;
     defer il.deinit(p.comp.gpa);
 
     try p.initializerItem(&il, final_init_qt, l_brace);
@@ -4044,12 +4044,12 @@ fn initializerItem(p: *Parser, il: *InitList, init_qt: QualType, l_brace: TokenI
                     try p.err(first_tok, .initializer_overrides, .{});
                     try p.err(item.il.tok, .previous_initializer, .{});
                     item.il.deinit(gpa);
-                    item.il.* = .{};
+                    item.il.* = .empty;
                 }
                 try p.initializerItem(item.il, item.qt, inner_l_brace);
             } else {
                 // discard further values
-                var tmp_il: InitList = .{};
+                var tmp_il: InitList = .empty;
                 defer tmp_il.deinit(gpa);
                 try p.initializerItem(&tmp_il, .invalid, inner_l_brace);
                 if (!warned_excess) try p.err(first_tok, switch (init_qt.base(p.comp).type) {
