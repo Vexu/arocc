@@ -52,13 +52,13 @@ const Toolchain = @This();
 driver: *Driver,
 
 /// The list of toolchain specific path prefixes to search for libraries.
-library_paths: PathList = .{},
+library_paths: PathList = .empty,
 
 /// The list of toolchain specific path prefixes to search for files.
-file_paths: PathList = .{},
+file_paths: PathList = .empty,
 
 /// The list of toolchain specific path prefixes to search for programs.
-program_paths: PathList = .{},
+program_paths: PathList = .empty,
 
 selected_multilib: Multilib = .{},
 
