@@ -1671,7 +1671,7 @@ fn addSourceFromPathExtra(comp: *Compilation, path: []const u8, kind: Source.Kin
     // Normalize the path by collapsing "/./" and "X/../" segments so that
     // different relative paths to the same file resolve to one cache entry.
     // This prevents #pragma once failures and redundant preprocessing.
-    const normalized = try std.fs.path.resolvePosix(comp.gpa, &.{path});
+    const normalized = try std.fs.path.resolve(comp.gpa, &.{path});
     defer comp.gpa.free(normalized);
     if (!mem.eql(u8, normalized, path)) {
         if (comp.sources.get(normalized)) |some| return some;
