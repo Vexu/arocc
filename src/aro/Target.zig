@@ -229,7 +229,7 @@ pub fn intMaxType(target: *const Target) QualType {
         => return .long,
 
         .x86_64 => switch (target.os.tag) {
-            .windows, .openbsd => {},
+            .windows, .openbsd, .uefi => {},
             else => switch (target.abi) {
                 .gnux32, .muslx32 => {},
                 else => return .long,
