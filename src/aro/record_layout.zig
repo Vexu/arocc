@@ -620,7 +620,7 @@ fn computeLayout(qt: QualType, comp: *const Compilation) RecordLayout {
         else => {
             const type_align = qt.alignof(comp) * BITS_PER_BYTE;
             return .{
-                .size_bits = qt.bitSizeofOrNull(comp) orelse 0,
+                .size_bits = BITS_PER_BYTE * (qt.sizeofOrNull(comp) orelse 0),
                 .pointer_alignment_bits = type_align,
                 .field_alignment_bits = type_align,
                 .required_alignment_bits = BITS_PER_BYTE,
