@@ -2542,18 +2542,18 @@ pub const multiple_bounds_annotations: Diagnostic = .{
 };
 
 pub const blocks_not_enabled: Diagnostic = .{
-    .fmt = "Blocks are not enabled",
+    .fmt = "blocks are not enabled",
     .kind = .@"error",
 };
 
 pub const blocks_are_clang_extension: Diagnostic = .{
-    .fmt = "Blocks are a Clang extension",
+    .fmt = "blocks are a Clang extension",
     .opt = .@"blocks-extension",
     .kind = .off,
     .extension = true,
 };
 
 pub const block_to_non_function: Diagnostic = .{
-    .fmt = "Blocks must be a function type",
+    .fmt = "block pointer to non-function type is invalid",
     .kind = .@"error",
 };

@@ -882,8 +882,8 @@ pub fn parseArgs(
         }
     }
     switch (d.comp.langopts.emulate) {
-        // clang automatically enables Blocks for Darwin targets on Darwin
-        .clang, .no => if (@import("builtin").target.os.tag.isDarwin()) {
+        // clang automatically enables Blocks for Darwin targets
+        .clang, .no => if (d.comp.target.os.tag.isDarwin()) {
             d.comp.langopts.blocks |= d.comp.target.isBlocksSupported();
         },
         else => {},
