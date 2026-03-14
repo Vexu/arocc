@@ -28,7 +28,7 @@ typedef: 'invalid'
 typedef: 'fn (int) int'
  name: aFunc
 
-typedef: '<invalid block to typedef>'
+typedef: 'block (int) int'
  name: bar
 
 typedef: 'int'
