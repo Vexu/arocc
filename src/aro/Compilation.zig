@@ -1921,7 +1921,13 @@ const FindInclude = struct {
     }
     fn checkIncludeDir(find: *FindInclude, include_dir: []const u8, kind: Source.Kind) Allocator.Error!?Result {
         if (find.wait_for) |wait_for| {
-            if (std.mem.eql(u8, include_dir, wait_for)) find.wait_for = null;
+            if (std.mem.eql(u8, include_dir, wait_for)) {
+                find.wait_for = null;
+            } else {
+                const resolved = try std.fs.path.resolve(find.comp.gpa, &.{include_dir});
+                defer find.comp.gpa.free(resolved);
+                if (std.mem.eql(u8, resolved, wait_for)) find.wait_for = null;
+            }
             return null;
         }
         return find.check("{s}{c}{s}", .{
