@@ -991,10 +991,10 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
     try comp.generateTypeMacro(w, "__UINTPTR_TYPE__", try comp.type_store.intptr.makeIntUnsigned(comp));
 
     try comp.generateTypeMacro(w, "__INTMAX_TYPE__", comp.type_store.intmax);
-    try comp.generateSuffixMacro("__INTMAX", w, comp.type_store.intptr);
+    try comp.generateIntLiteralMacros("__INTMAX", w, comp.type_store.intptr);
 
     try comp.generateTypeMacro(w, "__UINTMAX_TYPE__", try comp.type_store.intmax.makeIntUnsigned(comp));
-    try comp.generateSuffixMacro("__UINTMAX", w, try comp.type_store.intptr.makeIntUnsigned(comp));
+    try comp.generateIntLiteralMacros("__UINTMAX", w, try comp.type_store.intptr.makeIntUnsigned(comp));
 
     try comp.generateTypeMacro(w, "__PTRDIFF_TYPE__", comp.type_store.ptrdiff);
     try comp.generateTypeMacro(w, "__SIZE_TYPE__", comp.type_store.size);
@@ -1318,8 +1318,14 @@ fn generateFmt(comp: *const Compilation, prefix: []const u8, w: *Io.Writer, qt: 
     }
 }
 
-fn generateSuffixMacro(comp: *const Compilation, prefix: []const u8, w: *Io.Writer, qt: QualType) !void {
-    return w.print("#define {s}_C_SUFFIX__ {s}\n", .{ prefix, qt.intValueSuffix(comp) });
+fn generateIntLiteralMacros(comp: *const Compilation, prefix: []const u8, w: *Io.Writer, qt: QualType) !void {
+    const suffix = qt.intValueSuffix(comp);
+    try w.print("#define {s}_C_SUFFIX__ {s}\n", .{ prefix, suffix });
+    if (suffix.len == 0) {
+        try w.print("#define {s}_C(c) c\n", .{prefix});
+    } else {
+        try w.print("#define {s}_C(c) c##{s}\n", .{ prefix, suffix });
+    }
 }
 
 /// Generate the following for a type:
@@ -1348,7 +1354,7 @@ fn generateExactWidthType(comp: *Compilation, w: *Io.Writer, original_qt: QualTy
     const prefix = full[0 .. full.len - suffix.len]; // remove "_TYPE__"
 
     try comp.generateFmt(prefix, w, qt);
-    try comp.generateSuffixMacro(prefix, w, qt);
+    try comp.generateIntLiteralMacros(prefix, w, qt);
 }
 
 pub fn hasFloat128(comp: *const Compilation) bool {
