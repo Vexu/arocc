@@ -4110,7 +4110,8 @@ test "Include guards" {
             var pp = try Preprocessor.init(&comp, .testing);
             defer pp.deinit();
 
-            const file_path = try path.join(gpa, &.{ ".", "bar.h" });
+            // Resolve the path to match what findInclude will resolve it to
+            const file_path = try std.fs.path.resolve(gpa, &.{ ".", "bar.h" });
             defer gpa.free(file_path);
 
             _ = try comp.addSourceFromBuffer(file_path, "int bar = 5;\n");
