@@ -25,9 +25,9 @@ const NumberPrefix = Token.NumberPrefix;
 const NumberSuffix = Token.NumberSuffix;
 const TokenIndex = Tree.TokenIndex;
 const Node = Tree.Node;
-const TypeStore = @import("TypeStore.zig");
-const Type = TypeStore.Type;
-const QualType = TypeStore.QualType;
+const TypeMap = @import("TypeMap.zig");
+const Type = TypeMap.Type;
+const QualType = TypeMap.QualType;
 const Value = @import("Value.zig");
 
 const NodeList = std.ArrayList(Node.Index);
@@ -845,11 +845,11 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
 
         try p.addImplicitTypedef("__builtin_ms_va_list", .char_pointer);
 
-        const va_list_qt = pp.comp.type_store.va_list;
+        const va_list_qt = pp.comp.type_map.va_list;
         try p.addImplicitTypedef("__builtin_va_list", va_list_qt);
-        pp.comp.type_store.va_list = try va_list_qt.decay(pp.comp);
+        pp.comp.type_map.va_list = try va_list_qt.decay(pp.comp);
 
-        try p.addImplicitTypedef("__NSConstantString", pp.comp.type_store.ns_constant_string);
+        try p.addImplicitTypedef("__NSConstantString", pp.comp.type_map.ns_constant_string);
 
         if (p.comp.float80Type()) |float80_ty| {
             try p.addImplicitTypedef("__float80", float80_ty);
@@ -947,7 +947,7 @@ fn addImplicitTypedef(p: *Parser, name: []const u8, qt: QualType) !void {
     });
 
     const interned_name = try p.comp.internString(name);
-    const typedef_qt = (try p.comp.type_store.put(gpa, .{ .typedef = .{
+    const typedef_qt = (try p.comp.type_map.put(gpa, .{ .typedef = .{
         .base = qt,
         .name = interned_name,
         .decl_node = node,
@@ -1055,13 +1055,13 @@ fn skipTo(p: *Parser, id: Token.Id) void {
 /// Called after a typedef is defined
 fn typedefDefined(p: *Parser, name: StringId, ty: QualType) void {
     if (name == p.string_ids.file) {
-        p.comp.type_store.file = ty;
+        p.comp.type_map.file = ty;
     } else if (name == p.string_ids.jmp_buf) {
-        p.comp.type_store.jmp_buf = ty;
+        p.comp.type_map.jmp_buf = ty;
     } else if (name == p.string_ids.sigjmp_buf) {
-        p.comp.type_store.sigjmp_buf = ty;
+        p.comp.type_map.sigjmp_buf = ty;
     } else if (name == p.string_ids.ucontext_t) {
-        p.comp.type_store.ucontext_t = ty;
+        p.comp.type_map.ucontext_t = ty;
     }
 }
 
@@ -1102,7 +1102,7 @@ fn decl(p: *Parser) Error!bool {
                 return error.ParsingFailed;
             } else return false,
         }
-        var builder: TypeStore.Builder = .{ .parser = p };
+        var builder: TypeMap.Builder = .{ .parser = p };
         break :blk DeclSpec{ .qt = try builder.finish() };
     };
     if (decl_spec.noreturn) |tok| {
@@ -1182,7 +1182,7 @@ fn decl(p: *Parser) Error!bool {
             defer p.param_buf.items.len = param_buf_top;
 
             // We cannot refer to the function type here because the pointer to
-            // type_store.extra might get invalidated while parsing the param decls.
+            // type_map.extra might get invalidated while parsing the param decls.
             const func_qt = init_d.d.qt.base(p.comp).qt;
             const params_len = func_qt.get(p.comp, .func).?.params.len;
 
@@ -1272,7 +1272,7 @@ fn decl(p: *Parser) Error!bool {
                 }
             }
             // Update the functio type to contain the declared parameters.
-            p.func.qt = try p.comp.type_store.put(gpa, .{ .func = .{
+            p.func.qt = try p.comp.type_map.put(gpa, .{ .func = .{
                 .kind = .normal,
                 .params = new_params,
                 .return_type = func_ty.return_type,
@@ -1374,7 +1374,7 @@ fn decl(p: *Parser) Error!bool {
                 if (node_qt.get(p.comp, .array)) |array_ty| {
                     if (array_ty.len == .incomplete) {
                         // Create tentative array node with fixed type.
-                        node_qt = try p.comp.type_store.put(gpa, .{ .array = .{
+                        node_qt = try p.comp.type_map.put(gpa, .{ .array = .{
                             .elem = array_ty.elem,
                             .len = .{ .fixed = 1 },
                         } });
@@ -1407,7 +1407,7 @@ fn decl(p: *Parser) Error!bool {
             const typedef_qt = if (init_d.d.qt.isInvalid())
                 init_d.d.qt
             else
-                (try p.comp.type_store.put(gpa, .{ .typedef = .{
+                (try p.comp.type_map.put(gpa, .{ .typedef = .{
                     .base = init_d.d.qt,
                     .name = interned_name,
                     .decl_node = decl_node,
@@ -1648,7 +1648,7 @@ fn typeof(p: *Parser) Error!?QualType {
         try p.expectClosing(l_paren, .r_paren);
         if (qt.isInvalid()) return null;
 
-        return (try p.comp.type_store.put(gpa, .{ .typeof = .{
+        return (try p.comp.type_map.put(gpa, .{ .typeof = .{
             .base = qt,
             .expr = null,
         } })).withQualifiers(qt);
@@ -1657,7 +1657,7 @@ fn typeof(p: *Parser) Error!?QualType {
     try p.expectClosing(l_paren, .r_paren);
     if (typeof_expr.qt.isInvalid()) return null;
 
-    const typeof_qt = try p.comp.type_store.put(gpa, .{ .typeof = .{
+    const typeof_qt = try p.comp.type_map.put(gpa, .{ .typeof = .{
         .base = typeof_expr.qt,
         .expr = typeof_expr.node,
     } });
@@ -1670,7 +1670,7 @@ fn typeof(p: *Parser) Error!?QualType {
 /// autoTypeSpec : keyword_auto_type
 fn declSpec(p: *Parser) Error!?DeclSpec {
     var d: DeclSpec = .{ .qt = .invalid };
-    var builder: TypeStore.Builder = .{ .parser = p };
+    var builder: TypeMap.Builder = .{ .parser = p };
 
     const start = p.tok_i;
     while (true) {
@@ -2114,7 +2114,7 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec, attr_buf_top: usize, decl_no
             if (base_array_ty.len == .incomplete) if (init_list_expr.qt.get(p.comp, .array)) |init_array_ty| {
                 switch (init_array_ty.len) {
                     .fixed, .static => |len| {
-                        init_d.d.qt = (try p.comp.type_store.put(gpa, .{ .array = .{
+                        init_d.d.qt = (try p.comp.type_map.put(gpa, .{ .array = .{
                             .elem = base_array_ty.elem,
                             .len = .{ .fixed = len },
                         } })).withQualifiers(init_d.d.qt);
@@ -2207,7 +2207,7 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec, attr_buf_top: usize, decl_no
 ///  | keyword_alignas '(' integerConstExpr ')'
 ///  | keyword_c23_alignas '(' typeName ')'
 ///  | keyword_c23_alignas '(' integerConstExpr ')'
-fn typeSpec(p: *Parser, builder: *TypeStore.Builder) Error!bool {
+fn typeSpec(p: *Parser, builder: *TypeMap.Builder) Error!bool {
     const start = p.tok_i;
     while (true) {
         try p.attributeSpecifier();
@@ -2382,8 +2382,8 @@ fn getAnonymousName(p: *Parser, kind_tok: TokenIndex) !StringId {
         else => "record field",
     };
 
-    var arena = p.comp.type_store.anon_name_arena.promote(p.comp.gpa);
-    defer p.comp.type_store.anon_name_arena = arena.state;
+    var arena = p.comp.type_map.anon_name_arena.promote(p.comp.gpa);
+    defer p.comp.type_map.anon_name_arena = arena.state;
     const str = try std.fmt.allocPrint(
         arena.allocator(),
         "(anonymous {s} at {s}:{d}:{d})",
@@ -2425,7 +2425,7 @@ fn recordSpec(p: *Parser) Error!QualType {
                 .decl_node = @enumFromInt(reserved_index),
                 .fields = &.{},
             };
-            const record_qt = try p.comp.type_store.put(gpa, if (is_struct)
+            const record_qt = try p.comp.type_map.put(gpa, if (is_struct)
                 .{ .@"struct" = record_ty }
             else
                 .{ .@"union" = record_ty });
@@ -2482,7 +2482,7 @@ fn recordSpec(p: *Parser) Error!QualType {
             .layout = null,
             .fields = &.{},
         };
-        const record_qt = try p.comp.type_store.put(gpa, if (is_struct)
+        const record_qt = try p.comp.type_map.put(gpa, if (is_struct)
             .{ .@"struct" = record_ty }
         else
             .{ .@"union" = record_ty });
@@ -2559,10 +2559,10 @@ fn recordSpec(p: *Parser) Error!QualType {
         const base_type = qt.base(p.comp);
         if (is_struct) {
             std.debug.assert(base_type.type.@"struct".name == record_ty.name);
-            try p.comp.type_store.set(gpa, .{ .@"struct" = record_ty }, @intFromEnum(base_type.qt._index));
+            try p.comp.type_map.set(gpa, .{ .@"struct" = record_ty }, @intFromEnum(base_type.qt._index));
         } else {
             std.debug.assert(base_type.type.@"union".name == record_ty.name);
-            try p.comp.type_store.set(gpa, .{ .@"union" = record_ty }, @intFromEnum(base_type.qt._index));
+            try p.comp.type_map.set(gpa, .{ .@"union" = record_ty }, @intFromEnum(base_type.qt._index));
         }
         break :blk false;
     };
@@ -2593,8 +2593,8 @@ fn recordSpec(p: *Parser) Error!QualType {
 
         // Override previous incomplete layout and fields.
         const base_qt = qt.base(p.comp).qt;
-        const ts = &p.comp.type_store;
-        var extra_index = ts.types.items(.data)[@intFromEnum(base_qt._index)][1];
+        const tm = &p.comp.type_map;
+        var extra_index = tm.types.items(.data)[@intFromEnum(base_qt._index)][1];
 
         const layout_size = 5;
         comptime std.debug.assert(@sizeOf(Type.Record.Layout) == @sizeOf(u32) * layout_size);
@@ -2603,13 +2603,13 @@ fn recordSpec(p: *Parser) Error!QualType {
 
         extra_index += 1; // For decl_node
         const casted_layout: *const [layout_size]u32 = @ptrCast(&record_ty.layout);
-        ts.extra.items[extra_index..][0..layout_size].* = casted_layout.*;
+        tm.extra.items[extra_index..][0..layout_size].* = casted_layout.*;
         extra_index += layout_size;
         extra_index += 1; // For field length
 
         for (record_ty.fields) |*field| {
             const casted: *const [field_size]u32 = @ptrCast(field);
-            ts.extra.items[extra_index..][0..field_size].* = casted.*;
+            tm.extra.items[extra_index..][0..field_size].* = casted.*;
             extra_index += field_size;
         }
     }
@@ -2656,7 +2656,7 @@ fn recordDecl(p: *Parser) Error!bool {
 
     const base_qt: QualType = blk: {
         const start = p.tok_i;
-        var builder: TypeStore.Builder = .{ .parser = p };
+        var builder: TypeMap.Builder = .{ .parser = p };
         while (true) {
             if (try p.typeSpec(&builder)) continue;
             const id = p.tok_ids[p.tok_i];
@@ -2744,9 +2744,9 @@ fn recordDecl(p: *Parser) Error!bool {
 
         const to_append = try Attribute.applyFieldAttributes(p, &qt, attr_buf_top);
 
-        const attr_index: u32 = @intCast(p.comp.type_store.attributes.items.len);
+        const attr_index: u32 = @intCast(p.comp.type_map.attributes.items.len);
         const attr_len: u32 = @intCast(to_append.len);
-        try p.comp.type_store.attributes.appendSlice(gpa, to_append);
+        try p.comp.type_map.attributes.appendSlice(gpa, to_append);
 
         qt = try Attribute.applyTypeAttributes(p, qt, attr_buf_top, null);
         @memset(p.attr_buf.items(.seen)[attr_buf_top..], false);
@@ -2874,7 +2874,7 @@ fn recordDecl(p: *Parser) Error!bool {
 
 /// specQual : typeSpec+
 fn specQual(p: *Parser) Error!?QualType {
-    var builder: TypeStore.Builder = .{ .parser = p };
+    var builder: TypeMap.Builder = .{ .parser = p };
     if (try p.typeSpec(&builder)) {
         return try builder.finish();
     }
@@ -2943,7 +2943,7 @@ fn enumSpec(p: *Parser) Error!QualType {
         } else {
             if (fixed_qt == null) try p.err(ident, .enum_forward_declaration, .{});
 
-            const enum_qt = try p.comp.type_store.put(gpa, .{ .@"enum" = .{
+            const enum_qt = try p.comp.type_map.put(gpa, .{ .@"enum" = .{
                 .name = interned_name,
                 .tag = fixed_qt,
                 .fixed = fixed_qt != null,
@@ -3004,7 +3004,7 @@ fn enumSpec(p: *Parser) Error!QualType {
             .fixed = fixed_qt != null,
             .fields = &.{},
         };
-        const enum_qt = try p.comp.type_store.put(gpa, .{ .@"enum" = enum_ty });
+        const enum_qt = try p.comp.type_map.put(gpa, .{ .@"enum" = enum_ty });
         break :blk .{ enum_ty, enum_qt };
     };
 
@@ -3083,7 +3083,7 @@ fn enumSpec(p: *Parser) Error!QualType {
         enum_ty.decl_node = @enumFromInt(reserved_index);
         const base_type = attributed_qt.base(p.comp);
         std.debug.assert(base_type.type.@"enum".name == enum_ty.name);
-        try p.comp.type_store.set(gpa, .{ .@"enum" = enum_ty }, @intFromEnum(base_type.qt._index));
+        try p.comp.type_map.set(gpa, .{ .@"enum" = enum_ty }, @intFromEnum(base_type.qt._index));
     }
 
     // declare a symbol for the type
@@ -3305,7 +3305,7 @@ fn enumerator(p: *Parser, e: *Enumerator) Error!?EnumFieldAndNode {
 }
 
 /// typeQual : keyword_const | keyword_restrict | keyword_volatile | keyword_atomic
-fn typeQual(p: *Parser, b: *TypeStore.Builder, allow_attr: bool) Error!bool {
+fn typeQual(p: *Parser, b: *TypeMap.Builder, allow_attr: bool) Error!bool {
     var any = false;
     while (true) {
         if (allow_attr and try p.msTypeAttribute()) continue;
@@ -3346,7 +3346,7 @@ fn typeQual(p: *Parser, b: *TypeStore.Builder, allow_attr: bool) Error!bool {
             .keyword_nonnull, .keyword_nullable, .keyword_nullable_result, .keyword_null_unspecified => |tok_id| {
                 const sym_str = p.tok_ids[p.tok_i].symbol();
                 try p.err(p.tok_i, .nullability_extension, .{sym_str});
-                const new: @FieldType(TypeStore.Builder, "nullability") = switch (tok_id) {
+                const new: @FieldType(TypeMap.Builder, "nullability") = switch (tok_id) {
                     .keyword_nonnull => .{ .nonnull = p.tok_i },
                     .keyword_nullable => .{ .nullable = p.tok_i },
                     .keyword_nullable_result => .{ .nullable_result = p.tok_i },
@@ -3554,10 +3554,10 @@ fn declarator(
     // Parse potential pointer declarators first.
     while (p.eatToken(.asterisk)) |_| {
         d.declarator_type = .pointer;
-        var builder: TypeStore.Builder = .{ .parser = p };
+        var builder: TypeMap.Builder = .{ .parser = p };
         _ = try p.typeQual(&builder, true);
 
-        const pointer_qt = try p.comp.type_store.put(p.comp.gpa, .{ .pointer = .{
+        const pointer_qt = try p.comp.type_map.put(p.comp.gpa, .{ .pointer = .{
             .child = d.qt,
         } });
         d.qt = try builder.finishQuals(pointer_qt);
@@ -3616,7 +3616,7 @@ fn declarator(
                     else => unreachable,
                 }
                 // Child type is always stored in repr.data[0]
-                p.comp.type_store.types.items(.data)[@intFromEnum(cur._index)][0] = @bitCast(outer);
+                p.comp.type_map.types.items(.data)[@intFromEnum(cur._index)][0] = @bitCast(outer);
                 break;
             }
         }
@@ -3686,7 +3686,7 @@ fn directDeclarator(
             return error.ParsingFailed;
         }
 
-        var builder: TypeStore.Builder = .{ .parser = p };
+        var builder: TypeMap.Builder = .{ .parser = p };
 
         var got_quals = try p.typeQual(&builder, false);
         var static = p.eatToken(.keyword_static);
@@ -3735,7 +3735,7 @@ fn directDeclarator(
                     try p.err(base_declarator.name, .variable_len_array_file_scope, .{});
                 }
 
-                const array_qt = try p.comp.type_store.put(gpa, .{ .array = .{
+                const array_qt = try p.comp.type_map.put(gpa, .{ .array = .{
                     .elem = outer,
                     .len = .{ .variable = size.node },
                 } });
@@ -3751,7 +3751,7 @@ fn directDeclarator(
                 }
 
                 const len = size.val.toInt(u64, p.comp) orelse std.math.maxInt(u64);
-                const array_qt = try p.comp.type_store.put(gpa, .{ .array = .{
+                const array_qt = try p.comp.type_map.put(gpa, .{ .array = .{
                     .elem = outer,
                     .len = if (static != null)
                         .{ .static = len }
@@ -3761,13 +3761,13 @@ fn directDeclarator(
                 return builder.finishQuals(array_qt);
             }
         } else if (star) |_| {
-            const array_qt = try p.comp.type_store.put(gpa, .{ .array = .{
+            const array_qt = try p.comp.type_map.put(gpa, .{ .array = .{
                 .elem = outer,
                 .len = .unspecified_variable,
             } });
             return builder.finishQuals(array_qt);
         } else {
-            const array_qt = try p.comp.type_store.put(gpa, .{ .array = .{
+            const array_qt = try p.comp.type_map.put(gpa, .{ .array = .{
                 .elem = outer,
                 .len = .incomplete,
             } });
@@ -3790,7 +3790,7 @@ fn directDeclarator(
             // Set after call to `directDeclarator` since we will return
             // a function type from here.
             base_declarator.declarator_type = .func;
-            return p.comp.type_store.put(gpa, .{ .func = func_ty });
+            return p.comp.type_map.put(gpa, .{ .func = func_ty });
         }
 
         // Set here so the call to directDeclarator for the return type
@@ -3837,7 +3837,7 @@ fn directDeclarator(
         // a function type from here.
         base_declarator.declarator_type = .func;
 
-        return p.comp.type_store.put(gpa, .{ .func = func_ty });
+        return p.comp.type_map.put(gpa, .{ .func = func_ty });
     } else return base_declarator.qt;
 }
 
@@ -4691,7 +4691,7 @@ fn convertInitList(p: *Parser, il: InitList, init_qt: QualType) Error!Node.Index
 
             var arr_init_qt = init_qt;
             if (array_ty.len == .incomplete) {
-                arr_init_qt = try p.comp.type_store.put(gpa, .{ .array = .{
+                arr_init_qt = try p.comp.type_map.put(gpa, .{ .array = .{
                     .elem = array_ty.elem,
                     .len = .{ .fixed = start },
                 } });
@@ -5270,7 +5270,7 @@ fn stmt(p: *Parser) Error!Node.Index {
             p.computed_goto_tok = p.computed_goto_tok orelse goto_tok;
 
             if (!goto_expr.qt.isInvalid() and !goto_expr.qt.isPointer(p.comp)) {
-                const result_qt = try p.comp.type_store.put(gpa, .{ .pointer = .{
+                const result_qt = try p.comp.type_map.put(gpa, .{ .pointer = .{
                     .child = .{ .@"const" = true, ._index = .void },
                 } });
                 if (!goto_expr.qt.isRealInt(p.comp)) {
@@ -6217,7 +6217,7 @@ pub const Result = struct {
         if (!lhs.qt.isInvalid()) {
             if (lhs.qt.get(p.comp, .vector)) |vec| {
                 if (!vec.elem.isInt(p.comp)) {
-                    lhs.qt = try p.comp.type_store.put(p.comp.gpa, .{
+                    lhs.qt = try p.comp.type_map.put(p.comp.gpa, .{
                         .vector = .{ .elem = .int, .len = vec.len },
                     });
                 }
@@ -6310,13 +6310,13 @@ pub const Result = struct {
         }
 
         if (!adjusted_elem_qt.eqlQualified(a_elem, p.comp)) {
-            a.qt = try p.comp.type_store.put(gpa, .{ .pointer = .{
+            a.qt = try p.comp.type_map.put(gpa, .{ .pointer = .{
                 .child = adjusted_elem_qt,
             } });
             try a.implicitCast(p, .bitcast, tok);
         }
         if (!adjusted_elem_qt.eqlQualified(b_elem, p.comp)) {
-            b.qt = try p.comp.type_store.put(gpa, .{ .pointer = .{
+            b.qt = try p.comp.type_map.put(gpa, .{ .pointer = .{
                 .child = adjusted_elem_qt,
             } });
             try b.implicitCast(p, .bitcast, tok);
@@ -6538,7 +6538,7 @@ pub const Result = struct {
 
                     if (!a_child_qt.eql(b_child_qt, p.comp)) try p.err(tok, .incompatible_pointers, .{ a.qt, b.qt });
                     if (a.qt.childType(p.comp).sizeofOrNull(p.comp) orelse 1 == 0) try p.err(tok, .subtract_pointers_zero_elem_size, .{a.qt.childType(p.comp)});
-                    a.qt = p.comp.type_store.ptrdiff;
+                    a.qt = p.comp.type_map.ptrdiff;
                 }
 
                 // Do integer promotion on b if needed
@@ -7913,7 +7913,7 @@ fn addExpr(p: *Parser) Error!?Result {
                 if (try lhs.val.add(lhs.val, rhs.val, lhs.qt, p.comp)) {
                     if (lhs_sk.isPointer()) {
                         const increment = lhs;
-                        const ptr_bits = p.comp.type_store.intptr.bitSizeof(p.comp);
+                        const ptr_bits = p.comp.type_map.intptr.bitSizeof(p.comp);
                         const element_size = increment.qt.childType(p.comp).sizeofOrNull(p.comp) orelse 1;
                         const max_elems = p.comp.maxArrayBytes() / element_size;
 
@@ -8118,7 +8118,7 @@ fn shufflevector(p: *Parser, builtin_tok: TokenIndex) Error!Result {
     } else if (p.list_buf.items.len == list_buf_top) {
         res_qt = lhs.qt;
     } else {
-        res_qt = try p.comp.type_store.put(gpa, .{ .vector = .{
+        res_qt = try p.comp.type_map.put(gpa, .{ .vector = .{
             .elem = lhs.qt.childType(p.comp),
             .len = @intCast(p.list_buf.items.len - list_buf_top),
         } });
@@ -8279,7 +8279,7 @@ fn builtinVaArg(p: *Parser, builtin_tok: TokenIndex) Error!Result {
     };
     try p.expectClosing(l_paren, .r_paren);
 
-    if (!va_list.qt.eql(p.comp.type_store.va_list, p.comp)) {
+    if (!va_list.qt.eql(p.comp.type_map.va_list, p.comp)) {
         try p.err(va_list_tok, .incompatible_va_arg, .{va_list.qt});
         return error.ParsingFailed;
     }
@@ -8386,12 +8386,12 @@ fn builtinOffsetof(p: *Parser, builtin_tok: TokenIndex, offset_kind: OffsetKind)
     try p.expectClosing(l_paren, .r_paren);
 
     const res: Result = .{
-        .qt = p.comp.type_store.size,
+        .qt = p.comp.type_map.size,
         .val = offsetof_expr.val,
         .node = try p.addNode(.{
             .builtin_call_expr = .{
                 .builtin_tok = builtin_tok,
-                .qt = p.comp.type_store.size,
+                .qt = p.comp.type_map.size,
                 .args = &.{offsetof_expr.node},
             },
         }),
@@ -8507,9 +8507,9 @@ fn computeOffsetExtra(p: *Parser, node: Node.Index, offset_so_far: *Value) !Valu
         .array_access_expr => |access| {
             const index_val = p.tree.value_map.get(access.index) orelse return .{};
             var size = try Value.int(access.qt.sizeof(p.comp), p.comp);
-            const mul_overflow = try size.mul(size, index_val, p.comp.type_store.ptrdiff, p.comp);
+            const mul_overflow = try size.mul(size, index_val, p.comp.type_map.ptrdiff, p.comp);
 
-            const add_overflow = try offset_so_far.add(size, offset_so_far.*, p.comp.type_store.ptrdiff, p.comp);
+            const add_overflow = try offset_so_far.add(size, offset_so_far.*, p.comp.type_map.ptrdiff, p.comp);
             _ = mul_overflow;
             _ = add_overflow;
             return p.computeOffsetExtra(access.base, offset_so_far);
@@ -8520,7 +8520,7 @@ fn computeOffsetExtra(p: *Parser, node: Node.Index, offset_so_far: *Value) !Valu
             const record_ty = ty.getRecord(p.comp).?;
 
             const field_offset = try Value.int(@divExact(record_ty.fields[access.member_index].layout.offset_bits, 8), p.comp);
-            _ = try offset_so_far.add(field_offset, offset_so_far.*, p.comp.type_store.ptrdiff, p.comp);
+            _ = try offset_so_far.add(field_offset, offset_so_far.*, p.comp.type_map.ptrdiff, p.comp);
             return p.computeOffsetExtra(access.base, offset_so_far);
         },
         else => return .{},
@@ -8596,7 +8596,7 @@ fn unExpr(p: *Parser) Error!?Result {
                 }
                 addr_val = try p.computeOffset(operand);
 
-                operand.qt = try p.comp.type_store.put(gpa, .{ .pointer = .{
+                operand.qt = try p.comp.type_map.put(gpa, .{ .pointer = .{
                     .child = operand.qt,
                 } });
             }
@@ -8826,14 +8826,14 @@ fn unExpr(p: *Parser) Error!?Result {
                         try p.err(tok, .sizeof_returns_zero, .{});
                     }
                     res.val = try Value.int(size, p.comp);
-                    res.qt = p.comp.type_store.size;
+                    res.qt = p.comp.type_map.size;
                 } else {
                     res.val = .{};
                     if (res.qt.hasIncompleteSize(p.comp)) {
                         try p.err(expected_paren - 1, .invalid_sizeof, .{res.qt});
                         res.qt = .invalid;
                     } else {
-                        res.qt = p.comp.type_store.size;
+                        res.qt = p.comp.type_map.size;
                     }
                 }
             }
@@ -8886,7 +8886,7 @@ fn unExpr(p: *Parser) Error!?Result {
 
             if (res.qt.sizeofOrNull(p.comp) != null) {
                 res.val = try Value.int(res.qt.alignof(p.comp), p.comp);
-                res.qt = p.comp.type_store.size;
+                res.qt = p.comp.type_map.size;
             } else if (!res.qt.isInvalid()) {
                 try p.err(expected_paren, .invalid_alignof, .{res.qt});
                 res.qt = .invalid;
@@ -9431,7 +9431,7 @@ fn callExpr(p: *Parser, lhs: Result) Error!Result {
     p.tok_i += 1;
 
     // We cannot refer to the function type here because the pointer to
-    // type_store.extra might get invalidated while parsing args.
+    // type_map.extra might get invalidated while parsing args.
     const func_qt, const typed_params_len, const func_kind_base = blk: {
         var base_qt = lhs.qt;
         if (base_qt.get(p.comp, .pointer)) |pointer_ty| base_qt = pointer_ty.child;
@@ -9812,7 +9812,7 @@ fn primaryExpr(p: *Parser) Error!?Result {
                 else
                     try p.err(name_tok, .implicit_func_decl, .{name});
 
-                const func_qt = try p.comp.type_store.put(gpa, .{ .func = .{
+                const func_qt = try p.comp.type_map.put(gpa, .{ .func = .{
                     .return_type = .int,
                     .kind = .old_style,
                     .params = &.{},
@@ -9967,7 +9967,7 @@ fn primaryExpr(p: *Parser) Error!?Result {
         => return try p.charLiteral(),
         .zero => {
             defer p.tok_i += 1;
-            const int_qt: QualType = if (p.in_macro) p.comp.type_store.intmax else .int;
+            const int_qt: QualType = if (p.in_macro) p.comp.type_map.intmax else .int;
             const res: Result = .{
                 .val = .zero,
                 .qt = int_qt,
@@ -9978,7 +9978,7 @@ fn primaryExpr(p: *Parser) Error!?Result {
         },
         .one => {
             defer p.tok_i += 1;
-            const int_qt: QualType = if (p.in_macro) p.comp.type_store.intmax else .int;
+            const int_qt: QualType = if (p.in_macro) p.comp.type_map.intmax else .int;
             const res: Result = .{
                 .val = .one,
                 .qt = int_qt,
@@ -10014,7 +10014,7 @@ fn primaryExpr(p: *Parser) Error!?Result {
 
 fn makePredefinedIdentifier(p: *Parser, slice: []const u8) !Result {
     const gpa = p.comp.gpa;
-    const array_qt = try p.comp.type_store.put(gpa, .{ .array = .{
+    const array_qt = try p.comp.type_map.put(gpa, .{ .array = .{
         .elem = .{ .@"const" = true, ._index = .int_char },
         .len = .{ .fixed = slice.len },
     } });
@@ -10152,7 +10152,7 @@ fn stringLiteral(p: *Parser) Error!Result {
 
     const val = try Value.intern(p.comp, .{ .bytes = slice });
 
-    const array_qt = try p.comp.type_store.put(gpa, .{ .array = .{
+    const array_qt = try p.comp.type_map.put(gpa, .{ .array = .{
         .elem = string_kind.elementType(p.comp),
         .len = .{ .fixed = @divExact(slice.len, @intFromEnum(char_width)) },
     } });
@@ -10276,9 +10276,9 @@ fn charLiteral(p: *Parser) Error!?Result {
     // This is the type the literal will have if we're in a macro; macros always operate on intmax_t/uintmax_t values
     const macro_qt = if (char_literal_qt.signedness(p.comp) == .unsigned or
         (char_kind == .char and p.comp.getCharSignedness() == .unsigned))
-        try p.comp.type_store.intmax.makeIntUnsigned(p.comp)
+        try p.comp.type_map.intmax.makeIntUnsigned(p.comp)
     else
-        p.comp.type_store.intmax;
+        p.comp.type_map.intmax;
 
     var value = try Value.int(val, p.comp);
     // C99 6.4.4.4.10
@@ -10452,7 +10452,7 @@ fn fixedSizeInt(p: *Parser, base: u8, buf: []const u8, suffix: NumberSuffix, tok
     }
     const interned_val = try Value.int(val, p.comp);
     if (suffix.isSignedInteger() and base == 10) {
-        const max_int = try Value.maxInt(p.comp.type_store.intmax, p.comp);
+        const max_int = try Value.maxInt(p.comp.type_map.intmax, p.comp);
         if (interned_val.compare(.gt, max_int, p.comp)) {
             try p.err(tok_i, .implicitly_unsigned_literal, .{});
         }
@@ -10547,7 +10547,7 @@ fn bitInt(p: *Parser, base: u8, buf: []const u8, suffix: NumberSuffix, tok_i: To
         break :blk @intCast(bits_needed);
     };
 
-    const int_qt = try p.comp.type_store.put(gpa, .{ .bit_int = .{
+    const int_qt = try p.comp.type_map.put(gpa, .{ .bit_int = .{
         .bits = bits_needed,
         .signedness = suffix.signedness(),
     } });
@@ -10656,9 +10656,9 @@ fn ppNum(p: *Parser) Error!Result {
             return error.ParsingFailed;
         }
         res.qt = if (res.qt.signedness(p.comp) == .unsigned)
-            try p.comp.type_store.intmax.makeIntUnsigned(p.comp)
+            try p.comp.type_map.intmax.makeIntUnsigned(p.comp)
         else
-            p.comp.type_store.intmax;
+            p.comp.type_map.intmax;
     } else if (res.val.opt_ref != .none) {
         try res.putValue(p);
     }

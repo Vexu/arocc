@@ -8,7 +8,7 @@ const testing = std.testing;
 const builtin = @import("builtin");
 
 const LangOpts = @import("LangOpts.zig");
-const QualType = @import("TypeStore.zig").QualType;
+const QualType = @import("TypeMap.zig").QualType;
 
 pub const Vendor = enum {
     apple,

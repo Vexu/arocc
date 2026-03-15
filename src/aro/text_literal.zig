@@ -6,7 +6,7 @@ const mem = std.mem;
 const Compilation = @import("Compilation.zig");
 const Diagnostics = @import("Diagnostics.zig");
 const Tokenizer = @import("Tokenizer.zig");
-const QualType = @import("TypeStore.zig").QualType;
+const QualType = @import("TypeMap.zig").QualType;
 const Source = @import("Source.zig");
 
 pub const Item = union(enum) {
@@ -91,10 +91,10 @@ pub const Kind = enum {
     pub fn charLiteralType(kind: Kind, comp: *const Compilation) QualType {
         return switch (kind) {
             .char => .int,
-            .wide => comp.type_store.wchar,
+            .wide => comp.type_map.wchar,
             .utf_8 => .uchar,
-            .utf_16 => comp.type_store.uint_least16_t,
-            .utf_32 => comp.type_store.uint_least32_t,
+            .utf_16 => comp.type_map.uint_least16_t,
+            .utf_32 => comp.type_map.uint_least32_t,
             .unterminated => unreachable,
         };
     }
@@ -117,7 +117,7 @@ pub const Kind = enum {
     pub fn charUnitSize(kind: Kind, comp: *const Compilation) Compilation.CharUnitSize {
         return switch (kind) {
             .char => .@"1",
-            .wide => switch (comp.type_store.wchar.sizeof(comp)) {
+            .wide => switch (comp.type_map.wchar.sizeof(comp)) {
                 2 => .@"2",
                 4 => .@"4",
                 else => unreachable,
