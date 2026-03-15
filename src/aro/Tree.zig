@@ -148,6 +148,7 @@ pub const Node = union(enum) {
     variable: Variable,
     typedef: Typedef,
     global_asm: GlobalAsm,
+    block_literal: BlockLiteral,
 
     struct_decl: ContainerDecl,
     union_decl: ContainerDecl,
@@ -293,6 +294,12 @@ pub const Node = union(enum) {
         message: ?Node.Index,
     };
 
+    pub const BlockLiteral = struct {
+        caret: TokenIndex,
+        qt: QualType,
+        body: Node.Index,
+    };
+
     pub const Function = struct {
         name_tok: TokenIndex,
         qt: QualType,
@@ -320,6 +327,7 @@ pub const Node = union(enum) {
             static,
             @"extern",
             register,
+            block,
         },
         thread_local: bool,
         /// From predefined macro  __func__, __FUNCTION__ or __PRETTY_FUNCTION__.
@@ -745,6 +753,13 @@ pub const Node = union(enum) {
                         .assert_tok = node_tok,
                         .cond = @enumFromInt(node_data[0]),
                         .message = unpackOptIndex(node_data[1]),
+                    },
+                },
+                .block_literal => .{
+                    .block_literal = .{
+                        .qt = @bitCast(node_data[0]),
+                        .body = @enumFromInt(node_data[1]),
+                        .caret = node_tok,
                     },
                 },
                 .fn_proto => {
@@ -1991,6 +2006,7 @@ pub const Node = union(enum) {
             array_filler_expr,
             default_init_expr,
             compound_literal_expr,
+            block_literal,
         };
     };
 
@@ -2028,6 +2044,12 @@ pub fn setNode(tree: *Tree, node: Node, index: usize) !void {
             repr.data[0] = @intFromEnum(assert.cond);
             repr.data[1] = packOptIndex(assert.message);
             repr.tok = assert.assert_tok;
+        },
+        .block_literal => |block_literal| {
+            repr.tag = .block_literal;
+            repr.data[0] = @bitCast(block_literal.qt);
+            repr.data[1] = @intFromEnum(block_literal.body);
+            repr.tok = block_literal.caret;
         },
         .function => |function| {
             repr.tag = if (function.body != null) .fn_def else .fn_proto;
@@ -3137,23 +3159,25 @@ fn dumpNode(
 
     if (tree.value_map.get(node_index)) |val| {
         try term.setColor(LITERAL);
-        try w.writeAll(" (value: ");
-        if (try val.print(node_index.qt(tree), tree.comp, w)) |nested| switch (nested) {
-            .pointer => |ptr| {
-                switch (tree.nodes.items(.tag)[ptr.node]) {
-                    .compound_literal_expr => {
-                        try w.writeAll("(compound literal) ");
-                        _ = try ptr.offset.print(tree.comp.type_store.ptrdiff, tree.comp, w);
-                    },
-                    else => {
-                        const ptr_node: Node.Index = @enumFromInt(ptr.node);
-                        const decl_name = tree.tokSlice(ptr_node.tok(tree));
-                        try ptr.offset.printPointer(decl_name, tree.comp, w);
-                    },
-                }
-            },
-        };
-        try w.writeByte(')');
+        if (!val.is(.block, tree.comp)) {
+            try w.writeAll(" (value: ");
+            if (try val.print(node_index.qt(tree), tree.comp, w)) |nested| switch (nested) {
+                .pointer => |ptr| {
+                    switch (tree.nodes.items(.tag)[ptr.node]) {
+                        .compound_literal_expr => {
+                            try w.writeAll("(compound literal) ");
+                            _ = try ptr.offset.print(tree.comp.type_store.ptrdiff, tree.comp, w);
+                        },
+                        else => {
+                            const ptr_node: Node.Index = @enumFromInt(ptr.node);
+                            const decl_name = tree.tokSlice(ptr_node.tok(tree));
+                            try ptr.offset.printPointer(decl_name, tree.comp, w);
+                        },
+                    }
+                },
+            };
+            try w.writeByte(')');
+        }
     }
     if (node == .return_stmt and node.return_stmt.operand == .implicit and node.return_stmt.operand.implicit) {
         try term.setColor(IMPLICIT);
@@ -3216,6 +3240,12 @@ fn dumpNode(
                 try term.setColor(.reset);
             }
         },
+        .block_literal => |block_literal| {
+            try w.splatByteAll(' ', level + half);
+
+            try w.writeAll("body:\n");
+            try tree.dumpNode(block_literal.body, level + delta, term);
+        },
         .typedef => |typedef| {
             try w.splatByteAll(' ', level + half);
             try w.writeAll("name: ");
@@ -3249,6 +3279,7 @@ fn dumpNode(
                 .static => try w.writeAll("static "),
                 .@"extern" => try w.writeAll("extern "),
                 .register => try w.writeAll("register "),
+                .block => try w.writeAll("block "),
             }
             if (variable.thread_local) try w.writeAll("thread_local ");
             try term.setColor(.reset);

@@ -2540,3 +2540,66 @@ pub const multiple_bounds_annotations: Diagnostic = .{
     .fmt = "pointer cannot have more than one bound attribute",
     .kind = .@"error",
 };
+
+pub const blocks_not_enabled: Diagnostic = .{
+    .fmt = "Blocks are not enabled",
+    .kind = .@"error",
+};
+
+pub const blocks_are_clang_extension: Diagnostic = .{
+    .fmt = "Blocks are a Clang extension",
+    .opt = .@"blocks-extension",
+    .kind = .off,
+    .extension = true,
+};
+
+pub const block_to_non_function: Diagnostic = .{
+    .fmt = "Blocks must be a function type",
+    .kind = .@"error",
+};
+
+pub const invalid_block_noreturn: Diagnostic = .{
+    .fmt = "block declared 'noreturn' should not return",
+    .kind = .@"error",
+    .opt = .@"invalid-noreturn",
+};
+
+pub const invalid_block_noreturn_block_defined_here: Diagnostic = .{
+    .fmt = "block defined here",
+    .kind = .note,
+    .opt = .@"invalid-noreturn",
+};
+
+pub const non_void_block_does_not_return: Diagnostic = .{
+    .fmt = "non-void block does not return a value",
+    .kind = .warning,
+    .opt = .@"return-type",
+};
+
+pub const void_block_returns_value: Diagnostic = .{
+    .fmt = "void block should not return a value",
+    .kind = .warning,
+    .opt = .@"return-type",
+};
+
+pub const block_should_return: Diagnostic = .{
+    .fmt = "non-void block should return a value",
+    .kind = .warning,
+    .opt = .@"return-type",
+};
+
+pub const block_return_block_defined_here: Diagnostic = .{
+    .fmt = "block defined here",
+    .kind = .note,
+    .opt = .@"return-type",
+};
+
+pub const missing_block_literal_body: Diagnostic = .{
+    .fmt = "missing body for block literal",
+    .kind = .@"fatal error",
+};
+
+pub const block_defined_here: Diagnostic = .{
+    .fmt = "block defined here",
+    .kind = .note,
+};
