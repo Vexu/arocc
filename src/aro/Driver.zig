@@ -924,7 +924,9 @@ fn option(arg: []const u8, name: []const u8) ?[]const u8 {
 
 fn addSource(d: *Driver, path: []const u8) !Source {
     if (mem.eql(u8, "-", path)) {
-        return d.comp.addSourceFromFile(.stdin(), "<stdin>", .user);
+        const stdin_path = try d.comp.gpa.dupe(u8, "<stdin>");
+        errdefer d.comp.gpa.free(stdin_path);
+        return d.comp.addSourceFromFile(.stdin(), stdin_path, .user);
     }
     return d.comp.addSourceFromPath(path);
 }
@@ -1187,8 +1189,10 @@ pub fn main(d: *Driver, tc: *Toolchain, args: []const []const u8, comptime fast_
         }
         const contents = try macro_buf.toOwnedSlice(d.comp.gpa);
         errdefer d.comp.gpa.free(contents);
+        const path = try d.comp.gpa.dupe(u8, "<command line>");
+        errdefer d.comp.gpa.free(path);
 
-        break :macros try d.comp.addSourceFromOwnedBuffer("<command line>", contents, .user);
+        break :macros try d.comp.addSourceFromOwnedBuffer(path, contents, .user);
     };
 
     const linking = !(d.only_preprocess or d.only_syntax or d.only_compile or d.only_preprocess_and_compile);

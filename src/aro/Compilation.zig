@@ -1058,7 +1058,9 @@ pub fn generateBuiltinMacros(comp: *Compilation, system_defines_mode: SystemDefi
 
     const contents = try allocating.toOwnedSlice();
     errdefer comp.gpa.free(contents);
-    return comp.addSourceFromOwnedBuffer("<builtin>", contents, .user);
+    const path = try comp.gpa.dupe(u8, "<builtin>");
+    errdefer comp.gpa.free(path);
+    return comp.addSourceFromOwnedBuffer(path, contents, .user);
 }
 
 fn writeBuiltinMacros(comp: *Compilation, system_defines_mode: SystemDefinesMode, w: *Io.Writer) !void {
@@ -1478,15 +1480,14 @@ pub fn getSource(comp: *const Compilation, id: Source.Id) Source {
 /// Performs newline splicing and line-ending normalization to '\n'
 /// `buf` will be modified and the allocation will be resized if newline splicing
 /// or line-ending changes happen.
-/// caller retains ownership of `path`
+/// Takes ownership of `path` and `buf` (both must be gpa-allocated).
+/// Callers must errdefer-free both `path` and `buf` before calling
 /// To add a file's contents given its path, see addSourceFromPath
-pub fn addSourceFromOwnedBuffer(comp: *Compilation, path: []const u8, buf: []u8, kind: Source.Kind) !Source {
+pub fn addSourceFromOwnedBuffer(comp: *Compilation, path: []u8, buf: []u8, kind: Source.Kind) !Source {
     assert(buf.len <= std.math.maxInt(u32));
     try comp.sources.ensureUnusedCapacity(comp.gpa, 1);
 
     var contents = buf;
-    const duped_path = try comp.gpa.dupe(u8, path);
-    errdefer comp.gpa.free(duped_path);
 
     var splice_list: std.ArrayList(u32) = .empty;
     defer splice_list.deinit(comp.gpa);
@@ -1611,13 +1612,13 @@ pub fn addSourceFromOwnedBuffer(comp: *Compilation, path: []const u8, buf: []u8,
 
     const source: Source = .{
         .id = source_id,
-        .path = duped_path,
+        .path = path,
         .buf = contents,
         .splice_locs = splice_locs,
         .kind = kind,
     };
 
-    comp.sources.putAssumeCapacityNoClobber(duped_path, source);
+    comp.sources.putAssumeCapacityNoClobber(path, source);
     return source;
 }
 
@@ -1654,16 +1655,18 @@ fn addNewlineEscapeError(
 }
 
 /// Caller retains ownership of `path` and `buf`.
-/// Dupes the source buffer; if it is acceptable to modify the source buffer and possibly resize
-/// the allocation, please use `addSourceFromOwnedBuffer`
+/// Dupes both the path and source buffer; if it is acceptable to transfer ownership of both,
+/// please use `addSourceFromOwnedBuffer`.
 pub fn addSourceFromBuffer(comp: *Compilation, path: []const u8, buf: []const u8) AddSourceError!Source {
     if (comp.sources.get(path)) |some| return some;
     if (buf.len > std.math.maxInt(u32)) return error.FileTooBig;
 
+    const owned_path = try comp.gpa.dupe(u8, path);
+    errdefer comp.gpa.free(owned_path);
     const contents = try comp.gpa.dupe(u8, buf);
     errdefer comp.gpa.free(contents);
 
-    return comp.addSourceFromOwnedBuffer(path, contents, .user);
+    return comp.addSourceFromOwnedBuffer(owned_path, contents, .user);
 }
 
 /// Caller retains ownership of `path`.
@@ -1674,6 +1677,14 @@ pub fn addSourceFromPath(comp: *Compilation, path: []const u8) !Source {
 /// Caller retains ownership of `path`.
 fn addSourceFromPathExtra(comp: *Compilation, path: []const u8, kind: Source.Kind) !Source {
     if (comp.sources.get(path)) |some| return some;
+    // Normalize the path by collapsing "/./" and "X/../" segments so that
+    // different relative paths to the same file resolve to one cache entry.
+    // This prevents #pragma once failures and redundant preprocessing.
+    const normalized = try std.fs.path.resolve(comp.gpa, &.{path});
+    errdefer comp.gpa.free(normalized);
+    if (!mem.eql(u8, normalized, path)) {
+        if (comp.sources.get(normalized)) |some| return some;
+    }
 
     if (mem.indexOfScalar(u8, path, 0) != null) {
         return error.FileNotFound;
@@ -1681,10 +1692,12 @@ fn addSourceFromPathExtra(comp: *Compilation, path: []const u8, kind: Source.Kin
 
     const file = try comp.cwd.openFile(comp.io, path, .{});
     defer file.close(comp.io);
-    return comp.addSourceFromFile(file, path, kind);
+    return comp.addSourceFromFile(file, normalized, kind);
 }
 
-pub fn addSourceFromFile(comp: *Compilation, file: std.Io.File, path: []const u8, kind: Source.Kind) !Source {
+/// Caller transfers ownership of `path` (must be gpa-allocated) but must
+/// errdefer-free it before calling
+pub fn addSourceFromFile(comp: *Compilation, file: std.Io.File, path: []u8, kind: Source.Kind) !Source {
     const contents = try comp.getFileContents(file, .unlimited);
     errdefer comp.gpa.free(contents);
     return comp.addSourceFromOwnedBuffer(path, contents, kind);
@@ -1920,7 +1933,13 @@ const FindInclude = struct {
     }
     fn checkIncludeDir(find: *FindInclude, include_dir: []const u8, kind: Source.Kind) Allocator.Error!?Result {
         if (find.wait_for) |wait_for| {
-            if (std.mem.eql(u8, include_dir, wait_for)) find.wait_for = null;
+            if (std.mem.eql(u8, include_dir, wait_for)) {
+                find.wait_for = null;
+            } else {
+                const resolved = try std.fs.path.resolve(find.comp.gpa, &.{include_dir});
+                defer find.comp.gpa.free(resolved);
+                if (std.mem.eql(u8, resolved, wait_for)) find.wait_for = null;
+            }
             return null;
         }
         return find.check("{s}{c}{s}", .{
