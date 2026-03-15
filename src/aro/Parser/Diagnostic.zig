@@ -2540,3 +2540,20 @@ pub const multiple_bounds_annotations: Diagnostic = .{
     .fmt = "pointer cannot have more than one bound attribute",
     .kind = .@"error",
 };
+
+pub const blocks_not_enabled: Diagnostic = .{
+    .fmt = "blocks are not enabled",
+    .kind = .@"error",
+};
+
+pub const blocks_are_clang_extension: Diagnostic = .{
+    .fmt = "blocks are a Clang extension",
+    .opt = .@"blocks-extension",
+    .kind = .off,
+    .extension = true,
+};
+
+pub const block_to_non_function: Diagnostic = .{
+    .fmt = "block pointer to non-function type is invalid",
+    .kind = .@"error",
+};
