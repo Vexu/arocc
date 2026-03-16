@@ -57,5 +57,15 @@ function: 'fn (afunc: *fn (int) double, ablock: block (int) double) void'
      args:
       int_literal: 'int' (value: 1)
 
+    variable: 'bar: block (int) int'
+     name: a
+
+    variable: 'int'
+     name: b
+     init:
+      implicit cast: (lval_to_rval) 'bar: block (int) int'
+        decl_ref_expr: 'bar: block (int) int' lvalue
+         name: a
+
     implicit return_stmt: 'void'
 
