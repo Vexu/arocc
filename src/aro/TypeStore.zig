@@ -1283,7 +1283,7 @@ pub const QualType = packed struct(u32) {
                 return false;
             },
             .block => |block| {
-                if (block.func.type(comp) != .func) unreachable;
+                if (!block.func.is(comp, .func)) unreachable;
 
                 const simple = try block.func.printPrologue(comp, desugar, w);
                 if (simple) try w.writeByte(' ');
