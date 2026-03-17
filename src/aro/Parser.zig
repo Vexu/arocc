@@ -9480,7 +9480,7 @@ fn callExpr(p: *Parser, lhs: Result) Error!Result {
                     };
                     defer p.va_arg_pack_ctx = .{};
 
-                    var arg = try p.expect(assignExpr);
+                    const arg = try p.expect(assignExpr);
                     try p.list_buf.append(gpa, arg.node);
                     arg_count += 1;
                     if (p.eatToken(.comma)) |_| {
