@@ -1882,7 +1882,7 @@ const FindInclude = struct {
                 .allow_same_dir, .only_search => {},
                 .only_search_after_dir => return null,
             }
-            return find.check("{s}", .{include_path}, .user, false);
+            return find.check(&.{include_path}, .user, false);
         }
 
         switch (search_strat) {
@@ -1900,9 +1900,11 @@ const FindInclude = struct {
             },
         }
         for (comp.search_path.items) |include| {
+            const resolved_path = try std.fs.path.resolve(find.comp.gpa, &.{include.path});
+            defer find.comp.gpa.free(resolved_path);
             if (include.kind == .quote) {
                 if (include_type != .angle_brackets) {
-                    if (try find.checkIncludeDir(include.path, .user)) |res| return res;
+                    if (try find.checkIncludeDir(resolved_path, .user)) |res| return res;
                 }
                 continue;
             }
@@ -1910,7 +1912,7 @@ const FindInclude = struct {
             if (include.kind.isFramework()) {
                 if (try find.checkFrameworkDir(include.path, source_kind)) |res| return res;
             } else {
-                if (try find.checkIncludeDir(include.path, source_kind)) |res| return res;
+                if (try find.checkIncludeDir(resolved_path, source_kind)) |res| return res;
             }
         }
         if (comp.ms_cwd_source_id) |source_id| {
@@ -1923,9 +1925,8 @@ const FindInclude = struct {
             if (std.mem.eql(u8, include_dir, wait_for)) find.wait_for = null;
             return null;
         }
-        return find.check("{s}{c}{s}", .{
+        return find.check(&.{
             include_dir,
-            std.fs.path.sep,
             find.include_path,
         }, kind, false);
     }
@@ -1936,9 +1937,8 @@ const FindInclude = struct {
             if (std.mem.eql(u8, dir, wait_for)) find.wait_for = null;
             return null;
         }
-        return find.check("{s}{c}{s}", .{
+        return find.check(&.{
             dir,
-            std.fs.path.sep,
             find.include_path,
         }, .user, true);
     }
@@ -1958,19 +1958,20 @@ const FindInclude = struct {
             const i = std.mem.indexOfScalar(u8, find.include_path, '/') orelse return null;
             break :f .{ find.include_path[0..i], find.include_path[i + 1 ..] };
         };
-        return find.check("{s}{c}{s}.framework{c}Headers{c}{s}", .{
+        var stack_fallback = std.heap.stackFallback(path_buf_stack_limit, find.comp.gpa);
+        const sfa = stack_fallback.get();
+        const framework_lookup = try std.fmt.allocPrint(sfa, "{s}.framework", .{framework_name});
+        defer sfa.free(framework_lookup);
+        return find.check(&.{
             framework_dir,
-            std.fs.path.sep,
-            framework_name,
-            std.fs.path.sep,
-            std.fs.path.sep,
+            framework_lookup,
+            "Headers",
             header_sub_path,
         }, kind, false);
     }
     fn check(
         find: *FindInclude,
-        comptime format: []const u8,
-        args: anytype,
+        paths: []const []const u8,
         kind: Source.Kind,
         used_ms_search_rule: bool,
     ) Allocator.Error!?Result {
@@ -1978,7 +1979,7 @@ const FindInclude = struct {
 
         var stack_fallback = std.heap.stackFallback(path_buf_stack_limit, comp.gpa);
         const sfa = stack_fallback.get();
-        const header_path = try std.fmt.allocPrint(sfa, format, args);
+        const header_path = try std.fs.path.resolve(sfa, paths);
         defer sfa.free(header_path);
         find.comp.normalizePath(header_path);
 
