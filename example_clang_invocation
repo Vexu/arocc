@@ -1,0 +1,104 @@
+"/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang" 
+-cc1 
+-triple arm64-apple-macosx26.0.0 
+-Wundef-prefix=TARGET_OS_ 
+-Wdeprecated-objc-isa-usage 
+-Werror=deprecated-objc-isa-usage 
+-Werror=implicit-function-declaration 
+-E 
+-disable-free 
+-clear-ast-before-backend 
+-disable-llvm-verifier 
+-discard-value-names 
+-main-file-name - 
+-mrelocation-model pic 
+-pic-level 2 
+-mframe-pointer=non-leaf 
+-fno-strict-return 
+-ffp-contract=on 
+-fno-rounding-math 
+-funwind-tables=1 
+-fobjc-msgsend-selector-stubs 
+-target-sdk-version=26.0 
+-fvisibility-inlines-hidden-static-local-var 
+-fdefine-target-os-macros 
+-fno-assume-unique-vtables 
+-fno-modulemap-allow-subdirectory-search 
+-target-cpu apple-m1 
+-target-feature +zcm 
+-target-feature +zcz 
+-target-feature +v8.5a 
+-target-feature +aes 
+-target-feature +altnzcv 
+-target-feature +ccdp 
+-target-feature +complxnum 
+-target-feature +crc 
+-target-feature +dotprod 
+-target-feature +fp-armv8 
+-target-feature +fp16fml 
+-target-feature +fptoint 
+-target-feature +fullfp16 
+-target-feature +jsconv 
+-target-feature +lse 
+-target-feature +neon 
+-target-feature +pauth 
+-target-feature +perfmon 
+-target-feature +predres 
+-target-feature +ras 
+-target-feature +rcpc 
+-target-feature +rdm 
+-target-feature +sb 
+-target-feature +sha2 
+-target-feature +sha3 
+-target-feature +specrestrict 
+-target-feature +ssbs 
+-target-abi darwinpcs 
+-debugger-tuning=lldb 
+-fdebug-compilation-dir=`pwd`
+-target-linker-version 1221.4 
+-v 
+-fcoverage-compilation-dir=`pwd`
+-resource-dir /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/clang/17 
+-isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk 
+-I/usr/local/include 
+-internal-isystem /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/local/include 
+-internal-isystem /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/clang/17/include 
+-internal-externc-isystem /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include 
+-internal-externc-isystem /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/include 
+-internal-iframework /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/System/Library/Frameworks 
+-internal-iframework /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/System/Library/SubFrameworks 
+-internal-iframework /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/Library/Frameworks 
+-Wno-reorder-init-list 
+-Wno-implicit-int-float-conversion 
+-Wno-c99-designator 
+-Wno-final-dtor-non-final-class 
+-Wno-extra-semi-stmt 
+-Wno-misleading-indentation 
+-Wno-quoted-include-in-framework-header 
+-Wno-implicit-fallthrough 
+-Wno-enum-enum-conversion 
+-Wno-enum-float-conversion 
+-Wno-elaborated-enum-base 
+-ferror-limit 19 
+-stack-protector 1 
+-fstack-check 
+-mdarwin-stkchk-strong-link 
+-fblocks 
+-fencode-extended-block-signature 
+-fregister-global-dtors-with-atexit 
+-fgnuc-version=4.2.1 
+-fskip-odr-check-in-gmf 
+-fmax-type-align=16 
+-fcommon 
+-fcolor-diagnostics 
+-clang-vendor-feature=+disableNonDependentMemberExprInCurrentInstantiation 
+-fno-odr-hash-protocols 
+-clang-vendor-feature=+enableAggressiveVLAFolding 
+-clang-vendor-feature=+revert09abecef7bbf 
+-clang-vendor-feature=+thisNoAlignAttr 
+-clang-vendor-feature=+thisNoNullAttr 
+-clang-vendor-feature=+disableAtImportPrivateFrameworkInImplementationError 
+-D__GCC_HAVE_DWARF2_CFI_ASM=1 
+-o - 
+-x c 
+-

@@ -8,6 +8,7 @@ const Driver = @import("Driver.zig");
 const Multilib = @import("Driver/Multilib.zig");
 const Target = @import("Target.zig");
 const Linux = @import("toolchains/Linux.zig");
+const Darwin = @import("toolchains/Darwin.zig");
 
 pub const PathList = std.ArrayList([]const u8);
 
@@ -36,11 +37,13 @@ pub const UnwindLibKind = enum {
 
 const Inner = union(enum) {
     uninitialized,
+    darwin: Darwin,
     linux: Linux,
     unknown: void,
 
     fn deinit(self: *Inner, allocator: mem.Allocator) void {
         switch (self.*) {
+            .darwin => |*darwin| darwin.deinit(allocator),
             .linux => |*linux| linux.deinit(allocator),
             .uninitialized, .unknown => {},
         }
@@ -72,7 +75,7 @@ fn getDefaultLinker(tc: *const Toolchain) []const u8 {
     return switch (tc.inner) {
         .uninitialized => unreachable,
         .linux => |linux| linux.getDefaultLinker(tc.getTarget()),
-        .unknown => "ld",
+        .darwin, .unknown => "ld",
     };
 }
 
@@ -93,12 +96,15 @@ pub fn discover(tc: *Toolchain) !void {
             .{ .unknown = {} } // TODO
         else
             .{ .linux = .{} },
-        else => .{ .unknown = {} }, // TODO
+        else => if (target.os.tag.isDarwin())
+            .{ .darwin = try .discover(tc) }
+        else
+            .{ .unknown = {} }, // TODO
     };
     return switch (tc.inner) {
         .uninitialized => unreachable,
         .linux => |*linux| linux.discover(tc),
-        .unknown => {},
+        .darwin, .unknown => {},
     };
 }
 
@@ -357,7 +363,7 @@ pub fn buildLinkerArgs(tc: *Toolchain, argv: *std.ArrayList([]const u8)) !void {
     return switch (tc.inner) {
         .uninitialized => unreachable,
         .linux => |*linux| linux.buildLinkerArgs(tc, argv),
-        .unknown => @panic("This toolchain does not support linking yet"),
+        .darwin, .unknown => @panic("This toolchain does not support linking yet"),
     };
 }
 
@@ -509,6 +515,7 @@ pub fn defineSystemIncludes(tc: *Toolchain) !void {
     return switch (tc.inner) {
         .uninitialized => unreachable,
         .linux => |*linux| linux.defineSystemIncludes(tc),
+        .darwin => |*darwin| darwin.defineSystemIncludes(tc),
         .unknown => {
             if (tc.driver.nostdinc) return;
 
