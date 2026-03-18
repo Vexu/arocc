@@ -67,5 +67,11 @@ function: 'fn (afunc: *fn (int) double, ablock: block (int) double) void'
         decl_ref_expr: 'bar: block (int) int' lvalue
          name: a
 
+    variable: 'invalid'
+     name: c
+     init:
+      decl_ref_expr: 'bar: block (int) int' lvalue
+       name: a
+
     implicit return_stmt: 'void'
 
