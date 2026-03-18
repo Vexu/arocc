@@ -118,6 +118,44 @@ function: 'fn (afunc: *fn (int) double, ablock: block (int) double) void'
         decl_ref_expr: 'fn (i: MyInt: int) MyInt: int' lvalue
          name: func_accepting_MyInt_returning_MyInt
 
+    assign_expr: 'block (MyInt: int) MyInt: int'
+     lhs:
+      decl_ref_expr: 'block (MyInt: int) MyInt: int' lvalue
+       name: e
+     rhs:
+      cast: (bitcast) 'block (MyInt: int) MyInt: int'
+        implicit cast: (function_to_pointer) '*fn (i: MyInt: int) MyInt: int'
+          decl_ref_expr: 'fn (i: MyInt: int) MyInt: int' lvalue
+           name: func_accepting_MyInt_returning_MyInt
+
+    assign_expr: 'block (MyInt: int) MyInt: int'
+     lhs:
+      decl_ref_expr: 'block (MyInt: int) MyInt: int' lvalue
+       name: e
+     rhs:
+      cast: (bitcast) 'block (MyInt: int) MyInt: int'
+        addr_of_expr: '*fn (i: MyInt: int) MyInt: int'
+         operand:
+          decl_ref_expr: 'fn (i: MyInt: int) MyInt: int' lvalue
+           name: func_accepting_MyInt_returning_MyInt
+
+    assign_expr: 'block (MyInt: int) MyInt: int'
+     lhs:
+      decl_ref_expr: 'block (MyInt: int) MyInt: int' lvalue
+       name: e
+     rhs:
+      implicit cast: (null_to_pointer) 'block (MyInt: int) MyInt: int'
+        int_literal: 'int' (value: 0)
+
+    assign_expr: 'MyInt: int'
+     lhs:
+      decl_ref_expr: 'MyInt: int' lvalue
+       name: d
+     rhs:
+      implicit cast: (lval_to_rval) 'block (MyInt: int) MyInt: int'
+        decl_ref_expr: 'block (MyInt: int) MyInt: int' lvalue
+         name: e
+
     assign_expr: '*fn (int) double'
      lhs:
       decl_ref_expr: '*fn (int) double' lvalue
@@ -136,6 +174,9 @@ function: 'fn (afunc: *fn (int) double, ablock: block (int) double) void'
         decl_ref_expr: '*fn (int) double' lvalue
          name: afunc
 
+    variable: '*void'
+     name: anyptr
+
     variable: 'block (int) int'
      name: f
      init:
@@ -151,6 +192,100 @@ function: 'fn (afunc: *fn (int) double, ablock: block (int) double) void'
       implicit cast: (lval_to_rval) 'block (int) int'
         decl_ref_expr: 'block (int) int' lvalue
          name: f
+
+    assign_expr: 'block (int) int'
+     lhs:
+      decl_ref_expr: 'block (int) int' lvalue
+       name: f
+     rhs:
+      implicit cast: (bitcast) '*void'
+        implicit cast: (lval_to_rval) '*void'
+          decl_ref_expr: '*void' lvalue
+           name: anyptr
+
+    assign_expr: '*void'
+     lhs:
+      decl_ref_expr: '*void' lvalue
+       name: anyptr
+     rhs:
+      implicit cast: (bitcast) '*void'
+        implicit cast: (lval_to_rval) 'block (int) int'
+          decl_ref_expr: 'block (int) int' lvalue
+           name: f
+
+    assign_expr: 'block (int) int'
+     lhs:
+      decl_ref_expr: 'block (int) int' lvalue
+       name: f
+     rhs:
+      int_literal: 'unsigned int' (value: 3735928559)
+
+    assign_expr: 'block (int) int'
+     lhs:
+      decl_ref_expr: 'block (int) int' lvalue
+       name: f
+     rhs:
+      cast: (bitcast) 'block (int) int'
+        implicit cast: (lval_to_rval) 'block (int) double'
+          decl_ref_expr: 'block (int) double' lvalue
+           name: ablock
+
+    assign_expr: 'block (int) int'
+     lhs:
+      decl_ref_expr: 'block (int) int' lvalue
+       name: f
+     rhs:
+      cast: (int_to_pointer) 'block (int) int'
+        int_literal: 'unsigned int' (value: 3735928559)
+
+    assign_expr: 'block (int) int'
+     lhs:
+      decl_ref_expr: 'block (int) int' lvalue
+       name: f
+     rhs:
+      cast: (bitcast) 'bar: block (int) int'
+        implicit cast: (lval_to_rval) 'block (int) double'
+          decl_ref_expr: 'block (int) double' lvalue
+           name: ablock
+
+    assign_expr: 'block (int) int'
+     lhs:
+      decl_ref_expr: 'block (int) int' lvalue
+       name: f
+     rhs:
+      cast: (int_to_pointer) 'bar: block (int) int'
+        int_literal: 'unsigned int' (value: 3735928559)
+
+    assign_expr: 'block (int) int'
+     lhs:
+      decl_ref_expr: 'block (int) int' lvalue
+       name: f
+     rhs:
+      cast: (int_to_pointer) 'bar: block (int) int'
+        cast: (pointer_to_int) 'unsigned long'
+          implicit cast: (lval_to_rval) 'block (int) double'
+            decl_ref_expr: 'block (int) double' lvalue
+             name: ablock
+
+    assign_expr: 'block (int) int'
+     lhs:
+      decl_ref_expr: 'block (int) int' lvalue
+       name: f
+     rhs:
+      cast: (int_to_pointer) 'bar: block (int) int'
+        cast: (int_cast) 'unsigned long'
+          int_literal: 'unsigned int' (value: 3735928559)
+
+    assign_expr: 'block (int) int'
+     lhs:
+      decl_ref_expr: 'block (int) int' lvalue
+       name: f
+     rhs:
+      cast: (int_to_pointer) 'bar: block (int) int'
+        cast: (pointer_to_int) 'unsigned long'
+          implicit cast: (lval_to_rval) 'block (int) int'
+            decl_ref_expr: 'block (int) int' lvalue
+             name: f
 
     implicit return_stmt: 'void'
 

@@ -7336,7 +7336,7 @@ pub const Result = struct {
             if (src_sk.isInt() or src_sk.isFloat()) {
                 try res.castToInt(p, dest_unqual, tok);
                 return;
-            } else if (src_sk.isPointer()) {
+            } else if (src_sk.isPointer() and src_sk != .block_pointer) {
                 if (c == .test_coerce) return error.CoercionFailed;
                 try p.err(tok, .implicit_ptr_to_int, .{ src_original_qt, dest_unqual });
                 try c.note(p);
@@ -7348,7 +7348,7 @@ pub const Result = struct {
                 try res.castToFloat(p, dest_unqual, tok);
                 return;
             }
-        } else if (dest_sk.isPointer()) {
+        } else if (dest_sk.isPointer() and dest_sk != .block_pointer) {
             if (src_sk == .nullptr_t or res.val.isZero(p.comp)) {
                 try res.nullToPointer(p, dest_unqual, tok);
                 return;
@@ -7362,7 +7362,7 @@ pub const Result = struct {
                 return res.castToPointer(p, dest_unqual, tok);
             } else if (dest_sk == .void_pointer and src_sk.isPointer()) {
                 return res.castToPointer(p, dest_unqual, tok);
-            } else if (src_sk.isPointer()) {
+            } else if (src_sk.isPointer() and src_sk != .block_pointer) {
                 const src_child = res.qt.childType(p.comp);
                 const dest_child = dest_unqual.childType(p.comp);
                 if (src_child.eql(dest_child, p.comp)) {
@@ -7394,6 +7394,10 @@ pub const Result = struct {
 
                 res.qt = dest_unqual;
                 return res.implicitCast(p, .bitcast, tok);
+            } else if (src_sk == .block_pointer) {
+                try p.err(tok, .incompatible_assign, .{ dest_qt, src_original_qt });
+                try c.note(p);
+                return;
             }
         } else if (dest_unqual.getRecord(p.comp) != null) {
             if (dest_unqual.eql(res.qt, p.comp)) {
@@ -7420,8 +7424,14 @@ pub const Result = struct {
             if (dest_unqual.eql(res.qt, p.comp)) {
                 return; // ok
             }
-        } else if (dest_unqual.is(p.comp, .block)) {
-            if (dest_unqual.eql(res.qt, p.comp)) {
+        } else if (dest_sk == .block_pointer) {
+            if (src_sk == .nullptr_t or res.val.isZero(p.comp)) {
+                try res.nullToPointer(p, dest_unqual, tok);
+                return; // ok
+            } else if (src_sk == .void_pointer) {
+                try res.implicitCast(p, .bitcast, tok);
+                return; // ok
+            } else if (dest_unqual.eql(res.qt, p.comp)) {
                 return; // ok
             }
         } else {

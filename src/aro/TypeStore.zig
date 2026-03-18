@@ -451,6 +451,7 @@ pub const QualType = packed struct(u32) {
             .pointer => |pointer| pointer.child,
             .array => |array| array.elem,
             .vector => |vector| vector.elem,
+            .block => qt.base(comp).qt, // special case: block's childType is always itself
             else => unreachable,
         };
     }
@@ -588,7 +589,7 @@ pub const QualType = packed struct(u32) {
                 .uchar, .ushort, .uint, .ulong, .ulong_long, .uint128 => .unsigned,
             },
             // Pointer values are signed.
-            .pointer, .nullptr_t => .signed,
+            .pointer, .nullptr_t, .block => .signed,
             .@"enum" => .signed,
             else => unreachable,
         };
@@ -934,6 +935,7 @@ pub const QualType = packed struct(u32) {
         void_pointer,
         complex_int,
         complex_float,
+        block_pointer,
         none,
 
         pub fn isInt(sk: ScalarKind) bool {
@@ -959,7 +961,7 @@ pub const QualType = packed struct(u32) {
 
         pub fn isPointer(sk: ScalarKind) bool {
             return switch (sk) {
-                .pointer, .void_pointer => true,
+                .pointer, .void_pointer, .block_pointer => true,
                 else => false,
             };
         }
@@ -990,6 +992,7 @@ pub const QualType = packed struct(u32) {
                 else => unreachable,
             },
             .atomic => |atomic| continue :loop atomic.base(comp).type,
+            .block => return .block_pointer,
             else => return .none,
         }
     }
