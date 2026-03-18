@@ -24,5 +24,5 @@ args = -fblocks -Wpedantic --target=aarch64-macos
 block types.c:4:26: error: block pointer to non-function type is invalid
 block types.c:10:9: error: type specifier missing, defaults to 'int'; ISO C99 and later do not support implicit int [-Wimplicit-int]
 block types.c:10:15: error: block pointer to non-function type is invalid
-block types.c:17:11: error: initializing 'int' from incompatible type 'bar' (aka 'int (^)')
+block types.c:17:11: error: initializing 'int' from incompatible type 'bar' (aka 'int (^)(int)')
 */

@@ -1453,6 +1453,8 @@ pub const QualType = packed struct(u32) {
 
                 continue :loop array.elem.type(comp);
             },
+            .typeof => |typeof| if (desugar) continue :loop typeof.base.type(comp),
+            .typedef => |typedef| if (desugar) continue :loop typedef.base.type(comp),
             .attributed => |attributed| continue :loop attributed.base.type(comp),
             else => {},
         }
