@@ -1286,8 +1286,7 @@ pub const QualType = packed struct(u32) {
                 if (!block.func.is(comp, .func)) unreachable;
 
                 const simple = try block.func.printPrologue(comp, desugar, w);
-                if (simple) try w.writeByte(' ');
-                try w.writeAll("(^");
+                try w.writeAll(if (simple) " ^" else "(^");
                 if (qt.@"const") try w.writeAll("const");
                 if (qt.@"volatile") {
                     if (qt.@"const") try w.writeByte(' ');
@@ -1297,7 +1296,7 @@ pub const QualType = packed struct(u32) {
                     if (qt.@"const" or qt.@"volatile") try w.writeByte(' ');
                     try w.writeAll("restrict");
                 }
-                try w.writeByte(')');
+                if (!simple) try w.writeByte(')');
                 return false;
             },
             .array => |array| {
@@ -1453,6 +1452,8 @@ pub const QualType = packed struct(u32) {
 
                 continue :loop array.elem.type(comp);
             },
+            .typeof => |typeof| if (desugar) continue :loop typeof.base.type(comp),
+            .typedef => |typedef| if (desugar) continue :loop typedef.base.type(comp),
             .attributed => |attributed| continue :loop attributed.base.type(comp),
             else => {},
         }
