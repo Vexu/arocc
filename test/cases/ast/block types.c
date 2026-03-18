@@ -37,6 +37,20 @@ typedef: 'int'
 typedef: 'invalid'
  name: MyInt
 
+function: 'fn (i: MyInt: int) MyInt: int'
+ name: func_accepting_MyInt_returning_MyInt
+ body:
+  compound_stmt
+    return_stmt: 'MyInt: int'
+     expr:
+      add_expr: 'MyInt: int'
+       lhs:
+        implicit cast: (lval_to_rval) 'MyInt: int'
+          decl_ref_expr: 'MyInt: int' lvalue
+           name: i
+       rhs:
+        int_literal: 'int' (value: 1)
+
 function: 'fn (afunc: *fn (int) double, ablock: block (int) double) void'
  name: my_func_accepting_block
  body:
@@ -72,6 +86,71 @@ function: 'fn (afunc: *fn (int) double, ablock: block (int) double) void'
      init:
       decl_ref_expr: 'bar: block (int) int' lvalue
        name: a
+
+    variable: 'MyInt: int'
+     name: d
+     init:
+      int_literal: 'int' (value: 3)
+
+    variable: 'block (MyInt: int) MyInt: int'
+     name: e
+     init:
+      implicit cast: (lval_to_rval) 'MyInt: int'
+        decl_ref_expr: 'MyInt: int' lvalue
+         name: d
+
+    assign_expr: 'block (MyInt: int) MyInt: int'
+     lhs:
+      decl_ref_expr: 'block (MyInt: int) MyInt: int' lvalue
+       name: e
+     rhs:
+      implicit cast: (function_to_pointer) '*fn (i: MyInt: int) MyInt: int'
+        decl_ref_expr: 'fn (i: MyInt: int) MyInt: int' lvalue
+         name: func_accepting_MyInt_returning_MyInt
+
+    assign_expr: 'block (MyInt: int) MyInt: int'
+     lhs:
+      decl_ref_expr: 'block (MyInt: int) MyInt: int' lvalue
+       name: e
+     rhs:
+      addr_of_expr: '*fn (i: MyInt: int) MyInt: int'
+       operand:
+        decl_ref_expr: 'fn (i: MyInt: int) MyInt: int' lvalue
+         name: func_accepting_MyInt_returning_MyInt
+
+    assign_expr: '*fn (int) double'
+     lhs:
+      decl_ref_expr: '*fn (int) double' lvalue
+       name: afunc
+     rhs:
+      implicit cast: (lval_to_rval) 'block (int) double'
+        decl_ref_expr: 'block (int) double' lvalue
+         name: ablock
+
+    assign_expr: 'block (int) double'
+     lhs:
+      decl_ref_expr: 'block (int) double' lvalue
+       name: ablock
+     rhs:
+      implicit cast: (lval_to_rval) '*fn (int) double'
+        decl_ref_expr: '*fn (int) double' lvalue
+         name: afunc
+
+    variable: 'block (int) int'
+     name: f
+     init:
+      implicit cast: (lval_to_rval) 'bar: block (int) int'
+        decl_ref_expr: 'bar: block (int) int' lvalue
+         name: a
+
+    assign_expr: 'bar: block (int) int'
+     lhs:
+      decl_ref_expr: 'bar: block (int) int' lvalue
+       name: a
+     rhs:
+      implicit cast: (lval_to_rval) 'block (int) int'
+        decl_ref_expr: 'block (int) int' lvalue
+         name: f
 
     implicit return_stmt: 'void'
 

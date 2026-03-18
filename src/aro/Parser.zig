@@ -7420,6 +7420,10 @@ pub const Result = struct {
             if (dest_unqual.eql(res.qt, p.comp)) {
                 return; // ok
             }
+        } else if (dest_unqual.is(p.comp, .block)) {
+            if (dest_unqual.eql(res.qt, p.comp)) {
+                return; // ok
+            }
         } else {
             if (c == .assign) {
                 const base_type = dest_unqual.base(p.comp);
