@@ -3430,6 +3430,25 @@ fn msTypeAttribute(p: *Parser) !bool {
                 any = true;
                 p.tok_i += 1;
             },
+            .keyword_ptr64,
+            .keyword_ptr32,
+            .keyword_sptr,
+            .keyword_uptr,
+            => |kw| {
+                try p.err(p.tok_i, .extension_token_used, .{});
+                try p.attr_buf.append(p.comp.gpa, .{
+                    .attr = .{ .tag = .msvc_ptr, .args = .{ .msvc_ptr = .{ .kind = switch (kw) {
+                        .keyword_ptr64 => .ptr64,
+                        .keyword_ptr32 => .ptr32,
+                        .keyword_sptr => .sptr,
+                        .keyword_uptr => .uptr,
+                        else => unreachable,
+                    } } }, .syntax = .keyword },
+                    .tok = p.tok_i,
+                });
+                any = true;
+                p.tok_i += 1;
+            },
             else => break,
         }
     }
