@@ -17,7 +17,7 @@ pub const Prefix = enum(u8) {
         };
     }
 
-    pub fn fromString(buf: []const u8, is_msvc: bool) Prefix {
+    pub fn fromString(buf: []const u8, allow_msvc_extensions: bool) Prefix {
         if (buf.len == 1) return .decimal;
         // tokenizer enforces that first byte is a decimal digit or period
         switch (buf[0]) {
@@ -32,7 +32,7 @@ pub const Prefix = enum(u8) {
                 if (mem.indexOfAny(u8, buf, "eE.")) |_| {
                     // This is a decimal floating point number that happens to start with zero
                     return .decimal;
-                } else if (Suffix.fromString(buf[1..], .int, is_msvc)) |_| {
+                } else if (Suffix.fromString(buf[1..], .int, allow_msvc_extensions)) |_| {
                     // This is `0` with a valid suffix
                     return .decimal;
                 } else {
@@ -195,7 +195,7 @@ pub const Suffix = enum {
         .{ .IF64x, &.{ "I", "F64x" } },
     };
 
-    pub fn fromString(buf: []const u8, suffix_kind: enum { int, float }, is_msvc: bool) ?Suffix {
+    pub fn fromString(buf: []const u8, suffix_kind: enum { int, float }, allow_msvc_extensions: bool) ?Suffix {
         if (buf.len == 0) return .None;
 
         const suffixes = switch (suffix_kind) {
@@ -214,7 +214,7 @@ pub const Suffix = enum {
                 const lower = std.ascii.lowerString(&scratch, part);
                 if (mem.indexOf(u8, buf, part) == null and mem.indexOf(u8, buf, lower) == null) continue :top;
             }
-            if (tag.isMSVCExtension() and !is_msvc) continue;
+            if (tag.isMSVCExtension() and !allow_msvc_extensions) continue;
             return tag;
         }
         return null;

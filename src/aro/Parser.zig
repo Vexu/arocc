@@ -2204,14 +2204,13 @@ fn exactTypeKeywordToSpecMSVC(id: Tokenizer.Token.Id) TypeStore.Builder.Specifie
     };
 }
 
-fn getMSVCExactWidthType(p: *Parser, tok_id: Tokenizer.Token.Id, signedness: std.builtin.Signedness) QualType {
-    var builder: TypeStore.Builder = .{ .parser = p };
-    builder.combine(exactTypeKeywordToSpecMSVC(tok_id), undefined) catch unreachable;
-    switch (signedness) {
-        .signed => {},
-        .unsigned => builder.combine(.unsigned, undefined) catch unreachable,
-    }
-    return builder.finish() catch unreachable;
+fn getMSVCIntSuffixType(p: *Parser, bits: enum { @"8", @"16", @"32", @"64" }, signedness: std.builtin.Signedness) QualType {
+    return switch (bits) {
+        .@"8" => if (signedness == .signed) .char else .uchar,
+        .@"16" => p.comp.intLeastN(16, signedness),
+        .@"32" => p.comp.intLeastN(32, signedness),
+        .@"64" => if (p.comp.langopts.emulate != .msvc) p.comp.smallestNBitIntTargetIndependent(64, signedness) else if (signedness == .signed) .long_long else .ulong_long,
+    };
 }
 
 /// typeSpec
@@ -10621,14 +10620,14 @@ fn fixedSizeInt(p: *Parser, base: u8, buf: []const u8, suffix: NumberSuffix, tok
         .ULL, .IULL => .ulong_long,
         .L, .IL => .long,
         .LL, .ILL => .long_long,
-        .I8 => p.getMSVCExactWidthType(.keyword_int8, .signed),
-        .UI8 => p.getMSVCExactWidthType(.keyword_int8, .unsigned),
-        .I16 => p.getMSVCExactWidthType(.keyword_int16, .signed),
-        .UI16 => p.getMSVCExactWidthType(.keyword_int16, .unsigned),
-        .I32 => p.getMSVCExactWidthType(.keyword_int32, .signed),
-        .UI32 => p.getMSVCExactWidthType(.keyword_int32, .unsigned),
-        .I64 => p.getMSVCExactWidthType(.keyword_int64, .signed),
-        .UI64 => p.getMSVCExactWidthType(.keyword_int64, .unsigned),
+        .I8 => p.getMSVCIntSuffixType(.@"8", .signed),
+        .UI8 => p.getMSVCIntSuffixType(.@"8", .unsigned),
+        .I16 => p.getMSVCIntSuffixType(.@"16", .signed),
+        .UI16 => p.getMSVCIntSuffixType(.@"16", .unsigned),
+        .I32 => p.getMSVCIntSuffixType(.@"32", .signed),
+        .UI32 => p.getMSVCIntSuffixType(.@"32", .unsigned),
+        .I64 => p.getMSVCIntSuffixType(.@"64", .signed),
+        .UI64 => p.getMSVCIntSuffixType(.@"64", .unsigned),
         else => unreachable,
     };
 
@@ -10769,8 +10768,8 @@ fn getExponent(p: *Parser, buf: []const u8, prefix: NumberPrefix, tok_i: TokenIn
 /// to parse numbers in pragma handlers.
 pub fn parseNumberToken(p: *Parser, tok_i: TokenIndex) !Result {
     const buf = p.tokSlice(tok_i);
-    const is_msvc = p.comp.langopts.emulate == .msvc;
-    const prefix = NumberPrefix.fromString(buf, is_msvc);
+    const allow_fixed_size_int_suffixes = p.comp.langopts.allowFixedSizedIntSuffixes();
+    const prefix = NumberPrefix.fromString(buf, allow_fixed_size_int_suffixes);
     const after_prefix = buf[prefix.stringLen()..];
 
     const int_part = try p.getIntegerPart(after_prefix, prefix, tok_i);
@@ -10783,7 +10782,7 @@ pub fn parseNumberToken(p: *Parser, tok_i: TokenIndex) !Result {
     const exponent = try p.getExponent(after_frac, prefix, tok_i);
     const suffix_str = after_frac[exponent.len..];
     const is_float = (exponent.len > 0 or frac.len > 0);
-    const suffix = NumberSuffix.fromString(suffix_str, if (is_float) .float else .int, is_msvc) orelse {
+    const suffix = NumberSuffix.fromString(suffix_str, if (is_float) .float else .int, allow_fixed_size_int_suffixes) orelse {
         if (is_float) {
             try p.err(tok_i, .invalid_float_suffix, .{suffix_str});
         } else {
