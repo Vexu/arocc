@@ -493,12 +493,13 @@ pub const QualType = packed struct(u32) {
             .void => 1,
             .bool => 1,
             .func => 1,
-            .nullptr_t, .pointer => comp.target.ptrBitWidth() / 8,
+            .nullptr_t, .pointer => if (qt.bitSizeofOrNull(comp)) |sz| sz / 8 else null,
             .int => |int_ty| int_ty.bits(comp) / 8,
             .float => |float_ty| float_ty.bits(comp) / 8,
             .complex => |complex| complex.sizeofOrNull(comp),
             .bit_int => |bit_int| {
-                return std.mem.alignForward(u64, (@as(u32, bit_int.bits) + 7) / 8, qt.alignof(comp));
+                const base_qt = qt.base(comp).qt;
+                return std.mem.alignForward(u64, (@as(u32, bit_int.bits) + 7) / 8, base_qt.alignof(comp));
             },
             .atomic => |atomic| atomic.sizeofOrNull(comp),
             .vector => |vector| {
@@ -522,7 +523,8 @@ pub const QualType = packed struct(u32) {
                     // for the field alignment. A flexible array has size 0. See test case 0018.
                     return arr_size;
                 } else {
-                    return std.mem.alignForward(u64, arr_size, qt.alignof(comp));
+                    const base_qt = qt.base(comp).qt;
+                    return std.mem.alignForward(u64, arr_size, base_qt.alignof(comp));
                 }
             },
             .@"struct", .@"union" => |record| {
@@ -539,6 +541,20 @@ pub const QualType = packed struct(u32) {
         };
     }
 
+    fn attributedPointerBitSize(qt: QualType, comp: *const Compilation) ?u32 {
+        var it = Attribute.Iterator.initType(qt, comp);
+        while (it.next()) |item| {
+            const attribute, _ = item;
+            if (attribute.tag != .msvc_ptr) continue;
+            switch (attribute.args.msvc_ptr.kind) {
+                .ptr32 => return 32,
+                .ptr64 => return 64,
+                .sptr, .uptr => {},
+            }
+        }
+        return null;
+    }
+
     /// Size of type in bits as it would have in a bitfield.
     pub fn bitSizeof(qt: QualType, comp: *const Compilation) u64 {
         return qt.bitSizeofOrNull(comp).?;
@@ -553,7 +569,7 @@ pub const QualType = packed struct(u32) {
             .bit_int => |bit_int| bit_int.bits,
             .float => |float_ty| float_ty.bits(comp),
             .int => |int_ty| int_ty.bits(comp),
-            .nullptr_t, .pointer => comp.target.ptrBitWidth(),
+            .nullptr_t, .pointer => qt.attributedPointerBitSize(comp) orelse comp.target.ptrBitWidth(),
             .atomic => |atomic| continue :loop atomic.base(comp).type,
             .complex => |complex| {
                 const child_size = complex.bitSizeofOrNull(comp) orelse return null;
@@ -663,7 +679,7 @@ pub const QualType = packed struct(u32) {
 
             .pointer, .nullptr_t => switch (comp.target.cpu.arch) {
                 .avr => 1,
-                else => comp.target.ptrBitWidth() / 8,
+                else => (qt.attributedPointerBitSize(comp) orelse comp.target.ptrBitWidth()) / 8,
             },
 
             .func => comp.target.defaultFunctionAlignment(),
