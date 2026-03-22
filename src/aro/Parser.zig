@@ -8840,7 +8840,7 @@ fn unExpr(p: *Parser) Error!?Result {
                     else => {},
                 }
 
-                if (base_type.qt.sizeofOrNull(p.comp)) |size| {
+                if (res.qt.sizeofOrNull(p.comp)) |size| {
                     if (size == 0 and p.comp.langopts.emulate == .msvc) {
                         try p.err(tok, .sizeof_returns_zero, .{});
                     }
