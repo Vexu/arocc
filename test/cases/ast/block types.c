@@ -71,6 +71,37 @@ function: 'fn (afunc: *fn (int) double, ablock: block (int) double) void'
      args:
       int_literal: 'int' (value: 1)
 
+    struct_decl: 'struct (anonymous struct at block types.c:21:11)'
+      record_field: 'int'
+       name: foo
+
+    call_expr: 'double'
+     callee:
+      implicit cast: (lval_to_rval) 'block (int) double'
+        decl_ref_expr: 'block (int) double' lvalue
+         name: ablock
+     args:
+      implicit cast: (lval_to_rval) 'struct (anonymous struct at block types.c:21:11)'
+        compound_literal_expr: 'struct (anonymous struct at block types.c:21:11)' lvalue
+         struct_init_expr: 'struct (anonymous struct at block types.c:21:11)'
+           int_literal: 'int' (value: 0)
+
+    struct_decl: 'struct (anonymous struct at block types.c:22:3)'
+      record_field: 'int'
+       name: foo
+
+      record_field: 'int'
+       name: bar
+
+    variable: 'struct (anonymous struct at block types.c:22:3)'
+     name: result
+     init:
+      call_expr: 'invalid'
+       callee:
+        implicit cast: (lval_to_rval) 'block (int) double'
+          decl_ref_expr: 'block (int) double' lvalue
+           name: ablock
+
     variable: 'bar: block (int) int'
      name: a
 

@@ -18,6 +18,8 @@ MyInt func_accepting_MyInt_returning_MyInt(MyInt i) {
 void my_func_accepting_block(double (*afunc)(int), double (^ablock)(int)) {
   afunc(1);
   ablock(1);
+  ablock((struct { int foo; }){0});
+  struct { int foo; int bar; } result = ablock();
 
   bar a;
   int b = a;
@@ -59,13 +61,16 @@ block types.c:4:26: error: block pointer to non-function type is invalid
 block types.c:10:9: error: type specifier missing, defaults to 'int'; ISO C99 and later do not support implicit int [-Wimplicit-int]
 block types.c:10:15: error: block pointer to non-function type is invalid
 block types.c:12:14: error: expected identifier or '('
-block types.c:23:11: error: initializing 'int' from incompatible type 'bar' (aka 'int (^)(int)')
-block types.c:24:10: error: block pointer to non-function type is invalid
-block types.c:27:23: error: initializing 'MyInt (^)(MyInt)' from incompatible type 'MyInt' (aka 'int')
-block types.c:28:5: error: assignment to 'MyInt (^)(MyInt)' from incompatible type 'MyInt (*)(MyInt)' (aka 'int (*)(int)')
-block types.c:29:5: error: assignment to 'MyInt (^)(MyInt)' from incompatible type 'MyInt (*)(MyInt)' (aka 'int (*)(int)')
-block types.c:33:5: error: assignment to 'MyInt' (aka 'int') from incompatible type 'MyInt (^)(MyInt)'
-block types.c:35:9: error: assignment to 'double (*)(int)' from incompatible type 'double (^)(int)'
-block types.c:36:10: error: assignment to 'double (^)(int)' from incompatible type 'double (*)(int)'
-block types.c:44:5: error: assignment to 'int (^)(int)' from incompatible type 'unsigned int'
+block types.c:21:10: error: passing 'struct (anonymous struct at block types.c:21:11)' to parameter of incompatible type 'int'
+block types.c:18:72: note: passing argument to parameter here
+block types.c:22:48: error: expected 1 argument(s) got 0
+block types.c:25:11: error: initializing 'int' from incompatible type 'bar' (aka 'int (^)(int)')
+block types.c:26:10: error: block pointer to non-function type is invalid
+block types.c:29:23: error: initializing 'MyInt (^)(MyInt)' from incompatible type 'MyInt' (aka 'int')
+block types.c:30:5: error: assignment to 'MyInt (^)(MyInt)' from incompatible type 'MyInt (*)(MyInt)' (aka 'int (*)(int)')
+block types.c:31:5: error: assignment to 'MyInt (^)(MyInt)' from incompatible type 'MyInt (*)(MyInt)' (aka 'int (*)(int)')
+block types.c:35:5: error: assignment to 'MyInt' (aka 'int') from incompatible type 'MyInt (^)(MyInt)'
+block types.c:37:9: error: assignment to 'double (*)(int)' from incompatible type 'double (^)(int)'
+block types.c:38:10: error: assignment to 'double (^)(int)' from incompatible type 'double (*)(int)'
+block types.c:46:5: error: assignment to 'int (^)(int)' from incompatible type 'unsigned int'
 */
