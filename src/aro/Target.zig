@@ -1230,6 +1230,7 @@ pub fn toLLVMTriple(target: *const Target, buf: []u8) []const u8 {
         .other,
         .plan9,
         .vita,
+        .psp,
         => "unknown",
     };
     writer.writeAll(llvm_os) catch unreachable;
