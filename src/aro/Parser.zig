@@ -158,6 +158,13 @@ func: struct {
     pretty_ident: ?Result = null,
 } = .{},
 
+/// null if not in block
+block: ?struct {
+    caret: TokenIndex,
+    return_type: ?QualType = null,
+    scope_depth: usize,
+} = null,
+
 /// Various variables that are different for each record.
 record: struct {
     // invalid means we're not parsing a record
@@ -1393,6 +1400,7 @@ fn decl(p: *Parser) Error!bool {
                         .register => .register,
                         .static => .static,
                         .@"extern" => if (init_d.initializer == null) .@"extern" else .auto,
+                        .block => .block,
                         else => .auto, // Error reported in `validate`
                     },
                     .initializer = if (init_d.initializer) |some| some.node else null,
@@ -1567,6 +1575,7 @@ pub const DeclSpec = struct {
         register: TokenIndex,
         static: TokenIndex,
         typedef: TokenIndex,
+        block: TokenIndex,
         none,
     } = .none,
     thread_local: ?TokenIndex = null,
@@ -1580,6 +1589,7 @@ pub const DeclSpec = struct {
     fn validateParam(d: DeclSpec, p: *Parser) Error!void {
         switch (d.storage_class) {
             .none, .register => {},
+            .block => |tok_i| try p.err(tok_i, .block_attribute_not_allowed, .{}),
             .auto, .@"extern", .static, .typedef => |tok_i| try p.err(tok_i, .invalid_storage_on_param, .{}),
         }
         if (d.thread_local) |tok_i| try p.err(tok_i, .threadlocal_non_var, .{});
@@ -1590,7 +1600,7 @@ pub const DeclSpec = struct {
 
     fn validateFnDef(d: DeclSpec, p: *Parser) Error!void {
         switch (d.storage_class) {
-            .none, .@"extern", .static => {},
+            .none, .@"extern", .static, .block => {},
             .auto, .register, .typedef => |tok_i| try p.err(tok_i, .illegal_storage_on_func, .{}),
         }
         if (d.thread_local) |tok_i| try p.err(tok_i, .threadlocal_non_var, .{});
@@ -1599,7 +1609,7 @@ pub const DeclSpec = struct {
 
     fn validateFnDecl(d: DeclSpec, p: *Parser) Error!void {
         switch (d.storage_class) {
-            .none, .@"extern" => {},
+            .none, .@"extern", .block => {},
             .static => |tok_i| if (p.func.qt != null) try p.err(tok_i, .static_func_not_global, .{}),
             .typedef => unreachable,
             .auto, .register => |tok_i| try p.err(tok_i, .illegal_storage_on_func, .{}),
@@ -1618,6 +1628,7 @@ pub const DeclSpec = struct {
                 try p.err(p.tok_i, .auto_on_global, .{});
             },
             .register => if (p.func.qt == null and asm_label == null) try p.err(p.tok_i, .register_on_global, .{}),
+            .block => |tok| if (p.func.qt == null and asm_label == null) try p.err(tok, .block_attribute_not_allowed, .{}),
             else => {},
         }
     }
@@ -1732,6 +1743,7 @@ fn declSpec(p: *Parser) Error!?DeclSpec {
 ///  | keyword_threadlocal
 ///  | keyword_auto
 ///  | keyword_register
+///  | keyword_block
 fn storageClassSpec(p: *Parser, d: *DeclSpec) Error!bool {
     const start = p.tok_i;
     while (true) {
@@ -1742,6 +1754,7 @@ fn storageClassSpec(p: *Parser, d: *DeclSpec) Error!bool {
             .keyword_static,
             .keyword_auto,
             .keyword_register,
+            .keyword_block,
             => {
                 if (d.storage_class != .none) {
                     try p.err(p.tok_i, .multiple_storage_class, .{@tagName(d.storage_class)});
@@ -1756,7 +1769,7 @@ fn storageClassSpec(p: *Parser, d: *DeclSpec) Error!bool {
                 }
                 if (d.constexpr != null) {
                     switch (id) {
-                        .keyword_auto, .keyword_register, .keyword_static => {},
+                        .keyword_auto, .keyword_register, .keyword_static, .keyword_block => {},
                         else => try p.err(p.tok_i, .cannot_combine_spec, .{id.lexeme().?}),
                     }
                     if (d.thread_local) |tok| try p.err(p.tok_i, .cannot_combine_spec, .{p.tok_ids[tok].lexeme().?});
@@ -1767,6 +1780,7 @@ fn storageClassSpec(p: *Parser, d: *DeclSpec) Error!bool {
                     .keyword_static => d.storage_class = .{ .static = p.tok_i },
                     .keyword_auto => d.storage_class = .{ .auto = p.tok_i },
                     .keyword_register => d.storage_class = .{ .register = p.tok_i },
+                    .keyword_block => d.storage_class = .{ .block = p.tok_i },
                     else => unreachable,
                 }
             },
@@ -2022,12 +2036,17 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec, attr_buf_top: usize, decl_no
     try p.attributeSpecifierExtra(init_d.d.name);
 
     switch (init_d.d.declarator_type) {
-        .func => {
+        inline .func, .block => |tag| {
+            const kind = switch (tag) {
+                .func => "function",
+                .block => "block",
+                else => comptime unreachable,
+            };
             if (decl_spec.auto_type) |tok_i| {
-                try p.err(tok_i, .auto_type_not_allowed, .{"function return type"});
+                try p.err(tok_i, .auto_type_not_allowed, .{kind ++ " return type"});
                 init_d.d.qt = .invalid;
             } else if (decl_spec.c23_auto) |tok_i| {
-                try p.err(tok_i, .c23_auto_not_allowed, .{"function return type"});
+                try p.err(tok_i, .c23_auto_not_allowed, .{kind ++ " return type"});
                 init_d.d.qt = .invalid;
             }
         },
@@ -3443,7 +3462,7 @@ const Declarator = struct {
 
     /// What kind of a type did this declarator declare?
     /// Used redundantly with `qt` in case it was set to `.invalid` by `validate`.
-    declarator_type: enum { other, func, array, pointer } = .other,
+    declarator_type: enum { other, func, array, pointer, block } = .other,
 
     const Kind = enum { normal, abstract, param, record };
 
@@ -3535,14 +3554,22 @@ const Declarator = struct {
                 }
                 return .normal;
             },
+            .block => |block_ty| {
+                const func_qt = block_ty.func;
+                if (func_qt._index == .declarator_combine) return .normal;
+                if (!func_qt.is(p.comp, .func)) {
+                    try p.err(source_tok, .block_to_non_function, .{});
+                    return .nested_invalid;
+                }
+                return validateExtra(p, func_qt, source_tok);
+            },
             else => return .normal,
         }
     }
 };
 
-/// declarator : pointer? (IDENTIFIER | '(' declarator ')') directDeclarator*
-/// abstractDeclarator
-/// : pointer? ('(' abstractDeclarator ')')? directAbstractDeclarator*
+/// declarator : '^'? pointer? (IDENTIFIER | '(' declarator ')') directDeclarator*
+/// abstractDeclarator : '^'? pointer? ('(' abstractDeclarator ')')? directAbstractDeclarator*
 /// pointer : '*' typeQual* pointer?
 fn declarator(
     p: *Parser,
@@ -3550,6 +3577,20 @@ fn declarator(
     kind: Declarator.Kind,
 ) Error!?Declarator {
     var d = Declarator{ .name = 0, .qt = base_qt };
+
+    if (p.eatToken(.caret)) |caret| {
+        if (!p.comp.langopts.blocks) try p.err(caret, .blocks_not_enabled, .{});
+        try p.err(caret, .blocks_are_clang_extension, .{});
+
+        d.declarator_type = .block;
+        var builder: TypeStore.Builder = .{ .parser = p };
+        _ = try p.typeQual(&builder, true);
+
+        const block_qt = try p.comp.type_store.put(p.comp.gpa, .{ .block = .{
+            .func = d.qt,
+        } });
+        d.qt = try builder.finishQuals(block_qt);
+    }
 
     // Parse potential pointer declarators first.
     while (p.eatToken(.asterisk)) |_| {
@@ -3611,6 +3652,10 @@ fn declarator(
                     },
                     .func => |func_ty| if (func_ty.return_type._index != .declarator_combine) {
                         cur = func_ty.return_type;
+                        continue;
+                    },
+                    .block => |block_ty| if (block_ty.func._index != .declarator_combine) {
+                        cur = block_ty.func;
                         continue;
                     },
                     else => unreachable,
@@ -5516,37 +5561,62 @@ fn compoundStmt(p: *Parser, is_fn_body: bool, stmt_expr_state: ?*StmtExprState) 
         else
             p.nodeIsNoreturn(p.decl_buf.items[p.decl_buf.items.len - 1]);
 
-        const ret_qt: QualType = if (p.func.qt.?.get(p.comp, .func)) |func_ty| func_ty.return_type else .invalid;
-        if (last_noreturn != .yes and !ret_qt.isInvalid()) {
-            var return_zero = false;
-            if (last_noreturn == .no) switch (ret_qt.base(p.comp).type) {
-                .void => {},
-                .func, .array => {}, // Invalid, error reported elsewhere
-                else => {
-                    const func_name = p.tokSlice(p.func.name);
-                    const interned_name = try p.comp.internString(func_name);
+        if (p.block) |*block| {
+            if (block.return_type) |ret_qt| {
+                if (last_noreturn != .yes) {
+                    if (last_noreturn == .no) switch (ret_qt.type(p.comp)) {
+                        .void => {},
+                        .func, .array => {}, // Invalid, error reported elsewhere
+                        else => {
+                            try p.err(r_brace, .non_void_block_does_not_return, .{});
+                            try p.err(block.caret, .block_return_block_defined_here, .{});
+                        },
+                    };
 
-                    if (interned_name == p.string_ids.main_id) {
-                        if (ret_qt.get(p.comp, .int)) |int_ty| {
-                            if (int_ty == .int) return_zero = true;
+                    const implicit_ret = try p.addNode(.{ .return_stmt = .{
+                        .return_tok = r_brace,
+                        .return_qt = ret_qt,
+                        .operand = .{ .implicit = false },
+                    } });
+                    try p.decl_buf.append(gpa, implicit_ret);
+                }
+            } else {
+                block.return_type = .void;
+            }
+        } else {
+            const ret_qt: QualType = if (p.func.qt.?.get(p.comp, .func)) |func_ty| func_ty.return_type else .invalid;
+
+            if (last_noreturn != .yes and !ret_qt.isInvalid()) {
+                var return_zero = false;
+                if (last_noreturn == .no) switch (ret_qt.base(p.comp).type) {
+                    .void => {},
+                    .func, .array => {}, // Invalid, error reported elsewhere
+                    else => {
+                        const func_name = p.tokSlice(p.func.name);
+                        const interned_name = try p.comp.internString(func_name);
+
+                        if (interned_name == p.string_ids.main_id) {
+                            if (ret_qt.get(p.comp, .int)) |int_ty| {
+                                if (int_ty == .int) return_zero = true;
+                            }
                         }
-                    }
 
-                    if (!return_zero) {
-                        try p.err(p.tok_i - 1, .func_does_not_return, .{func_name});
-                    }
-                },
-            };
+                        if (!return_zero) {
+                            try p.err(p.tok_i - 1, .func_does_not_return, .{func_name});
+                        }
+                    },
+                };
 
-            const implicit_ret = try p.addNode(.{ .return_stmt = .{
-                .return_tok = r_brace,
-                .return_qt = ret_qt,
-                .operand = .{ .implicit = return_zero },
-            } });
-            try p.decl_buf.append(gpa, implicit_ret);
+                const implicit_ret = try p.addNode(.{ .return_stmt = .{
+                    .return_tok = r_brace,
+                    .return_qt = ret_qt,
+                    .operand = .{ .implicit = return_zero },
+                } });
+                try p.decl_buf.append(gpa, implicit_ret);
+            }
+            if (p.func.ident) |some| try p.decl_buf.insert(gpa, decl_buf_top, some.node);
+            if (p.func.pretty_ident) |some| try p.decl_buf.insert(gpa, decl_buf_top, some.node);
         }
-        if (p.func.ident) |some| try p.decl_buf.insert(gpa, decl_buf_top, some.node);
-        if (p.func.pretty_ident) |some| try p.decl_buf.insert(gpa, decl_buf_top, some.node);
     }
 
     return try p.addNode(.{ .compound_stmt = .{
@@ -5559,8 +5629,8 @@ fn pointerValue(p: *Parser, node: Node.Index, offset: Value) !Value {
     switch (node.get(&p.tree)) {
         .decl_ref_expr => |decl_ref| {
             const var_name = try p.comp.internString(p.tokSlice(decl_ref.name_tok));
-            const sym = p.syms.findSymbol(var_name) orelse return .{};
-            const sym_node = sym.node.unpack() orelse return .{};
+            const sym_lookup = p.syms.findSymbol(var_name) orelse return .{};
+            const sym_node = sym_lookup.symbol.node.unpack() orelse return .{};
             return Value.pointer(.{ .node = @intFromEnum(sym_node), .offset = offset.ref() }, p.comp);
         },
         .string_literal_expr => return p.tree.value_map.get(node).?,
@@ -5689,27 +5759,54 @@ fn returnStmt(p: *Parser) Error!?Node.Index {
     var ret_expr = try p.expr();
     _ = try p.expectToken(.semicolon);
 
-    const func_qt = p.func.qt.?; // `return` cannot be parsed outside of a function.
-    const ret_qt: QualType = if (func_qt.get(p.comp, .func)) |func_ty| func_ty.return_type else .invalid;
-    const ret_void = !ret_qt.isInvalid() and ret_qt.is(p.comp, .void);
+    const ret_qt: QualType = if (p.block) |*block| ret_qt: {
+        if (block.return_type) |ret_qt| {
+            if (ret_qt.hasAttribute(p.comp, .noreturn)) {
+                try p.err(e_tok, .invalid_block_noreturn, .{});
+                try p.err(block.caret, .invalid_block_noreturn_block_defined_here, .{});
+            }
 
-    if (func_qt.hasAttribute(p.comp, .noreturn)) {
-        try p.err(e_tok, .invalid_noreturn, .{p.tokSlice(p.func.name)});
-    }
-
-    if (ret_expr) |*some| {
-        if (ret_void) {
-            if (!some.qt.is(p.comp, .void)) {
-                try p.err(e_tok, .void_func_returns_value, .{p.tokSlice(p.func.name)});
+            if (ret_expr) |*some| {
+                if (ret_qt.is(p.comp, .void)) {
+                    if (!some.qt.is(p.comp, .void)) {
+                        try p.err(e_tok, .void_block_returns_value, .{});
+                        try p.err(block.caret, .block_return_block_defined_here, .{});
+                    }
+                } else {
+                    try some.coerce(p, ret_qt, e_tok, .ret);
+                    try some.saveValue(p);
+                }
+            } else if (!ret_qt.is(p.comp, .void)) {
+                try p.err(ret_tok, .block_should_return, .{});
+                try p.err(block.caret, .block_return_block_defined_here, .{});
             }
         } else {
-            try some.coerce(p, ret_qt, e_tok, .ret);
-
-            try some.saveValue(p);
+            block.return_type = if (ret_expr) |*some| some.qt else .void;
         }
-    } else if (!ret_void) {
-        try p.err(ret_tok, .func_should_return, .{p.tokSlice(p.func.name)});
-    }
+        break :ret_qt block.return_type.?;
+    } else if (p.func.qt) |func_qt| ret_qt: {
+        const ret_qt: QualType = if (func_qt.get(p.comp, .func)) |func_ty| func_ty.return_type else .invalid;
+        const ret_void = !ret_qt.isInvalid() and ret_qt.is(p.comp, .void);
+
+        if (func_qt.hasAttribute(p.comp, .noreturn)) {
+            try p.err(e_tok, .invalid_noreturn, .{p.tokSlice(p.func.name)});
+        }
+
+        if (ret_expr) |*some| {
+            if (ret_void) {
+                if (!some.qt.is(p.comp, .void)) {
+                    try p.err(e_tok, .void_func_returns_value, .{p.tokSlice(p.func.name)});
+                }
+            } else {
+                try some.coerce(p, ret_qt, e_tok, .ret);
+
+                try some.saveValue(p);
+            }
+        } else if (!ret_void) {
+            try p.err(ret_tok, .func_should_return, .{p.tokSlice(p.func.name)});
+        }
+        break :ret_qt ret_qt;
+    } else unreachable; // `return` cannot be parsed outside of a function or block.
 
     return try p.addNode(.{ .return_stmt = .{
         .return_tok = ret_tok,
@@ -7305,7 +7402,7 @@ pub const Result = struct {
             if (src_sk.isInt() or src_sk.isFloat()) {
                 try res.castToInt(p, dest_unqual, tok);
                 return;
-            } else if (src_sk.isPointer()) {
+            } else if (src_sk.isPointer() and src_sk != .block_pointer) {
                 if (c == .test_coerce) return error.CoercionFailed;
                 try p.err(tok, .implicit_ptr_to_int, .{ src_original_qt, dest_unqual });
                 try c.note(p);
@@ -7317,7 +7414,7 @@ pub const Result = struct {
                 try res.castToFloat(p, dest_unqual, tok);
                 return;
             }
-        } else if (dest_sk.isPointer()) {
+        } else if (dest_sk.isPointer() and dest_sk != .block_pointer) {
             if (src_sk == .nullptr_t or res.val.isZero(p.comp)) {
                 try res.nullToPointer(p, dest_unqual, tok);
                 return;
@@ -7331,7 +7428,7 @@ pub const Result = struct {
                 return res.castToPointer(p, dest_unqual, tok);
             } else if (dest_sk == .void_pointer and src_sk.isPointer()) {
                 return res.castToPointer(p, dest_unqual, tok);
-            } else if (src_sk.isPointer()) {
+            } else if (src_sk.isPointer() and src_sk != .block_pointer) {
                 const src_child = res.qt.childType(p.comp);
                 const dest_child = dest_unqual.childType(p.comp);
                 if (src_child.eql(dest_child, p.comp)) {
@@ -7363,6 +7460,10 @@ pub const Result = struct {
 
                 res.qt = dest_unqual;
                 return res.implicitCast(p, .bitcast, tok);
+            } else if (src_sk == .block_pointer) {
+                try p.err(tok, .incompatible_assign, .{ dest_qt, src_original_qt });
+                try c.note(p);
+                return;
             }
         } else if (dest_unqual.getRecord(p.comp) != null) {
             if (dest_unqual.eql(res.qt, p.comp)) {
@@ -7387,6 +7488,16 @@ pub const Result = struct {
             };
         } else if (dest_unqual.is(p.comp, .vector)) {
             if (dest_unqual.eql(res.qt, p.comp)) {
+                return; // ok
+            }
+        } else if (dest_sk == .block_pointer) {
+            if (src_sk == .nullptr_t or res.val.isZero(p.comp)) {
+                try res.nullToPointer(p, dest_unqual, tok);
+                return; // ok
+            } else if (src_sk == .void_pointer) {
+                try res.implicitCast(p, .bitcast, tok);
+                return; // ok
+            } else if (dest_unqual.eql(res.qt, p.comp)) {
                 return; // ok
             }
         } else {
@@ -7566,10 +7677,14 @@ fn assignExpr(p: *Parser) Error!?Result {
 
     var rhs = try p.expect(assignExpr);
 
-    var is_const: bool = undefined;
-    if (!p.tree.isLvalExtra(lhs.node, &is_const) or is_const) {
+    var extra: Tree.LvalExtra = undefined;
+    if (!p.tree.isLvalExtra(lhs.node, &extra) or extra.is_const) {
         try p.issueConstAssignmentDiagnostics(lhs.node, tok);
         lhs.qt = .invalid;
+    }
+
+    if (extra.block_capture_kind == .by_val) {
+        try p.err(tok, .variable_missing_block_type_spec, .{});
     }
 
     if (tag == .assign_expr) {
@@ -8685,10 +8800,14 @@ fn unExpr(p: *Parser) Error!?Result {
             if (!scalar_kind.isReal())
                 try p.err(p.tok_i, .complex_prefix_postfix_op, .{operand.qt});
 
-            if (!p.tree.isLval(operand.node) or operand.qt.@"const") {
+            var lval_extra: Tree.LvalExtra = undefined;
+            if (!p.tree.isLvalExtra(operand.node, &lval_extra) or lval_extra.is_const or operand.qt.@"const") {
                 try p.err(tok, .not_assignable, .{});
                 return error.ParsingFailed;
             }
+            if (lval_extra.block_capture_kind == .by_val)
+                try p.err(tok, .variable_missing_block_type_spec, .{});
+
             if (operand.qt.get(p.comp, .pointer)) |pointer| {
                 try p.checkPtrArithmeticAllowed(pointer, p.tok_i, operand.node);
             }
@@ -8716,10 +8835,14 @@ fn unExpr(p: *Parser) Error!?Result {
             if (!scalar_kind.isReal())
                 try p.err(p.tok_i, .complex_prefix_postfix_op, .{operand.qt});
 
-            if (!p.tree.isLval(operand.node) or operand.qt.@"const") {
+            var extra: Tree.LvalExtra = undefined;
+            if (!p.tree.isLvalExtra(operand.node, &extra) or extra.is_const or operand.qt.@"const") {
                 try p.err(tok, .not_assignable, .{});
                 return error.ParsingFailed;
             }
+            if (extra.block_capture_kind == .by_val)
+                try p.err(tok, .variable_missing_block_type_spec, .{});
+
             if (operand.qt.get(p.comp, .pointer)) |pointer| {
                 try p.checkPtrArithmeticAllowed(pointer, p.tok_i, operand.node);
             }
@@ -9063,10 +9186,14 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!?Result {
             if (!scalar_kind.isReal())
                 try p.err(p.tok_i, .complex_prefix_postfix_op, .{operand.qt});
 
-            if (!p.tree.isLval(operand.node) or operand.qt.@"const") {
+            var extra: Tree.LvalExtra = undefined;
+            if (!p.tree.isLvalExtra(operand.node, &extra) or extra.is_const or operand.qt.@"const") {
                 try p.err(p.tok_i, .not_assignable, .{});
                 return error.ParsingFailed;
             }
+            if (extra.block_capture_kind == .by_val)
+                try p.err(p.tok_i, .variable_missing_block_type_spec, .{});
+
             if (operand.qt.get(p.comp, .pointer)) |pointer| {
                 try p.checkPtrArithmeticAllowed(pointer, p.tok_i, operand.node);
             }
@@ -9087,10 +9214,14 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!?Result {
             if (!scalar_kind.isReal())
                 try p.err(p.tok_i, .complex_prefix_postfix_op, .{operand.qt});
 
-            if (!p.tree.isLval(operand.node) or operand.qt.@"const") {
+            var extra: Tree.LvalExtra = undefined;
+            if (!p.tree.isLvalExtra(operand.node, &extra) or extra.is_const or operand.qt.@"const") {
                 try p.err(p.tok_i, .not_assignable, .{});
                 return error.ParsingFailed;
             }
+            if (extra.block_capture_kind == .by_val)
+                try p.err(p.tok_i, .variable_missing_block_type_spec, .{});
+
             if (operand.qt.get(p.comp, .pointer)) |pointer| {
                 try p.checkPtrArithmeticAllowed(pointer, p.tok_i, operand.node);
             }
@@ -9434,7 +9565,7 @@ fn callExpr(p: *Parser, lhs: Result) Error!Result {
     // type_store.extra might get invalidated while parsing args.
     const func_qt, const typed_params_len, const func_kind_base = blk: {
         var base_qt = lhs.qt;
-        if (base_qt.get(p.comp, .pointer)) |pointer_ty| base_qt = pointer_ty.child;
+        if (base_qt.get(p.comp, .pointer)) |pointer_ty| base_qt = pointer_ty.child else if (base_qt.get(p.comp, .block)) |block_ty| base_qt = block_ty.func;
         if (base_qt.isInvalid()) break :blk .{ base_qt, std.math.maxInt(usize), undefined };
 
         const func_type_qt = base_qt.base(p.comp);
@@ -9669,6 +9800,71 @@ fn checkArrayBounds(p: *Parser, index: Result, array: Result, tok: TokenIndex) !
     }
 }
 
+/// blockLiteral: '^' typeSpec? paramDecls? compoundStmt
+fn blockLiteral(p: *Parser) Error!?Result {
+    const restore_block = p.block;
+    defer p.block = restore_block;
+
+    const caret = try p.expectToken(.caret);
+    if (!p.comp.langopts.blocks) try p.err(caret, .blocks_not_enabled, .{});
+    try p.err(caret, .blocks_are_clang_extension, .{});
+
+    p.block = .{ .caret = caret, .scope_depth = p.syms.active_len };
+    try p.syms.pushScope(p);
+    defer p.syms.popScope();
+
+    var maybe_ret_builder: TypeStore.Builder = .{ .parser = p };
+    if (try p.typeSpec(&maybe_ret_builder)) {
+        p.block.?.return_type = try maybe_ret_builder.finish();
+    }
+
+    const params: []const Type.Func.Param, const is_variadic: bool = if (p.eatToken(.l_paren)) |l_paren| params: {
+        const params = try p.paramDecls();
+        const is_variadic = p.eatToken(.ellipsis) != null;
+        try p.expectClosing(l_paren, .r_paren);
+        break :params .{ params orelse &.{}, is_variadic };
+    } else .{ &.{}, false };
+
+    for (params) |param| {
+        try p.syms.define(p.comp.gpa, .{
+            .kind = .def,
+            .name = param.name,
+            .tok = param.name_tok,
+            .qt = param.qt,
+            .val = .{},
+            .node = param.node,
+        });
+    }
+
+    var compound_stmt_state: StmtExprState = .{};
+    const body = try p.compoundStmt(true, &compound_stmt_state) orelse {
+        try p.err(p.tok_i, .missing_block_literal_body, .{});
+        try p.err(caret, .block_defined_here, .{});
+        unreachable;
+    };
+
+    const block_func_type = try p.comp.type_store.put(p.comp.gpa, .{ .func = .{
+        .return_type = p.block.?.return_type orelse .void,
+        .kind = if (is_variadic) .variadic else .normal,
+        .params = params,
+    } });
+    const block_type = try p.comp.type_store.put(p.comp.gpa, .{ .block = .{
+        .func = block_func_type,
+    } });
+
+    const node = try p.addNode(.{ .block_literal = .{
+        .caret = caret,
+        .body = body,
+        .qt = block_type,
+    } });
+
+    return .{
+        .node = node,
+        .qt = block_type,
+        .val = try .block(@intFromEnum(node), p.comp),
+    };
+}
+
 /// primaryExpr
 ///  : IDENTIFIER
 ///  | keyword_true
@@ -9687,6 +9883,7 @@ fn checkArrayBounds(p: *Parser, index: Result, array: Result, tok: TokenIndex) !
 ///  | chooseExpr
 ///  | vaStart
 ///  | offsetof
+///  | blockLiteral
 fn primaryExpr(p: *Parser) Error!?Result {
     if (p.eatToken(.l_paren)) |l_paren| {
         var grouped_expr = try p.expect(expr);
@@ -9706,30 +9903,50 @@ fn primaryExpr(p: *Parser) Error!?Result {
                 return error.ParsingFailed;
             }
 
-            if (p.syms.findSymbol(interned_name)) |sym| {
-                if (sym.kind == .typedef) {
+            if (p.syms.findSymbol(interned_name)) |lookup| {
+                if (lookup.symbol.kind == .typedef) {
                     try p.err(name_tok, .unexpected_type_name, .{name});
                     return error.ParsingFailed;
                 }
-                if (sym.out_of_scope) {
+                if (lookup.symbol.out_of_scope) {
                     try p.err(name_tok, .out_of_scope_use, .{name});
-                    try p.err(sym.tok, .previous_definition, .{});
+                    try p.err(lookup.symbol.tok, .previous_definition, .{});
                 }
-                try p.checkDeprecatedUnavailable(sym.qt, name_tok, sym.tok);
-                if (sym.kind == .constexpr) {
+                try p.checkDeprecatedUnavailable(lookup.symbol.qt, name_tok, lookup.symbol.tok);
+                if (p.block) |block| {
+                    const is_capturable = switch (lookup.symbol.kind) {
+                        .decl, .def => true,
+                        else => false,
+                    };
+                    if (is_capturable and lookup.depth > 0 and lookup.depth < block.scope_depth) {
+                        return .{
+                            .val = lookup.symbol.val,
+                            .qt = lookup.symbol.qt,
+                            .node = try p.addNode(.{
+                                .block_capture_ref_expr = .{
+                                    .name_tok = name_tok,
+                                    .qt = lookup.symbol.qt,
+                                    .decl = lookup.symbol.node.unpack().?,
+                                },
+                            }),
+                        };
+                    }
+                }
+
+                if (lookup.symbol.kind == .constexpr) {
                     return .{
-                        .val = sym.val,
-                        .qt = sym.qt,
+                        .val = lookup.symbol.val,
+                        .qt = lookup.symbol.qt,
                         .node = try p.addNode(.{
                             .decl_ref_expr = .{
                                 .name_tok = name_tok,
-                                .qt = sym.qt,
-                                .decl = sym.node.unpack().?,
+                                .qt = lookup.symbol.qt,
+                                .decl = lookup.symbol.node.unpack().?,
                             },
                         }),
                     };
                 }
-                if (sym.val.is(.int, p.comp)) {
+                if (lookup.symbol.val.is(.int, p.comp)) {
                     switch (p.const_decl_folding) {
                         .gnu_folding_extension => try p.err(name_tok, .const_decl_folded, .{}),
                         .gnu_vla_folding_extension => try p.err(name_tok, .const_decl_folded_vla, .{}),
@@ -9737,22 +9954,22 @@ fn primaryExpr(p: *Parser) Error!?Result {
                     }
                 }
 
-                const node = try p.addNode(if (sym.kind == .enumeration)
+                const node = try p.addNode(if (lookup.symbol.kind == .enumeration)
                     .{ .enumeration_ref = .{
                         .name_tok = name_tok,
-                        .qt = sym.qt,
-                        .decl = sym.node.unpack().?,
+                        .qt = lookup.symbol.qt,
+                        .decl = lookup.symbol.node.unpack().?,
                     } }
                 else
                     .{ .decl_ref_expr = .{
                         .name_tok = name_tok,
-                        .qt = sym.qt,
-                        .decl = sym.node.unpack().?,
+                        .qt = lookup.symbol.qt,
+                        .decl = lookup.symbol.node.unpack().?,
                     } });
 
                 const res: Result = .{
-                    .val = if (p.const_decl_folding == .no_const_decl_folding and sym.kind != .enumeration) Value{} else sym.val,
-                    .qt = sym.qt,
+                    .val = if (p.const_decl_folding == .no_const_decl_folding and lookup.symbol.kind != .enumeration) Value{} else lookup.symbol.val,
+                    .qt = lookup.symbol.qt,
                     .node = node,
                 };
                 try res.putValue(p);
@@ -10008,6 +10225,7 @@ fn primaryExpr(p: *Parser) Error!?Result {
             return res;
         },
         .keyword_generic => return p.genericSelection(),
+        .caret => return p.blockLiteral(),
         else => return null,
     }
 }

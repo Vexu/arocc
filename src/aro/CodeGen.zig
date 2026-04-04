@@ -150,6 +150,7 @@ fn genType(c: *CodeGen, qt: QualType) !Interner.Ref {
         },
         .pointer => return .ptr,
         .func => return .func,
+        .block => return c.fail("TODO lower blocks", .{}),
         .complex => return c.fail("TODO lower complex types", .{}),
         .atomic => return c.fail("TODO lower atomic types", .{}),
         .@"enum" => |@"enum"| return c.genType(@"enum".tag.?),
