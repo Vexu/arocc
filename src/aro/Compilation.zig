@@ -448,7 +448,8 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
                 }
             } else {
                 try defineStd(w, "i386", is_gnu);
-                try defineStd(w, "X86", is_gnu);
+                try defineStd(w, "x86", is_gnu);
+                try define(w, "_X86_");
 
                 if (target.os.tag == .windows and target.abi == .msvc) {
                     try w.print("#define _M_IX86 {d}\n", .{blk: {
