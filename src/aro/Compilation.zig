@@ -376,7 +376,19 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
         => {
             try define(w, "__APPLE__");
             try w.writeAll("#define __APPLE_CC__ 6000\n");
+            try define(w, "TARGET_OS_MAC");
 
+            const target_str = switch (target.os.tag) {
+                .maccatalyst => "TARGET_OS_MACCATALYST",
+                .macos => "TARGET_OS_OSX",
+                .tvos => "TARGET_OS_TV",
+                .ios => "TARGET_OS_IOS",
+                .driverkit => "TARGET_OS_DRIVERKIT",
+                .visionos => "TARGET_OS_VISION",
+                .watchos => "TARGET_OS_WATCH",
+                else => unreachable,
+            };
+            try define(w, target_str);
             const version = target.os.version_range.semver.min;
             var version_buf: [8]u8 = undefined;
             const version_str = if (target.os.tag == .macos and version.order(.{ .major = 10, .minor = 10, .patch = 0 }) == .lt)
@@ -445,6 +457,9 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
                         \\#define _M_AMD64 100
                         \\
                     );
+                }
+                if (target.vendor == .apple) {
+                    try define(w, "TARGET_CPU_X86_64");
                 }
             } else {
                 try defineStd(w, "i386", is_gnu);
@@ -700,6 +715,9 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
                     try define(w, "__ARM_BIG_ENDIAN");
                 },
                 else => unreachable,
+            }
+            if (target.vendor == .apple) {
+                try define(w, "TARGET_CPU_ARM64");
             }
             if (target.os.tag.isDarwin()) {
                 try define(w, "__AARCH64_SIMD__");
