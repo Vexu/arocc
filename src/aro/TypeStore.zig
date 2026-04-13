@@ -2857,7 +2857,10 @@ pub const Builder = struct {
         }
 
         // We can't use `qt.isPointer()` because `qt` might contain a `.declarator_combine`.
-        const is_pointer = qt.isAutoType() or qt.isC23Auto() or qt.base(b.parser.comp).type == .pointer;
+        const is_pointer = qt.isAutoType() or qt.isC23Auto() or switch (qt.base(b.parser.comp).type) {
+            .array, .pointer => true,
+            else => false,
+        };
 
         if (b.unaligned != null and !is_pointer) {
             result_qt = (try b.parser.comp.type_store.put(gpa, .{ .attributed = .{
