@@ -44,3 +44,6 @@ struct_decl: 'struct __sFILE'
 typedef: 'struct __sFILE'
  name: FILE
 
+function: 'fn (attributed(decayed *[2]int)) void'
+ name: f
+

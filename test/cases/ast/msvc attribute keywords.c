@@ -27,7 +27,7 @@ function: 'attributed(kr (...) *int)'
  attr: calling_convention cc: stdcall
  name: bar
 
-function: 'fn (decayed *[]attributed(int), decayed *attributed([]int)) int'
+function: 'fn (decayed *[]attributed(int), decayed *[]int) int'
  name: baz
 
 function: 'fn (fn_ptr: *fn () void) void'
