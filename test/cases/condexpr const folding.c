@@ -14,7 +14,10 @@ const int qux = 1;
 _Static_assert(__builtin_constant_p(qux) ? qux : 0, "");
 _Static_assert(__builtin_constant_p(qux) ? qux : 1, "");
 
-_Static_assert(__builtin_constant_p(1) ? : 1, "");
+_Static_assert(__builtin_constant_p(1) ? : 0, "");
+_Static_assert(!__builtin_constant_p(1) ? : 1, "");
+_Static_assert(__builtin_constant_p(foo) ? : 1, "");
+_Static_assert(!__builtin_constant_p(foo) ? : 0, "");
 
 /** manifest:
 syntax
