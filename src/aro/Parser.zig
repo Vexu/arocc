@@ -7660,6 +7660,9 @@ fn condExpr(p: *Parser) Error!?Result {
     if (p.eatToken(.question_mark) == null) return cond;
     try cond.lvalConversion(p, cond_tok);
     const saved_eval = p.no_eval;
+    const cond_known = cond.val.opt_ref != .none;
+    const cond_true = cond_known and cond.val.toBool(p.comp);
+    const cond_false = cond_known and !cond.val.toBool(p.comp);
 
     if (cond.qt.scalarKind(p.comp) == .none) {
         try p.err(cond_tok, .cond_expr_type, .{cond.qt});
@@ -7669,15 +7672,13 @@ fn condExpr(p: *Parser) Error!?Result {
     // Prepare for possible binary conditional expression.
     const maybe_colon = p.eatToken(.colon);
 
-    // Depending on the value of the condition, avoid evaluating unreachable branches.
-    var then_expr = blk: {
-        defer p.no_eval = saved_eval;
-        if (cond.val.opt_ref != .none and !cond.val.toBool(p.comp)) p.no_eval = true;
-        break :blk try p.expect(expr);
-    };
-
     // If we saw a colon then this is a binary conditional expression.
     if (maybe_colon) |colon| {
+        var else_expr = blk: {
+            defer p.no_eval = saved_eval;
+            if (cond_true) p.no_eval = true;
+            break :blk try p.expect(condExpr);
+        };
         var cond_then = cond;
         cond_then.node = try p.addNode(.{
             .cond_dummy_expr = .{
@@ -7686,31 +7687,47 @@ fn condExpr(p: *Parser) Error!?Result {
                 .qt = cond.qt,
             },
         });
-        _ = try cond_then.adjustTypes(colon, &then_expr, p, .conditional);
-        cond.qt = then_expr.qt;
+        p.no_eval = p.no_eval or cond_known;
+        _ = try cond_then.adjustTypes(colon, &else_expr, p, .conditional);
+        p.no_eval = saved_eval;
+        if (cond_known) {
+            cond.val = if (cond_true) cond_then.val else else_expr.val;
+            try cond.putValue(p);
+        }
+        cond.qt = else_expr.qt;
         cond.node = try p.addNode(.{
             .binary_cond_expr = .{
                 .cond_tok = cond_tok,
                 .cond = cond.node,
                 .then_expr = cond_then.node,
-                .else_expr = then_expr.node,
+                .else_expr = else_expr.node,
                 .qt = cond.qt,
             },
         });
         return cond;
     }
 
+    // Depending on the value of the condition, avoid evaluating unreachable branches.
+    var then_expr = blk: {
+        defer p.no_eval = saved_eval;
+        if (cond_false) p.no_eval = true;
+        break :blk try p.expect(expr);
+    };
+
     const colon = try p.expectToken(.colon);
     var else_expr = blk: {
         defer p.no_eval = saved_eval;
-        if (cond.val.opt_ref != .none and cond.val.toBool(p.comp)) p.no_eval = true;
+        if (cond_true) p.no_eval = true;
         break :blk try p.expect(condExpr);
     };
 
+    p.no_eval = p.no_eval or cond_known;
     _ = try then_expr.adjustTypes(colon, &else_expr, p, .conditional);
+    p.no_eval = saved_eval;
 
-    if (cond.val.opt_ref != .none) {
-        cond.val = if (cond.val.toBool(p.comp)) then_expr.val else else_expr.val;
+    if (cond_known) {
+        cond.val = if (cond_true) then_expr.val else else_expr.val;
+        try cond.putValue(p);
     } else {
         try then_expr.saveValue(p);
         try else_expr.saveValue(p);
