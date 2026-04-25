@@ -317,6 +317,8 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
                 if (ptr_width == 64) {
                     try defineStd(w, "WIN64", is_gnu);
                     try define(w, "__MINGW64__");
+                } else {
+                    try define(w, "_X86_");
                 }
                 try define(w, "__MSVCRT__");
                 try define(w, "__MINGW32__");
