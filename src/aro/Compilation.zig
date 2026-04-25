@@ -317,6 +317,8 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
                 if (ptr_width == 64) {
                     try defineStd(w, "WIN64", is_gnu);
                     try define(w, "__MINGW64__");
+                } else {
+                    try define(w, "_X86_");
                 }
                 try define(w, "__MSVCRT__");
                 try define(w, "__MINGW32__");
@@ -448,7 +450,6 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
                 }
             } else {
                 try defineStd(w, "i386", is_gnu);
-                try define(w, "_X86_");
 
                 if (target.os.tag == .windows and target.abi == .msvc) {
                     try w.print("#define _M_IX86 {d}\n", .{blk: {
