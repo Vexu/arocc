@@ -1763,8 +1763,9 @@ fn addToSearchPath(comp: *Compilation, include: Include, verbose: bool) !void {
     try comp.search_path.append(comp.gpa, include);
 }
 fn removeDuplicateSearchPaths(comp: *Compilation, start: usize, verbose: bool) !void {
-    var sf = std.heap.stackFallback(1024, comp.gpa);
-    const allocator = sf.get();
+    var bfa_buf: [1024]u8 = undefined;
+    var bfa: std.heap.BufferFirstAllocator = .init(&bfa_buf, comp.gpa);
+    const allocator = bfa.allocator();
     var seen_includes: std.StringHashMapUnmanaged(void) = .empty;
     defer seen_includes.deinit(allocator);
     var seen_frameworks: std.StringHashMapUnmanaged(void) = .empty;
@@ -1978,10 +1979,11 @@ const FindInclude = struct {
     ) Allocator.Error!?Result {
         const comp = find.comp;
 
-        var stack_fallback = std.heap.stackFallback(path_buf_stack_limit, comp.gpa);
-        const sfa = stack_fallback.get();
-        const header_path = try std.fmt.allocPrint(sfa, format, args);
-        defer sfa.free(header_path);
+        var bfa_buf: [path_buf_stack_limit]u8 = undefined;
+        var bfa_state: std.heap.BufferFirstAllocator = .init(&bfa_buf, comp.gpa);
+        const bfa = bfa_state.allocator();
+        const header_path = try std.fmt.allocPrint(bfa, format, args);
+        defer bfa.free(header_path);
         find.comp.normalizePath(header_path);
 
         const source = comp.addSourceFromPathExtra(header_path, kind) catch |err| switch (err) {
@@ -2070,14 +2072,15 @@ pub fn findEmbed(
         }
     }
 
-    var stack_fallback = std.heap.stackFallback(path_buf_stack_limit, comp.gpa);
-    const sf_allocator = stack_fallback.get();
+    var bfa_buf: [path_buf_stack_limit]u8 = undefined;
+    var bfa_state: std.heap.BufferFirstAllocator = .init(&bfa_buf, comp.gpa);
+    const bfa = bfa_state.allocator();
 
     switch (include_type) {
         .quotes, .cli => {
             const dir = std.fs.path.dirname(comp.getSource(includer_token_source).path) orelse ".";
-            const path = try std.fs.path.join(sf_allocator, &.{ dir, filename });
-            defer sf_allocator.free(path);
+            const path = try std.fs.path.join(bfa, &.{ dir, filename });
+            defer bfa.free(path);
             comp.normalizePath(path);
             if (comp.getPathContents(path, limit)) |some| {
                 errdefer comp.gpa.free(some);
@@ -2091,8 +2094,8 @@ pub fn findEmbed(
         .angle_brackets => {},
     }
     for (comp.embed_dirs.items) |embed_dir| {
-        const path = try std.fs.path.join(sf_allocator, &.{ embed_dir, filename });
-        defer sf_allocator.free(path);
+        const path = try std.fs.path.join(bfa, &.{ embed_dir, filename });
+        defer bfa.free(path);
         comp.normalizePath(path);
         if (comp.getPathContents(path, limit)) |some| {
             errdefer comp.gpa.free(some);
