@@ -1023,8 +1023,9 @@ fn err(pp: *Preprocessor, loc: anytype, diagnostic: Diagnostic, args: anytype) C
     defer pp.diagnostics.state.suppress_system_headers = old_suppress_system;
     if (diagnostic.show_in_system_headers) pp.diagnostics.state.suppress_system_headers = false;
 
-    var sf = std.heap.stackFallback(1024, pp.comp.gpa);
-    var allocating: std.Io.Writer.Allocating = .init(sf.get());
+    var bfa_buf: [1024]u8 = undefined;
+    var bfa: std.heap.BufferFirstAllocator = .init(&bfa_buf, pp.comp.gpa);
+    var allocating: std.Io.Writer.Allocating = .init(bfa.allocator());
     defer allocating.deinit();
 
     Diagnostics.formatArgs(&allocating.writer, diagnostic.fmt, args) catch return error.OutOfMemory;
@@ -1052,8 +1053,9 @@ fn err(pp: *Preprocessor, loc: anytype, diagnostic: Diagnostic, args: anytype) C
 }
 
 fn fatal(pp: *Preprocessor, raw: RawToken, comptime fmt: []const u8, args: anytype) Compilation.Error {
-    var sf = std.heap.stackFallback(1024, pp.comp.gpa);
-    var allocating: std.Io.Writer.Allocating = .init(sf.get());
+    var bfa_buf: [1024]u8 = undefined;
+    var bfa: std.heap.BufferFirstAllocator = .init(&bfa_buf, pp.comp.gpa);
+    var allocating: std.Io.Writer.Allocating = .init(bfa.allocator());
     defer allocating.deinit();
 
     Diagnostics.formatArgs(&allocating.writer, fmt, args) catch return error.OutOfMemory;
@@ -1074,8 +1076,9 @@ fn fatalNotFound(pp: *Preprocessor, tok: TokenWithExpansionLocs, filename: []con
     pp.diagnostics.state.fatal_errors = true;
     defer pp.diagnostics.state.fatal_errors = old;
 
-    var sf = std.heap.stackFallback(1024, pp.comp.gpa);
-    const allocator = sf.get();
+    var bfa_buf: [1024]u8 = undefined;
+    var bfa: std.heap.BufferFirstAllocator = .init(&bfa_buf, pp.comp.gpa);
+    const allocator = bfa.allocator();
     var buf: std.ArrayList(u8) = .empty;
     defer buf.deinit(allocator);
 
