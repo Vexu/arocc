@@ -849,7 +849,9 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!TokenWithExpans
                     .keyword_pragma => {
                         var expand_buf: ExpandBuf = .empty;
                         defer expand_buf.deinit(pp.comp.gpa);
-                        try pp.pragma(&tokenizer, directive, &expand_buf);
+                        var expanded_tok = tokFromRaw(directive);
+                        expanded_tok.flags.pragma_operator_result = true;
+                        try pp.pragma(&tokenizer, expanded_tok, &expand_buf);
 
                         try pp.addTokensFromExpandBuf(expand_buf.items, .{ .id = .nl, .loc = .{
                             .id = tokenizer.source,
@@ -1651,7 +1653,9 @@ fn pragmaOperator(pp: *Preprocessor, arg_tok: TokenWithExpansionLocs, buf: *Expa
     assert(hash_tok.id == .hash);
     const pragma_tok = tmp_tokenizer.next();
     assert(pragma_tok.id == .keyword_pragma);
-    try pp.pragma(&tmp_tokenizer, pragma_tok, buf);
+    var expanded_pragma_tok = tokFromRaw(pragma_tok);
+    expanded_pragma_tok.flags.pragma_operator_result = true;
+    try pp.pragma(&tmp_tokenizer, expanded_pragma_tok, buf);
 }
 
 /// Handle Microsoft __pragma operator
@@ -2872,12 +2876,10 @@ fn addTokensFromExpandBuf(pp: *Preprocessor, tokens: []TokenWithExpansionLocs, t
             TokenWithExpansionLocs.free(tok.expansion_locs, gpa);
             continue;
         }
-        if (tok.id == .keyword_pragma) {
+        if (tok.id == .keyword_pragma and tok.flags.pragma_operator_result) {
             const pragma_start: Tree.TokenIndex = @intCast(pp.tokens.len);
             pp.addTokenAssumeCapacity(try pp.unescapeUcn(tok.*));
-            if (i + 1 < tokens.len) {
-                try pragma_locs.append(gpa, .{ .name_tok = tokens[i + 1], .start = pragma_start });
-            }
+            try pragma_locs.append(gpa, .{ .name_tok = tokens[i + 1], .start = pragma_start });
             continue;
         }
         tok.id.simplifyMacroKeywordExtra(true);
@@ -3607,10 +3609,10 @@ pub fn ensureUnusedTokenCapacity(pp: *Preprocessor, capacity: usize) !void {
 }
 
 /// Handle a pragma directive
-fn pragma(pp: *Preprocessor, tokenizer: *Tokenizer, pragma_tok: RawToken, expand_buf: *ExpandBuf) !void {
+fn pragma(pp: *Preprocessor, tokenizer: *Tokenizer, pragma_tok: TokenWithExpansionLocs, expand_buf: *ExpandBuf) !void {
     const name_tok = tokFromRaw(tokenizer.nextNoWS());
     if (name_tok.id == .nl or name_tok.id == .eof) return;
-    try expand_buf.appendSlice(pp.comp.gpa, &.{ tokFromRaw(pragma_tok), name_tok });
+    try expand_buf.appendSlice(pp.comp.gpa, &.{ pragma_tok, name_tok });
 
     const name = pp.expandedSlice(name_tok);
     const prag: *const Pragma = pp.comp.getPragma(name) orelse &.do_nothing;
