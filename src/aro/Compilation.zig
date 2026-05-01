@@ -317,6 +317,8 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
                 if (ptr_width == 64) {
                     try defineStd(w, "WIN64", is_gnu);
                     try define(w, "__MINGW64__");
+                } else {
+                    try define(w, "_X86_");
                 }
                 try define(w, "__MSVCRT__");
                 try define(w, "__MINGW32__");
@@ -1761,8 +1763,9 @@ fn addToSearchPath(comp: *Compilation, include: Include, verbose: bool) !void {
     try comp.search_path.append(comp.gpa, include);
 }
 fn removeDuplicateSearchPaths(comp: *Compilation, start: usize, verbose: bool) !void {
-    var sf = std.heap.stackFallback(1024, comp.gpa);
-    const allocator = sf.get();
+    var bfa_buf: [1024]u8 = undefined;
+    var bfa: std.heap.BufferFirstAllocator = .init(&bfa_buf, comp.gpa);
+    const allocator = bfa.allocator();
     var seen_includes: std.StringHashMapUnmanaged(void) = .empty;
     defer seen_includes.deinit(allocator);
     var seen_frameworks: std.StringHashMapUnmanaged(void) = .empty;
@@ -1882,7 +1885,7 @@ const FindInclude = struct {
                 .allow_same_dir, .only_search => {},
                 .only_search_after_dir => return null,
             }
-            return find.check("{s}", .{include_path}, .user, false);
+            return find.check(&.{include_path}, .user, false);
         }
 
         switch (search_strat) {
@@ -1919,68 +1922,56 @@ const FindInclude = struct {
         return null;
     }
     fn checkIncludeDir(find: *FindInclude, include_dir: []const u8, kind: Source.Kind) Allocator.Error!?Result {
-        if (find.wait_for) |wait_for| {
-            if (std.mem.eql(u8, include_dir, wait_for)) find.wait_for = null;
-            return null;
-        }
-        return find.check("{s}{c}{s}", .{
+        return find.check(&.{
             include_dir,
-            std.fs.path.sep,
             find.include_path,
         }, kind, false);
     }
     fn checkMsCwdIncludeDir(find: *FindInclude, source_id: Source.Id) Allocator.Error!?Result {
         const path = find.comp.getSource(source_id).path;
         const dir = std.fs.path.dirname(path) orelse ".";
-        if (find.wait_for) |wait_for| {
-            if (std.mem.eql(u8, dir, wait_for)) find.wait_for = null;
-            return null;
-        }
-        return find.check("{s}{c}{s}", .{
+        return find.check(&.{
             dir,
-            std.fs.path.sep,
             find.include_path,
         }, .user, true);
     }
     fn checkFrameworkDir(find: *FindInclude, framework_dir: []const u8, kind: Source.Kind) Allocator.Error!?Result {
-        if (find.wait_for) |wait_for| {
-            match: {
-                // If this is a match, then `wait_for` looks like '.../Foo.framework/Headers'.
-                const wait_framework = std.fs.path.dirname(wait_for) orelse break :match;
-                const wait_framework_dir = std.fs.path.dirname(wait_framework) orelse break :match;
-                if (!std.mem.eql(u8, framework_dir, wait_framework_dir)) break :match;
-                find.wait_for = null;
-            }
-            return null;
-        }
         // For an include like 'Foo/Bar.h', search in '<framework_dir>/Foo.framework/Headers/Bar.h'.
         const framework_name: []const u8, const header_sub_path: []const u8 = f: {
             const i = std.mem.indexOfScalar(u8, find.include_path, '/') orelse return null;
             break :f .{ find.include_path[0..i], find.include_path[i + 1 ..] };
         };
-        return find.check("{s}{c}{s}.framework{c}Headers{c}{s}", .{
+        var bfa_buf: [path_buf_stack_limit]u8 = undefined;
+        var bfa_state: std.heap.BufferFirstAllocator = .init(&bfa_buf, find.comp.gpa);
+        const bfa = bfa_state.allocator();
+        const framework_lookup = try std.fmt.allocPrint(bfa, "{s}.framework", .{framework_name});
+        defer bfa.free(framework_lookup);
+        return find.check(&.{
             framework_dir,
-            std.fs.path.sep,
-            framework_name,
-            std.fs.path.sep,
-            std.fs.path.sep,
+            framework_lookup,
+            "Headers",
             header_sub_path,
         }, kind, false);
     }
     fn check(
         find: *FindInclude,
-        comptime format: []const u8,
-        args: anytype,
+        paths: []const []const u8,
         kind: Source.Kind,
         used_ms_search_rule: bool,
     ) Allocator.Error!?Result {
         const comp = find.comp;
 
-        var stack_fallback = std.heap.stackFallback(path_buf_stack_limit, comp.gpa);
-        const sfa = stack_fallback.get();
-        const header_path = try std.fmt.allocPrint(sfa, format, args);
-        defer sfa.free(header_path);
+        var bfa_buf: [path_buf_stack_limit]u8 = undefined;
+        var bfa_state: std.heap.BufferFirstAllocator = .init(&bfa_buf, comp.gpa);
+        const bfa = bfa_state.allocator();
+        const header_path = try std.fs.path.resolve(bfa, paths);
+        defer bfa.free(header_path);
         find.comp.normalizePath(header_path);
+
+        if (find.wait_for) |wait_for| if (std.fs.path.dirname(header_path)) |header_dir| {
+            if (std.mem.eql(u8, header_dir, wait_for)) find.wait_for = null;
+            return null;
+        };
 
         const source = comp.addSourceFromPathExtra(header_path, kind) catch |err| switch (err) {
             error.OutOfMemory => |e| return e,
@@ -2068,14 +2059,15 @@ pub fn findEmbed(
         }
     }
 
-    var stack_fallback = std.heap.stackFallback(path_buf_stack_limit, comp.gpa);
-    const sf_allocator = stack_fallback.get();
+    var bfa_buf: [path_buf_stack_limit]u8 = undefined;
+    var bfa_state: std.heap.BufferFirstAllocator = .init(&bfa_buf, comp.gpa);
+    const bfa = bfa_state.allocator();
 
     switch (include_type) {
         .quotes, .cli => {
             const dir = std.fs.path.dirname(comp.getSource(includer_token_source).path) orelse ".";
-            const path = try std.fs.path.join(sf_allocator, &.{ dir, filename });
-            defer sf_allocator.free(path);
+            const path = try std.fs.path.join(bfa, &.{ dir, filename });
+            defer bfa.free(path);
             comp.normalizePath(path);
             if (comp.getPathContents(path, limit)) |some| {
                 errdefer comp.gpa.free(some);
@@ -2089,8 +2081,8 @@ pub fn findEmbed(
         .angle_brackets => {},
     }
     for (comp.embed_dirs.items) |embed_dir| {
-        const path = try std.fs.path.join(sf_allocator, &.{ embed_dir, filename });
-        defer sf_allocator.free(path);
+        const path = try std.fs.path.join(bfa, &.{ embed_dir, filename });
+        defer bfa.free(path);
         comp.normalizePath(path);
         if (comp.getPathContents(path, limit)) |some| {
             errdefer comp.gpa.free(some);

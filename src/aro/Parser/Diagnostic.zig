@@ -2541,6 +2541,17 @@ pub const multiple_bounds_annotations: Diagnostic = .{
     .kind = .@"error",
 };
 
+pub const attribute_already_applied: Diagnostic = .{
+    .fmt = "attribute '{s}' is already applied",
+    .kind = .warning,
+    .opt = .@"ignored-attributes",
+};
+
+pub const msvc_ptr_not_compatible: Diagnostic = .{
+    .fmt = "'__{s}' and '__{s}' attributes are not compatible",
+    .kind = .@"error",
+};
+
 pub const blocks_not_enabled: Diagnostic = .{
     .fmt = "blocks are not enabled",
     .kind = .@"error",

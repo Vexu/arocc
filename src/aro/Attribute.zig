@@ -714,6 +714,30 @@ const attributes = struct {
     pub const thiscall = struct {};
     pub const sysv_abi = struct {};
     pub const ms_abi = struct {};
+    pub const msvc_ptr = struct {
+        const UsageTracker = std.enums.EnumSet(PtrKind);
+        const PtrKind = enum {
+            ptr64,
+            ptr32,
+            sptr,
+            uptr,
+
+            const opts = struct {
+                const enum_kind = .identifier;
+            };
+
+            /// Returns the attribute that cannot be combined with the given one
+            fn incompatible(self: PtrKind) PtrKind {
+                return switch (self) {
+                    .ptr64 => .ptr32,
+                    .ptr32 => .ptr64,
+                    .sptr => .uptr,
+                    .uptr => .sptr,
+                };
+            }
+        };
+        kind: PtrKind,
+    };
     // TODO cannot be combined with weak or selectany
     pub const internal_linkage = struct {};
     pub const availability = struct {};
@@ -800,6 +824,7 @@ pub fn applyVariableAttributes(p: *Parser, qt: QualType, attr_buf_start: usize, 
     var base_qt = qt;
     var common = false;
     var nocommon = false;
+    var msvc_ptr_attrs_seen: attributes.msvc_ptr.UsageTracker = .initEmpty();
     for (attrs, toks) |attr, tok| switch (attr.tag) {
         // zig fmt: off
         .alias, .may_alias, .deprecated, .unavailable, .unused, .warn_if_not_aligned, .weak, .used,
@@ -862,6 +887,8 @@ pub fn applyVariableAttributes(p: *Parser, qt: QualType, attr_buf_start: usize, 
         .ms_abi,
         => try applyGnuAttrCallingConvention(attr, p, tok, base_qt),
 
+        .msvc_ptr => try applyMSVCPtr(attr, p, tok, base_qt, &msvc_ptr_attrs_seen),
+
         .alloc_size,
         .copy,
         .tls_model,
@@ -898,6 +925,7 @@ pub fn applyTypeAttributes(p: *Parser, qt: QualType, attr_buf_start: usize, diag
     const seens = p.attr_buf.items(.seen)[attr_buf_start..];
     p.attr_application_buf.items.len = 0;
     var base_qt = qt;
+    var msvc_ptr_attrs_seen: attributes.msvc_ptr.UsageTracker = .initEmpty();
     for (attrs, toks, seens) |attr, tok, seen| {
         if (seen) continue;
 
@@ -933,6 +961,8 @@ pub fn applyTypeAttributes(p: *Parser, qt: QualType, attr_buf_start: usize, diag
             .single,
             .unsafe_indexable,
             => try applyBoundsSafetyAttr(.fromTag(attr.tag), p, tok, &base_qt),
+
+            .msvc_ptr => try applyMSVCPtr(attr, p, tok, base_qt, &msvc_ptr_attrs_seen),
 
             .alloc_size,
             .copy,
@@ -1333,6 +1363,22 @@ fn applyBoundsSafetyAttr(bounds: Type.Pointer.Bounds, p: *Parser, tok: TokenInde
         .decayed = pointer.decayed,
         .bounds = bounds,
     } });
+}
+
+fn applyMSVCPtr(attr: Attribute, p: *Parser, tok: TokenIndex, qt: QualType, tracker: *attributes.msvc_ptr.UsageTracker) !void {
+    if (!qt.isPointer(p.comp)) {
+        return p.err(tok, .attribute_requires_pointer, .{p.tokSlice(tok)});
+    }
+    defer tracker.insert(attr.args.msvc_ptr.kind);
+
+    if (tracker.contains(attr.args.msvc_ptr.kind)) {
+        return p.err(tok, .attribute_already_applied, .{p.tokSlice(tok)});
+    }
+    const incompatible = attr.args.msvc_ptr.kind.incompatible();
+    if (tracker.contains(incompatible)) {
+        return p.err(tok, .msvc_ptr_not_compatible, .{ @tagName(incompatible), @tagName(attr.args.msvc_ptr.kind) });
+    }
+    try p.attr_application_buf.append(p.comp.gpa, attr);
 }
 
 /// These come from explicit MSVC keywords like __stdcall, __fastcall, etc

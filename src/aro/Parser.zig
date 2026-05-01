@@ -215,8 +215,9 @@ fn checkIdentifierCodepointWarnings(p: *Parser, codepoint: u21, loc: Source.Loca
     assert(codepoint >= 0x80);
 
     const prev_total = p.diagnostics.total;
-    var sf = std.heap.stackFallback(1024, p.comp.gpa);
-    var allocating: std.Io.Writer.Allocating = .init(sf.get());
+    var bfa_buf: [1024]u8 = undefined;
+    var bfa: std.heap.BufferFirstAllocator = .init(&bfa_buf, p.comp.gpa);
+    var allocating: std.Io.Writer.Allocating = .init(bfa.allocator());
     defer allocating.deinit();
 
     if (!char_info.isC99IdChar(codepoint)) {
@@ -429,8 +430,9 @@ pub fn err(p: *Parser, tok_i: TokenIndex, diagnostic: Diagnostic, args: anytype)
     if (diagnostic.suppress_unless_version) |some| if (!p.comp.langopts.standard.atLeast(some)) return;
     if (p.diagnostics.effectiveKind(diagnostic) == .off) return;
 
-    var sf = std.heap.stackFallback(1024, p.comp.gpa);
-    var allocating: std.Io.Writer.Allocating = .init(sf.get());
+    var bfa_buf: [1024]u8 = undefined;
+    var bfa: std.heap.BufferFirstAllocator = .init(&bfa_buf, p.comp.gpa);
+    var allocating: std.Io.Writer.Allocating = .init(bfa.allocator());
     defer allocating.deinit();
 
     p.formatArgs(&allocating.writer, diagnostic.fmt, args) catch return error.OutOfMemory;
@@ -1537,8 +1539,9 @@ fn staticAssert(p: *Parser) Error!bool {
         }
     } else {
         if (!res.val.toBool(p.comp)) {
-            var sf = std.heap.stackFallback(1024, gpa);
-            var allocating: std.Io.Writer.Allocating = .init(sf.get());
+            var bfa_buf: [1024]u8 = undefined;
+            var bfa: std.heap.BufferFirstAllocator = .init(&bfa_buf, gpa);
+            var allocating: std.Io.Writer.Allocating = .init(bfa.allocator());
             defer allocating.deinit();
 
             if (p.staticAssertMessage(res_node, str, &allocating) catch return error.OutOfMemory) |message| {
@@ -3435,6 +3438,25 @@ fn msTypeAttribute(p: *Parser) !bool {
                 any = true;
                 p.tok_i += 1;
             },
+            .keyword_ptr64,
+            .keyword_ptr32,
+            .keyword_sptr,
+            .keyword_uptr,
+            => |kw| {
+                try p.err(p.tok_i, .extension_token_used, .{});
+                try p.attr_buf.append(p.comp.gpa, .{
+                    .attr = .{ .tag = .msvc_ptr, .args = .{ .msvc_ptr = .{ .kind = switch (kw) {
+                        .keyword_ptr64 => .ptr64,
+                        .keyword_ptr32 => .ptr32,
+                        .keyword_sptr => .sptr,
+                        .keyword_uptr => .uptr,
+                        else => unreachable,
+                    } } }, .syntax = .keyword },
+                    .tok = p.tok_i,
+                });
+                any = true;
+                p.tok_i += 1;
+            },
             else => break,
         }
     }
@@ -4868,8 +4890,9 @@ fn gnuAsmStmt(p: *Parser, quals: Tree.GNUAssemblyQualifiers, asm_tok: TokenIndex
     const expected_items = 8; // arbitrarily chosen, most assembly will have fewer than 8 inputs/outputs/constraints/names
     const bytes_needed = expected_items * @sizeOf(Tree.Node.AsmStmt.Operand) + expected_items * 2 * @sizeOf(Node.Index);
 
-    var stack_fallback = std.heap.stackFallback(bytes_needed, gpa);
-    const allocator = stack_fallback.get();
+    var bfa_buf: [bytes_needed]u8 = undefined;
+    var bfa: std.heap.BufferFirstAllocator = .init(&bfa_buf, gpa);
+    const allocator = bfa.allocator();
 
     var operands: std.ArrayList(Tree.Node.AsmStmt.Operand) = .empty;
     defer operands.deinit(allocator);
@@ -7701,6 +7724,9 @@ fn condExpr(p: *Parser) Error!?Result {
     if (p.eatToken(.question_mark) == null) return cond;
     try cond.lvalConversion(p, cond_tok);
     const saved_eval = p.no_eval;
+    const cond_known = cond.val.opt_ref != .none;
+    const cond_true = cond_known and cond.val.toBool(p.comp);
+    const cond_false = cond_known and !cond.val.toBool(p.comp);
 
     if (cond.qt.scalarKind(p.comp) == .none) {
         try p.err(cond_tok, .cond_expr_type, .{cond.qt});
@@ -7710,15 +7736,13 @@ fn condExpr(p: *Parser) Error!?Result {
     // Prepare for possible binary conditional expression.
     const maybe_colon = p.eatToken(.colon);
 
-    // Depending on the value of the condition, avoid evaluating unreachable branches.
-    var then_expr = blk: {
-        defer p.no_eval = saved_eval;
-        if (cond.val.opt_ref != .none and !cond.val.toBool(p.comp)) p.no_eval = true;
-        break :blk try p.expect(expr);
-    };
-
     // If we saw a colon then this is a binary conditional expression.
     if (maybe_colon) |colon| {
+        var else_expr = blk: {
+            defer p.no_eval = saved_eval;
+            if (cond_true) p.no_eval = true;
+            break :blk try p.expect(condExpr);
+        };
         var cond_then = cond;
         cond_then.node = try p.addNode(.{
             .cond_dummy_expr = .{
@@ -7727,31 +7751,47 @@ fn condExpr(p: *Parser) Error!?Result {
                 .qt = cond.qt,
             },
         });
-        _ = try cond_then.adjustTypes(colon, &then_expr, p, .conditional);
-        cond.qt = then_expr.qt;
+        p.no_eval = p.no_eval or cond_known;
+        _ = try cond_then.adjustTypes(colon, &else_expr, p, .conditional);
+        p.no_eval = saved_eval;
+        if (cond_known) {
+            cond.val = if (cond_true) cond_then.val else else_expr.val;
+            try cond.putValue(p);
+        }
+        cond.qt = else_expr.qt;
         cond.node = try p.addNode(.{
             .binary_cond_expr = .{
                 .cond_tok = cond_tok,
                 .cond = cond.node,
                 .then_expr = cond_then.node,
-                .else_expr = then_expr.node,
+                .else_expr = else_expr.node,
                 .qt = cond.qt,
             },
         });
         return cond;
     }
 
+    // Depending on the value of the condition, avoid evaluating unreachable branches.
+    var then_expr = blk: {
+        defer p.no_eval = saved_eval;
+        if (cond_false) p.no_eval = true;
+        break :blk try p.expect(expr);
+    };
+
     const colon = try p.expectToken(.colon);
     var else_expr = blk: {
         defer p.no_eval = saved_eval;
-        if (cond.val.opt_ref != .none and cond.val.toBool(p.comp)) p.no_eval = true;
+        if (cond_true) p.no_eval = true;
         break :blk try p.expect(condExpr);
     };
 
+    p.no_eval = p.no_eval or cond_known;
     _ = try then_expr.adjustTypes(colon, &else_expr, p, .conditional);
+    p.no_eval = saved_eval;
 
-    if (cond.val.opt_ref != .none) {
-        cond.val = if (cond.val.toBool(p.comp)) then_expr.val else else_expr.val;
+    if (cond_known) {
+        cond.val = if (cond_true) then_expr.val else else_expr.val;
+        try cond.putValue(p);
     } else {
         try then_expr.saveValue(p);
         try else_expr.saveValue(p);
@@ -8737,7 +8777,6 @@ fn unExpr(p: *Parser) Error!?Result {
             if (operand.qt.get(p.comp, .pointer)) |pointer| {
                 try p.checkPtrArithmeticAllowed(pointer, p.tok_i, operand.node);
             }
-            try operand.usualUnaryConversion(p, tok);
 
             if (operand.val.is(.int, p.comp) or operand.val.is(.int, p.comp)) {
                 if (try operand.val.add(operand.val, .one, operand.qt, p.comp))
@@ -8768,7 +8807,6 @@ fn unExpr(p: *Parser) Error!?Result {
             if (operand.qt.get(p.comp, .pointer)) |pointer| {
                 try p.checkPtrArithmeticAllowed(pointer, p.tok_i, operand.node);
             }
-            try operand.usualUnaryConversion(p, tok);
 
             if (operand.val.is(.int, p.comp) or operand.val.is(.int, p.comp)) {
                 if (try operand.val.decrement(operand.val, operand.qt, p.comp))
@@ -8866,7 +8904,7 @@ fn unExpr(p: *Parser) Error!?Result {
                     else => {},
                 }
 
-                if (base_type.qt.sizeofOrNull(p.comp)) |size| {
+                if (res.qt.sizeofOrNull(p.comp)) |size| {
                     if (size == 0 and p.comp.langopts.emulate == .msvc) {
                         try p.err(tok, .sizeof_returns_zero, .{});
                     }
@@ -9115,7 +9153,6 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!?Result {
             if (operand.qt.get(p.comp, .pointer)) |pointer| {
                 try p.checkPtrArithmeticAllowed(pointer, p.tok_i, operand.node);
             }
-            try operand.usualUnaryConversion(p, p.tok_i);
 
             try operand.un(p, .post_inc_expr, p.tok_i);
             return operand;
@@ -9139,7 +9176,6 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!?Result {
             if (operand.qt.get(p.comp, .pointer)) |pointer| {
                 try p.checkPtrArithmeticAllowed(pointer, p.tok_i, operand.node);
             }
-            try operand.usualUnaryConversion(p, p.tok_i);
 
             try operand.un(p, .post_dec_expr, p.tok_i);
             return operand;
@@ -9967,8 +10003,9 @@ fn primaryExpr(p: *Parser) Error!?Result {
             if (p.func.pretty_ident) |some| {
                 qt = some.qt;
             } else if (p.func.qt) |func_qt| {
-                var sf = std.heap.stackFallback(1024, gpa);
-                var allocating: std.Io.Writer.Allocating = .init(sf.get());
+                var bfa_buf: [1024]u8 = undefined;
+                var bfa: std.heap.BufferFirstAllocator = .init(&bfa_buf, gpa);
+                var allocating: std.Io.Writer.Allocating = .init(bfa.allocator());
                 defer allocating.deinit();
 
                 func_qt.printNamed(p.tokSlice(p.func.name), p.comp, &allocating.writer) catch return error.OutOfMemory;
@@ -10257,8 +10294,9 @@ fn charLiteral(p: *Parser) Error!?Result {
         };
 
         const max_chars_expected = 4;
-        var sf = std.heap.stackFallback(max_chars_expected * @sizeOf(u32), gpa);
-        const allocator = sf.get();
+        var bfa_buf: [max_chars_expected]u32 = undefined;
+        var bfa: std.heap.BufferFirstAllocator = .init(@ptrCast(&bfa_buf), gpa);
+        const allocator = bfa.allocator();
         var chars: std.ArrayList(u32) = .empty;
         defer chars.deinit(allocator);
 

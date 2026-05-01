@@ -997,6 +997,7 @@ pub fn get32BitArchVariant(target: *const Target) ?Target {
         .avr,
         .bpfeb,
         .bpfel,
+        .ez80,
         .kvx,
         .msp430,
         .s390x,
@@ -1065,6 +1066,7 @@ pub fn get64BitArchVariant(target: *const Target) ?Target {
         .arceb,
         .avr,
         .csky,
+        .ez80,
         .hexagon,
         .kalimba,
         .lanai,
@@ -1183,6 +1185,7 @@ pub fn toLLVMTriple(target: *const Target, buf: []u8) []const u8 {
         // Note: these are not supported in LLVM; this is the Zig arch name
         .alpha => "alpha",
         .arceb => "arceb",
+        .ez80 => "ez80",
         .hppa => "hppa",
         .hppa64 => "hppa64",
         .kalimba => "kalimba",
@@ -1240,8 +1243,9 @@ pub fn toLLVMTriple(target: *const Target, buf: []u8) []const u8 {
         .opengl,
         .other,
         .plan9,
-        .vita,
         .psp,
+        .tios,
+        .vita,
         => "unknown",
     };
     writer.writeAll(llvm_os) catch unreachable;
