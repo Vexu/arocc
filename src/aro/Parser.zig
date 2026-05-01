@@ -3564,12 +3564,13 @@ const Declarator = struct {
             },
             .block => |block_ty| {
                 const func_qt = block_ty.func;
-                if (func_qt._index == .declarator_combine) return .normal;
+                const child_res = try validateExtra(p, func_qt, source_tok);
+                if (child_res != .normal) return child_res;
                 if (!func_qt.is(p.comp, .func)) {
                     try p.err(source_tok, .block_to_non_function, .{});
                     return .nested_invalid;
                 }
-                return validateExtra(p, func_qt, source_tok);
+                return .normal;
             },
             else => return .normal,
         }

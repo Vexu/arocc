@@ -51,11 +51,13 @@ void my_func_accepting_block(double (*afunc)(int), double (^ablock)(int)) {
   f = (bar)(unsigned long)ablock;
   f = (bar)(unsigned long)0xdeadbeef;
   f = (bar)(unsigned long)f;
+
+  __auto_type ^a;
 }
 
 /** manifest:
 syntax
-args = -fblocks -Wpedantic --target=aarch64-macos
+args = -fblocks -Wpedantic -Wno-gnu-auto-type --target=aarch64-macos
 
 block types.c:4:26: error: block pointer to non-function type is invalid
 block types.c:10:9: error: type specifier missing, defaults to 'int'; ISO C99 and later do not support implicit int [-Wimplicit-int]
@@ -73,4 +75,5 @@ block types.c:35:5: error: assignment to 'MyInt' (aka 'int') from incompatible t
 block types.c:37:9: error: assignment to 'double (*)(int)' from incompatible type 'double (^)(int)'
 block types.c:38:10: error: assignment to 'double (^)(int)' from incompatible type 'double (*)(int)'
 block types.c:46:5: error: assignment to 'int (^)(int)' from incompatible type 'unsigned int'
+block types.c:55:3: error: '__auto_type' not allowed in block return type
 */

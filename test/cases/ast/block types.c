@@ -318,5 +318,8 @@ function: 'fn (afunc: *fn (int) double, ablock: block (int) double) void'
             decl_ref_expr: 'block (int) int' lvalue
              name: f
 
+    variable: 'invalid'
+     name: a
+
     implicit return_stmt: 'void'
 
