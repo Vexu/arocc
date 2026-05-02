@@ -51,6 +51,7 @@ imacros: std.ArrayList(Source) = .empty,
 implicit_includes: std.ArrayList(Source) = .empty,
 /// List of includes that will be used to construct the compilation's search path
 includes: std.ArrayList(Compilation.Include) = .empty,
+framework_names: std.ArrayList([]const u8) = .empty,
 link_objects: std.ArrayList([]const u8) = .empty,
 macro_prefix_map: std.ArrayList(struct { []const u8, []const u8 }) = .empty,
 output_name: ?[]const u8 = null,
@@ -280,6 +281,7 @@ pub const usage =
     \\  -static-libgcc          On systems that provide libgcc as a shared library, force the use of the static version
     \\  -static-pie             Produce a static position independent executable on targets that support it.
     \\  --unwindlib=<arg>       Unwind library to use ("none", "libgcc", or "libunwind") If not specified, will match runtime library
+    \\  -framework [name]       (Darwin) link against framework
     \\
     \\Debug options:
     \\  --verbose-ast           Dump produced AST to stdout
@@ -600,6 +602,17 @@ pub fn parseArgs(
                     path = args[i];
                 }
                 try d.includes.append(gpa, .{ .kind = .framework, .path = path });
+            } else if (mem.startsWith(u8, arg, "-framework")) {
+                var name = arg["-framework".len..];
+                if (name.len == 0) {
+                    i += 1;
+                    if (i >= args.len) {
+                        try d.err("expected argument after -framework", .{});
+                        continue;
+                    }
+                    name = args[i];
+                }
+                try d.framework_names.append(gpa, name);
             } else if (mem.startsWith(u8, arg, "-iframework")) {
                 var path = arg["-iframework".len..];
                 if (path.len == 0) {
@@ -912,6 +925,46 @@ pub fn parseArgs(
     };
     if (declspec_attrs) |some| d.comp.langopts.declspec_attrs = some;
     if (ms_extensions) |some| d.comp.langopts.setMSExtensions(some);
+
+    if (d.framework_names.items.len > 0) {
+        const original_includes_len = d.includes.items.len;
+        var name_idx: usize = 0;
+        outer: while (name_idx < d.framework_names.items.len) : (name_idx += 1) {
+            const name = d.framework_names.items[name_idx];
+            var includes_idx: usize = 0;
+            while (includes_idx < original_includes_len) : (includes_idx += 1) {
+                const include = d.includes.items[includes_idx];
+                if (!include.kind.isFramework()) continue;
+                var bfa_buf: [1024]u8 = undefined;
+                var bfa_state: std.heap.BufferFirstAllocator = .init(&bfa_buf, d.comp.gpa);
+                const bfa = bfa_state.allocator();
+
+                const framework_lookup = try std.fmt.allocPrint(bfa, "{f}.framework", .{
+                    std.fs.path.fmtJoin(&.{ include.path, name }),
+                });
+                defer bfa.free(framework_lookup);
+
+                const dir = d.comp.cwd.openDir(d.comp.io, framework_lookup, .{}) catch |dir_err| switch (dir_err) {
+                    error.FileNotFound => continue,
+                    else => return error.FatalError,
+                };
+                defer dir.close(d.comp.io);
+
+                try d.includes.append(d.comp.gpa, .{
+                    .kind = include.kind,
+                    .path = try std.fs.path.join(d.comp.arena, &.{
+                        framework_lookup,
+                        "Frameworks",
+                    }),
+                });
+
+                continue :outer;
+            } else {
+                std.debug.panic("could not find framework '{s}'", .{name});
+            }
+        }
+    }
+
     return false;
 }
 
