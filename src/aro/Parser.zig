@@ -2025,12 +2025,17 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec, attr_buf_top: usize, decl_no
     try p.attributeSpecifierExtra(init_d.d.name);
 
     switch (init_d.d.declarator_type) {
-        .func => {
+        inline .func, .block => |tag| {
+            const kind = switch (tag) {
+                .func => "function",
+                .block => "block",
+                else => comptime unreachable,
+            };
             if (decl_spec.auto_type) |tok_i| {
-                try p.err(tok_i, .auto_type_not_allowed, .{"function return type"});
+                try p.err(tok_i, .auto_type_not_allowed, .{kind ++ " return type"});
                 init_d.d.qt = .invalid;
             } else if (decl_spec.c23_auto) |tok_i| {
-                try p.err(tok_i, .c23_auto_not_allowed, .{"function return type"});
+                try p.err(tok_i, .c23_auto_not_allowed, .{kind ++ " return type"});
                 init_d.d.qt = .invalid;
             }
         },
@@ -3465,7 +3470,7 @@ const Declarator = struct {
 
     /// What kind of a type did this declarator declare?
     /// Used redundantly with `qt` in case it was set to `.invalid` by `validate`.
-    declarator_type: enum { other, func, array, pointer } = .other,
+    declarator_type: enum { other, func, array, pointer, block } = .other,
 
     const Kind = enum { normal, abstract, param, record };
 
@@ -3557,14 +3562,23 @@ const Declarator = struct {
                 }
                 return .normal;
             },
+            .block => |block_ty| {
+                const func_qt = block_ty.func;
+                const child_res = try validateExtra(p, func_qt, source_tok);
+                if (child_res != .normal) return child_res;
+                if (!func_qt.is(p.comp, .func)) {
+                    try p.err(source_tok, .block_to_non_function, .{});
+                    return .nested_invalid;
+                }
+                return .normal;
+            },
             else => return .normal,
         }
     }
 };
 
-/// declarator : pointer? (IDENTIFIER | '(' declarator ')') directDeclarator*
-/// abstractDeclarator
-/// : pointer? ('(' abstractDeclarator ')')? directAbstractDeclarator*
+/// declarator : '^'? pointer? (IDENTIFIER | '(' declarator ')') directDeclarator*
+/// abstractDeclarator : '^'? pointer? ('(' abstractDeclarator ')')? directAbstractDeclarator*
 /// pointer : '*' typeQual* pointer?
 fn declarator(
     p: *Parser,
@@ -3572,6 +3586,20 @@ fn declarator(
     kind: Declarator.Kind,
 ) Error!?Declarator {
     var d = Declarator{ .name = 0, .qt = base_qt };
+
+    if (p.eatToken(.caret)) |caret| {
+        if (!p.comp.langopts.blocks) try p.err(caret, .blocks_not_enabled, .{});
+        try p.err(caret, .blocks_are_clang_extension, .{});
+
+        d.declarator_type = .block;
+        var builder: TypeStore.Builder = .{ .parser = p };
+        _ = try p.typeQual(&builder, true);
+
+        const block_qt = try p.comp.type_store.put(p.comp.gpa, .{ .block = .{
+            .func = d.qt,
+        } });
+        d.qt = try builder.finishQuals(block_qt);
+    }
 
     // Parse potential pointer declarators first.
     while (p.eatToken(.asterisk)) |_| {
@@ -3633,6 +3661,10 @@ fn declarator(
                     },
                     .func => |func_ty| if (func_ty.return_type._index != .declarator_combine) {
                         cur = func_ty.return_type;
+                        continue;
+                    },
+                    .block => |block_ty| if (block_ty.func._index != .declarator_combine) {
+                        cur = block_ty.func;
                         continue;
                     },
                     else => unreachable,
@@ -7328,7 +7360,7 @@ pub const Result = struct {
             if (src_sk.isInt() or src_sk.isFloat()) {
                 try res.castToInt(p, dest_unqual, tok);
                 return;
-            } else if (src_sk.isPointer()) {
+            } else if (src_sk.isPointer() and src_sk != .block_pointer) {
                 if (c == .test_coerce) return error.CoercionFailed;
                 try p.err(tok, .implicit_ptr_to_int, .{ src_original_qt, dest_unqual });
                 try c.note(p);
@@ -7340,7 +7372,7 @@ pub const Result = struct {
                 try res.castToFloat(p, dest_unqual, tok);
                 return;
             }
-        } else if (dest_sk.isPointer()) {
+        } else if (dest_sk.isPointer() and dest_sk != .block_pointer) {
             if (src_sk == .nullptr_t or res.val.isZero(p.comp)) {
                 try res.nullToPointer(p, dest_unqual, tok);
                 return;
@@ -7354,7 +7386,7 @@ pub const Result = struct {
                 return res.castToPointer(p, dest_unqual, tok);
             } else if (dest_sk == .void_pointer and src_sk.isPointer()) {
                 return res.castToPointer(p, dest_unqual, tok);
-            } else if (src_sk.isPointer()) {
+            } else if (src_sk.isPointer() and src_sk != .block_pointer) {
                 const src_child = res.qt.childType(p.comp);
                 const dest_child = dest_unqual.childType(p.comp);
                 if (src_child.eql(dest_child, p.comp)) {
@@ -7386,6 +7418,10 @@ pub const Result = struct {
 
                 res.qt = dest_unqual;
                 return res.implicitCast(p, .bitcast, tok);
+            } else if (src_sk == .block_pointer) {
+                try p.err(tok, .incompatible_assign, .{ dest_qt, src_original_qt });
+                try c.note(p);
+                return;
             }
         } else if (dest_unqual.getRecord(p.comp) != null) {
             if (dest_unqual.eql(res.qt, p.comp)) {
@@ -7410,6 +7446,16 @@ pub const Result = struct {
             };
         } else if (dest_unqual.is(p.comp, .vector)) {
             if (dest_unqual.eql(res.qt, p.comp)) {
+                return; // ok
+            }
+        } else if (dest_sk == .block_pointer) {
+            if (src_sk == .nullptr_t or res.val.isZero(p.comp)) {
+                try res.nullToPointer(p, dest_unqual, tok);
+                return; // ok
+            } else if (src_sk == .void_pointer) {
+                try res.implicitCast(p, .bitcast, tok);
+                return; // ok
+            } else if (dest_unqual.eql(res.qt, p.comp)) {
                 return; // ok
             }
         } else {
@@ -9470,7 +9516,7 @@ fn callExpr(p: *Parser, lhs: Result) Error!Result {
     // type_store.extra might get invalidated while parsing args.
     const func_qt, const typed_params_len, const func_kind_base = blk: {
         var base_qt = lhs.qt;
-        if (base_qt.get(p.comp, .pointer)) |pointer_ty| base_qt = pointer_ty.child;
+        if (base_qt.get(p.comp, .pointer)) |pointer_ty| base_qt = pointer_ty.child else if (base_qt.get(p.comp, .block)) |block_ty| base_qt = block_ty.func;
         if (base_qt.isInvalid()) break :blk .{ base_qt, std.math.maxInt(usize), undefined };
 
         const func_type_qt = base_qt.base(p.comp);

@@ -203,6 +203,7 @@ pub const Option = enum {
     @"file-name-extension",
     @"base-file-extension",
     @"include-level-extension",
+    @"blocks-extension",
 
     /// GNU extensions
     pub const gnu = [_]Option{
@@ -229,6 +230,7 @@ pub const Option = enum {
         .@"fixed-enum-extension",
         .@"bit-int-extension",
         .@"nullability-extension",
+        .@"blocks-extension",
     };
 
     /// Microsoft extensions
@@ -245,6 +247,7 @@ pub const Option = enum {
         .@"initializer-overrides",
         .@"expansion-to-defined",
         .@"fuse-ld-path",
+        .@"blocks-extension",
     };
 
     pub const implicit = [_]Option{

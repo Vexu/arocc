@@ -2551,3 +2551,20 @@ pub const msvc_ptr_not_compatible: Diagnostic = .{
     .fmt = "'__{s}' and '__{s}' attributes are not compatible",
     .kind = .@"error",
 };
+
+pub const blocks_not_enabled: Diagnostic = .{
+    .fmt = "blocks are not enabled",
+    .kind = .@"error",
+};
+
+pub const blocks_are_clang_extension: Diagnostic = .{
+    .fmt = "blocks are a Clang extension",
+    .opt = .@"blocks-extension",
+    .kind = .off,
+    .extension = true,
+};
+
+pub const block_to_non_function: Diagnostic = .{
+    .fmt = "block pointer to non-function type is invalid",
+    .kind = .@"error",
+};
