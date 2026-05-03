@@ -500,7 +500,6 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
                 .{ .fma, "__FMA__" },
                 .{ .f16c, "__F16C__" },
                 .{ .gfni, "__GFNI__" },
-                .{ .evex512, "__EVEX512__" },
 
                 .{ .avx10_1, "__AVX10_1__" },
                 .{ .avx10_1, "__AVX10_1_512__" },
@@ -562,7 +561,6 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
                 .{ .amx_complex, "__AMX_COMPLEX__" },
                 .{ .amx_fp8, "__AMX_FP8__" },
                 .{ .amx_movrs, "__AMX_MOVRS__" },
-                .{ .amx_transpose, "__AMX_TRANSPOSE__" },
                 .{ .amx_avx512, "__AMX_AVX512__" },
                 .{ .amx_tf32, "__AMX_TF32__" },
                 .{ .cmpccxadd, "__CMPCCXADD__" },
@@ -800,7 +798,6 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
                 .{ .fullfp16, "FP16_SCALAR_ARITHMETIC" },
                 .{ .dotprod, "DOTPROD" },
                 .{ .mte, "MEMORY_TAGGING" },
-                .{ .tme, "TME" },
                 .{ .i8mm, "MATMUL_INT8" },
                 .{ .lse, "ATOMICS" },
                 .{ .f64mm, "SVE_MATMUL_FP64" },
