@@ -199,6 +199,7 @@ pub fn build(b: *Build) !void {
             generateDef(b, "Builtins/riscv.def"),
             generateDef(b, "Builtins/s390x.def"),
             generateDef(b, "Builtins/ve.def"),
+            generateDef(b, "Builtins/wasm.def"),
             generateDef(b, "Builtins/x86_64.def"),
             generateDef(b, "Builtins/x86.def"),
             generateDef(b, "Builtins/xcore.def"),

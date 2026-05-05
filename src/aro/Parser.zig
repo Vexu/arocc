@@ -5868,6 +5868,10 @@ const CallExpr = union(enum) {
                 .__builtin_elementwise_add_sat,
                 .__builtin_elementwise_sub_sat,
                 .__builtin_elementwise_popcount,
+                .__builtin_elementwise_fshl,
+                .__builtin_elementwise_fshr,
+                .__builtin_elementwise_clzg,
+                .__builtin_elementwise_ctzg,
                 => return p.checkElementwiseArg(param_tok, arg, arg_idx, .int),
                 .__builtin_elementwise_canonicalize,
                 .__builtin_elementwise_ceil,
@@ -5888,10 +5892,18 @@ const CallExpr = union(enum) {
                 .__builtin_elementwise_copysign,
                 .__builtin_elementwise_pow,
                 .__builtin_elementwise_fma,
+                .__builtin_elementwise_maximumnum,
+                .__builtin_elementwise_minimumnum,
                 => return p.checkElementwiseArg(param_tok, arg, arg_idx, .float),
                 .__builtin_elementwise_max,
                 .__builtin_elementwise_min,
                 => return p.checkElementwiseArg(param_tok, arg, arg_idx, .both),
+                .__builtin_elementwise_ldexp,
+                => if (arg_idx == 0) {
+                    return p.checkElementwiseArg(param_tok, arg, 0, .float);
+                } else {
+                    return p.checkElementwiseArg(param_tok, arg, 0, .int);
+                },
 
                 .__builtin_reduce_add,
                 .__builtin_reduce_mul,
@@ -5992,6 +6004,9 @@ const CallExpr = union(enum) {
                     .__builtin_elementwise_pow,
                     .__builtin_elementwise_sub_sat,
                     .__builtin_nontemporal_store,
+                    .__builtin_elementwise_ldexp,
+                    .__builtin_elementwise_maximumnum,
+                    .__builtin_elementwise_minimumnum,
                     => 2,
 
                     .__c11_atomic_store,
@@ -6022,6 +6037,8 @@ const CallExpr = union(enum) {
                     .__builtin_mul_overflow,
                     .__builtin_elementwise_fma,
                     .__atomic_exchange_n,
+                    .__builtin_elementwise_fshl,
+                    .__builtin_elementwise_fshr,
                     => 3,
 
                     .__atomic_exchange,
@@ -6034,6 +6051,11 @@ const CallExpr = union(enum) {
                     .__atomic_compare_exchange,
                     .__atomic_compare_exchange_n,
                     => 6,
+
+                    // TODO handle optional second argument
+                    .__builtin_elementwise_clzg,
+                    .__builtin_elementwise_ctzg,
+                    => null,
                     else => null,
                 },
                 else => null,
@@ -6147,6 +6169,13 @@ const CallExpr = union(enum) {
                 .__builtin_elementwise_sub_sat,
                 .__builtin_elementwise_fma,
                 .__builtin_elementwise_popcount,
+                .__builtin_elementwise_clzg,
+                .__builtin_elementwise_ctzg,
+                .__builtin_elementwise_fshl,
+                .__builtin_elementwise_fshr,
+                .__builtin_elementwise_ldexp,
+                .__builtin_elementwise_maximumnum,
+                .__builtin_elementwise_minimumnum,
 
                 .__builtin_nondeterministic_value,
                 => {
