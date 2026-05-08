@@ -38,6 +38,7 @@ const powerpc = @import("Builtins/powerpc.def").with(BuiltinTarget);
 const riscv = @import("Builtins/riscv.def").with(BuiltinTarget);
 const s390x = @import("Builtins/s390x.def").with(BuiltinTarget);
 const ve = @import("Builtins/ve.def").with(BuiltinBase);
+const wasm = @import("Builtins/wasm.def").with(BuiltinTarget);
 const x86_64 = @import("Builtins/x86_64.def").with(BuiltinTarget);
 const x86 = @import("Builtins/x86.def").with(BuiltinTarget);
 const xcore = @import("Builtins/xcore.def").with(BuiltinBase);
@@ -56,6 +57,7 @@ pub const Tag = union(enum) {
     riscv: riscv.Tag,
     s390x: s390x.Tag,
     ve: ve.Tag,
+    wasm: wasm.Tag,
     x86_64: x86_64.Tag,
     x86: x86.Tag,
     xcore: xcore.Tag,
@@ -346,6 +348,7 @@ pub fn fromName(comp: *Compilation, name: []const u8) ?FromName {
         .riscv32, .riscv32be, .riscv64, .riscv64be => if (fromNameExtra(name, .riscv)) |found| return found,
         .s390x => if (fromNameExtra(name, .s390x)) |found| return found,
         .ve => if (fromNameExtra(name, .ve)) |found| return found,
+        .wasm32, .wasm64 => if (fromNameExtra(name, .wasm)) |found| return found,
         .xcore => if (fromNameExtra(name, .xcore)) |found| return found,
         .x86_64 => {
             if (fromNameExtra(name, .x86_64)) |found| return found;

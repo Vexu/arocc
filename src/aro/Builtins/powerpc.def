@@ -904,6 +904,22 @@ __builtin_altivec_vupklsw
     .param_str = "V2LLiV4i"
     .features = "power8_vector"
 
+__builtin_amo_ldat
+    .param_str = "ULiULi*ULiIi"
+    .features = "isa_v30_instructions"
+
+__builtin_amo_ldat_s
+    .param_str = "SLiSLi*SLiIi"
+    .features = "isa_v30_instructions"
+
+__builtin_amo_lwat
+    .param_str = "UiUi*UiIi"
+    .features = "isa_v30_instructions"
+
+__builtin_amo_lwat_s
+    .param_str = "SiSi*SiIi"
+    .features = "isa_v30_instructions"
+
 __builtin_bpermd
     .param_str = "SLLiSLLiSLLi"
     .features = "bpermd"
@@ -987,216 +1003,6 @@ __builtin_get_tfiar
     .attributes = .{ .@"const" = true }
     .features = "htm"
 
-__builtin_mma_assemble_acc
-    .param_str = "i."
-    .attributes = .{ .custom_typecheck = true }
-    .features = "mma,paired_vector_memops"
-
-__builtin_mma_assemble_pair
-    .param_str = "i."
-    .attributes = .{ .custom_typecheck = true }
-    .features = "paired_vector_memops"
-
-__builtin_mma_build_acc
-    .param_str = "i."
-    .attributes = .{ .custom_typecheck = true }
-    .features = "mma"
-
-__builtin_mma_disassemble_acc
-    .param_str = "i."
-    .attributes = .{ .custom_typecheck = true }
-    .features = "mma,paired_vector_memops"
-
-__builtin_mma_disassemble_pair
-    .param_str = "i."
-    .attributes = .{ .custom_typecheck = true }
-    .features = "paired_vector_memops"
-
-__builtin_mma_dmxvi8gerx4
-    .param_str = "i."
-    .attributes = .{ .custom_typecheck = true }
-    .features = "mma,paired_vector_memops"
-
-__builtin_mma_dmxvi8gerx4pp
-    .param_str = "i."
-    .attributes = .{ .custom_typecheck = true }
-    .features = "mma,paired_vector_memops"
-
-__builtin_mma_dmxvi8gerx4spp
-    .param_str = "i."
-    .attributes = .{ .custom_typecheck = true }
-    .features = "mma,paired_vector_memops"
-
-__builtin_mma_lxvp
-    .param_str = "i."
-    .attributes = .{ .custom_typecheck = true }
-    .features = "paired_vector_memops"
-
-__builtin_mma_pmdmxvi8gerx4
-    .param_str = "i."
-    .attributes = .{ .custom_typecheck = true }
-    .features = "mma,paired_vector_memops"
-
-__builtin_mma_pmdmxvi8gerx4pp
-    .param_str = "i."
-    .attributes = .{ .custom_typecheck = true }
-    .features = "mma,paired_vector_memops"
-
-__builtin_mma_pmdmxvi8gerx4spp
-    .param_str = "i."
-    .attributes = .{ .custom_typecheck = true }
-    .features = "mma,paired_vector_memops"
-
-__builtin_mma_pmxvbf16ger2
-    .param_str = "i."
-    .attributes = .{ .custom_typecheck = true }
-    .features = "mma,paired_vector_memops"
-
-__builtin_mma_pmxvf16ger2
-    .param_str = "i."
-    .attributes = .{ .custom_typecheck = true }
-    .features = "mma,paired_vector_memops"
-
-__builtin_mma_pmxvf32ger
-    .param_str = "i."
-    .attributes = .{ .custom_typecheck = true }
-    .features = "mma,paired_vector_memops"
-
-__builtin_mma_pmxvf64ger
-    .param_str = "i."
-    .attributes = .{ .custom_typecheck = true }
-    .features = "mma,paired_vector_memops"
-
-__builtin_mma_pmxvi16ger2
-    .param_str = "i."
-    .attributes = .{ .custom_typecheck = true }
-    .features = "mma,paired_vector_memops"
-
-__builtin_mma_pmxvi16ger2pp
-    .param_str = "i."
-    .attributes = .{ .custom_typecheck = true }
-    .features = "mma,paired_vector_memops"
-
-__builtin_mma_pmxvi16ger2s
-    .param_str = "i."
-    .attributes = .{ .custom_typecheck = true }
-    .features = "mma,paired_vector_memops"
-
-__builtin_mma_pmxvi16ger2spp
-    .param_str = "i."
-    .attributes = .{ .custom_typecheck = true }
-    .features = "mma,paired_vector_memops"
-
-__builtin_mma_pmxvi4ger8
-    .param_str = "i."
-    .attributes = .{ .custom_typecheck = true }
-    .features = "mma,paired_vector_memops"
-
-__builtin_mma_pmxvi4ger8pp
-    .param_str = "i."
-    .attributes = .{ .custom_typecheck = true }
-    .features = "mma,paired_vector_memops"
-
-__builtin_mma_pmxvi8ger4
-    .param_str = "i."
-    .attributes = .{ .custom_typecheck = true }
-    .features = "mma,paired_vector_memops"
-
-__builtin_mma_pmxvi8ger4pp
-    .param_str = "i."
-    .attributes = .{ .custom_typecheck = true }
-    .features = "mma,paired_vector_memops"
-
-__builtin_mma_pmxvi8ger4spp
-    .param_str = "i."
-    .attributes = .{ .custom_typecheck = true }
-    .features = "mma,paired_vector_memops"
-
-__builtin_mma_stxvp
-    .param_str = "i."
-    .attributes = .{ .custom_typecheck = true }
-    .features = "paired_vector_memops"
-
-__builtin_mma_xvbf16ger2
-    .param_str = "i."
-    .attributes = .{ .custom_typecheck = true }
-    .features = "mma,paired_vector_memops"
-
-__builtin_mma_xvf16ger2
-    .param_str = "i."
-    .attributes = .{ .custom_typecheck = true }
-    .features = "mma,paired_vector_memops"
-
-__builtin_mma_xvf32ger
-    .param_str = "i."
-    .attributes = .{ .custom_typecheck = true }
-    .features = "mma,paired_vector_memops"
-
-__builtin_mma_xvf64ger
-    .param_str = "i."
-    .attributes = .{ .custom_typecheck = true }
-    .features = "mma,paired_vector_memops"
-
-__builtin_mma_xvi16ger2
-    .param_str = "i."
-    .attributes = .{ .custom_typecheck = true }
-    .features = "mma,paired_vector_memops"
-
-__builtin_mma_xvi16ger2pp
-    .param_str = "i."
-    .attributes = .{ .custom_typecheck = true }
-    .features = "mma,paired_vector_memops"
-
-__builtin_mma_xvi16ger2s
-    .param_str = "i."
-    .attributes = .{ .custom_typecheck = true }
-    .features = "mma,paired_vector_memops"
-
-__builtin_mma_xvi16ger2spp
-    .param_str = "i."
-    .attributes = .{ .custom_typecheck = true }
-    .features = "mma,paired_vector_memops"
-
-__builtin_mma_xvi4ger8
-    .param_str = "i."
-    .attributes = .{ .custom_typecheck = true }
-    .features = "mma,paired_vector_memops"
-
-__builtin_mma_xvi4ger8pp
-    .param_str = "i."
-    .attributes = .{ .custom_typecheck = true }
-    .features = "mma,paired_vector_memops"
-
-__builtin_mma_xvi8ger4
-    .param_str = "i."
-    .attributes = .{ .custom_typecheck = true }
-    .features = "mma,paired_vector_memops"
-
-__builtin_mma_xvi8ger4pp
-    .param_str = "i."
-    .attributes = .{ .custom_typecheck = true }
-    .features = "mma,paired_vector_memops"
-
-__builtin_mma_xvi8ger4spp
-    .param_str = "i."
-    .attributes = .{ .custom_typecheck = true }
-    .features = "mma,paired_vector_memops"
-
-__builtin_mma_xxmfacc
-    .param_str = "i."
-    .attributes = .{ .custom_typecheck = true }
-    .features = "mma,paired_vector_memops"
-
-__builtin_mma_xxmtacc
-    .param_str = "i."
-    .attributes = .{ .custom_typecheck = true }
-    .features = "mma,paired_vector_memops"
-
-__builtin_mma_xxsetaccz
-    .param_str = "i."
-    .attributes = .{ .custom_typecheck = true }
-    .features = "mma,paired_vector_memops"
-
 __builtin_mulf128_round_to_odd
     .param_str = "LLdLLdLLd"
     .features = "float128"
@@ -1227,6 +1033,15 @@ __builtin_ppc_addg6s
 __builtin_ppc_alignx
     .param_str = "vIivC*"
     .attributes = .{ .@"const" = true }
+
+__builtin_ppc_bcdcopysign
+    .param_str = "V16UcV16UcV16Uc"
+    .features = "power9_vector"
+
+__builtin_ppc_bcdsetsign
+    .param_str = "V16UcV16UcUc"
+    .attributes = .{ .custom_typecheck = true }
+    .features = "power9_vector"
 
 __builtin_ppc_cbcdtd
     .param_str = "LLiLLi"
@@ -1785,21 +1600,6 @@ __builtin_unpack_vector_int128
     .param_str = "ULLiV1LLLii"
     .features = "vsx"
 
-__builtin_vsx_assemble_pair
-    .param_str = "i."
-    .attributes = .{ .custom_typecheck = true }
-    .features = "paired_vector_memops"
-
-__builtin_vsx_build_pair
-    .param_str = "i."
-    .attributes = .{ .custom_typecheck = true }
-    .features = "paired_vector_memops"
-
-__builtin_vsx_disassemble_pair
-    .param_str = "i."
-    .attributes = .{ .custom_typecheck = true }
-    .features = "paired_vector_memops"
-
 __builtin_vsx_extractuword
     .param_str = "V2ULLiV16UcIi"
     .features = "vsx"
@@ -1827,11 +1627,6 @@ __builtin_vsx_lxvl
 __builtin_vsx_lxvll
     .param_str = "V4ivC*ULLi"
     .features = "power9_vector"
-
-__builtin_vsx_lxvp
-    .param_str = "i."
-    .attributes = .{ .custom_typecheck = true }
-    .features = "paired_vector_memops"
 
 __builtin_vsx_lxvw4x
     .param_str = "V4iLivC*"
@@ -1868,11 +1663,6 @@ __builtin_vsx_stxvl
 __builtin_vsx_stxvll
     .param_str = "vV4iv*ULLi"
     .features = "power9_vector"
-
-__builtin_vsx_stxvp
-    .param_str = "i."
-    .attributes = .{ .custom_typecheck = true }
-    .features = "paired_vector_memops"
 
 __builtin_vsx_stxvw4x
     .param_str = "vV4iLiv*"

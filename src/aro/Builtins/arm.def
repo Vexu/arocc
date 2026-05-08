@@ -1,4 +1,4 @@
-# Generated from clang/include/clang/Basic/BuiltinsARM.def
+# Generated from clang/include/clang/Basic/BuiltinsARM*.def
 
 _BitScanForward
     .param_str = "UcUNi*UNi"
@@ -668,7 +668,8 @@ __builtin_arm_ldrex
     .attributes = .{ .custom_typecheck = true }
 
 __builtin_arm_ldrexd
-    .param_str = "LLUiv*"
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
 
 __builtin_arm_mcr
     .param_str = "vUIiUIiUiUIiUIiUIi"
@@ -940,7 +941,8 @@ __builtin_arm_strex
     .attributes = .{ .custom_typecheck = true }
 
 __builtin_arm_strexd
-    .param_str = "iLLUiv*"
+    .param_str = "i."
+    .attributes = .{ .custom_typecheck = true }
 
 __builtin_arm_sxtab16
     .param_str = "iii"

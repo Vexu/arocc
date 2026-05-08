@@ -446,7 +446,7 @@ test Linux {
             }).get(resolved) orelse return error.FileNotFound;
             if (options.execute and !can_exec) return error.PermissionDenied;
         }
-        fn dirOpenFile(_: ?*anyopaque, _: std.Io.Dir, sub_path: []const u8, _: std.Io.File.OpenFlags) std.Io.File.OpenError!std.Io.File {
+        fn dirOpenFile(_: ?*anyopaque, _: std.Io.Dir, sub_path: []const u8, _: std.Io.Dir.OpenFileOptions) std.Io.File.OpenError!std.Io.File {
             if (!std.mem.eql(u8, sub_path, "/etc/lsb-release")) return error.FileNotFound;
             return .{ .handle = undefined, .flags = undefined };
         }
