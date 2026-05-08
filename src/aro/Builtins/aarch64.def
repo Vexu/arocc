@@ -833,6 +833,12 @@ __builtin_arm_prefetch
     .param_str = "vvC*UiUiUiUi"
     .attributes = .{ .@"const" = true }
 
+__builtin_arm_range_prefetch
+    .param_str = "vvC*UiUiWUi"
+
+__builtin_arm_range_prefetch_x
+    .param_str = "vvC*UiUiiUiiz"
+
 __builtin_arm_rbit
     .param_str = "UiUi"
     .attributes = .{ .@"const" = true }
@@ -934,23 +940,9 @@ __builtin_arm_subp
     .attributes = .{ .custom_typecheck = true }
     .features = "mte"
 
-__builtin_arm_tcancel
-    .param_str = "vWUIi"
-
-__builtin_arm_tcommit
-    .param_str = "v"
-
 __builtin_arm_trap
     .param_str = "vUIs"
     .attributes = .{ .@"noreturn" = true }
-
-__builtin_arm_tstart
-    .param_str = "WUi"
-    .attributes = .{ .returns_twice = true }
-
-__builtin_arm_ttest
-    .param_str = "WUi"
-    .attributes = .{ .@"const" = true }
 
 __builtin_arm_wfe
     .param_str = "v"

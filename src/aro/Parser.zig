@@ -2025,12 +2025,17 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec, attr_buf_top: usize, decl_no
     try p.attributeSpecifierExtra(init_d.d.name);
 
     switch (init_d.d.declarator_type) {
-        .func => {
+        inline .func, .block => |tag| {
+            const kind = switch (tag) {
+                .func => "function",
+                .block => "block",
+                else => comptime unreachable,
+            };
             if (decl_spec.auto_type) |tok_i| {
-                try p.err(tok_i, .auto_type_not_allowed, .{"function return type"});
+                try p.err(tok_i, .auto_type_not_allowed, .{kind ++ " return type"});
                 init_d.d.qt = .invalid;
             } else if (decl_spec.c23_auto) |tok_i| {
-                try p.err(tok_i, .c23_auto_not_allowed, .{"function return type"});
+                try p.err(tok_i, .c23_auto_not_allowed, .{kind ++ " return type"});
                 init_d.d.qt = .invalid;
             }
         },
@@ -3433,6 +3438,25 @@ fn msTypeAttribute(p: *Parser) !bool {
                 any = true;
                 p.tok_i += 1;
             },
+            .keyword_ptr64,
+            .keyword_ptr32,
+            .keyword_sptr,
+            .keyword_uptr,
+            => |kw| {
+                try p.err(p.tok_i, .extension_token_used, .{});
+                try p.attr_buf.append(p.comp.gpa, .{
+                    .attr = .{ .tag = .msvc_ptr, .args = .{ .msvc_ptr = .{ .kind = switch (kw) {
+                        .keyword_ptr64 => .ptr64,
+                        .keyword_ptr32 => .ptr32,
+                        .keyword_sptr => .sptr,
+                        .keyword_uptr => .uptr,
+                        else => unreachable,
+                    } } }, .syntax = .keyword },
+                    .tok = p.tok_i,
+                });
+                any = true;
+                p.tok_i += 1;
+            },
             else => break,
         }
     }
@@ -3446,7 +3470,7 @@ const Declarator = struct {
 
     /// What kind of a type did this declarator declare?
     /// Used redundantly with `qt` in case it was set to `.invalid` by `validate`.
-    declarator_type: enum { other, func, array, pointer } = .other,
+    declarator_type: enum { other, func, array, pointer, block } = .other,
 
     const Kind = enum { normal, abstract, param, record };
 
@@ -3538,14 +3562,23 @@ const Declarator = struct {
                 }
                 return .normal;
             },
+            .block => |block_ty| {
+                const func_qt = block_ty.func;
+                const child_res = try validateExtra(p, func_qt, source_tok);
+                if (child_res != .normal) return child_res;
+                if (!func_qt.is(p.comp, .func)) {
+                    try p.err(source_tok, .block_to_non_function, .{});
+                    return .nested_invalid;
+                }
+                return .normal;
+            },
             else => return .normal,
         }
     }
 };
 
-/// declarator : pointer? (IDENTIFIER | '(' declarator ')') directDeclarator*
-/// abstractDeclarator
-/// : pointer? ('(' abstractDeclarator ')')? directAbstractDeclarator*
+/// declarator : '^'? pointer? (IDENTIFIER | '(' declarator ')') directDeclarator*
+/// abstractDeclarator : '^'? pointer? ('(' abstractDeclarator ')')? directAbstractDeclarator*
 /// pointer : '*' typeQual* pointer?
 fn declarator(
     p: *Parser,
@@ -3553,6 +3586,20 @@ fn declarator(
     kind: Declarator.Kind,
 ) Error!?Declarator {
     var d = Declarator{ .name = 0, .qt = base_qt };
+
+    if (p.eatToken(.caret)) |caret| {
+        if (!p.comp.langopts.blocks) try p.err(caret, .blocks_not_enabled, .{});
+        try p.err(caret, .blocks_are_clang_extension, .{});
+
+        d.declarator_type = .block;
+        var builder: TypeStore.Builder = .{ .parser = p };
+        _ = try p.typeQual(&builder, true);
+
+        const block_qt = try p.comp.type_store.put(p.comp.gpa, .{ .block = .{
+            .func = d.qt,
+        } });
+        d.qt = try builder.finishQuals(block_qt);
+    }
 
     // Parse potential pointer declarators first.
     while (p.eatToken(.asterisk)) |_| {
@@ -3614,6 +3661,10 @@ fn declarator(
                     },
                     .func => |func_ty| if (func_ty.return_type._index != .declarator_combine) {
                         cur = func_ty.return_type;
+                        continue;
+                    },
+                    .block => |block_ty| if (block_ty.func._index != .declarator_combine) {
+                        cur = block_ty.func;
                         continue;
                     },
                     else => unreachable,
@@ -5817,6 +5868,10 @@ const CallExpr = union(enum) {
                 .__builtin_elementwise_add_sat,
                 .__builtin_elementwise_sub_sat,
                 .__builtin_elementwise_popcount,
+                .__builtin_elementwise_fshl,
+                .__builtin_elementwise_fshr,
+                .__builtin_elementwise_clzg,
+                .__builtin_elementwise_ctzg,
                 => return p.checkElementwiseArg(param_tok, arg, arg_idx, .int),
                 .__builtin_elementwise_canonicalize,
                 .__builtin_elementwise_ceil,
@@ -5837,10 +5892,18 @@ const CallExpr = union(enum) {
                 .__builtin_elementwise_copysign,
                 .__builtin_elementwise_pow,
                 .__builtin_elementwise_fma,
+                .__builtin_elementwise_maximumnum,
+                .__builtin_elementwise_minimumnum,
                 => return p.checkElementwiseArg(param_tok, arg, arg_idx, .float),
                 .__builtin_elementwise_max,
                 .__builtin_elementwise_min,
                 => return p.checkElementwiseArg(param_tok, arg, arg_idx, .both),
+                .__builtin_elementwise_ldexp,
+                => if (arg_idx == 0) {
+                    return p.checkElementwiseArg(param_tok, arg, 0, .float);
+                } else {
+                    return p.checkElementwiseArg(param_tok, arg, 0, .int);
+                },
 
                 .__builtin_reduce_add,
                 .__builtin_reduce_mul,
@@ -5941,6 +6004,9 @@ const CallExpr = union(enum) {
                     .__builtin_elementwise_pow,
                     .__builtin_elementwise_sub_sat,
                     .__builtin_nontemporal_store,
+                    .__builtin_elementwise_ldexp,
+                    .__builtin_elementwise_maximumnum,
+                    .__builtin_elementwise_minimumnum,
                     => 2,
 
                     .__c11_atomic_store,
@@ -5971,6 +6037,8 @@ const CallExpr = union(enum) {
                     .__builtin_mul_overflow,
                     .__builtin_elementwise_fma,
                     .__atomic_exchange_n,
+                    .__builtin_elementwise_fshl,
+                    .__builtin_elementwise_fshr,
                     => 3,
 
                     .__atomic_exchange,
@@ -5983,6 +6051,11 @@ const CallExpr = union(enum) {
                     .__atomic_compare_exchange,
                     .__atomic_compare_exchange_n,
                     => 6,
+
+                    // TODO handle optional second argument
+                    .__builtin_elementwise_clzg,
+                    .__builtin_elementwise_ctzg,
+                    => null,
                     else => null,
                 },
                 else => null,
@@ -6096,6 +6169,13 @@ const CallExpr = union(enum) {
                 .__builtin_elementwise_sub_sat,
                 .__builtin_elementwise_fma,
                 .__builtin_elementwise_popcount,
+                .__builtin_elementwise_clzg,
+                .__builtin_elementwise_ctzg,
+                .__builtin_elementwise_fshl,
+                .__builtin_elementwise_fshr,
+                .__builtin_elementwise_ldexp,
+                .__builtin_elementwise_maximumnum,
+                .__builtin_elementwise_minimumnum,
 
                 .__builtin_nondeterministic_value,
                 => {
@@ -7309,7 +7389,7 @@ pub const Result = struct {
             if (src_sk.isInt() or src_sk.isFloat()) {
                 try res.castToInt(p, dest_unqual, tok);
                 return;
-            } else if (src_sk.isPointer()) {
+            } else if (src_sk.isPointer() and src_sk != .block_pointer) {
                 if (c == .test_coerce) return error.CoercionFailed;
                 try p.err(tok, .implicit_ptr_to_int, .{ src_original_qt, dest_unqual });
                 try c.note(p);
@@ -7321,7 +7401,7 @@ pub const Result = struct {
                 try res.castToFloat(p, dest_unqual, tok);
                 return;
             }
-        } else if (dest_sk.isPointer()) {
+        } else if (dest_sk.isPointer() and dest_sk != .block_pointer) {
             if (src_sk == .nullptr_t or res.val.isZero(p.comp)) {
                 try res.nullToPointer(p, dest_unqual, tok);
                 return;
@@ -7335,7 +7415,7 @@ pub const Result = struct {
                 return res.castToPointer(p, dest_unqual, tok);
             } else if (dest_sk == .void_pointer and src_sk.isPointer()) {
                 return res.castToPointer(p, dest_unqual, tok);
-            } else if (src_sk.isPointer()) {
+            } else if (src_sk.isPointer() and src_sk != .block_pointer) {
                 const src_child = res.qt.childType(p.comp);
                 const dest_child = dest_unqual.childType(p.comp);
                 if (src_child.eql(dest_child, p.comp)) {
@@ -7367,6 +7447,10 @@ pub const Result = struct {
 
                 res.qt = dest_unqual;
                 return res.implicitCast(p, .bitcast, tok);
+            } else if (src_sk == .block_pointer) {
+                try p.err(tok, .incompatible_assign, .{ dest_qt, src_original_qt });
+                try c.note(p);
+                return;
             }
         } else if (dest_unqual.getRecord(p.comp) != null) {
             if (dest_unqual.eql(res.qt, p.comp)) {
@@ -7391,6 +7475,16 @@ pub const Result = struct {
             };
         } else if (dest_unqual.is(p.comp, .vector)) {
             if (dest_unqual.eql(res.qt, p.comp)) {
+                return; // ok
+            }
+        } else if (dest_sk == .block_pointer) {
+            if (src_sk == .nullptr_t or res.val.isZero(p.comp)) {
+                try res.nullToPointer(p, dest_unqual, tok);
+                return; // ok
+            } else if (src_sk == .void_pointer) {
+                try res.implicitCast(p, .bitcast, tok);
+                return; // ok
+            } else if (dest_unqual.eql(res.qt, p.comp)) {
                 return; // ok
             }
         } else {
@@ -7660,6 +7754,9 @@ fn condExpr(p: *Parser) Error!?Result {
     if (p.eatToken(.question_mark) == null) return cond;
     try cond.lvalConversion(p, cond_tok);
     const saved_eval = p.no_eval;
+    const cond_known = cond.val.opt_ref != .none;
+    const cond_true = cond_known and cond.val.toBool(p.comp);
+    const cond_false = cond_known and !cond.val.toBool(p.comp);
 
     if (cond.qt.scalarKind(p.comp) == .none) {
         try p.err(cond_tok, .cond_expr_type, .{cond.qt});
@@ -7669,15 +7766,13 @@ fn condExpr(p: *Parser) Error!?Result {
     // Prepare for possible binary conditional expression.
     const maybe_colon = p.eatToken(.colon);
 
-    // Depending on the value of the condition, avoid evaluating unreachable branches.
-    var then_expr = blk: {
-        defer p.no_eval = saved_eval;
-        if (cond.val.opt_ref != .none and !cond.val.toBool(p.comp)) p.no_eval = true;
-        break :blk try p.expect(expr);
-    };
-
     // If we saw a colon then this is a binary conditional expression.
     if (maybe_colon) |colon| {
+        var else_expr = blk: {
+            defer p.no_eval = saved_eval;
+            if (cond_true) p.no_eval = true;
+            break :blk try p.expect(condExpr);
+        };
         var cond_then = cond;
         cond_then.node = try p.addNode(.{
             .cond_dummy_expr = .{
@@ -7686,31 +7781,47 @@ fn condExpr(p: *Parser) Error!?Result {
                 .qt = cond.qt,
             },
         });
-        _ = try cond_then.adjustTypes(colon, &then_expr, p, .conditional);
-        cond.qt = then_expr.qt;
+        p.no_eval = p.no_eval or cond_known;
+        _ = try cond_then.adjustTypes(colon, &else_expr, p, .conditional);
+        p.no_eval = saved_eval;
+        if (cond_known) {
+            cond.val = if (cond_true) cond_then.val else else_expr.val;
+            try cond.putValue(p);
+        }
+        cond.qt = else_expr.qt;
         cond.node = try p.addNode(.{
             .binary_cond_expr = .{
                 .cond_tok = cond_tok,
                 .cond = cond.node,
                 .then_expr = cond_then.node,
-                .else_expr = then_expr.node,
+                .else_expr = else_expr.node,
                 .qt = cond.qt,
             },
         });
         return cond;
     }
 
+    // Depending on the value of the condition, avoid evaluating unreachable branches.
+    var then_expr = blk: {
+        defer p.no_eval = saved_eval;
+        if (cond_false) p.no_eval = true;
+        break :blk try p.expect(expr);
+    };
+
     const colon = try p.expectToken(.colon);
     var else_expr = blk: {
         defer p.no_eval = saved_eval;
-        if (cond.val.opt_ref != .none and cond.val.toBool(p.comp)) p.no_eval = true;
+        if (cond_true) p.no_eval = true;
         break :blk try p.expect(condExpr);
     };
 
+    p.no_eval = p.no_eval or cond_known;
     _ = try then_expr.adjustTypes(colon, &else_expr, p, .conditional);
+    p.no_eval = saved_eval;
 
-    if (cond.val.opt_ref != .none) {
-        cond.val = if (cond.val.toBool(p.comp)) then_expr.val else else_expr.val;
+    if (cond_known) {
+        cond.val = if (cond_true) then_expr.val else else_expr.val;
+        try cond.putValue(p);
     } else {
         try then_expr.saveValue(p);
         try else_expr.saveValue(p);
@@ -8696,7 +8807,6 @@ fn unExpr(p: *Parser) Error!?Result {
             if (operand.qt.get(p.comp, .pointer)) |pointer| {
                 try p.checkPtrArithmeticAllowed(pointer, p.tok_i, operand.node);
             }
-            try operand.usualUnaryConversion(p, tok);
 
             if (operand.val.is(.int, p.comp) or operand.val.is(.int, p.comp)) {
                 if (try operand.val.add(operand.val, .one, operand.qt, p.comp))
@@ -8727,7 +8837,6 @@ fn unExpr(p: *Parser) Error!?Result {
             if (operand.qt.get(p.comp, .pointer)) |pointer| {
                 try p.checkPtrArithmeticAllowed(pointer, p.tok_i, operand.node);
             }
-            try operand.usualUnaryConversion(p, tok);
 
             if (operand.val.is(.int, p.comp) or operand.val.is(.int, p.comp)) {
                 if (try operand.val.decrement(operand.val, operand.qt, p.comp))
@@ -8825,7 +8934,7 @@ fn unExpr(p: *Parser) Error!?Result {
                     else => {},
                 }
 
-                if (base_type.qt.sizeofOrNull(p.comp)) |size| {
+                if (res.qt.sizeofOrNull(p.comp)) |size| {
                     if (size == 0 and p.comp.langopts.emulate == .msvc) {
                         try p.err(tok, .sizeof_returns_zero, .{});
                     }
@@ -9074,7 +9183,6 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!?Result {
             if (operand.qt.get(p.comp, .pointer)) |pointer| {
                 try p.checkPtrArithmeticAllowed(pointer, p.tok_i, operand.node);
             }
-            try operand.usualUnaryConversion(p, p.tok_i);
 
             try operand.un(p, .post_inc_expr, p.tok_i);
             return operand;
@@ -9098,7 +9206,6 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!?Result {
             if (operand.qt.get(p.comp, .pointer)) |pointer| {
                 try p.checkPtrArithmeticAllowed(pointer, p.tok_i, operand.node);
             }
-            try operand.usualUnaryConversion(p, p.tok_i);
 
             try operand.un(p, .post_dec_expr, p.tok_i);
             return operand;
@@ -9438,7 +9545,7 @@ fn callExpr(p: *Parser, lhs: Result) Error!Result {
     // type_store.extra might get invalidated while parsing args.
     const func_qt, const typed_params_len, const func_kind_base = blk: {
         var base_qt = lhs.qt;
-        if (base_qt.get(p.comp, .pointer)) |pointer_ty| base_qt = pointer_ty.child;
+        if (base_qt.get(p.comp, .pointer)) |pointer_ty| base_qt = pointer_ty.child else if (base_qt.get(p.comp, .block)) |block_ty| base_qt = block_ty.func;
         if (base_qt.isInvalid()) break :blk .{ base_qt, std.math.maxInt(usize), undefined };
 
         const func_type_qt = base_qt.base(p.comp);

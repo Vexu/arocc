@@ -195,6 +195,71 @@ __builtin_riscv_ctz_64
     .features = "zbb,64bit"
     .attributes = .{ .@"const" = true }
 
+__builtin_riscv_nds_fcvt_bf16_s
+    .param_str = "yf"
+    .features = "xandesbfhcvt"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_nds_fcvt_s_bf16
+    .param_str = "fy"
+    .features = "xandesbfhcvt"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_nds_ffb_32
+    .param_str = "ZiUZiUZi"
+    .features = "xandesperf,32bit"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_nds_ffb_64
+    .param_str = "WiUWiUWi"
+    .features = "xandesperf,64bit"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_nds_ffmism_32
+    .param_str = "ZiUZiUZi"
+    .features = "xandesperf,32bit"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_nds_ffmism_64
+    .param_str = "WiUWiUWi"
+    .features = "xandesperf,64bit"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_nds_ffzmism_32
+    .param_str = "ZiUZiUZi"
+    .features = "xandesperf,32bit"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_nds_ffzmism_64
+    .param_str = "WiUWiUWi"
+    .features = "xandesperf,64bit"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_nds_flmism_32
+    .param_str = "ZiUZiUZi"
+    .features = "xandesperf,32bit"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_nds_flmism_64
+    .param_str = "WiUWiUWi"
+    .features = "xandesperf,64bit"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_mips_ehb
+    .param_str = "v"
+    .features = "xmipsexectl"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_mips_ihb
+    .param_str = "v"
+    .features = "xmipsexectl"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_mips_pause
+    .param_str = "v"
+    .features = "xmipsexectl"
+    .attributes = .{ .@"const" = true }
+
 __builtin_riscv_ntl_load
     .param_str = "v."
     .features = "zihintntl"

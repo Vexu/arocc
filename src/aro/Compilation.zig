@@ -317,6 +317,8 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
                 if (ptr_width == 64) {
                     try defineStd(w, "WIN64", is_gnu);
                     try define(w, "__MINGW64__");
+                } else {
+                    try define(w, "_X86_");
                 }
                 try define(w, "__MSVCRT__");
                 try define(w, "__MINGW32__");
@@ -498,7 +500,6 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
                 .{ .fma, "__FMA__" },
                 .{ .f16c, "__F16C__" },
                 .{ .gfni, "__GFNI__" },
-                .{ .evex512, "__EVEX512__" },
 
                 .{ .avx10_1, "__AVX10_1__" },
                 .{ .avx10_1, "__AVX10_1_512__" },
@@ -560,7 +561,6 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
                 .{ .amx_complex, "__AMX_COMPLEX__" },
                 .{ .amx_fp8, "__AMX_FP8__" },
                 .{ .amx_movrs, "__AMX_MOVRS__" },
-                .{ .amx_transpose, "__AMX_TRANSPOSE__" },
                 .{ .amx_avx512, "__AMX_AVX512__" },
                 .{ .amx_tf32, "__AMX_TF32__" },
                 .{ .cmpccxadd, "__CMPCCXADD__" },
@@ -798,7 +798,6 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
                 .{ .fullfp16, "FP16_SCALAR_ARITHMETIC" },
                 .{ .dotprod, "DOTPROD" },
                 .{ .mte, "MEMORY_TAGGING" },
-                .{ .tme, "TME" },
                 .{ .i8mm, "MATMUL_INT8" },
                 .{ .lse, "ATOMICS" },
                 .{ .f64mm, "SVE_MATMUL_FP64" },
@@ -1883,7 +1882,7 @@ const FindInclude = struct {
                 .allow_same_dir, .only_search => {},
                 .only_search_after_dir => return null,
             }
-            return find.check("{s}", .{include_path}, .user, false);
+            return find.check(&.{include_path}, .user, false);
         }
 
         switch (search_strat) {
@@ -1920,58 +1919,40 @@ const FindInclude = struct {
         return null;
     }
     fn checkIncludeDir(find: *FindInclude, include_dir: []const u8, kind: Source.Kind) Allocator.Error!?Result {
-        if (find.wait_for) |wait_for| {
-            if (std.mem.eql(u8, include_dir, wait_for)) find.wait_for = null;
-            return null;
-        }
-        return find.check("{s}{c}{s}", .{
+        return find.check(&.{
             include_dir,
-            std.fs.path.sep,
             find.include_path,
         }, kind, false);
     }
     fn checkMsCwdIncludeDir(find: *FindInclude, source_id: Source.Id) Allocator.Error!?Result {
         const path = find.comp.getSource(source_id).path;
         const dir = std.fs.path.dirname(path) orelse ".";
-        if (find.wait_for) |wait_for| {
-            if (std.mem.eql(u8, dir, wait_for)) find.wait_for = null;
-            return null;
-        }
-        return find.check("{s}{c}{s}", .{
+        return find.check(&.{
             dir,
-            std.fs.path.sep,
             find.include_path,
         }, .user, true);
     }
     fn checkFrameworkDir(find: *FindInclude, framework_dir: []const u8, kind: Source.Kind) Allocator.Error!?Result {
-        if (find.wait_for) |wait_for| {
-            match: {
-                // If this is a match, then `wait_for` looks like '.../Foo.framework/Headers'.
-                const wait_framework = std.fs.path.dirname(wait_for) orelse break :match;
-                const wait_framework_dir = std.fs.path.dirname(wait_framework) orelse break :match;
-                if (!std.mem.eql(u8, framework_dir, wait_framework_dir)) break :match;
-                find.wait_for = null;
-            }
-            return null;
-        }
         // For an include like 'Foo/Bar.h', search in '<framework_dir>/Foo.framework/Headers/Bar.h'.
         const framework_name: []const u8, const header_sub_path: []const u8 = f: {
             const i = std.mem.indexOfScalar(u8, find.include_path, '/') orelse return null;
             break :f .{ find.include_path[0..i], find.include_path[i + 1 ..] };
         };
-        return find.check("{s}{c}{s}.framework{c}Headers{c}{s}", .{
+        var bfa_buf: [path_buf_stack_limit]u8 = undefined;
+        var bfa_state: std.heap.BufferFirstAllocator = .init(&bfa_buf, find.comp.gpa);
+        const bfa = bfa_state.allocator();
+        const framework_lookup = try std.fmt.allocPrint(bfa, "{s}.framework", .{framework_name});
+        defer bfa.free(framework_lookup);
+        return find.check(&.{
             framework_dir,
-            std.fs.path.sep,
-            framework_name,
-            std.fs.path.sep,
-            std.fs.path.sep,
+            framework_lookup,
+            "Headers",
             header_sub_path,
         }, kind, false);
     }
     fn check(
         find: *FindInclude,
-        comptime format: []const u8,
-        args: anytype,
+        paths: []const []const u8,
         kind: Source.Kind,
         used_ms_search_rule: bool,
     ) Allocator.Error!?Result {
@@ -1980,9 +1961,14 @@ const FindInclude = struct {
         var bfa_buf: [path_buf_stack_limit]u8 = undefined;
         var bfa_state: std.heap.BufferFirstAllocator = .init(&bfa_buf, comp.gpa);
         const bfa = bfa_state.allocator();
-        const header_path = try std.fmt.allocPrint(bfa, format, args);
+        const header_path = try std.fs.path.resolve(bfa, paths);
         defer bfa.free(header_path);
         find.comp.normalizePath(header_path);
+
+        if (find.wait_for) |wait_for| if (std.fs.path.dirname(header_path)) |header_dir| {
+            if (std.mem.eql(u8, header_dir, wait_for)) find.wait_for = null;
+            return null;
+        };
 
         const source = comp.addSourceFromPathExtra(header_path, kind) catch |err| switch (err) {
             error.OutOfMemory => |e| return e,

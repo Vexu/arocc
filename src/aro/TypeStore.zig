@@ -20,6 +20,7 @@ const Repr = struct {
         complex,
         bit_int,
         atomic,
+        block,
         func,
         func_variadic,
         func_old_style,
@@ -234,6 +235,7 @@ pub const QualType = packed struct(u32) {
                 .bits = @intCast(repr.data[0]),
                 .signedness = @enumFromInt(repr.data[1]),
             } },
+            .block => .{ .block = .{ .func = @bitCast(repr.data[0]) } },
             .func_zero => .{ .func = .{
                 .return_type = @bitCast(repr.data[0]),
                 .kind = .normal,
@@ -449,6 +451,7 @@ pub const QualType = packed struct(u32) {
             .pointer => |pointer| pointer.child,
             .array => |array| array.elem,
             .vector => |vector| vector.elem,
+            .block => qt.base(comp).qt, // special case: block's childType is always itself
             else => unreachable,
         };
     }
@@ -493,12 +496,13 @@ pub const QualType = packed struct(u32) {
             .void => 1,
             .bool => 1,
             .func => 1,
-            .nullptr_t, .pointer => comp.target.ptrBitWidth() / 8,
+            .nullptr_t, .pointer, .block => if (qt.bitSizeofOrNull(comp)) |sz| sz / 8 else null,
             .int => |int_ty| int_ty.bits(comp) / 8,
             .float => |float_ty| float_ty.bits(comp) / 8,
             .complex => |complex| complex.sizeofOrNull(comp),
             .bit_int => |bit_int| {
-                return std.mem.alignForward(u64, (@as(u32, bit_int.bits) + 7) / 8, qt.alignof(comp));
+                const base_qt = qt.base(comp).qt;
+                return std.mem.alignForward(u64, (@as(u32, bit_int.bits) + 7) / 8, base_qt.alignof(comp));
             },
             .atomic => |atomic| atomic.sizeofOrNull(comp),
             .vector => |vector| {
@@ -522,7 +526,8 @@ pub const QualType = packed struct(u32) {
                     // for the field alignment. A flexible array has size 0. See test case 0018.
                     return arr_size;
                 } else {
-                    return std.mem.alignForward(u64, arr_size, qt.alignof(comp));
+                    const base_qt = qt.base(comp).qt;
+                    return std.mem.alignForward(u64, arr_size, base_qt.alignof(comp));
                 }
             },
             .@"struct", .@"union" => |record| {
@@ -539,6 +544,20 @@ pub const QualType = packed struct(u32) {
         };
     }
 
+    fn attributedPointerBitSize(qt: QualType, comp: *const Compilation) ?u32 {
+        var it = Attribute.Iterator.initType(qt, comp);
+        while (it.next()) |item| {
+            const attribute, _ = item;
+            if (attribute.tag != .msvc_ptr) continue;
+            switch (attribute.args.msvc_ptr.kind) {
+                .ptr32 => return 32,
+                .ptr64 => return 64,
+                .sptr, .uptr => {},
+            }
+        }
+        return null;
+    }
+
     /// Size of type in bits as it would have in a bitfield.
     pub fn bitSizeof(qt: QualType, comp: *const Compilation) u64 {
         return qt.bitSizeofOrNull(comp).?;
@@ -553,7 +572,7 @@ pub const QualType = packed struct(u32) {
             .bit_int => |bit_int| bit_int.bits,
             .float => |float_ty| float_ty.bits(comp),
             .int => |int_ty| int_ty.bits(comp),
-            .nullptr_t, .pointer => comp.target.ptrBitWidth(),
+            .nullptr_t, .pointer, .block => qt.attributedPointerBitSize(comp) orelse comp.target.ptrBitWidth(),
             .atomic => |atomic| continue :loop atomic.base(comp).type,
             .complex => |complex| {
                 const child_size = complex.bitSizeofOrNull(comp) orelse return null;
@@ -586,7 +605,7 @@ pub const QualType = packed struct(u32) {
                 .uchar, .ushort, .uint, .ulong, .ulong_long, .uint128 => .unsigned,
             },
             // Pointer values are signed.
-            .pointer, .nullptr_t => .signed,
+            .pointer, .nullptr_t, .block => .signed,
             .@"enum" => .signed,
             else => unreachable,
         };
@@ -661,9 +680,9 @@ pub const QualType = packed struct(u32) {
             .atomic => |atomic| continue :loop atomic.base(comp).type,
             .complex => |complex| continue :loop complex.base(comp).type,
 
-            .pointer, .nullptr_t => switch (comp.target.cpu.arch) {
+            .pointer, .nullptr_t, .block => switch (comp.target.cpu.arch) {
                 .avr => 1,
-                else => comp.target.ptrBitWidth() / 8,
+                else => (qt.attributedPointerBitSize(comp) orelse comp.target.ptrBitWidth()) / 8,
             },
 
             .func => comp.target.defaultFunctionAlignment(),
@@ -932,6 +951,7 @@ pub const QualType = packed struct(u32) {
         void_pointer,
         complex_int,
         complex_float,
+        block_pointer,
         none,
 
         pub fn isInt(sk: ScalarKind) bool {
@@ -957,7 +977,7 @@ pub const QualType = packed struct(u32) {
 
         pub fn isPointer(sk: ScalarKind) bool {
             return switch (sk) {
-                .pointer, .void_pointer => true,
+                .pointer, .void_pointer, .block_pointer => true,
                 else => false,
             };
         }
@@ -988,6 +1008,7 @@ pub const QualType = packed struct(u32) {
                 else => unreachable,
             },
             .atomic => |atomic| continue :loop atomic.base(comp).type,
+            .block => return .block_pointer,
             else => return .none,
         }
     }
@@ -1141,6 +1162,7 @@ pub const QualType = packed struct(u32) {
                 return a_vector.elem.eqlQualified(b_vector.elem, comp);
             },
             .@"struct", .@"union", .@"enum" => return a_type_qt.qt._index == b_type_qt.qt._index,
+            .block => |a_block| return a_block.func.eql(b_type.block.func, comp),
 
             .typeof => unreachable, // Never returned from base()
             .typedef => unreachable, // Never returned from base()
@@ -1279,6 +1301,23 @@ pub const QualType = packed struct(u32) {
                 if (simple) try w.writeByte(' ');
                 return false;
             },
+            .block => |block| {
+                if (!block.func.is(comp, .func)) unreachable;
+
+                const simple = try block.func.printPrologue(comp, desugar, w);
+                try w.writeAll(if (simple) " ^" else "(^");
+                if (qt.@"const") try w.writeAll("const");
+                if (qt.@"volatile") {
+                    if (qt.@"const") try w.writeByte(' ');
+                    try w.writeAll("volatile");
+                }
+                if (qt.restrict) {
+                    if (qt.@"const" or qt.@"volatile") try w.writeByte(' ');
+                    try w.writeAll("restrict");
+                }
+                if (!simple) try w.writeByte(')');
+                return false;
+            },
             .array => |array| {
                 if (qt.@"const") {
                     try w.writeAll("const ");
@@ -1318,6 +1357,7 @@ pub const QualType = packed struct(u32) {
             .typeof => unreachable,
             .typedef => unreachable,
             .attributed => unreachable,
+            .block => unreachable,
 
             .void => try w.writeAll("void"),
             .bool => try w.writeAll(if (comp.langopts.standard.atLeast(.c23)) "bool" else "_Bool"),
@@ -1395,6 +1435,7 @@ pub const QualType = packed struct(u32) {
                 }
                 continue :loop pointer.child.type(comp);
             },
+            .block => |block| continue :loop block.func.type(comp),
             .func => |func| {
                 try w.writeByte('(');
                 for (func.params, 0..) |param, i| {
@@ -1430,6 +1471,8 @@ pub const QualType = packed struct(u32) {
 
                 continue :loop array.elem.type(comp);
             },
+            .typeof => |typeof| if (desugar) continue :loop typeof.base.type(comp),
+            .typedef => |typedef| if (desugar) continue :loop typedef.base.type(comp),
             .attributed => |attributed| continue :loop attributed.base.type(comp),
             else => {},
         }
@@ -1456,6 +1499,21 @@ pub const QualType = packed struct(u32) {
                 else
                     try w.writeAll("fn (");
 
+                for (func.params, 0..) |param, i| {
+                    if (i != 0) try w.writeAll(", ");
+                    if (param.name != .empty) try w.print("{s}: ", .{param.name.lookup(comp)});
+                    try param.qt.dump(comp, w);
+                }
+                if (func.kind != .normal) {
+                    if (func.params.len != 0) try w.writeAll(", ");
+                    try w.writeAll("...");
+                }
+                try w.writeAll(") ");
+                try func.return_type.dump(comp, w);
+            },
+            .block => |block| {
+                const func = block.func.get(comp, .func).?; // `validateExtra` ensures this invariant
+                try w.writeAll("block (");
                 for (func.params, 0..) |param, i| {
                     if (i != 0) try w.writeAll(", ");
                     if (param.name != .empty) try w.print("{s}: ", .{param.name.lookup(comp)});
@@ -1524,6 +1582,7 @@ pub const Type = union(enum) {
     bit_int: BitInt,
     atomic: QualType,
 
+    block: Block,
     func: Func,
     pointer: Pointer,
     array: Array,
@@ -1615,6 +1674,10 @@ pub const Type = union(enum) {
         /// Must be >= 1 if unsigned and >= 2 if signed
         bits: u16,
         signedness: std.builtin.Signedness,
+    };
+
+    pub const Block = struct {
+        func: QualType,
     };
 
     pub const Func = struct {
@@ -1905,6 +1968,10 @@ pub fn set(ts: *TypeStore, gpa: std.mem.Allocator, ty: Type, index: usize) !void
             repr.tag = .atomic;
             std.debug.assert(!atomic.@"const" and !atomic.@"volatile");
             repr.data[0] = @bitCast(atomic);
+        },
+        .block => |block| {
+            repr.tag = .block;
+            repr.data[0] = @bitCast(block.func);
         },
         .func => |func| {
             repr.data[0] = @bitCast(func.return_type);
@@ -2841,7 +2908,10 @@ pub const Builder = struct {
         }
 
         // We can't use `qt.isPointer()` because `qt` might contain a `.declarator_combine`.
-        const is_pointer = qt.isAutoType() or qt.isC23Auto() or qt.base(b.parser.comp).type == .pointer;
+        const is_pointer = qt.isAutoType() or qt.isC23Auto() or switch (qt.base(b.parser.comp).type) {
+            .array, .pointer => true,
+            else => false,
+        };
 
         if (b.unaligned != null and !is_pointer) {
             result_qt = (try b.parser.comp.type_store.put(gpa, .{ .attributed = .{

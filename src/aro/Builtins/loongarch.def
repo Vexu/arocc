@@ -1,5 +1,95 @@
 # Generated from clang/include/clang/Basic/BuiltinsLoongArch*.def
 
+__builtin_lasx_cast_128
+    .param_str = "V4LLiV2LLi"
+    .attributes = .{ .@"const" = true }
+    .features = "lasx"
+
+__builtin_lasx_cast_128_d
+    .param_str = "V4dV2d"
+    .attributes = .{ .@"const" = true }
+    .features = "lasx"
+
+__builtin_lasx_cast_128_s
+    .param_str = "V8fV4f"
+    .attributes = .{ .@"const" = true }
+    .features = "lasx"
+
+__builtin_lasx_concat_128
+    .param_str = "V4LLiV2LLiV2LLi"
+    .attributes = .{ .@"const" = true }
+    .features = "lasx"
+
+__builtin_lasx_concat_128_d
+    .param_str = "V4dV2dV2d"
+    .attributes = .{ .@"const" = true }
+    .features = "lasx"
+
+__builtin_lasx_concat_128_s
+    .param_str = "V8fV4fV4f"
+    .attributes = .{ .@"const" = true }
+    .features = "lasx"
+
+__builtin_lasx_extract_128_hi
+    .param_str = "V2LLiV4LLi"
+    .attributes = .{ .@"const" = true }
+    .features = "lasx"
+
+__builtin_lasx_extract_128_hi_d
+    .param_str = "V2dV4d"
+    .attributes = .{ .@"const" = true }
+    .features = "lasx"
+
+__builtin_lasx_extract_128_hi_s
+    .param_str = "V4fV8f"
+    .attributes = .{ .@"const" = true }
+    .features = "lasx"
+
+__builtin_lasx_extract_128_lo
+    .param_str = "V2LLiV4LLi"
+    .attributes = .{ .@"const" = true }
+    .features = "lasx"
+
+__builtin_lasx_extract_128_lo_d
+    .param_str = "V2dV4d"
+    .attributes = .{ .@"const" = true }
+    .features = "lasx"
+
+__builtin_lasx_extract_128_lo_s
+    .param_str = "V4fV8f"
+    .attributes = .{ .@"const" = true }
+    .features = "lasx"
+
+__builtin_lasx_insert_128_hi
+    .param_str = "V4LLiV4LLiV2LLi"
+    .attributes = .{ .@"const" = true }
+    .features = "lasx"
+
+__builtin_lasx_insert_128_hi_d
+    .param_str = "V4dV4dV2d"
+    .attributes = .{ .@"const" = true }
+    .features = "lasx"
+
+__builtin_lasx_insert_128_hi_s
+    .param_str = "V8fV8fV4f"
+    .attributes = .{ .@"const" = true }
+    .features = "lasx"
+
+__builtin_lasx_insert_128_lo
+    .param_str = "V4LLiV4LLiV2LLi"
+    .attributes = .{ .@"const" = true }
+    .features = "lasx"
+
+__builtin_lasx_insert_128_lo_d
+    .param_str = "V4dV4dV2d"
+    .attributes = .{ .@"const" = true }
+    .features = "lasx"
+
+__builtin_lasx_insert_128_lo_s
+    .param_str = "V8fV8fV4f"
+    .attributes = .{ .@"const" = true }
+    .features = "lasx"
+
 __builtin_lasx_vext2xv_d_b
     .param_str = "V4LLiV32Sc"
     .attributes = .{ .@"const" = true }

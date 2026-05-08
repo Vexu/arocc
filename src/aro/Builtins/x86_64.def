@@ -258,70 +258,6 @@ __builtin_ia32_subborrow_u64
     .param_str = "UcUcUOiUOiUOi*"
     .attributes = .{ .const_evaluable = true }
 
-__builtin_ia32_t2rpntlvwz0
-    .param_str = "vIUcvC*z"
-    .features = "amx_transpose"
-
-__builtin_ia32_t2rpntlvwz0_internal
-    .param_str = "vUsUsUsV256i*V256i*vC*z"
-    .features = "amx_transpose"
-
-__builtin_ia32_t2rpntlvwz0rs
-    .param_str = "vIUcvC*z"
-    .features = "amx_movrs,amx_transpose"
-
-__builtin_ia32_t2rpntlvwz0rs_internal
-    .param_str = "vUsUsUsV256i*V256i*vC*z"
-    .features = "amx_movrs,amx_transpose"
-
-__builtin_ia32_t2rpntlvwz0rst1
-    .param_str = "vIUcvC*z"
-    .features = "amx_movrs,amx_transpose"
-
-__builtin_ia32_t2rpntlvwz0rst1_internal
-    .param_str = "vUsUsUsV256i*V256i*vC*z"
-    .features = "amx_movrs,amx_transpose"
-
-__builtin_ia32_t2rpntlvwz0t1
-    .param_str = "vIUcvC*z"
-    .features = "amx_transpose"
-
-__builtin_ia32_t2rpntlvwz0t1_internal
-    .param_str = "vUsUsUsV256i*V256i*vC*z"
-    .features = "amx_transpose"
-
-__builtin_ia32_t2rpntlvwz1
-    .param_str = "vIUcvC*z"
-    .features = "amx_transpose"
-
-__builtin_ia32_t2rpntlvwz1_internal
-    .param_str = "vUsUsUsV256i*V256i*vC*z"
-    .features = "amx_transpose"
-
-__builtin_ia32_t2rpntlvwz1rs
-    .param_str = "vIUcvC*z"
-    .features = "amx_movrs,amx_transpose"
-
-__builtin_ia32_t2rpntlvwz1rs_internal
-    .param_str = "vUsUsUsV256i*V256i*vC*z"
-    .features = "amx_movrs,amx_transpose"
-
-__builtin_ia32_t2rpntlvwz1rst1
-    .param_str = "vIUcvC*z"
-    .features = "amx_movrs,amx_transpose"
-
-__builtin_ia32_t2rpntlvwz1rst1_internal
-    .param_str = "vUsUsUsV256i*V256i*vC*z"
-    .features = "amx_movrs,amx_transpose"
-
-__builtin_ia32_t2rpntlvwz1t1
-    .param_str = "vIUcvC*z"
-    .features = "amx_transpose"
-
-__builtin_ia32_t2rpntlvwz1t1_internal
-    .param_str = "vUsUsUsV256i*V256i*vC*z"
-    .features = "amx_transpose"
-
 __builtin_ia32_tcmmimfp16ps
     .param_str = "vIUcIUcIUc"
     .features = "amx_complex"
@@ -338,28 +274,16 @@ __builtin_ia32_tcmmrlfp16ps_internal
     .param_str = "V256iUsUsUsV256iV256iV256i"
     .features = "amx_complex"
 
-__builtin_ia32_tconjtcmmimfp16ps
-    .param_str = "vIUcIUcIUc"
-    .features = "amx_complex,amx_transpose"
-
-__builtin_ia32_tconjtcmmimfp16ps_internal
-    .param_str = "V256iUsUsUsV256iV256iV256i"
-    .features = "amx_complex,amx_transpose"
-
-__builtin_ia32_tconjtfp16
-    .param_str = "vIUcIUc"
-    .features = "amx_complex,amx_transpose"
-
-__builtin_ia32_tconjtfp16_internal
-    .param_str = "V256iUsUsV256i"
-    .features = "amx_complex,amx_transpose"
-
 __builtin_ia32_tcvtrowd2ps
     .param_str = "V16fIUcUi"
     .features = "amx_avx512,avx10_2"
 
 __builtin_ia32_tcvtrowd2ps_internal
     .param_str = "V16fUsUsV256iUi"
+    .features = "amx_avx512,avx10_2"
+
+__builtin_ia32_tcvtrowd2psi
+    .param_str = "V16fIUcIUi"
     .features = "amx_avx512,avx10_2"
 
 __builtin_ia32_tcvtrowps2bf16h
@@ -370,12 +294,20 @@ __builtin_ia32_tcvtrowps2bf16h_internal
     .param_str = "V32yUsUsV256iUi"
     .features = "amx_avx512,avx10_2"
 
+__builtin_ia32_tcvtrowps2bf16hi
+    .param_str = "V32yIUcIUi"
+    .features = "amx_avx512,avx10_2"
+
 __builtin_ia32_tcvtrowps2bf16l
     .param_str = "V32yIUcUi"
     .features = "amx_avx512,avx10_2"
 
 __builtin_ia32_tcvtrowps2bf16l_internal
     .param_str = "V32yUsUsV256iUi"
+    .features = "amx_avx512,avx10_2"
+
+__builtin_ia32_tcvtrowps2bf16li
+    .param_str = "V32yIUcIUi"
     .features = "amx_avx512,avx10_2"
 
 __builtin_ia32_tcvtrowps2phh
@@ -386,12 +318,20 @@ __builtin_ia32_tcvtrowps2phh_internal
     .param_str = "V32xUsUsV256iUi"
     .features = "amx_avx512,avx10_2"
 
+__builtin_ia32_tcvtrowps2phhi
+    .param_str = "V32xIUcIUi"
+    .features = "amx_avx512,avx10_2"
+
 __builtin_ia32_tcvtrowps2phl
     .param_str = "V32xIUcUi"
     .features = "amx_avx512,avx10_2"
 
 __builtin_ia32_tcvtrowps2phl_internal
     .param_str = "V32xUsUsV256iUi"
+    .features = "amx_avx512,avx10_2"
+
+__builtin_ia32_tcvtrowps2phli
+    .param_str = "V32xIUcIUi"
     .features = "amx_avx512,avx10_2"
 
 __builtin_ia32_tdpbf8ps
@@ -530,6 +470,10 @@ __builtin_ia32_tilemovrow_internal
     .param_str = "V16iUsUsV256iUi"
     .features = "amx_avx512,avx10_2"
 
+__builtin_ia32_tilemovrowi
+    .param_str = "V16iIUcIUi"
+    .features = "amx_avx512,avx10_2"
+
 __builtin_ia32_tilerelease
     .param_str = "v"
     .features = "amx_tile"
@@ -557,54 +501,6 @@ __builtin_ia32_tmmultf32ps
 __builtin_ia32_tmmultf32ps_internal
     .param_str = "V256iUsUsUsV256iV256iV256i"
     .features = "amx_tf32"
-
-__builtin_ia32_ttcmmimfp16ps
-    .param_str = "vIUcIUcIUc"
-    .features = "amx_complex,amx_transpose"
-
-__builtin_ia32_ttcmmimfp16ps_internal
-    .param_str = "V256iUsUsUsV256iV256iV256i"
-    .features = "amx_complex,amx_transpose"
-
-__builtin_ia32_ttcmmrlfp16ps
-    .param_str = "vIUcIUcIUc"
-    .features = "amx_complex,amx_transpose"
-
-__builtin_ia32_ttcmmrlfp16ps_internal
-    .param_str = "V256iUsUsUsV256iV256iV256i"
-    .features = "amx_complex,amx_transpose"
-
-__builtin_ia32_ttdpbf16ps
-    .param_str = "vIUcIUcIUc"
-    .features = "amx_bf16,amx_transpose"
-
-__builtin_ia32_ttdpbf16ps_internal
-    .param_str = "V256iUsUsUsV256iV256iV256i"
-    .features = "amx_bf16,amx_transpose"
-
-__builtin_ia32_ttdpfp16ps
-    .param_str = "vIUcIUcIUc"
-    .features = "amx_fp16,amx_transpose"
-
-__builtin_ia32_ttdpfp16ps_internal
-    .param_str = "V256iUsUsUsV256iV256iV256i"
-    .features = "amx_fp16,amx_transpose"
-
-__builtin_ia32_ttmmultf32ps
-    .param_str = "vIUcIUcIUc"
-    .features = "amx_tf32,amx_transpose"
-
-__builtin_ia32_ttmmultf32ps_internal
-    .param_str = "V256iUsUsUsV256iV256iV256i"
-    .features = "amx_tf32,amx_transpose"
-
-__builtin_ia32_ttransposed
-    .param_str = "vIUcIUc"
-    .features = "amx_transpose"
-
-__builtin_ia32_ttransposed_internal
-    .param_str = "V256iUsUsV256i"
-    .features = "amx_transpose"
 
 __builtin_ia32_tzcnt_u64
     .param_str = "UOiUOi"
@@ -711,17 +607,17 @@ __builtin_ia32_vcvtusi642sh
 __builtin_ia32_vec_ext_v4di
     .param_str = "OiV4OiIi"
     .features = "avx"
-    .attributes = .{ .@"const" = true }
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
 
 __builtin_ia32_vec_set_v2di
     .param_str = "V2OiV2OiOiIi"
     .features = "sse4_1"
-    .attributes = .{ .@"const" = true }
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
 
 __builtin_ia32_vec_set_v4di
     .param_str = "V4OiV4OiOiIi"
     .features = "avx"
-    .attributes = .{ .@"const" = true }
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
 
 __builtin_ia32_vmovrsb128
     .param_str = "V16cV16cC*"
