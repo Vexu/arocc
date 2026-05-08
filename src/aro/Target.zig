@@ -878,16 +878,14 @@ test parseArchName {
 pub fn parseOsName(query: []const u8) ?Os.Tag {
     var buf: [64]u8 = undefined;
     const lower = toLower(query, &buf) orelse return null;
-    
-    return std.meta.stringToEnum(Os.Tag, lower) orelse std.StaticStringMap(Os.Tag).initComptime(.{
-        .{ "darwin", .macos },
-        .{ "macosx", .macos },
-        .{ "tvos", .tvos },
-        .{ "visionos", .visionos },
-        .{ "watchos", .watchos },
-        .{ "win32", .windows },
-        .{ "xros", .visionos },
-    }).get(lower) orelse return null;
+
+    return std.meta.stringToEnum(Os.Tag, lower) orelse
+        std.StaticStringMap(Os.Tag).initComptime(.{
+            .{ "darwin", .macos },
+            .{ "macosx", .macos },
+            .{ "win32", .windows },
+            .{ "xros", .visionos },
+        }).get(lower) orelse return null;
 }
 
 pub fn isOs(target: *const Target, query_str: []const u8) bool {
