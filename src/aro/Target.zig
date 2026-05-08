@@ -878,7 +878,6 @@ test parseArchName {
 pub fn parseOsName(query: []const u8) ?Os.Tag {
     var buf: [64]u8 = undefined;
     const lower = toLower(query, &buf) orelse return null;
-
     return std.meta.stringToEnum(Os.Tag, lower) orelse
         std.StaticStringMap(Os.Tag).initComptime(.{
             .{ "darwin", .macos },
