@@ -887,14 +887,17 @@ pub fn parseOsName(query: []const u8) ?Os.Tag {
         }).get(lower) orelse return null;
 }
 
-pub fn isOs(target: *const Target, query: []const u8) bool {
-    const parsed = parseOsName(query) orelse return false;
-
-    if (parsed.isDarwin()) {
-        // clang treats all darwin OS's as equivalent
-        return target.os.tag.isDarwin();
+pub fn isOs(target: *const Target, query_str: []const u8) bool {
+    var query: std.Target.Query = .{};
+    parseOs(&query, query_str, null) catch return false;
+    if (query.os_tag) |tag| {
+        if (tag.isDarwin()) {
+            // clang treats all darwin OS's as equivalent
+            return target.os.tag.isDarwin();
+        }
+        return target.os.tag == tag;
     }
-    return parsed == target.os.tag;
+    return false;
 }
 
 pub fn parseVendorName(query: []const u8) ?Vendor {
@@ -1656,6 +1659,32 @@ test parseAbi {
     try testing.expect(query.abi == .ilp32);
 }
 
+/// Version of `std.Target.Query.parseVersion`, but with following changes:
+/// * Supports only 1, 2 or 3 version components (major, minor, [patch]). If 2nd or 3rd component is omitted, it will be 0.
+pub fn parseVersion(ver: []const u8) error{ InvalidVersion, Overflow }!std.SemanticVersion {
+    const parseVersionComponentFn = (struct {
+        fn parseVersionComponentInner(component: []const u8) error{ InvalidVersion, Overflow }!usize {
+            return std.fmt.parseUnsigned(usize, component, 10) catch |err| switch (err) {
+                error.InvalidCharacter => return error.InvalidVersion,
+                error.Overflow => |e| return e,
+            };
+        }
+    }).parseVersionComponentInner;
+
+    var version_components = mem.splitScalar(u8, ver, '.');
+
+    const major = version_components.first();
+    const minor = version_components.next() orelse "0";
+    const patch = version_components.next() orelse "0";
+    if (version_components.next() != null) return error.InvalidVersion;
+
+    return .{
+        .major = try parseVersionComponentFn(major),
+        .minor = try parseVersionComponentFn(minor),
+        .patch = try parseVersionComponentFn(patch),
+    };
+}
+
 /// Parse OS string with common aliases in `<os>(.?<version>(...<version>))?` format.
 ///
 /// `native` <os> results in `builtin.os.tag`.
@@ -1690,6 +1719,7 @@ pub fn parseOs(result: *std.Target.Query, text: []const u8, version_string: ?*[]
             }
         },
     } else .{ checkOs(text) orelse return error.UnknownOs, "" };
+
     result.os_tag = tag;
     if (version_string) |ptr| ptr.* = version_text;
 
@@ -1698,13 +1728,13 @@ pub fn parseOs(result: *std.Target.Query, text: []const u8, version_string: ?*[]
         .semver, .hurd, .linux => {
             var range_it = mem.splitSequence(u8, version_text, "...");
             result.os_version_min = .{
-                .semver = std.Target.Query.parseVersion(range_it.first()) catch |er| switch (er) {
+                .semver = parseVersion(range_it.first()) catch |er| switch (er) {
                     error.Overflow, error.InvalidVersion => return error.InvalidOsVersion,
                 },
             };
             if (range_it.next()) |v| {
                 result.os_version_max = .{
-                    .semver = std.Target.Query.parseVersion(v) catch |er| switch (er) {
+                    .semver = parseVersion(v) catch |er| switch (er) {
                         error.Overflow, error.InvalidVersion => return error.InvalidOsVersion,
                     },
                 };
@@ -1760,4 +1790,12 @@ test parseOs {
     try parseOs(&query, "win32.win10", null);
     try testing.expect(query.os_tag == .windows);
     try testing.expectEqual(query.os_version_min, V{ .windows = .win10 });
+
+    try parseOs(&query, "ios17", null);
+    try testing.expect(query.os_tag == .ios);
+    try testing.expectEqual(query.os_version_min, V{ .semver = .{ .major = 17, .minor = 0, .patch = 0 } });
+
+    try parseOs(&query, "darwin26", null);
+    try testing.expect(query.os_tag == .macos);
+    try testing.expectEqual(query.os_version_min, V{ .semver = .{ .major = 26, .minor = 0, .patch = 0 } });
 }
