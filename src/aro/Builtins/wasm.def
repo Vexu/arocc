@@ -1,0 +1,642 @@
+# Generated from clang/include/clang/Basic/BuiltinsWebAssembly.def
+
+__builtin_wasm_abs_f16x8
+    .param_str = "V8hV8h"
+    .attributes = .{ .@"const" = true }
+    .features = "fp16"
+
+__builtin_wasm_abs_f32x4
+    .param_str = "V4fV4f"
+    .attributes = .{ .@"const" = true }
+    .features = "simd128"
+
+__builtin_wasm_abs_f64x2
+    .param_str = "V2dV2d"
+    .attributes = .{ .@"const" = true }
+    .features = "simd128"
+
+__builtin_wasm_abs_i16x8
+    .param_str = "V8sV8s"
+    .attributes = .{ .@"const" = true }
+    .features = "simd128"
+
+__builtin_wasm_abs_i32x4
+    .param_str = "V4iV4i"
+    .attributes = .{ .@"const" = true }
+    .features = "simd128"
+
+__builtin_wasm_abs_i64x2
+    .param_str = "V2LLiV2LLi"
+    .attributes = .{ .@"const" = true }
+    .features = "simd128"
+
+__builtin_wasm_abs_i8x16
+    .param_str = "V16ScV16Sc"
+    .attributes = .{ .@"const" = true }
+    .features = "simd128"
+
+__builtin_wasm_all_true_i16x8
+    .param_str = "iV8s"
+    .attributes = .{ .@"const" = true }
+    .features = "simd128"
+
+__builtin_wasm_all_true_i32x4
+    .param_str = "iV4i"
+    .attributes = .{ .@"const" = true }
+    .features = "simd128"
+
+__builtin_wasm_all_true_i64x2
+    .param_str = "iV2LLi"
+    .attributes = .{ .@"const" = true }
+    .features = "simd128"
+
+__builtin_wasm_all_true_i8x16
+    .param_str = "iV16Sc"
+    .attributes = .{ .@"const" = true }
+    .features = "simd128"
+
+__builtin_wasm_any_true_v128
+    .param_str = "iV16Sc"
+    .attributes = .{ .@"const" = true }
+    .features = "simd128"
+
+__builtin_wasm_avgr_u_i16x8
+    .param_str = "V8UsV8UsV8Us"
+    .attributes = .{ .@"const" = true }
+    .features = "simd128"
+
+__builtin_wasm_avgr_u_i8x16
+    .param_str = "V16UcV16UcV16Uc"
+    .attributes = .{ .@"const" = true }
+    .features = "simd128"
+
+__builtin_wasm_bitmask_i16x8
+    .param_str = "UiV8s"
+    .attributes = .{ .@"const" = true }
+    .features = "simd128"
+
+__builtin_wasm_bitmask_i32x4
+    .param_str = "UiV4i"
+    .attributes = .{ .@"const" = true }
+    .features = "simd128"
+
+__builtin_wasm_bitmask_i64x2
+    .param_str = "UiV2LLi"
+    .attributes = .{ .@"const" = true }
+    .features = "simd128"
+
+__builtin_wasm_bitmask_i8x16
+    .param_str = "UiV16Sc"
+    .attributes = .{ .@"const" = true }
+    .features = "simd128"
+
+__builtin_wasm_bitselect
+    .param_str = "V4iV4iV4iV4i"
+    .attributes = .{ .@"const" = true }
+    .features = "simd128"
+
+__builtin_wasm_ceil_f16x8
+    .param_str = "V8hV8h"
+    .attributes = .{ .@"const" = true }
+    .features = "fp16"
+
+__builtin_wasm_ceil_f32x4
+    .param_str = "V4fV4f"
+    .attributes = .{ .@"const" = true }
+    .features = "simd128"
+
+__builtin_wasm_ceil_f64x2
+    .param_str = "V2dV2d"
+    .attributes = .{ .@"const" = true }
+    .features = "simd128"
+
+__builtin_wasm_dot_s_i32x4_i16x8
+    .param_str = "V4iV8sV8s"
+    .attributes = .{ .@"const" = true }
+    .features = "simd128"
+
+__builtin_wasm_extadd_pairwise_i16x8_s_i32x4
+    .param_str = "V4iV8s"
+    .attributes = .{ .@"const" = true }
+    .features = "simd128"
+
+__builtin_wasm_extadd_pairwise_i16x8_u_i32x4
+    .param_str = "V4UiV8Us"
+    .attributes = .{ .@"const" = true }
+    .features = "simd128"
+
+__builtin_wasm_extadd_pairwise_i8x16_s_i16x8
+    .param_str = "V8sV16Sc"
+    .attributes = .{ .@"const" = true }
+    .features = "simd128"
+
+__builtin_wasm_extadd_pairwise_i8x16_u_i16x8
+    .param_str = "V8UsV16Uc"
+    .attributes = .{ .@"const" = true }
+    .features = "simd128"
+
+__builtin_wasm_extract_lane_f16x8
+    .param_str = "fV8hIi"
+    .attributes = .{ .@"const" = true }
+    .features = "fp16"
+
+__builtin_wasm_floor_f16x8
+    .param_str = "V8hV8h"
+    .attributes = .{ .@"const" = true }
+    .features = "fp16"
+
+__builtin_wasm_floor_f32x4
+    .param_str = "V4fV4f"
+    .attributes = .{ .@"const" = true }
+    .features = "simd128"
+
+__builtin_wasm_floor_f64x2
+    .param_str = "V2dV2d"
+    .attributes = .{ .@"const" = true }
+    .features = "simd128"
+
+__builtin_wasm_loadf16_f32
+    .param_str = "fh*"
+    .attributes = .{ .pure = true }
+    .features = "fp16"
+
+__builtin_wasm_max_f16x8
+    .param_str = "V8hV8hV8h"
+    .attributes = .{ .@"const" = true }
+    .features = "fp16"
+
+__builtin_wasm_max_f32
+    .param_str = "fff"
+    .attributes = .{ .@"const" = true }
+
+__builtin_wasm_max_f32x4
+    .param_str = "V4fV4fV4f"
+    .attributes = .{ .@"const" = true }
+    .features = "simd128"
+
+__builtin_wasm_max_f64
+    .param_str = "ddd"
+    .attributes = .{ .@"const" = true }
+
+__builtin_wasm_max_f64x2
+    .param_str = "V2dV2dV2d"
+    .attributes = .{ .@"const" = true }
+    .features = "simd128"
+
+__builtin_wasm_memory_atomic_notify
+    .param_str = "Uii*Ui"
+    .features = "atomics"
+
+__builtin_wasm_memory_atomic_wait32
+    .param_str = "ii*iLLi"
+    .features = "atomics"
+
+__builtin_wasm_memory_atomic_wait64
+    .param_str = "iLLi*LLiLLi"
+    .features = "atomics"
+
+__builtin_wasm_memory_grow
+    .param_str = "zIiz"
+
+__builtin_wasm_memory_size
+    .param_str = "zIi"
+
+__builtin_wasm_min_f16x8
+    .param_str = "V8hV8hV8h"
+    .attributes = .{ .@"const" = true }
+    .features = "fp16"
+
+__builtin_wasm_min_f32
+    .param_str = "fff"
+    .attributes = .{ .@"const" = true }
+
+__builtin_wasm_min_f32x4
+    .param_str = "V4fV4fV4f"
+    .attributes = .{ .@"const" = true }
+    .features = "simd128"
+
+__builtin_wasm_min_f64
+    .param_str = "ddd"
+    .attributes = .{ .@"const" = true }
+
+__builtin_wasm_min_f64x2
+    .param_str = "V2dV2dV2d"
+    .attributes = .{ .@"const" = true }
+    .features = "simd128"
+
+__builtin_wasm_narrow_s_i16x8_i32x4
+    .param_str = "V8sV4iV4i"
+    .attributes = .{ .@"const" = true }
+    .features = "simd128"
+
+__builtin_wasm_narrow_s_i8x16_i16x8
+    .param_str = "V16ScV8sV8s"
+    .attributes = .{ .@"const" = true }
+    .features = "simd128"
+
+__builtin_wasm_narrow_u_i16x8_i32x4
+    .param_str = "V8UsV4iV4i"
+    .attributes = .{ .@"const" = true }
+    .features = "simd128"
+
+__builtin_wasm_narrow_u_i8x16_i16x8
+    .param_str = "V16UcV8sV8s"
+    .attributes = .{ .@"const" = true }
+    .features = "simd128"
+
+__builtin_wasm_nearest_f16x8
+    .param_str = "V8hV8h"
+    .attributes = .{ .@"const" = true }
+    .features = "fp16"
+
+__builtin_wasm_nearest_f32x4
+    .param_str = "V4fV4f"
+    .attributes = .{ .@"const" = true }
+    .features = "simd128"
+
+__builtin_wasm_nearest_f64x2
+    .param_str = "V2dV2d"
+    .attributes = .{ .@"const" = true }
+    .features = "simd128"
+
+__builtin_wasm_pmax_f16x8
+    .param_str = "V8hV8hV8h"
+    .attributes = .{ .@"const" = true }
+    .features = "fp16"
+
+__builtin_wasm_pmax_f32x4
+    .param_str = "V4fV4fV4f"
+    .attributes = .{ .@"const" = true }
+    .features = "simd128"
+
+__builtin_wasm_pmax_f64x2
+    .param_str = "V2dV2dV2d"
+    .attributes = .{ .@"const" = true }
+    .features = "simd128"
+
+__builtin_wasm_pmin_f16x8
+    .param_str = "V8hV8hV8h"
+    .attributes = .{ .@"const" = true }
+    .features = "fp16"
+
+__builtin_wasm_pmin_f32x4
+    .param_str = "V4fV4fV4f"
+    .attributes = .{ .@"const" = true }
+    .features = "simd128"
+
+__builtin_wasm_pmin_f64x2
+    .param_str = "V2dV2dV2d"
+    .attributes = .{ .@"const" = true }
+    .features = "simd128"
+
+__builtin_wasm_q15mulr_sat_s_i16x8
+    .param_str = "V8sV8sV8s"
+    .attributes = .{ .@"const" = true }
+    .features = "simd128"
+
+__builtin_wasm_ref_is_null_extern
+    .param_str = "ii"
+    .attributes = .{ .@"const" = true, .custom_typecheck = true }
+    .features = "reference_types"
+
+__builtin_wasm_ref_null_extern
+    .param_str = "i"
+    .attributes = .{ .@"const" = true, .custom_typecheck = true }
+    .features = "reference_types"
+
+__builtin_wasm_ref_null_func
+    .param_str = "i"
+    .attributes = .{ .@"const" = true, .custom_typecheck = true }
+    .features = "reference_types"
+
+__builtin_wasm_relaxed_dot_bf16x8_add_f32_f32x4
+    .param_str = "V4fV8UsV8UsV4f"
+    .attributes = .{ .@"const" = true }
+    .features = "relaxed_simd"
+
+__builtin_wasm_relaxed_dot_i8x16_i7x16_add_s_i32x4
+    .param_str = "V4iV16ScV16ScV4i"
+    .attributes = .{ .@"const" = true }
+    .features = "relaxed_simd"
+
+__builtin_wasm_relaxed_dot_i8x16_i7x16_s_i16x8
+    .param_str = "V8sV16ScV16Sc"
+    .attributes = .{ .@"const" = true }
+    .features = "relaxed_simd"
+
+__builtin_wasm_relaxed_laneselect_i16x8
+    .param_str = "V8sV8sV8sV8s"
+    .attributes = .{ .@"const" = true }
+    .features = "relaxed_simd"
+
+__builtin_wasm_relaxed_laneselect_i32x4
+    .param_str = "V4iV4iV4iV4i"
+    .attributes = .{ .@"const" = true }
+    .features = "relaxed_simd"
+
+__builtin_wasm_relaxed_laneselect_i64x2
+    .param_str = "V2LLiV2LLiV2LLiV2LLi"
+    .attributes = .{ .@"const" = true }
+    .features = "relaxed_simd"
+
+__builtin_wasm_relaxed_laneselect_i8x16
+    .param_str = "V16ScV16ScV16ScV16Sc"
+    .attributes = .{ .@"const" = true }
+    .features = "relaxed_simd"
+
+__builtin_wasm_relaxed_madd_f16x8
+    .param_str = "V8hV8hV8hV8h"
+    .attributes = .{ .@"const" = true }
+    .features = "fp16"
+
+__builtin_wasm_relaxed_madd_f32x4
+    .param_str = "V4fV4fV4fV4f"
+    .attributes = .{ .@"const" = true }
+    .features = "relaxed_simd"
+
+__builtin_wasm_relaxed_madd_f64x2
+    .param_str = "V2dV2dV2dV2d"
+    .attributes = .{ .@"const" = true }
+    .features = "relaxed_simd"
+
+__builtin_wasm_relaxed_max_f32x4
+    .param_str = "V4fV4fV4f"
+    .attributes = .{ .@"const" = true }
+    .features = "relaxed_simd"
+
+__builtin_wasm_relaxed_max_f64x2
+    .param_str = "V2dV2dV2d"
+    .attributes = .{ .@"const" = true }
+    .features = "relaxed_simd"
+
+__builtin_wasm_relaxed_min_f32x4
+    .param_str = "V4fV4fV4f"
+    .attributes = .{ .@"const" = true }
+    .features = "relaxed_simd"
+
+__builtin_wasm_relaxed_min_f64x2
+    .param_str = "V2dV2dV2d"
+    .attributes = .{ .@"const" = true }
+    .features = "relaxed_simd"
+
+__builtin_wasm_relaxed_nmadd_f16x8
+    .param_str = "V8hV8hV8hV8h"
+    .attributes = .{ .@"const" = true }
+    .features = "fp16"
+
+__builtin_wasm_relaxed_nmadd_f32x4
+    .param_str = "V4fV4fV4fV4f"
+    .attributes = .{ .@"const" = true }
+    .features = "relaxed_simd"
+
+__builtin_wasm_relaxed_nmadd_f64x2
+    .param_str = "V2dV2dV2dV2d"
+    .attributes = .{ .@"const" = true }
+    .features = "relaxed_simd"
+
+__builtin_wasm_relaxed_q15mulr_s_i16x8
+    .param_str = "V8sV8sV8s"
+    .attributes = .{ .@"const" = true }
+    .features = "relaxed_simd"
+
+__builtin_wasm_relaxed_swizzle_i8x16
+    .param_str = "V16ScV16ScV16Sc"
+    .attributes = .{ .@"const" = true }
+    .features = "relaxed_simd"
+
+__builtin_wasm_relaxed_trunc_s_i32x4_f32x4
+    .param_str = "V4iV4f"
+    .attributes = .{ .@"const" = true }
+    .features = "relaxed_simd"
+
+__builtin_wasm_relaxed_trunc_s_zero_i32x4_f64x2
+    .param_str = "V4iV2d"
+    .attributes = .{ .@"const" = true }
+    .features = "relaxed_simd"
+
+__builtin_wasm_relaxed_trunc_u_i32x4_f32x4
+    .param_str = "V4UiV4f"
+    .attributes = .{ .@"const" = true }
+    .features = "relaxed_simd"
+
+__builtin_wasm_relaxed_trunc_u_zero_i32x4_f64x2
+    .param_str = "V4UiV2d"
+    .attributes = .{ .@"const" = true }
+    .features = "relaxed_simd"
+
+__builtin_wasm_replace_lane_f16x8
+    .param_str = "V8hV8hIif"
+    .attributes = .{ .@"const" = true }
+    .features = "fp16"
+
+__builtin_wasm_rethrow
+    .param_str = "v"
+    .attributes = .{ .@"noreturn" = true }
+    .features = "exception_handling"
+
+__builtin_wasm_shuffle_i8x16
+    .param_str = "V16ScV16ScV16ScIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIi"
+    .attributes = .{ .@"const" = true }
+    .features = "simd128"
+
+__builtin_wasm_splat_f16x8
+    .param_str = "V8hf"
+    .attributes = .{ .@"const" = true }
+    .features = "fp16"
+
+__builtin_wasm_sqrt_f16x8
+    .param_str = "V8hV8h"
+    .attributes = .{ .@"const" = true }
+    .features = "fp16"
+
+__builtin_wasm_sqrt_f32x4
+    .param_str = "V4fV4f"
+    .attributes = .{ .@"const" = true }
+    .features = "simd128"
+
+__builtin_wasm_sqrt_f64x2
+    .param_str = "V2dV2d"
+    .attributes = .{ .@"const" = true }
+    .features = "simd128"
+
+__builtin_wasm_storef16_f32
+    .param_str = "vfh*"
+    .features = "fp16"
+
+__builtin_wasm_swizzle_i8x16
+    .param_str = "V16ScV16ScV16Sc"
+    .attributes = .{ .@"const" = true }
+    .features = "simd128"
+
+__builtin_wasm_table_copy
+    .param_str = "viiiii"
+    .attributes = .{ .custom_typecheck = true }
+    .features = "reference_types"
+
+__builtin_wasm_table_fill
+    .param_str = "viiii"
+    .attributes = .{ .custom_typecheck = true }
+    .features = "reference_types"
+
+__builtin_wasm_table_get
+    .param_str = "iii"
+    .attributes = .{ .custom_typecheck = true }
+    .features = "reference_types"
+
+__builtin_wasm_table_grow
+    .param_str = "iiii"
+    .attributes = .{ .custom_typecheck = true }
+    .features = "reference_types"
+
+__builtin_wasm_table_set
+    .param_str = "viii"
+    .attributes = .{ .custom_typecheck = true }
+    .features = "reference_types"
+
+__builtin_wasm_table_size
+    .param_str = "zi"
+    .attributes = .{ .custom_typecheck = true }
+    .features = "reference_types"
+
+__builtin_wasm_test_function_pointer_signature
+    .param_str = "i."
+    .attributes = .{ .@"const" = true, .custom_typecheck = true }
+    .features = "gc"
+
+__builtin_wasm_throw
+    .param_str = "vIUiv*"
+    .attributes = .{ .@"noreturn" = true }
+    .features = "exception_handling"
+
+__builtin_wasm_tls_align
+    .param_str = "z"
+    .attributes = .{ .@"const" = true }
+    .features = "bulk_memory"
+
+__builtin_wasm_tls_base
+    .param_str = "v*"
+    .attributes = .{ .pure = true }
+    .features = "bulk_memory"
+
+__builtin_wasm_tls_size
+    .param_str = "z"
+    .attributes = .{ .@"const" = true }
+    .features = "bulk_memory"
+
+__builtin_wasm_trunc_f16x8
+    .param_str = "V8hV8h"
+    .attributes = .{ .@"const" = true }
+    .features = "fp16"
+
+__builtin_wasm_trunc_f32x4
+    .param_str = "V4fV4f"
+    .attributes = .{ .@"const" = true }
+    .features = "simd128"
+
+__builtin_wasm_trunc_f64x2
+    .param_str = "V2dV2d"
+    .attributes = .{ .@"const" = true }
+    .features = "simd128"
+
+__builtin_wasm_trunc_s_i32_f32
+    .param_str = "if"
+    .attributes = .{ .@"const" = true }
+
+__builtin_wasm_trunc_s_i32_f64
+    .param_str = "id"
+    .attributes = .{ .@"const" = true }
+
+__builtin_wasm_trunc_s_i64_f32
+    .param_str = "LLif"
+    .attributes = .{ .@"const" = true }
+
+__builtin_wasm_trunc_s_i64_f64
+    .param_str = "LLid"
+    .attributes = .{ .@"const" = true }
+
+__builtin_wasm_trunc_sat_s_zero_f64x2_i32x4
+    .param_str = "V4iV2d"
+    .attributes = .{ .@"const" = true }
+    .features = "simd128"
+
+__builtin_wasm_trunc_sat_u_zero_f64x2_i32x4
+    .param_str = "V4UiV2d"
+    .attributes = .{ .@"const" = true }
+    .features = "simd128"
+
+__builtin_wasm_trunc_saturate_s_i16x8_f16x8
+    .param_str = "V8sV8h"
+    .attributes = .{ .@"const" = true }
+    .features = "simd128"
+
+__builtin_wasm_trunc_saturate_s_i32_f32
+    .param_str = "if"
+    .attributes = .{ .@"const" = true }
+    .features = "nontrapping_fptoint"
+
+__builtin_wasm_trunc_saturate_s_i32_f64
+    .param_str = "id"
+    .attributes = .{ .@"const" = true }
+    .features = "nontrapping_fptoint"
+
+__builtin_wasm_trunc_saturate_s_i32x4_f32x4
+    .param_str = "V4iV4f"
+    .attributes = .{ .@"const" = true }
+    .features = "simd128"
+
+__builtin_wasm_trunc_saturate_s_i64_f32
+    .param_str = "LLif"
+    .attributes = .{ .@"const" = true }
+    .features = "nontrapping_fptoint"
+
+__builtin_wasm_trunc_saturate_s_i64_f64
+    .param_str = "LLid"
+    .attributes = .{ .@"const" = true }
+    .features = "nontrapping_fptoint"
+
+__builtin_wasm_trunc_saturate_u_i16x8_f16x8
+    .param_str = "V8sV8h"
+    .attributes = .{ .@"const" = true }
+    .features = "simd128"
+
+__builtin_wasm_trunc_saturate_u_i32_f32
+    .param_str = "if"
+    .attributes = .{ .@"const" = true }
+    .features = "nontrapping_fptoint"
+
+__builtin_wasm_trunc_saturate_u_i32_f64
+    .param_str = "id"
+    .attributes = .{ .@"const" = true }
+    .features = "nontrapping_fptoint"
+
+__builtin_wasm_trunc_saturate_u_i32x4_f32x4
+    .param_str = "V4iV4f"
+    .attributes = .{ .@"const" = true }
+    .features = "simd128"
+
+__builtin_wasm_trunc_saturate_u_i64_f32
+    .param_str = "LLif"
+    .attributes = .{ .@"const" = true }
+    .features = "nontrapping_fptoint"
+
+__builtin_wasm_trunc_saturate_u_i64_f64
+    .param_str = "LLid"
+    .attributes = .{ .@"const" = true }
+    .features = "nontrapping_fptoint"
+
+__builtin_wasm_trunc_u_i32_f32
+    .param_str = "if"
+    .attributes = .{ .@"const" = true }
+
+__builtin_wasm_trunc_u_i32_f64
+    .param_str = "id"
+    .attributes = .{ .@"const" = true }
+
+__builtin_wasm_trunc_u_i64_f32
+    .param_str = "LLif"
+    .attributes = .{ .@"const" = true }
+
+__builtin_wasm_trunc_u_i64_f64
+    .param_str = "LLid"
+    .attributes = .{ .@"const" = true }
+

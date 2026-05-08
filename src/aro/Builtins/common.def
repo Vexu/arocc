@@ -118,6 +118,14 @@ __atomic_fetch_sub
     .param_str = "v."
     .attributes = .{ .custom_typecheck = true }
 
+__atomic_fetch_udec
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__atomic_fetch_uinc
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
 __atomic_fetch_xor
     .param_str = "v."
     .attributes = .{ .custom_typecheck = true }
@@ -411,6 +419,14 @@ __scoped_atomic_store_n
     .attributes = .{ .custom_typecheck = true }
 
 __scoped_atomic_sub_fetch
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__scoped_atomic_fetch_udec
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__scoped_atomic_fetch_uinc
     .param_str = "v."
     .attributes = .{ .custom_typecheck = true }
 
@@ -837,6 +853,10 @@ __builtin_bswap64
     .param_str = "UWiUWi"
     .attributes = .{ .@"const" = true, .const_evaluable = true }
 
+__builtin_bswapg
+    .param_str = "i."
+    .attributes = .{ .@"const" = true, .const_evaluable = true, .custom_typecheck = true }
+
 __builtin_bzero
     .param_str = "vv*z"
     .attributes = .{ .lib_function_with_builtin_prefix = true }
@@ -917,12 +937,16 @@ _Block_object_dispose
     .language = .all_languages
     .attributes = .{ .lib_function_without_prefix = true }
 
+__builtin_allow_sanitize_check
+    .param_str = "bcC*"
+    .attributes = .{ .@"const" = true, .custom_typecheck = true }
+
 __builtin_assume_aligned
     .param_str = "v*vC*z."
     .attributes = .{ .@"const" = true, .custom_typecheck = true, .const_evaluable = true }
 
 __builtin_assume_dereferenceable
-    .param_str = "vvC*Iz"
+    .param_str = "vvC*z"
     .attributes = .{ .@"const" = true }
 
 __builtin_bcmp
@@ -2046,7 +2070,7 @@ __builtin_elementwise_atan2
 
 __builtin_elementwise_abs
     .param_str = "v."
-    .attributes = .{ .@"const" = true, .custom_typecheck = true }
+    .attributes = .{ .@"const" = true, .custom_typecheck = true, .const_evaluable = true }
 
 __builtin_elementwise_add_sat
     .param_str = "v."
@@ -2076,6 +2100,14 @@ __builtin_elementwise_cosh
     .param_str = "v."
     .attributes = .{ .@"const" = true, .custom_typecheck = true }
 
+__builtin_elementwise_clzg
+    .param_str = "v."
+    .attributes = .{ .@"const" = true, .custom_typecheck = true, .const_evaluable = true }
+
+__builtin_elementwise_ctzg
+    .param_str = "v."
+    .attributes = .{ .@"const" = true, .custom_typecheck = true, .const_evaluable = true }
+
 __builtin_elementwise_exp
     .param_str = "v."
     .attributes = .{ .@"const" = true, .custom_typecheck = true }
@@ -2094,9 +2126,21 @@ __builtin_elementwise_floor
 
 __builtin_elementwise_fma
     .param_str = "v."
-    .attributes = .{ .@"const" = true, .custom_typecheck = true }
+    .attributes = .{ .@"const" = true, .custom_typecheck = true, .const_evaluable = true }
 
 __builtin_elementwise_fmod
+    .param_str = "v."
+    .attributes = .{ .@"const" = true, .custom_typecheck = true }
+
+__builtin_elementwise_fshl
+    .param_str = "v."
+    .attributes = .{ .@"const" = true, .custom_typecheck = true, .const_evaluable = true }
+
+__builtin_elementwise_fshr
+    .param_str = "v."
+    .attributes = .{ .@"const" = true, .custom_typecheck = true, .const_evaluable = true }
+
+__builtin_elementwise_ldexp
     .param_str = "v."
     .attributes = .{ .@"const" = true, .custom_typecheck = true }
 
@@ -2114,7 +2158,7 @@ __builtin_elementwise_log10
 
 __builtin_elementwise_max
     .param_str = "v."
-    .attributes = .{ .@"const" = true, .custom_typecheck = true }
+    .attributes = .{ .@"const" = true, .custom_typecheck = true, .const_evaluable = true }
 
 __builtin_elementwise_maxnum
     .param_str = "v."
@@ -2124,15 +2168,23 @@ __builtin_elementwise_maximum
     .param_str = "v."
     .attributes = .{ .@"const" = true, .custom_typecheck = true }
 
-__builtin_elementwise_min
+__builtin_elementwise_maximumnum
     .param_str = "v."
     .attributes = .{ .@"const" = true, .custom_typecheck = true }
+
+__builtin_elementwise_min
+    .param_str = "v."
+    .attributes = .{ .@"const" = true, .custom_typecheck = true, .const_evaluable = true }
 
 __builtin_elementwise_minnum
     .param_str = "v."
     .attributes = .{ .@"const" = true, .custom_typecheck = true }
 
 __builtin_elementwise_minimum
+    .param_str = "v."
+    .attributes = .{ .@"const" = true, .custom_typecheck = true }
+
+__builtin_elementwise_minimumnum
     .param_str = "v."
     .attributes = .{ .@"const" = true, .custom_typecheck = true }
 
@@ -3053,6 +3105,10 @@ __builtin_inff16
     .param_str = "x"
     .attributes = .{ .@"const" = true, .const_evaluable = true }
 
+__builtin_infer_alloc_token
+    .param_str = "z."
+    .attributes = .{ .@"const" = true, .pure = true, .custom_typecheck = true, .const_evaluable = true, .eval_args = false }
+
 __builtin_init_dwarf_reg_size_table
     .param_str = "vv*"
 
@@ -3889,6 +3945,30 @@ malloc
     .header = .stdlib
     .language = .all_languages
     .attributes = .{ .lib_function_without_prefix = true }
+
+__builtin_masked_compress_store
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__builtin_masked_expand_load
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__builtin_masked_gather
+    .param_str = "v."
+    .attributes = .{ .pure = true, .custom_typecheck = true }
+
+__builtin_masked_load
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__builtin_masked_scatter
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__builtin_masked_store
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
 
 __builtin_matrix_column_major_load
     .param_str = "v."
@@ -5067,6 +5147,9 @@ __builtin_ssubl_overflow
 __builtin_ssubll_overflow
     .param_str = "bLLiCLLiCLLi*"
     .attributes = .{ .const_evaluable = true }
+
+__builtin_stack_address
+    .param_str = "v*"
 
 __builtin_stpcpy
     .param_str = "c*c*cC*"

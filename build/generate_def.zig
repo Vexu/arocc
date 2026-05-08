@@ -424,7 +424,7 @@ const DafsaBuilder = struct {
         var node = if (db.unchecked_nodes.items.len == 0)
             db.root
         else
-            db.unchecked_nodes.getLast().child;
+            db.unchecked_nodes.getLast().?.child;
 
         for (str[common_prefix_len..]) |c| {
             std.debug.assert(node.children[c] == null);

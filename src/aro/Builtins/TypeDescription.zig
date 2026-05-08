@@ -120,6 +120,7 @@ pub const ComponentIterator = struct {
                 switch (self.str[self.idx]) {
                     'a' => return .{ .spec = .{ .Q = .aarch64_svcount_t } },
                     'b' => return .{ .spec = .{ .Q = .amdgpu_buffer_rsrc_t } },
+                    't' => return .{ .spec = .{ .Q = .amdgpu_texture_t } },
                     else => unreachable,
                 }
             },
@@ -246,6 +247,7 @@ const Spec = union(enum) {
     Q: enum {
         aarch64_svcount_t,
         amdgpu_buffer_rsrc_t,
+        amdgpu_texture_t,
     },
     /// ext_vector, followed by the number of elements and the base type.
     E: u32,

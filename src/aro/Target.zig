@@ -422,6 +422,17 @@ pub fn minFunctionAlignment(target: *const Target) u8 {
     };
 }
 
+pub fn isBlocksSupported(target: *const Target) bool {
+    if (target.os.tag.isDarwin()) {
+        // per https://clang.llvm.org/docs/Block-ABI-Apple.html#id1, usage on macos prior to 10.6 is undefined
+        if (target.os.isAtLeast(.macos, .{ .major = 10, .minor = 6, .patch = 0 })) |sup| return sup;
+        // TODO: do iOS or other OSes have a min version?
+        return target.os.tag != .macos;
+    }
+
+    return false;
+}
+
 pub fn isTlsSupported(target: *const Target) bool {
     if (target.os.tag.isDarwin()) {
         var supported = false;
