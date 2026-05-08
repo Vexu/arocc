@@ -2881,7 +2881,7 @@ fn addTokensFromExpandBuf(pp: *Preprocessor, tokens: []TokenWithExpansionLocs, t
         }
         if (tok.flags.pragma_directive) {
             const pragma_start: Tree.TokenIndex = @intCast(pp.tokens.len);
-            pp.addTokenAssumeCapacity(try pp.unescapeUcn(tok.*));
+            pp.addTokenAssumeCapacity(tok.*);
             try pragma_locs.append(gpa, .{ .name_tok = tokens[i + 1], .start = pragma_start });
             continue;
         }
