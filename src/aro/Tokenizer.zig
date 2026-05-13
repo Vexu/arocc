@@ -283,6 +283,7 @@ pub const Token = struct {
         keyword_asm,
         keyword_asm1,
         keyword_asm2,
+        keyword_thread,
         /// __float128
         keyword_float128_1,
         keyword_int128,
@@ -436,6 +437,7 @@ pub const Token = struct {
                 .keyword_noreturn,
                 .keyword_static_assert,
                 .keyword_thread_local,
+                .keyword_thread,
                 .identifier,
                 .extended_identifier,
                 .keyword_typeof,
@@ -708,6 +710,7 @@ pub const Token = struct {
                 .keyword_noreturn => "_Noreturn",
                 .keyword_static_assert => "_Static_assert",
                 .keyword_thread_local => "_Thread_local",
+                .keyword_thread => "__thread",
                 .keyword_bit_int => "_BitInt",
                 .keyword_c23_alignas => "alignas",
                 .keyword_c23_alignof => "alignof",
@@ -1103,6 +1106,7 @@ pub const Token = struct {
         .{ "__imag__", .keyword_imag2 },
         .{ "__real", .keyword_real1 },
         .{ "__real__", .keyword_real2 },
+        .{ "__thread", .keyword_thread },
 
         // clang keywords
         .{ "__fp16", .keyword_fp16 },
@@ -2051,7 +2055,7 @@ test "keywords" {
         \\long register return short signed sizeof static
         \\struct switch typedef union unsigned void volatile
         \\while _Bool _Complex _Imaginary inline restrict _Alignas
-        \\_Alignof _Atomic _Generic _Noreturn _Static_assert _Thread_local
+        \\_Alignof _Atomic _Generic _Noreturn _Static_assert _Thread_local __thread
         \\__attribute __attribute__
         \\
     , &.{
@@ -2105,6 +2109,7 @@ test "keywords" {
         .keyword_noreturn,
         .keyword_static_assert,
         .keyword_thread_local,
+        .keyword_thread,
         .nl,
         .keyword_attribute1,
         .keyword_attribute2,
