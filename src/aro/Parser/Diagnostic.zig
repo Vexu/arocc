@@ -206,6 +206,12 @@ pub const threadlocal_non_var: Diagnostic = .{
     .kind = .@"error",
 };
 
+pub const thread_before_storage: Diagnostic = .{
+    .fmt = "'__thread' before '{s}'",
+    .kind = .off,
+    .extension = true,
+};
+
 pub const func_spec_non_func: Diagnostic = .{
     .fmt = "'{s}' can only appear on functions",
     .kind = .@"error",
