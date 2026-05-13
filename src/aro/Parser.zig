@@ -11,6 +11,7 @@ const char_info = @import("char_info.zig");
 const Compilation = @import("Compilation.zig");
 const Diagnostics = @import("Diagnostics.zig");
 const InitList = @import("InitList.zig");
+pub const Diagnostic = @import("Parser/Diagnostic.zig");
 const Preprocessor = @import("Preprocessor.zig");
 const record_layout = @import("record_layout.zig");
 const Source = @import("Source.zig");
@@ -419,8 +420,6 @@ fn expectClosing(p: *Parser, opening: TokenIndex, id: Token.Id) Error!void {
         return e;
     };
 }
-
-pub const Diagnostic = @import("Parser/Diagnostic.zig");
 
 pub fn err(p: *Parser, tok_i: TokenIndex, diagnostic: Diagnostic, args: anytype) Compilation.Error!void {
     if (p.extension_suppressed) {
@@ -991,6 +990,7 @@ fn nextExternDecl(p: *Parser) void {
             .keyword_register,
             .keyword_thread_local,
             .keyword_c23_thread_local,
+            .keyword_thread,
             .keyword_inline,
             .keyword_inline1,
             .keyword_inline2,
@@ -1750,9 +1750,13 @@ fn storageClassSpec(p: *Parser, d: *DeclSpec) Error!bool {
                     try p.err(p.tok_i, .multiple_storage_class, .{@tagName(d.storage_class)});
                     return error.ParsingFailed;
                 }
-                if (d.thread_local != null) {
+                if (d.thread_local) |thread_tok| {
                     switch (id) {
-                        .keyword_extern, .keyword_static => {},
+                        .keyword_extern, .keyword_static => {
+                            if (p.tok_ids[thread_tok] == .keyword_thread) {
+                                try p.err(thread_tok, .thread_before_storage, .{id.lexeme().?});
+                            }
+                        },
                         else => try p.err(p.tok_i, .cannot_combine_spec, .{id.lexeme().?}),
                     }
                     if (d.constexpr) |tok| try p.err(p.tok_i, .cannot_combine_spec, .{p.tok_ids[tok].lexeme().?});
@@ -1775,6 +1779,7 @@ fn storageClassSpec(p: *Parser, d: *DeclSpec) Error!bool {
             },
             .keyword_thread_local,
             .keyword_c23_thread_local,
+            .keyword_thread,
             => {
                 if (d.thread_local != null) {
                     try p.err(p.tok_i, .duplicate_decl_spec, .{id.lexeme().?});
@@ -5698,6 +5703,7 @@ fn nextStmt(p: *Parser, l_brace: TokenIndex) !void {
             .keyword_register,
             .keyword_thread_local,
             .keyword_c23_thread_local,
+            .keyword_thread,
             .keyword_inline,
             .keyword_inline1,
             .keyword_inline2,
