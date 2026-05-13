@@ -1388,7 +1388,7 @@ fn decl(p: *Parser) Error!bool {
                 .variable = .{
                     .name_tok = init_d.d.name,
                     .qt = node_qt,
-                    .thread_local = decl_spec.thread_local != null,
+                    .thread_local = decl_spec.thread_local != null or node_qt.hasAttribute(p.comp, .thread),
                     .implicit = false,
                     .storage_class = switch (decl_spec.storage_class) {
                         .auto => .auto,

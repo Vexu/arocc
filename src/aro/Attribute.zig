@@ -829,7 +829,7 @@ pub fn applyVariableAttributes(p: *Parser, qt: QualType, attr_buf_start: usize, 
         // zig fmt: off
         .alias, .may_alias, .deprecated, .unavailable, .unused, .warn_if_not_aligned, .weak, .used,
         .noinit, .retain, .persistent, .section, .mode, .asm_label, .nullability, .unaligned, .selectany, .internal_linkage,
-        .visibility,
+        .visibility, .thread,
          => try p.attr_application_buf.append(gpa, attr),
         // zig fmt: on
         .common => if (nocommon) {
