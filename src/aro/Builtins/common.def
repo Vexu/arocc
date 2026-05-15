@@ -2124,6 +2124,14 @@ __builtin_elementwise_floor
     .param_str = "v."
     .attributes = .{ .@"const" = true, .custom_typecheck = true }
 
+__builtin_elementwise_fshl
+    .param_str = "v."
+    .attributes = .{ .@"const" = true, .custom_typecheck = true }
+
+__builtin_elementwise_fshr
+    .param_str = "v."
+    .attributes = .{ .@"const" = true, .custom_typecheck = true }
+
 __builtin_elementwise_fma
     .param_str = "v."
     .attributes = .{ .@"const" = true, .custom_typecheck = true, .const_evaluable = true }
