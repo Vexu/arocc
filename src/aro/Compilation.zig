@@ -872,9 +872,7 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
             } else if (has_f) {
                 try w.writeAll("#define __riscv_flen 32\n");
             }
-            try w.print("#define __riscv_float_abi_{s} 1\n", .{
-                @tagName(riscvFloatAbi(target)),
-            });
+            try w.print("#define __riscv_float_abi_{t} 1\n", .{riscvFloatAbi(target)});
         },
         else => {},
     }
