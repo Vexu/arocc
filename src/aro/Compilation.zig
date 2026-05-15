@@ -853,6 +853,28 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
         .riscv32, .riscv32be, .riscv64, .riscv64be => {
             try define(w, "__riscv");
             try w.print("#define __riscv_xlen {d}\n", .{ptr_width});
+            const has_f = target.cpu.has(.riscv, .f);
+            const has_d = target.cpu.has(.riscv, .d);
+            const has_q = target.cpu.has(.riscv, .q);
+            if (has_f) {
+                try w.writeAll("#define __riscv_f 2002000\n");
+            }
+            if (has_d) {
+                try w.writeAll("#define __riscv_d 2002000\n");
+            }
+            if (has_q) {
+                try w.writeAll("#define __riscv_q 2002000\n");
+            }
+            if (has_q) {
+                try w.writeAll("#define __riscv_flen 128\n");
+            } else if (has_d) {
+                try w.writeAll("#define __riscv_flen 64\n");
+            } else if (has_f) {
+                try w.writeAll("#define __riscv_flen 32\n");
+            }
+            try w.print("#define __riscv_float_abi_{s} 1\n", .{
+                @tagName(riscvFloatAbi(target)),
+            });
         },
         else => {},
     }
@@ -1040,6 +1062,21 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
             }
         },
     }
+}
+
+const RiscvFloatAbi = enum { soft, single, double };
+
+fn riscvFloatAbi(target: *const Target) RiscvFloatAbi {
+    return switch (target.abi) {
+        .gnusf, .muslsf => .soft,
+        .gnuf32, .muslf32 => .single,
+        else => if (target.cpu.has(.riscv, .d))
+            .double
+        else if (target.cpu.has(.riscv, .f))
+            .single
+        else
+            .soft,
+    };
 }
 
 /// Generate builtin macros that will be available to each source file.
