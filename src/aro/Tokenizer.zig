@@ -2413,7 +2413,7 @@ fn expectTokensExtra(contents: []const u8, expected_tokens: []const Token.Id, la
         const expected_token_id = expected_tokens[i];
         i += 1;
         if (!std.meta.eql(token.id, expected_token_id)) {
-            std.debug.print("expected {s}, found {s}\n", .{ @tagName(expected_token_id), @tagName(token.id) });
+            std.debug.print("expected {t}, found {t}\n", .{ expected_token_id, token.id });
             return error.TokensDoNotEqual;
         }
     }
