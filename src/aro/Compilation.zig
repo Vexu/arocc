@@ -681,14 +681,163 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
                 try define(w, "__sparcv8");
             }
         },
-        .arm, .armeb, .thumb, .thumbeb => {
+        .arm, .armeb, .thumb, .thumbeb, .aarch64, .aarch64_be => |arch| blk: {
             try define(w, "__arm__");
             try define(w, "__arm");
-            if (target.cpu.arch.isThumb()) {
+
+            // see https://clang.llvm.org/doxygen/Basic_2Targets_2ARM_8cpp_source.html
+            // https://developer.arm.com/documentation/dui0774/g/chr1383660321827
+
+            const arm_verion: u8 = if (target.cpu.has(.arm, .has_v9a))
+                9
+            else if (target.cpu.has(.arm, .has_v8))
+                8
+            else if (target.cpu.has(.arm, .has_v7))
+                7
+            else if (target.cpu.has(.arm, .has_v6))
+                6
+            else if (target.cpu.has(.arm, .has_v5t) or target.cpu.has(.arm, .has_v5te))
+                5
+            else
+                4;
+            try w.print("#define __ARM_ARCH {d}\n", .{arm_verion});
+
+            // __ARM_ARCH_ISA_THUMB is defined to 2 if the core supports the Thumb-2 ISA.
+            if (target.cpu.has(.arm, .thumb2) or target.cpu.has(.arm, .thumb_mode)) {
                 try define(w, "__thumb__");
+                const num = if (target.cpu.has(.arm, .thumb2)) "2" else "1";
+                try w.print("#define __ARM_ARCH_ISA_THUMB {s}\n", .{num});
             }
-        },
-        .aarch64, .aarch64_be => |arch| {
+
+            if (target.cpu.has(.arm, .vldn_align)) {
+                try define(w, "__ARM_FEATURE_UNALIGNED");
+            }
+
+            // ARM ISA means we are not M profile
+            if (!target.cpu.has(.arm, .mclass)) {
+                try define(w, "__ARM_ARCH_ISA_ARM");
+            }
+
+            const profile = if (target.cpu.has(.arm, .aclass))
+                "A"
+            else if (target.cpu.has(.arm, .rclass))
+                "R"
+            else if (target.cpu.has(.arm, .mclass))
+                "M"
+            else
+                "";
+
+            if (profile.len > 0) {
+                try w.print("#define __ARM_ARCH_PROFILE '{s}'\n", .{profile});
+            }
+
+            const arm_features = target.cpu.features;
+            for ([_]struct { std.Target.arm.Feature, []const u8 }{
+                .{ .v6m, "6M" },
+                .{ .v7a, "7A" },
+                .{ .v7em, "7EM" },
+                .{ .v7m, "7M" },
+                .{ .v7r, "7R" },
+                .{ .v7ve, "7VE" },
+                .{ .v8_1a, "8_1A" },
+                .{ .v8_1m_main, "8_1M_MAIN" },
+                .{ .v8_2a, "8_2A" },
+                .{ .v8_3a, "8_3A" },
+                .{ .v8_4a, "8_4A" },
+                .{ .v8_5a, "8_5A" },
+                .{ .v8_6a, "8_6A" },
+                .{ .v8_7a, "8_7A" },
+                .{ .v8_8a, "8_8A" },
+                .{ .v8_9a, "8_9A" },
+                .{ .v8a, "8A" },
+                .{ .v8m, "8M_BASE" },
+                .{ .v8m_main, "8M_MAIN" },
+                .{ .v8r, "8R" },
+                .{ .v9a, "9A" },
+            }) |fs| {
+                if (arm_features.isEnabled(@intFromEnum(fs[0]))) {
+                    try w.print("#define __ARM_ARCH_{s}__ 1\n", .{fs[1]});
+                    break;
+                }
+            }
+
+            if (arm_verion == 5 or (arm_verion == 6 and !target.cpu.has(.arm, .mclass)) or arm_verion > 6) {
+                try define(w, "__ARM_FEATURE_CLZ");
+            }
+
+            if (target.cpu.has(.arm, .dsp)) {
+                try define(w, "__ARM_FEATURE_DSP");
+            }
+
+            const is_thumb = arch == .thumb or arch == .thumbeb or target.cpu.has(.arm, .mclass);
+            if ((is_thumb and target.cpu.has(.arm, .hwdiv)) or
+                (!is_thumb and target.cpu.has(.arm, .hwdiv_arm)))
+            {
+                try define(w, "__ARM_FEATURE_IDIV");
+                try define(w, "__ARM_ARCH_EXT_IDIV__");
+            }
+            var sat = false;
+            if (arm_verion == 6 and !target.cpu.has(.arm, .mclass) or arm_verion > 6) {
+                try define(w, "__ARM_FEATURE_SAT");
+                sat = true;
+            }
+
+            if (target.cpu.has(.arm, .dsp) or sat) {
+                try define(w, "__ARM_FEATURE_QBIT");
+            }
+
+            if ((!target.cpu.has(.arm, .mclass) and arm_verion >= 6) or
+                (target.cpu.has(.arm, .mclass) and target.cpu.has(.arm, .dsp)))
+            {
+                try define(w, "__ARM_FEATURE_SIMD32");
+            }
+
+            // See this: https://arm-software.github.io/acle/main/acle.html#ldrexstrex
+            // These constants define masks containing data sizes are suitable for __builtin_arm_ldrex and __builtin_arm_strex.
+            const ARM_LDREX_B: u4 = 1 << 0; // byte (8-bit)
+            const ARM_LDREX_H: u4 = 1 << 1; // half (16-bit)
+            const ARM_LDREX_W: u4 = 1 << 2; // word (32-bit)
+            const ARM_LDREX_D: u4 = 1 << 3; // double (64-bit)
+
+            const ldrex: u4 = switch (arm_verion) {
+                6 => if (target.cpu.has(.arm, .mclass))
+                    0
+                else if (target.cpu.has(.arm, .v6k) or target.cpu.has(.arm, .v6kz))
+                    ARM_LDREX_D | ARM_LDREX_W | ARM_LDREX_H | ARM_LDREX_B
+                else
+                    ARM_LDREX_W,
+                7, 8 => if (target.cpu.has(.arm, .mclass))
+                    ARM_LDREX_W | ARM_LDREX_H | ARM_LDREX_B
+                else
+                    ARM_LDREX_D | ARM_LDREX_W | ARM_LDREX_H | ARM_LDREX_B,
+                9 => ARM_LDREX_D | ARM_LDREX_W | ARM_LDREX_H | ARM_LDREX_B,
+                else => 0,
+            };
+            if (ldrex != 0) {
+                try w.print("#define __ARM_FEATURE_LDREX 0x{x}\n", .{ldrex});
+            }
+
+            if (!target.cpu.has(.arm, .strict_align)) {
+                try define(w, "__ARM_FEATURE_UNALIGNED");
+            }
+
+            if (target.cpu.arch == .arm or target.cpu.arch == .thumb or target.cpu.arch == .armeb or target.cpu.arch == .thumbeb) {
+                try define(w, "__ARM_32BIT_STATE");
+            }
+
+            try w.writeAll("#define __ARM_ACLE 200\n");
+
+            if (arch == .arm or arch == .thumb) {
+                try define(w, "__ARMEL__");
+            }
+
+            if (arch == .armeb or arch == .thumbeb) {
+                try define(w, "__ARMEB__");
+                try define(w, "__ARM_BIG_ENDIAN");
+            }
+
+            if (arch != .aarch64 and arch != .aarch64_be) break :blk;
+
             try define(w, "__aarch64__");
             switch (arch) {
                 .aarch64 => {
@@ -764,9 +913,6 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
             if (target.cpu.has(.aarch64, .sm4)) {
                 try define(w, "__ARM_FEATURE_SM3");
                 try define(w, "__ARM_FEATURE_SM4");
-            }
-            if (!target.cpu.has(.aarch64, .strict_align)) {
-                try define(w, "__ARM_FEATURE_UNALIGNED");
             }
             if (target.cpu.hasAll(.aarch64, &.{ .neon, .fullfp16 })) {
                 try define(w, "__ARM_FEATURE_FP16_VECTOR_ARITHMETIC");
