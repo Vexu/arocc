@@ -8,6 +8,9 @@ x
 #define x x
 x
 
+#define int int
+int
+
 /** manifest:
 expand
 */

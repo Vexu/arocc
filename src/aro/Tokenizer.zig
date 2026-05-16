@@ -907,11 +907,9 @@ pub const Token = struct {
         }
 
         pub fn shouldTrackHideset(id: Id, context: enum { func, obj }) bool {
-            return switch (id) {
-                .identifier, .extended_identifier => true,
-                .r_paren => context == .func,
-                else => false,
-            };
+            if (id.isMacroIdentifier()) return true;
+            if (id == .r_paren and context == .func) return true;
+            return false;
         }
     };
 
