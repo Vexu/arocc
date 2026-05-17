@@ -366,6 +366,9 @@ pub const Token = struct {
         /// leading character of the following identifier token.
         incomplete_ucn,
 
+        /// Blocks extension
+        keyword_block,
+
         /// Return true if token is identifier or keyword.
         pub fn isMacroIdentifier(id: Id) bool {
             switch (id) {
@@ -521,6 +524,7 @@ pub const Token = struct {
                 .keyword_dfloat64,
                 .keyword_dfloat128,
                 .keyword_dfloat64x,
+                .keyword_block,
                 => return true,
                 else => return false,
             }
@@ -809,6 +813,7 @@ pub const Token = struct {
                 .keyword_nullable => "_Nullable",
                 .keyword_nullable_result => "_Nullable_result",
                 .keyword_null_unspecified => "_Null_unspecified",
+                .keyword_block => "__block",
             };
         }
 
@@ -1145,6 +1150,9 @@ pub const Token = struct {
         .{ "_Nullable", .keyword_nullable },
         .{ "_Nullable_result", .keyword_nullable_result },
         .{ "_Null_unspecified", .keyword_null_unspecified },
+
+        // Blocks extension
+        .{ "__block", .keyword_block },
     });
 };
 

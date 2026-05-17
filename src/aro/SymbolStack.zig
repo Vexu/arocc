@@ -80,28 +80,28 @@ pub fn popScope(s: *SymbolStack) void {
 
 pub fn findTypedef(s: *SymbolStack, p: *Parser, name: StringId, name_tok: TokenIndex, no_type_yet: bool) !?Symbol {
     const prev = s.lookup(name, .vars) orelse s.lookup(name, .tags) orelse return null;
-    switch (prev.kind) {
-        .typedef => return prev,
+    switch (prev.symbol.kind) {
+        .typedef => return prev.symbol,
         .@"struct" => {
             if (no_type_yet) return null;
             try p.err(name_tok, .must_use_struct, .{p.tokSlice(name_tok)});
-            return prev;
+            return prev.symbol;
         },
         .@"union" => {
             if (no_type_yet) return null;
             try p.err(name_tok, .must_use_union, .{p.tokSlice(name_tok)});
-            return prev;
+            return prev.symbol;
         },
         .@"enum" => {
             if (no_type_yet) return null;
             try p.err(name_tok, .must_use_enum, .{p.tokSlice(name_tok)});
-            return prev;
+            return prev.symbol;
         },
         else => return null,
     }
 }
 
-pub fn findSymbol(s: *SymbolStack, name: StringId) ?Symbol {
+pub fn findSymbol(s: *SymbolStack, name: StringId) ?Lookup {
     return s.lookup(name, .vars);
 }
 
@@ -114,7 +114,7 @@ pub fn findTag(
     next_tok_id: Token.Id,
 ) !?Symbol {
     // `tag Name;` should always result in a new type if in a new scope.
-    const prev = (if (next_tok_id == .semicolon) s.get(name, .tags) else s.lookup(name, .tags)) orelse return null;
+    const prev = (if (next_tok_id == .semicolon) s.get(name, .tags) else if (s.lookup(name, .tags)) |look| look.symbol else null) orelse return null;
     switch (prev.kind) {
         .@"enum" => if (kind == .keyword_enum) return prev,
         .@"struct" => if (kind == .keyword_struct) return prev,
@@ -142,15 +142,20 @@ pub fn get(s: *SymbolStack, name: StringId, kind: ScopeKind) ?Symbol {
     };
 }
 
+pub const Lookup = struct {
+    symbol: Symbol,
+    depth: usize,
+};
+
 /// Return the Symbol for `name` (or null if not found) in the nearest active scope,
 /// starting at the innermost.
-fn lookup(s: *SymbolStack, name: StringId, kind: ScopeKind) ?Symbol {
+pub fn lookup(s: *SymbolStack, name: StringId, kind: ScopeKind) ?Lookup {
     var i = s.active_len;
     while (i > 0) {
         i -= 1;
         switch (kind) {
-            .vars => if (s.scopes.items[i].vars.get(name)) |sym| return sym,
-            .tags => if (s.scopes.items[i].tags.get(name)) |sym| return sym,
+            .vars => if (s.scopes.items[i].vars.get(name)) |sym| return .{ .symbol = sym, .depth = i },
+            .tags => if (s.scopes.items[i].tags.get(name)) |sym| return .{ .symbol = sym, .depth = i },
         }
     }
     return null;
