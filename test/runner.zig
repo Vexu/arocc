@@ -212,6 +212,7 @@ fn runCaseExtra(
                     _ = mem.find(u8, msg, "error: ") orelse
                         mem.find(u8, msg, "warning: ") orelse
                         mem.find(u8, msg, "note: ") orelse continue;
+                    if (mem.eql(u8, msg, "note: --sysroot may be required when cross-compiling to Darwin targets")) continue;
 
                     try actual_errors.append(gpa, msg);
                 }
