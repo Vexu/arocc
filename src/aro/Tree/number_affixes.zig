@@ -17,7 +17,7 @@ pub const Prefix = enum(u8) {
         };
     }
 
-    pub fn fromString(buf: []const u8) Prefix {
+    pub fn fromString(buf: []const u8, is_msvc: bool) Prefix {
         if (buf.len == 1) return .decimal;
         // tokenizer enforces that first byte is a decimal digit or period
         switch (buf[0]) {
@@ -32,7 +32,7 @@ pub const Prefix = enum(u8) {
                 if (mem.indexOfAny(u8, buf, "eE.")) |_| {
                     // This is a decimal floating point number that happens to start with zero
                     return .decimal;
-                } else if (Suffix.fromString(buf[1..], .int)) |_| {
+                } else if (Suffix.fromString(buf[1..], .int, is_msvc)) |_| {
                     // This is `0` with a valid suffix
                     return .decimal;
                 } else {
@@ -122,6 +122,16 @@ pub const Suffix = enum {
     // _Decimal64x
     D64x,
 
+    // MSVC extensions
+    I8,
+    UI8,
+    I16,
+    UI16,
+    I32,
+    UI32,
+    I64,
+    UI64,
+
     // zig fmt: on
 
     const Tuple = struct { Suffix, []const []const u8 };
@@ -134,6 +144,15 @@ pub const Suffix = enum {
         .{ .UWB, &.{ "U", "WB" } },
         .{ .LL, &.{"LL"} },
         .{ .ULL, &.{ "U", "LL" } },
+
+        .{ .I8, &.{"I8"} },
+        .{ .UI8, &.{"UI8"} },
+        .{ .I16, &.{"I16"} },
+        .{ .UI16, &.{"UI16"} },
+        .{ .I32, &.{"I32"} },
+        .{ .UI32, &.{"UI32"} },
+        .{ .I64, &.{"I64"} },
+        .{ .UI64, &.{"UI64"} },
 
         .{ .I, &.{"I"} },
 
@@ -176,7 +195,7 @@ pub const Suffix = enum {
         .{ .IF64x, &.{ "I", "F64x" } },
     };
 
-    pub fn fromString(buf: []const u8, suffix_kind: enum { int, float }) ?Suffix {
+    pub fn fromString(buf: []const u8, suffix_kind: enum { int, float }, is_msvc: bool) ?Suffix {
         if (buf.len == 0) return .None;
 
         const suffixes = switch (suffix_kind) {
@@ -195,6 +214,7 @@ pub const Suffix = enum {
                 const lower = std.ascii.lowerString(&scratch, part);
                 if (mem.indexOf(u8, buf, part) == null and mem.indexOf(u8, buf, lower) == null) continue :top;
             }
+            if (tag.isMSVCExtension() and !is_msvc) continue;
             return tag;
         }
         return null;
@@ -203,14 +223,14 @@ pub const Suffix = enum {
     pub fn isImaginary(suffix: Suffix) bool {
         return switch (suffix) {
             .I, .IL, .IF, .IU, .IUL, .ILL, .IULL, .IWB, .IUWB, .IF128, .IQ, .IW, .IF16, .IF32, .IF64, .IF32x, .IF64x => true,
-            .None, .L, .F16, .F, .U, .UL, .LL, .ULL, .WB, .UWB, .F128, .Q, .W, .F32, .F64, .F32x, .F64x, .D32, .D64, .D128, .D64x, .BF16 => false,
+            .None, .L, .F16, .F, .U, .UL, .LL, .ULL, .WB, .UWB, .F128, .Q, .W, .F32, .F64, .F32x, .F64x, .D32, .D64, .D128, .D64x, .BF16, .I8, .UI8, .I16, .UI16, .I32, .UI32, .I64, .UI64 => false,
         };
     }
 
     pub fn isSignedInteger(suffix: Suffix) bool {
         return switch (suffix) {
-            .None, .L, .LL, .I, .IL, .ILL, .WB, .IWB => true,
-            .U, .UL, .ULL, .IU, .IUL, .IULL, .UWB, .IUWB => false,
+            .None, .L, .LL, .I, .IL, .ILL, .WB, .IWB, .I8, .I16, .I32, .I64 => true,
+            .U, .UL, .ULL, .IU, .IUL, .IULL, .UWB, .IUWB, .UI8, .UI16, .UI32, .UI64 => false,
             .F, .IF, .F16, .F128, .IF128, .Q, .IQ, .W, .IW, .IF16, .F32, .IF32, .F64, .IF64, .F32x, .IF32x, .F64x, .IF64x, .D32, .D64, .D128, .D64x, .BF16 => unreachable,
         };
     }
@@ -228,5 +248,52 @@ pub const Suffix = enum {
 
     pub fn isFloat80(suffix: Suffix) bool {
         return suffix == .W or suffix == .IW;
+    }
+
+    pub fn isMSVCExtension(suffix: Suffix) bool {
+        return switch (suffix) {
+            .I8, .UI8, .I16, .UI16, .I32, .UI32, .I64, .UI64 => true,
+
+            .None,
+            .L,
+            .F16,
+            .F,
+            .U,
+            .UL,
+            .LL,
+            .ULL,
+            .WB,
+            .UWB,
+            .F128,
+            .Q,
+            .W,
+            .F32,
+            .F64,
+            .F32x,
+            .F64x,
+            .D32,
+            .D64,
+            .D128,
+            .D64x,
+            .BF16,
+            .I,
+            .IU,
+            .IUL,
+            .IULL,
+            .IL,
+            .ILL,
+            .IF,
+            .IF16,
+            .IW,
+            .IQ,
+            .IF128,
+            .IWB,
+            .IUWB,
+            .IF32,
+            .IF32x,
+            .IF64,
+            .IF64x,
+            => false,
+        };
     }
 };
