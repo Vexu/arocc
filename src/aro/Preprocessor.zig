@@ -3553,6 +3553,39 @@ fn include(pp: *Preprocessor, tokenizer: *Tokenizer, which: Compilation.WhichInc
         if (pp.defines.contains(guard)) return;
     }
 
+    // Run any beforeInclude pragma hooks.
+    //
+    // NOTE: This is currently the only deep-preprocessor hook other than the
+    // actual token handler itself. If more are added, an event hook system
+    // similar to the compilation-scoped one should be considered with a
+    // payload structure that can handle context-relevant event data (e.g.,
+    // here, the source file data is needed).
+    {
+        var pragma_handler_it = pp.comp.pragma_handlers.iterator();
+        while (pragma_handler_it.next()) |pragma_handler| {
+            const handler_pragma_name = pragma_handler.key_ptr.*;
+            const handler_pragma = pragma_handler.value_ptr.*;
+            if (handler_pragma.beforeInclude) |func| {
+                func(handler_pragma, pp, new_source) catch |handler_err| {
+                    switch (handler_err) {
+                        error.SkipInclude => {
+                            if (pp.verbose) {
+                                pp.verboseLog(
+                                    first,
+                                    "skipping include file {s} under direction of \"{s}\" pragma",
+                                    .{ new_source.path, handler_pragma_name },
+                                );
+                            }
+
+                            return;
+                        },
+                        else => |e| return e,
+                    }
+                };
+            }
+        }
+    }
+
     if (pp.dep_file) |dep| try dep.addDependency(gpa, new_source.path);
     if (pp.verbose) {
         pp.verboseLog(first, "include file {s}", .{new_source.path});

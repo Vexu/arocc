@@ -14,6 +14,7 @@ const Once = @This();
 pragma: Pragma = .{
     .afterParse = afterParse,
     .deinit = deinit,
+    .beforeInclude = beforeInclude,
     .preprocessorHandler = preprocessorHandler,
     .preserveTokens = preserveTokens,
 },
@@ -35,6 +36,11 @@ fn deinit(pragma: *Pragma, comp: *Compilation) void {
     var self: *Once = @fieldParentPtr("pragma", pragma);
     self.pragma_once.deinit(comp.gpa);
     comp.gpa.destroy(self);
+}
+
+fn beforeInclude(pragma: *Pragma, _: *Preprocessor, source: Source) Pragma.BeforeIncludeError!void {
+    var self: *Once = @fieldParentPtr("pragma", pragma);
+    if (self.pragma_once.contains(source.id)) return error.SkipInclude;
 }
 
 fn preprocessorHandler(pragma: *Pragma, pp: *Preprocessor, start_idx: TokenIndex) Pragma.Error!void {
