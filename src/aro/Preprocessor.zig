@@ -829,6 +829,9 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!TokenWithExpans
                         }
 
                         _ = pp.defines.orderedRemove(macro_name);
+                        if (pp.verbose) {
+                            pp.verboseLog(directive, "macro {s} undefined", .{macro_name});
+                        }
                         try pp.expectNl(&tokenizer);
                     },
                     .keyword_include => {
