@@ -902,6 +902,9 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
                 try define(w, "__ARM_FEATURE_SM3");
                 try define(w, "__ARM_FEATURE_SM4");
             }
+            if (!target.cpu.has(.aarch64, .strict_align)) {
+                try define(w, "__ARM_FEATURE_UNALIGNED");
+            }
             if (target.cpu.hasAll(.aarch64, &.{ .neon, .fullfp16 })) {
                 try define(w, "__ARM_FEATURE_FP16_VECTOR_ARITHMETIC");
             }
