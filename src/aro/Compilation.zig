@@ -681,26 +681,12 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
                 try define(w, "__sparcv8");
             }
         },
-        .arm, .armeb, .thumb, .thumbeb, .aarch64, .aarch64_be => |arch| blk: {
+        .arm, .armeb, .thumb, .thumbeb => |arch| {
             try define(w, "__arm__");
             try define(w, "__arm");
 
             // see https://clang.llvm.org/doxygen/Basic_2Targets_2ARM_8cpp_source.html
             // https://developer.arm.com/documentation/dui0774/g/chr1383660321827
-
-            const arm_verion: u8 = if (target.cpu.has(.arm, .has_v9a))
-                9
-            else if (target.cpu.has(.arm, .has_v8))
-                8
-            else if (target.cpu.has(.arm, .has_v7))
-                7
-            else if (target.cpu.has(.arm, .has_v6))
-                6
-            else if (target.cpu.has(.arm, .has_v5t) or target.cpu.has(.arm, .has_v5te))
-                5
-            else
-                4;
-            try w.print("#define __ARM_ARCH {d}\n", .{arm_verion});
 
             // __ARM_ARCH_ISA_THUMB is defined to 2 if the core supports the Thumb-2 ISA.
             if (target.cpu.has(.arm, .thumb2) or target.cpu.has(.arm, .thumb_mode)) {
@@ -731,6 +717,7 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
                 try w.print("#define __ARM_ARCH_PROFILE '{s}'\n", .{profile});
             }
 
+            var arm_version: u8 = 6;
             const arm_features = target.cpu.features;
             for ([_]struct { std.Target.arm.Feature, []const u8 }{
                 .{ .v6m, "6M" },
@@ -757,11 +744,13 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
             }) |fs| {
                 if (arm_features.isEnabled(@intFromEnum(fs[0]))) {
                     try w.print("#define __ARM_ARCH_{s}__ 1\n", .{fs[1]});
+                    arm_version = fs[1][0] - '0';
+                    try w.print("#define __ARM_ARCH {d}\n", .{arm_version});
                     break;
                 }
             }
 
-            if (arm_verion == 5 or (arm_verion == 6 and !target.cpu.has(.arm, .mclass)) or arm_verion > 6) {
+            if (arm_version == 5 or (arm_version == 6 and !target.cpu.has(.arm, .mclass)) or arm_version > 6) {
                 try define(w, "__ARM_FEATURE_CLZ");
             }
 
@@ -777,7 +766,7 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
                 try define(w, "__ARM_ARCH_EXT_IDIV__");
             }
             var sat = false;
-            if (arm_verion == 6 and !target.cpu.has(.arm, .mclass) or arm_verion > 6) {
+            if (arm_version == 6 and !target.cpu.has(.arm, .mclass) or arm_version > 6) {
                 try define(w, "__ARM_FEATURE_SAT");
                 sat = true;
             }
@@ -786,7 +775,7 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
                 try define(w, "__ARM_FEATURE_QBIT");
             }
 
-            if ((!target.cpu.has(.arm, .mclass) and arm_verion >= 6) or
+            if ((!target.cpu.has(.arm, .mclass) and arm_version >= 6) or
                 (target.cpu.has(.arm, .mclass) and target.cpu.has(.arm, .dsp)))
             {
                 try define(w, "__ARM_FEATURE_SIMD32");
@@ -799,7 +788,7 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
             const ARM_LDREX_W: u4 = 1 << 2; // word (32-bit)
             const ARM_LDREX_D: u4 = 1 << 3; // double (64-bit)
 
-            const ldrex: u4 = switch (arm_verion) {
+            const ldrex: u4 = switch (arm_version) {
                 6 => if (target.cpu.has(.arm, .mclass))
                     0
                 else if (target.cpu.has(.arm, .v6k) or target.cpu.has(.arm, .v6kz))
@@ -835,9 +824,8 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
                 try define(w, "__ARMEB__");
                 try define(w, "__ARM_BIG_ENDIAN");
             }
-
-            if (arch != .aarch64 and arch != .aarch64_be) break :blk;
-
+        },
+        .aarch64, .aarch64_be => |arch| {
             try define(w, "__aarch64__");
             switch (arch) {
                 .aarch64 => {
