@@ -113,7 +113,7 @@ pub fn main(init: process.Init.Minimal) !void {
         while (try it.next(io)) |entry| {
             if (entry.kind != .file) continue;
 
-            if (std.ascii.indexOfIgnoreCase(entry.name, "_test.c") != null) {
+            if (std.ascii.findIgnoreCase(entry.name, "_test.c") != null) {
                 try cases.append(gpa, try std.fs.path.join(arena, &.{ "test/records", entry.name }));
             }
         }
@@ -285,13 +285,13 @@ fn runCaseExtra(io: Io, aro_exe: []const u8, test_case: TestCase, stats: *Stats)
             if (mem.find(u8, msg, ": error: ") == null) continue;
             const line = it.next().?;
 
-            if (std.ascii.indexOfIgnoreCase(line, "_Static_assert") != null) {
-                if (std.ascii.indexOfIgnoreCase(line, "_extra_") != null) {
+            if (std.ascii.findIgnoreCase(line, "_Static_assert") != null) {
+                if (std.ascii.findIgnoreCase(line, "_extra_") != null) {
                     actual.extra = true;
-                } else if (std.ascii.indexOfIgnoreCase(line, "_bitoffsetof") != null) {
+                } else if (std.ascii.findIgnoreCase(line, "_bitoffsetof") != null) {
                     actual.offset = true;
-                } else if (std.ascii.indexOfIgnoreCase(line, "sizeof") != null or
-                    std.ascii.indexOfIgnoreCase(line, "_alignof") != null)
+                } else if (std.ascii.findIgnoreCase(line, "sizeof") != null or
+                    std.ascii.findIgnoreCase(line, "_alignof") != null)
                 {
                     actual.layout = true;
                 } else unreachable;
