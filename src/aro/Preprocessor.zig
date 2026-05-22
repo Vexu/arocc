@@ -2697,7 +2697,10 @@ fn expandMacroExhaustive(
                         args.deinit(gpa);
                     }
                     const r_paren_hidelist = pp.hideset.get(r_paren.loc);
-                    var hs = try pp.hideset.intersection(macro_hidelist, r_paren_hidelist);
+                    var hs: Hideset.Index = if (macro_tok.flags.is_macro_arg)
+                        .none
+                    else
+                        try pp.hideset.intersection(macro_hidelist, r_paren_hidelist);
                     hs = try pp.hideset.prepend(macro_tok.loc, hs);
 
                     var args_count: u32 = @intCast(args.items.len);
