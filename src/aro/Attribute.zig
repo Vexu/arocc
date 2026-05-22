@@ -824,7 +824,7 @@ pub fn applyVariableAttributes(p: *Parser, qt: QualType, attr_buf_start: usize, 
     var base_qt = qt;
     var common = false;
     var nocommon = false;
-    var msvc_ptr_attrs_seen: attributes.msvc_ptr.UsageTracker = .initEmpty();
+    var msvc_ptr_attrs_seen: attributes.msvc_ptr.UsageTracker = .empty;
     for (attrs, toks) |attr, tok| switch (attr.tag) {
         // zig fmt: off
         .alias, .may_alias, .deprecated, .unavailable, .unused, .warn_if_not_aligned, .weak, .used,
@@ -925,7 +925,7 @@ pub fn applyTypeAttributes(p: *Parser, qt: QualType, attr_buf_start: usize, diag
     const seens = p.attr_buf.items(.seen)[attr_buf_start..];
     p.attr_application_buf.items.len = 0;
     var base_qt = qt;
-    var msvc_ptr_attrs_seen: attributes.msvc_ptr.UsageTracker = .initEmpty();
+    var msvc_ptr_attrs_seen: attributes.msvc_ptr.UsageTracker = .empty;
     for (attrs, toks, seens) |attr, tok, seen| {
         if (seen) continue;
 
