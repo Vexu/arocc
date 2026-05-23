@@ -1170,6 +1170,7 @@ fn expr(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!bool {
         pp.expansion_source_loc = pp.top_expansion_buf.items[0].loc;
         pp.hideset.clearRetainingCapacity();
         try pp.expandMacroExhaustive(tokenizer, &pp.top_expansion_buf, 0, pp.top_expansion_buf.items.len, false, .expr);
+        removePlacemarkers(gpa, &pp.top_expansion_buf);
     }
     for (pp.top_expansion_buf.items) |tok| {
         if (tok.id == .macro_ws) continue;
@@ -2696,7 +2697,10 @@ fn expandMacroExhaustive(
                         args.deinit(gpa);
                     }
                     const r_paren_hidelist = pp.hideset.get(r_paren.loc);
-                    var hs = try pp.hideset.intersection(macro_hidelist, r_paren_hidelist);
+                    var hs: Hideset.Index = if (macro_tok.flags.is_macro_arg)
+                        .none
+                    else
+                        try pp.hideset.intersection(macro_hidelist, r_paren_hidelist);
                     hs = try pp.hideset.prepend(macro_tok.loc, hs);
 
                     var args_count: u32 = @intCast(args.items.len);
@@ -3680,10 +3684,19 @@ fn findIncludeFilenameToken(
             try pp.top_expansion_buf.append(gpa, source_tok);
             pp.expansion_source_loc = source_tok.loc;
 
-            try pp.expandMacroExhaustive(tokenizer, &pp.top_expansion_buf, 0, 1, true, .no_pragma);
+            while (true) {
+                var tok = tokenizer.next();
+                switch (tok.id) {
+                    .nl, .eof => break,
+                    .whitespace => tok.id = .macro_ws,
+                    else => {},
+                }
+                try pp.top_expansion_buf.append(gpa, tokFromRaw(tok));
+            }
+            try pp.expandMacroExhaustive(tokenizer, &pp.top_expansion_buf, 0, pp.top_expansion_buf.items.len, true, .no_pragma);
+            removePlacemarkers(gpa, &pp.top_expansion_buf);
             var trailing_toks: []const TokenWithExpansionLocs = &.{};
             const include_str = (try pp.reconstructIncludeString(pp.top_expansion_buf.items, &trailing_toks, tokFromRaw(first))) orelse {
-                try pp.expectNl(tokenizer);
                 return error.InvalidInclude;
             };
             const start = pp.comp.generated_buf.items.len;
