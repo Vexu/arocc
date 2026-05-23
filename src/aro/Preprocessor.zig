@@ -3560,29 +3560,24 @@ fn include(pp: *Preprocessor, tokenizer: *Tokenizer, which: Compilation.WhichInc
     // similar to the compilation-scoped one should be considered with a
     // payload structure that can handle context-relevant event data (e.g.,
     // here, the source file data is needed).
-    {
-        var pragma_handler_it = pp.comp.pragma_handlers.iterator();
-        while (pragma_handler_it.next()) |pragma_handler| {
-            const handler_pragma_name = pragma_handler.key_ptr.*;
-            const handler_pragma = pragma_handler.value_ptr.*;
-            if (handler_pragma.beforeInclude) |func| {
-                func(handler_pragma, pp, new_source) catch |handler_err| {
-                    switch (handler_err) {
-                        error.SkipInclude => {
-                            if (pp.verbose) {
-                                pp.verboseLog(
-                                    first,
-                                    "skipping include file {s} under direction of \"{s}\" pragma",
-                                    .{ new_source.path, handler_pragma_name },
-                                );
-                            }
+    for (pp.comp.pragma_handlers.keys(), pp.comp.pragma_handlers.values()) |handler_pragma_name, handler_pragma| {
+        if (handler_pragma.beforeInclude) |func| {
+            func(handler_pragma, pp, new_source) catch |handler_err| {
+                switch (handler_err) {
+                    error.SkipInclude => {
+                        if (pp.verbose) {
+                            pp.verboseLog(
+                                first,
+                                "skipping include file {s} under direction of \"{s}\" pragma",
+                                .{ new_source.path, handler_pragma_name },
+                            );
+                        }
 
-                            return;
-                        },
-                        else => |e| return e,
-                    }
-                };
-            }
+                        return;
+                    },
+                    else => |e| return e,
+                }
+            };
         }
     }
 
