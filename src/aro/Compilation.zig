@@ -810,9 +810,7 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
                 try define(w, "__ARM_FEATURE_UNALIGNED");
             }
 
-            if (target.cpu.arch == .arm or target.cpu.arch == .thumb or target.cpu.arch == .armeb or target.cpu.arch == .thumbeb) {
-                try define(w, "__ARM_32BIT_STATE");
-            }
+            try define(w, "__ARM_32BIT_STATE");
 
             try w.writeAll("#define __ARM_ACLE 200\n");
 
