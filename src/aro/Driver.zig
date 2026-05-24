@@ -1093,6 +1093,7 @@ fn parseTarget(d: *Driver, arch_os_abi: []const u8, opt_cpu_features: ?[]const u
         }
     } else if (opt_sub_arch) |sub_arch| {
         if (sub_arch.toFeature(arch)) |feature| {
+            query.cpu_model = .{ .explicit = &.{ .name = "empty", .llvm_name = null, .features = .empty } };
             query.cpu_features_add.addFeature(feature);
         }
     }
