@@ -684,6 +684,8 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
         .arm, .armeb, .thumb, .thumbeb => |arch| {
             try define(w, "__arm__");
             try define(w, "__arm");
+            try w.writeAll("#define __ARM_ACLE 200\n");
+            try define(w, "__ARM_32BIT_STATE");
 
             // see https://clang.llvm.org/doxygen/Basic_2Targets_2ARM_8cpp_source.html
             // https://developer.arm.com/documentation/dui0774/g/chr1383660321827
@@ -810,10 +812,6 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
                 try define(w, "__ARM_FEATURE_UNALIGNED");
             }
 
-            try define(w, "__ARM_32BIT_STATE");
-
-            try w.writeAll("#define __ARM_ACLE 200\n");
-
             if (arch == .arm or arch == .thumb) {
                 try define(w, "__ARMEL__");
             }
@@ -824,7 +822,10 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
             }
         },
         .aarch64, .aarch64_be => |arch| {
+            try define(w, "__arm__");
+            try define(w, "__arm");
             try define(w, "__aarch64__");
+            try w.writeAll("#define __ARM_ACLE 200\n");
             switch (arch) {
                 .aarch64 => {
                     try define(w, "__AARCH64EL__");
