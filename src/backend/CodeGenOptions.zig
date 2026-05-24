@@ -10,6 +10,10 @@ pic_level: PicLevel,
 /// Generate position-independent code that can only be linked into executables
 is_pie: bool,
 optimization_level: OptimizationLevel,
+/// Generate Read-Only and Read-Write Position Independent (ROPI/RWPI) code an ARM targets.
+/// This currently only emits macros for better clang compat.
+is_ropi: bool,
+is_rwpi: bool,
 /// Generate debug information
 debug: DebugFormat,
 dwarf_version: DwarfVersion,
@@ -88,6 +92,8 @@ pub const default: @This() = .{
     .data_sections = false,
     .pic_level = .none,
     .is_pie = false,
+    .is_ropi = false,
+    .is_rwpi = false,
     .optimization_level = .@"0",
     .debug = .strip,
     .dwarf_version = .@"0",
