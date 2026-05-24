@@ -684,6 +684,8 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
         .arm, .armeb, .thumb, .thumbeb => |arch| {
             try define(w, "__arm__");
             try define(w, "__arm");
+            try define(w, "__ARM_32BIT_STATE");
+            try w.writeAll("#define __ARM_ACLE 200\n");
 
             // see https://clang.llvm.org/doxygen/Basic_2Targets_2ARM_8cpp_source.html
             // https://developer.arm.com/documentation/dui0774/g/chr1383660321827
@@ -720,27 +722,55 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
             var arm_version: u8 = 6;
             const arm_features = target.cpu.features;
             for ([_]struct { std.Target.arm.Feature, []const u8 }{
-                .{ .v6m, "6M" },
-                .{ .v7a, "7A" },
-                .{ .v7em, "7EM" },
-                .{ .v7m, "7M" },
-                .{ .v7r, "7R" },
-                .{ .v7ve, "7VE" },
+                .{ .v9_6a, "9_6A" },
+                .{ .v9_5a, "9_5A" },
+                .{ .v9_4a, "9_4A" },
+                .{ .v9_3a, "9_3A" },
+                .{ .v9_2a, "9_2A" },
+                .{ .v9_1a, "9_1A" },
+                .{ .v9a, "9A" },
+
+                .{ .v8_9a, "8_9A" },
+                .{ .v8_8a, "8_8A" },
+                .{ .v8_7a, "8_7A" },
+                .{ .v8_6a, "8_6A" },
+                .{ .v8_5a, "8_5A" },
+                .{ .v8_4a, "8_4A" },
+                .{ .v8_3a, "8_3A" },
+                .{ .v8_2a, "8_2A" },
                 .{ .v8_1a, "8_1A" },
                 .{ .v8_1m_main, "8_1M_MAIN" },
-                .{ .v8_2a, "8_2A" },
-                .{ .v8_3a, "8_3A" },
-                .{ .v8_4a, "8_4A" },
-                .{ .v8_5a, "8_5A" },
-                .{ .v8_6a, "8_6A" },
-                .{ .v8_7a, "8_7A" },
-                .{ .v8_8a, "8_8A" },
-                .{ .v8_9a, "8_9A" },
                 .{ .v8a, "8A" },
-                .{ .v8m, "8M_BASE" },
-                .{ .v8m_main, "8M_MAIN" },
                 .{ .v8r, "8R" },
-                .{ .v9a, "9A" },
+                .{ .v8m_main, "8M_MAIN" },
+                .{ .v8m, "8M_BASE" },
+
+                .{ .v7ve, "7VE" },
+                .{ .v7a, "7A" },
+                .{ .v7r, "7R" },
+                .{ .v7m, "7M" },
+                .{ .v7em, "7EM" },
+
+                .{ .v6t2, "6T2" },
+                .{ .v6kz, "6KZ" },
+                .{ .v6k, "6K" },
+                .{ .v6j, "6J" },
+                .{ .v6sm, "6SM" },
+                .{ .v6m, "6M" },
+                .{ .v6, "6" },
+
+                .{ .v5tej, "5TEJ" },
+                .{ .v5te, "5TE" },
+                .{ .v5t, "5T" },
+
+                .{ .v4t, "4T" },
+                .{ .v4, "4" },
+
+                .{ .v3m, "3M" },
+                .{ .v3, "3" },
+
+                .{ .v2a, "2A" },
+                .{ .v2, "2" },
             }) |fs| {
                 if (arm_features.isEnabled(@intFromEnum(fs[0]))) {
                     try w.print("#define __ARM_ARCH_{s}__ 1\n", .{fs[1]});
@@ -810,10 +840,6 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
                 try define(w, "__ARM_FEATURE_UNALIGNED");
             }
 
-            try define(w, "__ARM_32BIT_STATE");
-
-            try w.writeAll("#define __ARM_ACLE 200\n");
-
             if (arch == .arm or arch == .thumb) {
                 try define(w, "__ARMEL__");
             }
@@ -830,8 +856,48 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
                 try define(w, "__ARM_RWPI");
             }
         },
-        .aarch64, .aarch64_be => |arch| {
+        .aarch64, .aarch64_be => |arch| { // `aarch64` means 64 bit ARM. It does not mean A profile.
             try define(w, "__aarch64__");
+            try define(w, "__ARM_64BIT_STATE");
+            try define(w, "__ARM_ARCH_ISA_A64");
+            try w.writeAll("#define __ARM_ALIGN_MAX_STACK_PWR 4\n");
+
+            try w.writeAll("#define __ARM_ACLE_VERSION(year,quarter,patch) (100 * (year) + 10 * (quarter) + (patch))\n");
+            const acle_version = (100 * 2024) + (10 * 2) + 0; // ACLE 2024.2
+            try w.print("#define __ARM_ACLE {d}\n", .{acle_version});
+
+            const arm_features = target.cpu.features;
+            var arm_version: u8 = 6;
+            for ([_]struct { std.Target.aarch64.Feature, []const u8 }{
+                .{ .v9_6a, "9_6A" },
+                .{ .v9_5a, "9_5A" },
+                .{ .v9_4a, "9_4A" },
+                .{ .v9_3a, "9_3A" },
+                .{ .v9_2a, "9_2A" },
+                .{ .v9_1a, "9_1A" },
+                .{ .v9a, "9A" },
+                .{ .v8_9a, "8_9A" },
+                .{ .v8_8a, "8_8A" },
+                .{ .v8_7a, "8_7A" },
+                .{ .v8_6a, "8_6A" },
+                .{ .v8_5a, "8_5A" },
+                .{ .v8_4a, "8_4A" },
+                .{ .v8_3a, "8_3A" },
+                .{ .v8_2a, "8_2A" },
+                .{ .v8_1a, "8_1A" },
+                .{ .v8a, "8A" },
+                .{ .v8r, "8R" },
+            }) |fs| {
+                if (arm_features.isEnabled(@intFromEnum(fs[0]))) {
+                    try w.print("#define __ARM_ARCH_{s}__ 1\n", .{fs[1]});
+                    arm_version = fs[1][0] - '0';
+                    try w.print("#define __ARM_ARCH {d}\n", .{arm_version});
+                    const profile = fs[1][fs[1].len - 1];
+                    try w.print("#define __ARM_ARCH_PROFILE '{c}'\n", .{profile});
+                    break;
+                }
+            }
+
             switch (arch) {
                 .aarch64 => {
                     try define(w, "__AARCH64EL__");
