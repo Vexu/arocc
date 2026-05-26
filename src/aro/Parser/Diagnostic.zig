@@ -1607,9 +1607,13 @@ pub const deprecated_declarations: Diagnostic = .{
     .kind = .warning,
 };
 
+pub const deprecated_alternative: Diagnostic = .{
+    .fmt = "use '{s}' instead",
+    .kind = .note,
+};
+
 pub const deprecated_note: Diagnostic = .{
     .fmt = "'{s}' has been explicitly marked deprecated here",
-    .opt = .@"deprecated-declarations",
     .kind = .note,
 };
 
