@@ -431,6 +431,7 @@ const attributes = struct {
     };
     pub const deprecated = struct {
         msg: ?Value = null,
+        alternative: ?Value = null, // C23 deprecated attribute only takes 1 argument
         __name_tok: TokenIndex,
     };
     pub const designated_init = struct {};

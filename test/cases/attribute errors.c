@@ -56,7 +56,7 @@ attribute errors.c:19:24: warning: attribute 'simd' ignored on variables [-Wigno
 attribute errors.c:20:29: warning: unknown `simd` argument. Possible values are: "notinbranch", "inbranch" [-Wignored-attributes]
 attribute errors.c:21:24: warning: unknown attribute 'invalid_attribute' ignored [-Wunknown-attributes]
 attribute errors.c:22:24: warning: unknown attribute 'invalid_attribute' ignored [-Wunknown-attributes]
-attribute errors.c:23:49: error: 'deprecated' attribute takes at most 1 argument(s)
+attribute errors.c:23:49: error: attribute argument is invalid, expected a string but got an integer constant
 attribute errors.c:27:24: warning: attribute 'cold' ignored on types [-Wignored-attributes]
 attribute errors.c:30:5: warning: '__thiscall' calling convention is not supported for this target [-Wignored-attributes]
 attribute errors.c:31:36: error: attribute value '4294967296' out of range

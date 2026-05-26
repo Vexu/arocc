@@ -631,6 +631,10 @@ fn checkDeprecatedUnavailable(p: *Parser, ty: QualType, usage_tok: TokenIndex, d
     }
     if (ty.getAttribute(p.comp, .deprecated)) |deprecated| {
         try p.errDeprecated(usage_tok, .deprecated_declarations, deprecated.msg);
+        if (deprecated.alternative) |alternative| {
+            const alt_str = p.comp.interner.get(alternative.ref()).bytes;
+            try p.err(usage_tok, .deprecated_alternative, .{alt_str});
+        }
         try p.err(deprecated.__name_tok, .deprecated_note, .{p.tokSlice(decl_tok)});
     }
 }

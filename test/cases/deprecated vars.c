@@ -20,7 +20,7 @@ void baz(void) {
 }
 
 struct S {
-    int __attribute__((deprecated("foo"), packed)) p;
+    int __attribute__((deprecated("foo", "bar"), packed)) p;
 };
 
 int deprecated_field(struct S s) {
@@ -47,5 +47,6 @@ deprecated vars.c:13:29: note: 'arg' has been explicitly marked deprecated here
 deprecated vars.c:19:5: warning: 'x' is deprecated [-Wdeprecated-declarations]
 deprecated vars.c:18:12: note: 'x' has been explicitly marked deprecated here
 deprecated vars.c:28:14: warning: 'p' is deprecated: foo [-Wdeprecated-declarations]
+deprecated vars.c:28:14: note: use 'bar' instead
 deprecated vars.c:23:24: note: 'p' has been explicitly marked deprecated here
 */
