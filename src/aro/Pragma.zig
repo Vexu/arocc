@@ -4,9 +4,12 @@ const Compilation = @import("Compilation.zig");
 const Diagnostics = @import("Diagnostics.zig");
 const Parser = @import("Parser.zig");
 const Preprocessor = @import("Preprocessor.zig");
+const Source = @import("Source.zig");
 const TokenIndex = @import("Tree.zig").TokenIndex;
 
 pub const Error = Compilation.Error || error{ UnknownPragma, StopPreprocessing };
+
+pub const BeforeIncludeError = Compilation.Error || error{SkipInclude};
 
 const Pragma = @This();
 
@@ -28,6 +31,10 @@ afterParse: ?*const fn (*Pragma, *Compilation) void = null,
 
 /// Called during Compilation.deinit
 deinit: *const fn (*Pragma, *Compilation) void,
+
+/// Called during Preprocessor.include. Return SkipInclude to skip the include
+/// altogether (see once.zig).
+beforeInclude: ?*const fn (*Pragma, *Preprocessor, Source) BeforeIncludeError!void = null,
 
 /// Called whenever the preprocessor encounters this pragma. `start_idx` is the index
 /// within `pp.tokens` of the pragma name token. The pragma end is indicated by a

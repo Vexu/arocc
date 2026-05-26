@@ -829,6 +829,9 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!TokenWithExpans
                         }
 
                         _ = pp.defines.orderedRemove(macro_name);
+                        if (pp.verbose) {
+                            pp.verboseLog(directive, "macro {s} undefined", .{macro_name});
+                        }
                         try pp.expectNl(&tokenizer);
                     },
                     .keyword_include => {
@@ -3552,6 +3555,34 @@ fn include(pp: *Preprocessor, tokenizer: *Tokenizer, which: Compilation.WhichInc
 
     if (pp.include_guards.get(new_source.id)) |guard| {
         if (pp.defines.contains(guard)) return;
+    }
+
+    // Run any beforeInclude pragma hooks.
+    //
+    // NOTE: This is currently the only deep-preprocessor hook other than the
+    // actual token handler itself. If more are added, an event hook system
+    // similar to the compilation-scoped one should be considered with a
+    // payload structure that can handle context-relevant event data (e.g.,
+    // here, the source file data is needed).
+    for (pp.comp.pragma_handlers.keys(), pp.comp.pragma_handlers.values()) |handler_pragma_name, handler_pragma| {
+        if (handler_pragma.beforeInclude) |func| {
+            func(handler_pragma, pp, new_source) catch |handler_err| {
+                switch (handler_err) {
+                    error.SkipInclude => {
+                        if (pp.verbose) {
+                            pp.verboseLog(
+                                first,
+                                "skipping include file {s} under direction of \"{s}\" pragma",
+                                .{ new_source.path, handler_pragma_name },
+                            );
+                        }
+
+                        return;
+                    },
+                    else => |e| return e,
+                }
+            };
+        }
     }
 
     if (pp.dep_file) |dep| try dep.addDependency(gpa, new_source.path);
