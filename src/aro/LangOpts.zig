@@ -194,7 +194,7 @@ pub fn setCharSignedness(self: *LangOpts, signedness: std.builtin.Signedness) vo
 pub fn allowFixedSizedIntSuffixes(self: *const LangOpts) bool {
     return switch (self.emulate) {
         .msvc => true,
-        .clang => self.ms_extensions,
-        .no, .gcc => false,
+        .clang, .no => self.ms_extensions,
+        .gcc => false,
     };
 }
