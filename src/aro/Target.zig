@@ -1607,11 +1607,6 @@ pub fn cCharSignedness(target: *const Target) std.builtin.Signedness {
 }
 
 pub fn cTypeBitSize(target: *const Target, c_type: std.Target.CType) u16 {
-    // workarouhd for https://codeberg.org/ziglang/zig/issues/35442
-    if (target.os.tag.isDarwin() and target.cpu.arch == .x86 and (c_type == .long or c_type == .ulong)) {
-        @branchHint(.cold);
-        return 32;
-    }
     return target.toZigTarget().cTypeBitSize(c_type);
 }
 
