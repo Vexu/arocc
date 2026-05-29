@@ -1377,7 +1377,7 @@ pub const QualType = packed struct(u32) {
                 .int128 => try w.writeAll("__int128"),
                 .uint128 => try w.writeAll("unsigned __int128"),
             },
-            .bit_int => |bit_int| try w.print("{s} _BitInt({d})", .{ @tagName(bit_int.signedness), bit_int.bits }),
+            .bit_int => |bit_int| try w.print("{t} _BitInt({d})", .{ bit_int.signedness, bit_int.bits }),
             .float => |float_ty| switch (float_ty) {
                 .bf16 => try w.writeAll("__bf16"),
                 .fp16 => try w.writeAll("__fp16"),

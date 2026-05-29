@@ -36,15 +36,15 @@ pub const Message = struct {
             .warning => try term.setColor(.bright_magenta),
             .off => unreachable,
         }
-        try w.print("{s}: ", .{@tagName(msg.effective_kind)});
+        try w.print("{t}: ", .{msg.effective_kind});
 
         try term.setColor(.white);
         try w.writeAll(msg.text);
         if (msg.opt) |some| {
             if (msg.effective_kind == .@"error" and msg.kind != .@"error") {
-                try w.print(" [-Werror,-W{s}]", .{@tagName(some)});
+                try w.print(" [-Werror,-W{t}]", .{some});
             } else if (msg.effective_kind != .note) {
-                try w.print(" [-W{s}]", .{@tagName(some)});
+                try w.print(" [-W{t}]", .{some});
             }
         } else if (msg.extension) {
             if (msg.effective_kind == .@"error") {

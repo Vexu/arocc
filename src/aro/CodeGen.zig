@@ -502,7 +502,7 @@ fn genExpr(c: *CodeGen, node_index: Node.Index) Error!Ir.Ref {
         .computed_goto_stmt,
         .nullptr_literal,
         .asm_stmt,
-        => return c.fail("TODO CodeGen.genStmt {s}\n", .{@tagName(node)}),
+        => return c.fail("TODO CodeGen.genStmt {t}\n", .{node}),
         .comma_expr => |bin| {
             _ = try c.genExpr(bin.lhs);
             return c.genExpr(bin.rhs);
@@ -871,7 +871,7 @@ fn genExpr(c: *CodeGen, node_index: Node.Index) Error!Ir.Ref {
         .sizeof_expr,
         .builtin_va_arg_pack,
         .builtin_va_arg_pack_len,
-        => return c.fail("TODO CodeGen.genExpr {s}\n", .{@tagName(node)}),
+        => return c.fail("TODO CodeGen.genExpr {t}\n", .{node}),
         else => unreachable, // Not an expression.
     }
     return .none;
@@ -897,7 +897,7 @@ fn genLval(c: *CodeGen, node_index: Node.Index) Error!Ir.Ref {
                 }
             }
 
-            const duped_name = try c.builder.arena.allocator().dupeZ(u8, slice);
+            const duped_name = try c.builder.arena.allocator().dupeSentinel(u8, slice, 0);
             const ref: Ir.Ref = @enumFromInt(c.builder.instructions.len);
             try c.builder.instructions.append(c.builder.gpa, .{ .tag = .symbol, .data = .{ .label = duped_name }, .ty = .ptr });
             return ref;
@@ -927,7 +927,7 @@ fn genLval(c: *CodeGen, node_index: Node.Index) Error!Ir.Ref {
         .member_access_expr,
         .member_access_ptr_expr,
         .array_access_expr,
-        => return c.fail("TODO CodeGen.genLval {s}\n", .{@tagName(node)}),
+        => return c.fail("TODO CodeGen.genLval {t}\n", .{node}),
         else => unreachable, // Not an lval expression.
     }
 }
@@ -1115,7 +1115,7 @@ fn genCall(c: *CodeGen, call: Node.Call) Error!Ir.Ref {
                     }
                 }
 
-                const duped_name = try c.builder.arena.allocator().dupeZ(u8, slice);
+                const duped_name = try c.builder.arena.allocator().dupeSentinel(u8, slice, 0);
                 const ref: Ir.Ref = @enumFromInt(c.builder.instructions.len);
                 try c.builder.instructions.append(c.builder.gpa, .{ .tag = .symbol, .data = .{ .label = duped_name }, .ty = .ptr });
                 break :blk ref;
@@ -1184,7 +1184,7 @@ fn genInitializer(c: *CodeGen, ptr: Ir.Ref, dest_ty: QualType, initializer: Node
         .union_init_expr,
         .array_filler_expr,
         .default_init_expr,
-        => return c.fail("TODO CodeGen.genInitializer {s}\n", .{@tagName(node)}),
+        => return c.fail("TODO CodeGen.genInitializer {t}\n", .{node}),
         .string_literal_expr => {
             const val = c.tree.value_map.get(initializer).?;
             const str_ptr = try c.builder.addConstant(val.ref(), .ptr);

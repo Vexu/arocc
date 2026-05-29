@@ -22,6 +22,8 @@ pub const Token = struct {
 };
 
 pub const TokenWithExpansionLocs = struct {
+    const max_expansion_locs = 64;
+
     id: Token.Id,
     flags: packed struct {
         expansion_disabled: bool = false,
@@ -51,8 +53,10 @@ pub const TokenWithExpansionLocs = struct {
             // what we ask for.
             if (list.capacity > 0) {
                 list.items.ptr[list.capacity - 1].byte_offset = 1;
+                tok.expansion_locs = list.items.ptr;
+            } else {
+                tok.expansion_locs = null;
             }
-            tok.expansion_locs = list.items.ptr;
         }
 
         if (tok.expansion_locs) |locs| {
@@ -63,13 +67,22 @@ pub const TokenWithExpansionLocs = struct {
             list.capacity = i + 1;
         }
 
-        const min_len = @max(list.items.len + new.len + 1, 4);
+        if (list.items.len >= max_expansion_locs) return;
+        var new_len: usize = 0;
+        for (new) |new_loc| {
+            if (new_loc.id.index != .generated) new_len += 1;
+        }
+        new_len = @min(new_len, max_expansion_locs - list.items.len);
+        if (new_len == 0) return;
+
+        const min_len = @max(list.items.len + new_len + 1, 4);
         const wanted_len = std.math.ceilPowerOfTwo(usize, min_len) catch
             return error.OutOfMemory;
         try list.ensureTotalCapacity(gpa, wanted_len);
 
         for (new) |new_loc| {
             if (new_loc.id.index == .generated) continue;
+            if (list.items.len >= max_expansion_locs) break;
             list.appendAssumeCapacity(new_loc);
         }
     }
@@ -3040,7 +3053,7 @@ pub fn dump(tree: *const Tree, term: std.Io.Terminal) std.Io.Terminal.SetColorEr
 fn dumpFieldAttributes(tree: *const Tree, attributes: []const Attribute, level: u32, w: *std.Io.Writer) !void {
     for (attributes) |attr| {
         try w.splatByteAll(' ', level);
-        try w.print("field attr: {s}", .{@tagName(attr.tag)});
+        try w.print("field attr: {t}", .{attr.tag});
         try tree.dumpAttribute(attr, w);
     }
 }
@@ -3102,14 +3115,14 @@ fn dumpNode(
     } else {
         try term.setColor(if (node.isImplicit()) IMPLICIT else TAG);
     }
-    try w.print("{s}", .{@tagName(node)});
+    try w.print("{t}", .{node});
 
     if (node_index.qtOrNull(tree)) |qt| {
         try w.writeAll(": ");
         switch (node) {
             .cast => |cast| {
                 try term.setColor(.white);
-                try w.print("({s}) ", .{@tagName(cast.kind)});
+                try w.print("({t}) ", .{cast.kind});
             },
             else => {},
         }
@@ -3170,7 +3183,7 @@ fn dumpNode(
         while (it.next()) |item| {
             const attr, _ = item;
             try w.splatByteAll(' ', level + half);
-            try w.print("attr: {s}", .{@tagName(attr.tag)});
+            try w.print("attr: {t}", .{attr.tag});
             try tree.dumpAttribute(attr, w);
         }
         try term.setColor(.reset);
