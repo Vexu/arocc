@@ -195,6 +195,10 @@ fn createType(desc: TypeDescription, it: *TypeDescription.TypeIterator, comp: *C
             } });
             builder.type = .{ .other = vector_qt };
         },
+        .q => {
+            // Todo: scalable vector
+            return .invalid;
+        },
         .Q => {
             // Todo: target builtin type
             return .invalid;

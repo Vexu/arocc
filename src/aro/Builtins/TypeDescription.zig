@@ -70,12 +70,13 @@ pub const ComponentIterator = struct {
             'F' => return .{ .spec = .F },
             'a' => return .{ .spec = .a },
             'A' => return .{ .spec = .A },
-            'V', 'E' => {
+            'V', 'q', 'E' => {
                 const start = self.idx;
                 while (std.ascii.isDigit(self.str[self.idx])) : (self.idx += 1) {}
                 const count = std.fmt.parseUnsigned(u32, self.str[start..self.idx], 10) catch unreachable;
                 return switch (c) {
                     'V' => .{ .spec = .{ .V = count } },
+                    'q' => .{ .spec = .{ .q = count } },
                     'E' => .{ .spec = .{ .E = count } },
                     else => unreachable,
                 };
@@ -243,6 +244,8 @@ const Spec = union(enum) {
     A,
     /// Vector, followed by the number of elements and the base type.
     V: u32,
+    /// Scalable vector, followed by the number of elements and the base type.
+    q: u32,
     /// target builtin type, followed by a character to distinguish the builtin type
     Q: enum {
         aarch64_svcount_t,
