@@ -244,19 +244,22 @@ pub fn build(b: *Build) !void {
     b.step("run", "Run arocc").dependOn(step: {
         const run_cmd = b.addRunArtifact(exe);
         run_cmd.step.dependOn(b.getInstallStep());
-        if (b.args) |args| {
-            run_cmd.addArgs(args);
-        }
+        run_cmd.addPassthruArgs();
         break :step &run_cmd.step;
     });
 
-    const fmt_dirs: []const []const u8 = &.{ "build", "build.zig", "src", "test" };
+    const fmt_dirs: [4]std.Build.LazyPath = .{
+        b.path("build"),
+        b.path("build.zig"),
+        b.path("src"),
+        b.path("test"),
+    };
 
     b.step("fmt", "Modify source files in place to have conforming formatting")
-        .dependOn(&b.addFmt(.{ .paths = fmt_dirs }).step);
+        .dependOn(&b.addFmt(.{ .paths = &fmt_dirs }).step);
 
     const test_fmt_step = b.step("test-fmt", "Check source files having conforming formatting");
-    test_fmt_step.dependOn(&b.addFmt(.{ .paths = fmt_dirs, .check = true }).step);
+    test_fmt_step.dependOn(&b.addFmt(.{ .paths = &fmt_dirs, .check = true }).step);
 
     // tracy integration
     if (tracy) |tracy_path| {
