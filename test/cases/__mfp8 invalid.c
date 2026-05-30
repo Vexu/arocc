@@ -24,6 +24,13 @@ void foo(__mfp8 a, __mfp8 b) {
     (__mfp8)1.0f;
     const __mfp8 c = a;
     c = b;
+    while (a) {}
+    for (; a;) {}
+    do {} while (a);
+    a && b;
+    a || b;
+    !a;
+    switch (a) {}
     _Complex __mfp8 complex_mfp8;
 }
 
@@ -57,6 +64,13 @@ __mfp8 invalid.c:23:5: error: cannot cast to non arithmetic or pointer type '__m
 __mfp8 invalid.c:24:5: error: cannot cast to non arithmetic or pointer type '__mfp8'
 __mfp8 invalid.c:26:7: error: cannot assign to variable 'c' with const-qualified type 'const __mfp8'
 __mfp8 invalid.c:25:18: note: variable 'c' declared const here
-__mfp8 invalid.c:27:14: error: cannot combine with previous '_Complex' specifier
-__mfp8 invalid.c:27:14: warning: plain '_Complex' requires a type specifier; assuming '_Complex double'
+__mfp8 invalid.c:27:12: error: statement requires expression with scalar type ('__mfp8' invalid)
+__mfp8 invalid.c:28:10: error: statement requires expression with scalar type ('__mfp8' invalid)
+__mfp8 invalid.c:29:18: error: statement requires expression with scalar type ('__mfp8' invalid)
+__mfp8 invalid.c:30:7: error: invalid operands to binary expression ('__mfp8' and '__mfp8')
+__mfp8 invalid.c:31:7: error: invalid operands to binary expression ('__mfp8' and '__mfp8')
+__mfp8 invalid.c:32:5: error: invalid argument type '__mfp8' to unary expression
+__mfp8 invalid.c:33:13: error: statement requires expression with integer type ('__mfp8' invalid)
+__mfp8 invalid.c:34:14: error: cannot combine with previous '_Complex' specifier
+__mfp8 invalid.c:34:14: warning: plain '_Complex' requires a type specifier; assuming '_Complex double'
 */
