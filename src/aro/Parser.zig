@@ -6621,6 +6621,8 @@ pub const Result = struct {
                 }
                 if (a_sk.isPointer() and b_sk.isPointer()) return a.adjustCondExprPtrs(tok, b, p);
 
+                if (a.qt.is(p.comp, .storage_float) and a.qt.eql(b.qt, p.comp)) return true;
+
                 if (a.qt.getRecord(p.comp) != null and b.qt.getRecord(p.comp) != null and a.qt.eql(b.qt, p.comp)) {
                     return true;
                 }
@@ -7115,6 +7117,16 @@ pub const Result = struct {
         } else if (res.qt.is(p.comp, .void)) {
             try p.err(operand_tok, .invalid_cast_operand_type, .{res.qt});
             return error.ParsingFailed;
+        } else if (dest_qt.is(p.comp, .storage_float) or res.qt.is(p.comp, .storage_float)) {
+            if (dest_qt.is(p.comp, .storage_float) and dest_qt.eql(res.qt, p.comp)) {
+                cast_kind = .no_op;
+            } else if (dest_qt.is(p.comp, .storage_float)) {
+                try p.err(l_paren, .invalid_cast_type, .{dest_qt});
+                return error.ParsingFailed;
+            } else {
+                try p.err(operand_tok, .invalid_cast_operand_type, .{res.qt});
+                return error.ParsingFailed;
+            }
         } else if (dest_vec and src_vec) {
             if (dest_qt.eql(res.qt, p.comp)) {
                 cast_kind = .no_op;

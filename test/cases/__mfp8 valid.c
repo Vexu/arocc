@@ -24,6 +24,7 @@ void take_mfp8(__mfp8 x);
 _Static_assert(sizeof(__mfp8) == 1, "sizeof __mfp8");
 _Static_assert(_Alignof(__mfp8) == 1, "alignof __mfp8");
 _Static_assert(sizeof(mfp8_array_t) == 4, "sizeof __mfp8 array");
+_Static_assert(__builtin_types_compatible_p(__mfp8, __mfp8), "__mfp8 type compatibility");
 _Static_assert(IS_MFP8(global_mfp8), "_Generic __mfp8");
 _Static_assert(IS_MFP8_PTR(global_mfp8_ptr), "_Generic __mfp8 pointer");
 
@@ -34,10 +35,18 @@ void valid_mfp8_use(__mfp8 param) {
     __mfp8 array[4];
     struct mfp8_holder holder;
     __mfp8 *ptr;
+    const __mfp8 const_local = param;
+    volatile __mfp8 volatile_local = param;
+    const __mfp8 *ptr_to_const;
+    const volatile __mfp8 *ptr_to_const_volatile;
+    __mfp8 *const const_ptr = &local;
 
     local = init_local;
     alias_local = local;
     array[0] = alias_local;
+    local = const_local;
+    volatile_local = local;
+    local = volatile_local;
 
     holder.value = array[0];
     holder.alias_value = holder.value;
@@ -46,9 +55,24 @@ void valid_mfp8_use(__mfp8 param) {
     ptr = &local;
     *ptr = holder.lanes[1];
     alias_local = *ptr;
+    *const_ptr = alias_local;
+    ptr_to_const = &const_local;
+    local = *ptr_to_const;
+    ptr_to_const = &local;
+    ptr_to_const_volatile = &volatile_local;
+    local = *ptr_to_const_volatile;
 
     take_mfp8(alias_local);
     local = return_mfp8(alias_local);
+    local = 1 ? init_local : alias_local;
+    local = (__mfp8){init_local};
+    alias_local = (mfloat8_t){local};
+    local = (__mfp8)init_local;
+    alias_local = (mfloat8_t)local;
+
+    _Static_assert(IS_MFP8(((void)local, alias_local)), "__mfp8 comma operator");
+    _Static_assert(IS_MFP8((local = init_local)), "__mfp8 assignment");
+    _Static_assert(IS_MFP8((__mfp8)init_local), "__mfp8 explicit cast");
 }
 
 /** manifest:
