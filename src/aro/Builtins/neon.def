@@ -1,0 +1,1993 @@
+# Manually extracted from clang/lib/CodeGen/TargetBuiltins/ARM.cpp
+
+#ARMSIMDIntrinsicMap
+__builtin_neon___a32_vcvt_bf16_f32
+    .param_str = "V8ScV16Sci"
+
+__builtin_neon_splat_lane_v
+    .param_str = "V8ScV8Scii"
+
+__builtin_neon_splat_laneq_v
+    .param_str = "V8ScV16Scii"
+
+__builtin_neon_splatq_lane_v
+    .param_str = "V16ScV8Scii"
+
+__builtin_neon_splatq_laneq_v
+    .param_str = "V16ScV16Scii"
+
+__builtin_neon_vabd_v
+    .param_str = "V8ScV8ScV8Sci"
+
+__builtin_neon_vabdq_v
+    .param_str = "V16ScV16ScV16Sci"
+
+__builtin_neon_vabs_v
+    .param_str = "V8ScV8Sci"
+
+__builtin_neon_vabsq_v
+    .param_str = "V16ScV16Sci"
+
+__builtin_neon_vadd_v
+    .param_str = "V8ScV8ScV8Sci"
+
+__builtin_neon_vaddhn_v
+    .param_str = "V8ScV16ScV16Sci"
+
+__builtin_neon_vaddq_v
+    .param_str = "V16ScV16ScV16Sci"
+
+__builtin_neon_vaesdq_u8
+    .param_str = "V16ScV16ScV16Sci"
+
+__builtin_neon_vaeseq_u8
+    .param_str = "V16ScV16ScV16Sci"
+
+__builtin_neon_vaesimcq_u8
+    .param_str = "V16ScV16Sci"
+
+__builtin_neon_vaesmcq_u8
+    .param_str = "V16ScV16Sci"
+
+__builtin_neon_vbfdot_f32
+    .param_str = "V8ScV8ScV8ScV8Sci"
+
+__builtin_neon_vbfdotq_f32
+    .param_str = "V16ScV16ScV16ScV16Sci"
+
+__builtin_neon_vbfmlalbq_f32
+    .param_str = "V16ScV16ScV16ScV16Sci"
+
+__builtin_neon_vbfmlaltq_f32
+    .param_str = "V16ScV16ScV16ScV16Sci"
+
+__builtin_neon_vbfmmlaq_f32
+    .param_str = "V16ScV16ScV16ScV16Sci"
+
+__builtin_neon_vbsl_v
+    .param_str = "V8ScV8ScV8ScV8Sci"
+
+__builtin_neon_vbslq_v
+    .param_str = "V16ScV16ScV16ScV16Sci"
+
+__builtin_neon_vcadd_rot270_f16
+    .param_str = "V8ScV8ScV8Sci"
+
+__builtin_neon_vcadd_rot270_f32
+    .param_str = "V8ScV8ScV8Sci"
+
+__builtin_neon_vcadd_rot90_f16
+    .param_str = "V8ScV8ScV8Sci"
+
+__builtin_neon_vcadd_rot90_f32
+    .param_str = "V8ScV8ScV8Sci"
+
+__builtin_neon_vcaddq_rot270_f16
+    .param_str = "V16ScV16ScV16Sci"
+
+__builtin_neon_vcaddq_rot270_f32
+    .param_str = "V16ScV16ScV16Sci"
+
+__builtin_neon_vcaddq_rot270_f64
+    .param_str = "V16ScV16ScV16Sci"
+
+__builtin_neon_vcaddq_rot90_f16
+    .param_str = "V16ScV16ScV16Sci"
+
+__builtin_neon_vcaddq_rot90_f32
+    .param_str = "V16ScV16ScV16Sci"
+
+__builtin_neon_vcaddq_rot90_f64
+    .param_str = "V16ScV16ScV16Sci"
+
+__builtin_neon_vcage_v
+    .param_str = "V8ScV8ScV8Sci"
+
+__builtin_neon_vcageq_v
+    .param_str = "V16ScV16ScV16Sci"
+
+__builtin_neon_vcagt_v
+    .param_str = "V8ScV8ScV8Sci"
+
+__builtin_neon_vcagtq_v
+    .param_str = "V16ScV16ScV16Sci"
+
+__builtin_neon_vcale_v
+    .param_str = "V8ScV8ScV8Sci"
+
+__builtin_neon_vcaleq_v
+    .param_str = "V16ScV16ScV16Sci"
+
+__builtin_neon_vcalt_v
+    .param_str = "V8ScV8ScV8Sci"
+
+__builtin_neon_vcaltq_v
+    .param_str = "V16ScV16ScV16Sci"
+
+__builtin_neon_vceqz_v
+    .param_str = "V8ScV8Sci"
+
+__builtin_neon_vceqzq_v
+    .param_str = "V16ScV16Sci"
+
+__builtin_neon_vcgez_v
+    .param_str = "V8ScV8Sci"
+
+__builtin_neon_vcgezq_v
+    .param_str = "V16ScV16Sci"
+
+__builtin_neon_vcgtz_v
+    .param_str = "V8ScV8Sci"
+
+__builtin_neon_vcgtzq_v
+    .param_str = "V16ScV16Sci"
+
+__builtin_neon_vclez_v
+    .param_str = "V8ScV8Sci"
+
+__builtin_neon_vclezq_v
+    .param_str = "V16ScV16Sci"
+
+__builtin_neon_vcls_v
+    .param_str = "V8ScV8Sci"
+
+__builtin_neon_vclsq_v
+    .param_str = "V16ScV16Sci"
+
+__builtin_neon_vcltz_v
+    .param_str = "V8ScV8Sci"
+
+__builtin_neon_vcltzq_v
+    .param_str = "V16ScV16Sci"
+
+__builtin_neon_vclz_v
+    .param_str = "V8ScV8Sci"
+
+__builtin_neon_vclzq_v
+    .param_str = "V16ScV16Sci"
+
+__builtin_neon_vcnt_v
+    .param_str = "V8ScV8Sci"
+
+__builtin_neon_vcntq_v
+    .param_str = "V16ScV16Sci"
+
+__builtin_neon_vcvt_f16_f32
+    .param_str = "V8ScV16Sci"
+
+__builtin_neon_vcvt_f16_s16
+    .param_str = "V8ScV8Sci"
+
+__builtin_neon_vcvt_f16_u16
+    .param_str = "V8ScV8Sci"
+
+__builtin_neon_vcvt_f32_f16
+    .param_str = "V16ScV8Sci"
+
+__builtin_neon_vcvt_f32_v
+    .param_str = "V8ScV8Sci"
+
+__builtin_neon_vcvt_n_f16_s16
+    .param_str = "V8ScV8Scii"
+
+__builtin_neon_vcvt_n_f16_u16
+    .param_str = "V8ScV8Scii"
+
+__builtin_neon_vcvt_n_f32_v
+    .param_str = "V8ScV8Scii"
+
+__builtin_neon_vcvt_n_s16_f16
+    .param_str = "V8ScV8Scii"
+
+__builtin_neon_vcvt_n_s32_v
+    .param_str = "V8ScV8Scii"
+
+__builtin_neon_vcvt_n_s64_v
+    .param_str = "V8ScV8Scii"
+
+__builtin_neon_vcvt_n_u16_f16
+    .param_str = "V8ScV8Scii"
+
+__builtin_neon_vcvt_n_u32_v
+    .param_str = "V8ScV8Scii"
+
+__builtin_neon_vcvt_n_u64_v
+    .param_str = "V8ScV8Scii"
+
+__builtin_neon_vcvt_s16_f16
+    .param_str = "V8ScV8Sci"
+
+__builtin_neon_vcvt_s32_v
+    .param_str = "V8ScV8Sci"
+
+__builtin_neon_vcvt_s64_v
+    .param_str = "V8ScV8Sci"
+
+__builtin_neon_vcvt_u16_f16
+    .param_str = "V8ScV8Sci"
+
+__builtin_neon_vcvt_u32_v
+    .param_str = "V8ScV8Sci"
+
+__builtin_neon_vcvt_u64_v
+    .param_str = "V8ScV8Sci"
+
+__builtin_neon_vcvta_s16_f16
+    .param_str = "V8ScV8Sci"
+
+__builtin_neon_vcvta_s32_v
+    .param_str = "V8ScV8Sci"
+
+__builtin_neon_vcvta_s64_v
+    .param_str = "V8ScV8Sci"
+
+__builtin_neon_vcvta_u16_f16
+    .param_str = "V8ScV8Sci"
+
+__builtin_neon_vcvta_u32_v
+    .param_str = "V8ScV8Sci"
+
+__builtin_neon_vcvta_u64_v
+    .param_str = "V8ScV8Sci"
+
+__builtin_neon_vcvtaq_s16_f16
+    .param_str = "V16ScV16Sci"
+
+__builtin_neon_vcvtaq_s32_v
+    .param_str = "V16ScV16Sci"
+
+__builtin_neon_vcvtaq_s64_v
+    .param_str = "V16ScV16Sci"
+
+__builtin_neon_vcvtaq_u16_f16
+    .param_str = "V16ScV16Sci"
+
+__builtin_neon_vcvtaq_u32_v
+    .param_str = "V16ScV16Sci"
+
+__builtin_neon_vcvtaq_u64_v
+    .param_str = "V16ScV16Sci"
+
+__builtin_neon_vcvth_bf16_f32
+    .param_str = "yf"
+
+__builtin_neon_vcvtm_s16_f16
+    .param_str = "V8ScV8Sci"
+
+__builtin_neon_vcvtm_s32_v
+    .param_str = "V8ScV8Sci"
+
+__builtin_neon_vcvtm_s64_v
+    .param_str = "V8ScV8Sci"
+
+__builtin_neon_vcvtm_u16_f16
+    .param_str = "V8ScV8Sci"
+
+__builtin_neon_vcvtm_u32_v
+    .param_str = "V8ScV8Sci"
+
+__builtin_neon_vcvtm_u64_v
+    .param_str = "V8ScV8Sci"
+
+__builtin_neon_vcvtmq_s16_f16
+    .param_str = "V16ScV16Sci"
+
+__builtin_neon_vcvtmq_s32_v
+    .param_str = "V16ScV16Sci"
+
+__builtin_neon_vcvtmq_s64_v
+    .param_str = "V16ScV16Sci"
+
+__builtin_neon_vcvtmq_u16_f16
+    .param_str = "V16ScV16Sci"
+
+__builtin_neon_vcvtmq_u32_v
+    .param_str = "V16ScV16Sci"
+
+__builtin_neon_vcvtmq_u64_v
+    .param_str = "V16ScV16Sci"
+
+__builtin_neon_vcvtn_s16_f16
+    .param_str = "V8ScV8Sci"
+
+__builtin_neon_vcvtn_s32_v
+    .param_str = "V8ScV8Sci"
+
+__builtin_neon_vcvtn_s64_v
+    .param_str = "V8ScV8Sci"
+
+__builtin_neon_vcvtn_u16_f16
+    .param_str = "V8ScV8Sci"
+
+__builtin_neon_vcvtn_u32_v
+    .param_str = "V8ScV8Sci"
+
+__builtin_neon_vcvtn_u64_v
+    .param_str = "V8ScV8Sci"
+
+__builtin_neon_vcvtnq_s16_f16
+    .param_str = "V16ScV16Sci"
+
+__builtin_neon_vcvtnq_s32_v
+    .param_str = "V16ScV16Sci"
+
+__builtin_neon_vcvtnq_s64_v
+    .param_str = "V16ScV16Sci"
+
+__builtin_neon_vcvtnq_u16_f16
+    .param_str = "V16ScV16Sci"
+
+__builtin_neon_vcvtnq_u32_v
+    .param_str = "V16ScV16Sci"
+
+__builtin_neon_vcvtnq_u64_v
+    .param_str = "V16ScV16Sci"
+
+__builtin_neon_vcvtp_s16_f16
+    .param_str = "V8ScV8Sci"
+
+__builtin_neon_vcvtp_s32_v
+    .param_str = "V8ScV8Sci"
+
+__builtin_neon_vcvtp_s64_v
+    .param_str = "V8ScV8Sci"
+
+__builtin_neon_vcvtp_u16_f16
+    .param_str = "V8ScV8Sci"
+
+__builtin_neon_vcvtp_u32_v
+    .param_str = "V8ScV8Sci"
+
+__builtin_neon_vcvtp_u64_v
+    .param_str = "V8ScV8Sci"
+
+__builtin_neon_vcvtpq_s16_f16
+    .param_str = "V16ScV16Sci"
+
+__builtin_neon_vcvtpq_s32_v
+    .param_str = "V16ScV16Sci"
+
+__builtin_neon_vcvtpq_s64_v
+    .param_str = "V16ScV16Sci"
+
+__builtin_neon_vcvtpq_u16_f16
+    .param_str = "V16ScV16Sci"
+
+__builtin_neon_vcvtpq_u32_v
+    .param_str = "V16ScV16Sci"
+
+__builtin_neon_vcvtpq_u64_v
+    .param_str = "V16ScV16Sci"
+
+__builtin_neon_vcvtq_f16_s16
+    .param_str = "V16ScV16Sci"
+
+__builtin_neon_vcvtq_f16_u16
+    .param_str = "V16ScV16Sci"
+
+__builtin_neon_vcvtq_f32_v
+    .param_str = "V16ScV16Sci"
+
+__builtin_neon_vcvtq_n_f16_s16
+    .param_str = "V16ScV16Scii"
+
+__builtin_neon_vcvtq_n_f16_u16
+    .param_str = "V16ScV16Scii"
+
+__builtin_neon_vcvtq_n_f32_v
+    .param_str = "V16ScV16Scii"
+
+__builtin_neon_vcvtq_n_s16_f16
+    .param_str = "V16ScV16Scii"
+
+__builtin_neon_vcvtq_n_s32_v
+    .param_str = "V16ScV16Scii"
+
+__builtin_neon_vcvtq_n_s64_v
+    .param_str = "V16ScV16Scii"
+
+__builtin_neon_vcvtq_n_u16_f16
+    .param_str = "V16ScV16Scii"
+
+__builtin_neon_vcvtq_n_u32_v
+    .param_str = "V16ScV16Scii"
+
+__builtin_neon_vcvtq_n_u64_v
+    .param_str = "V16ScV16Scii"
+
+__builtin_neon_vcvtq_s16_f16
+    .param_str = "V16ScV16Sci"
+
+__builtin_neon_vcvtq_s32_v
+    .param_str = "V16ScV16Sci"
+
+__builtin_neon_vcvtq_s64_v
+    .param_str = "V16ScV16Sci"
+
+__builtin_neon_vcvtq_u16_f16
+    .param_str = "V16ScV16Sci"
+
+__builtin_neon_vcvtq_u32_v
+    .param_str = "V16ScV16Sci"
+
+__builtin_neon_vcvtq_u64_v
+    .param_str = "V16ScV16Sci"
+
+__builtin_neon_vdot_s32
+    .param_str = "V8ScV8ScV8ScV8Sci"
+
+__builtin_neon_vdot_u32
+    .param_str = "V8ScV8ScV8ScV8Sci"
+
+__builtin_neon_vdotq_s32
+    .param_str = "V16ScV16ScV16ScV16Sci"
+
+__builtin_neon_vdotq_u32
+    .param_str = "V16ScV16ScV16ScV16Sci"
+
+__builtin_neon_vext_v
+    .param_str = "V8ScV8ScV8Scii"
+
+__builtin_neon_vextq_v
+    .param_str = "V16ScV16ScV16Scii"
+
+__builtin_neon_vfma_v
+    .param_str = "V8ScV8ScV8ScV8Sci"
+
+__builtin_neon_vfmaq_v
+    .param_str = "V16ScV16ScV16ScV16Sci"
+
+__builtin_neon_vhadd_v
+    .param_str = "V8ScV8ScV8Sci"
+
+__builtin_neon_vhaddq_v
+    .param_str = "V16ScV16ScV16Sci"
+
+__builtin_neon_vhsub_v
+    .param_str = "V8ScV8ScV8Sci"
+
+__builtin_neon_vhsubq_v
+    .param_str = "V16ScV16ScV16Sci"
+
+__builtin_neon_vld1_dup_v
+    .param_str = "V8ScCv*i"
+
+__builtin_neon_vld1_v
+    .param_str = "V8ScCv*i"
+
+__builtin_neon_vld1_x2_v
+    .param_str = "vv*Cv*i"
+
+__builtin_neon_vld1_x3_v
+    .param_str = "vv*Cv*i"
+
+__builtin_neon_vld1_x4_v
+    .param_str = "vv*Cv*i"
+
+__builtin_neon_vld1q_dup_v
+    .param_str = "V16ScCv*i"
+
+__builtin_neon_vld1q_v
+    .param_str = "V16ScCv*i"
+
+__builtin_neon_vld1q_x2_v
+    .param_str = "vv*Cv*i"
+
+__builtin_neon_vld1q_x3_v
+    .param_str = "vv*Cv*i"
+
+__builtin_neon_vld1q_x4_v
+    .param_str = "vv*Cv*i"
+
+__builtin_neon_vld2_dup_v
+    .param_str = "vv*Cv*i"
+
+__builtin_neon_vld2_lane_v
+    .param_str = "vv*Cv*V8ScV8Scii"
+
+__builtin_neon_vld2_v
+    .param_str = "vv*Cv*i"
+
+__builtin_neon_vld2q_dup_v
+    .param_str = "vv*Cv*i"
+
+__builtin_neon_vld2q_lane_v
+    .param_str = "vv*Cv*V16ScV16Scii"
+
+__builtin_neon_vld2q_v
+    .param_str = "vv*Cv*i"
+
+__builtin_neon_vld3_dup_v
+    .param_str = "vv*Cv*i"
+
+__builtin_neon_vld3_lane_v
+    .param_str = "vv*Cv*V8ScV8ScV8Scii"
+
+__builtin_neon_vld3_v
+    .param_str = "vv*Cv*i"
+
+__builtin_neon_vld3q_dup_v
+    .param_str = "vv*Cv*i"
+
+__builtin_neon_vld3q_lane_v
+    .param_str = "vv*Cv*V16ScV16ScV16Scii"
+
+__builtin_neon_vld3q_v
+    .param_str = "vv*Cv*i"
+
+__builtin_neon_vld4_dup_v
+    .param_str = "vv*Cv*i"
+
+__builtin_neon_vld4_lane_v
+    .param_str = "vv*Cv*V8ScV8ScV8ScV8Scii"
+
+__builtin_neon_vld4_v
+    .param_str = "vv*Cv*i"
+
+__builtin_neon_vld4q_dup_v
+    .param_str = "vv*Cv*i"
+
+__builtin_neon_vld4q_lane_v
+    .param_str = "vv*Cv*V16ScV16ScV16ScV16Scii"
+
+__builtin_neon_vld4q_v
+    .param_str = "vv*Cv*i"
+
+__builtin_neon_vmax_v
+    .param_str = "V8ScV8ScV8Sci"
+
+__builtin_neon_vmaxnm_v
+    .param_str = "V8ScV8ScV8Sci"
+
+__builtin_neon_vmaxnmq_v
+    .param_str = "V16ScV16ScV16Sci"
+
+__builtin_neon_vmaxq_v
+    .param_str = "V16ScV16ScV16Sci"
+
+__builtin_neon_vmin_v
+    .param_str = "V8ScV8ScV8Sci"
+
+__builtin_neon_vminnm_v
+    .param_str = "V8ScV8ScV8Sci"
+
+__builtin_neon_vminnmq_v
+    .param_str = "V16ScV16ScV16Sci"
+
+__builtin_neon_vminq_v
+    .param_str = "V16ScV16ScV16Sci"
+
+__builtin_neon_vmmlaq_s32
+    .param_str = "V16ScV16ScV16ScV16Sci"
+
+__builtin_neon_vmmlaq_u32
+    .param_str = "V16ScV16ScV16ScV16Sci"
+
+__builtin_neon_vmovl_v
+    .param_str = "V16ScV8Sci"
+
+__builtin_neon_vmovn_v
+    .param_str = "V8ScV16Sci"
+
+__builtin_neon_vmul_v
+    .param_str = "V8ScV8ScV8Sci"
+
+__builtin_neon_vmull_v
+    .param_str = "V16ScV8ScV8Sci"
+
+__builtin_neon_vmulq_v
+    .param_str = "V16ScV16ScV16Sci"
+
+__builtin_neon_vpadal_v
+    .param_str = "V8ScV8ScV8Sci"
+
+__builtin_neon_vpadalq_v
+    .param_str = "V16ScV16ScV16Sci"
+
+__builtin_neon_vpadd_v
+    .param_str = "V8ScV8ScV8Sci"
+
+__builtin_neon_vpaddl_v
+    .param_str = "V8ScV8Sci"
+
+__builtin_neon_vpaddlq_v
+    .param_str = "V16ScV16Sci"
+
+__builtin_neon_vpaddq_v
+    .param_str = "V16ScV16ScV16Sci"
+
+__builtin_neon_vpmax_v
+    .param_str = "V8ScV8ScV8Sci"
+
+__builtin_neon_vpmin_v
+    .param_str = "V8ScV8ScV8Sci"
+
+__builtin_neon_vqabs_v
+    .param_str = "V8ScV8Sci"
+
+__builtin_neon_vqabsq_v
+    .param_str = "V16ScV16Sci"
+
+__builtin_neon_vqadd_v
+    .param_str = "V8ScV8ScV8Sci"
+
+__builtin_neon_vqaddq_v
+    .param_str = "V16ScV16ScV16Sci"
+
+__builtin_neon_vqdmlal_v
+    .param_str = "V16ScV16ScV8ScV8Sci"
+
+__builtin_neon_vqdmlsl_v
+    .param_str = "V16ScV16ScV8ScV8Sci"
+
+__builtin_neon_vqdmulh_v
+    .param_str = "V8ScV8ScV8Sci"
+
+__builtin_neon_vqdmulhq_v
+    .param_str = "V16ScV16ScV16Sci"
+
+__builtin_neon_vqdmull_v
+    .param_str = "V16ScV8ScV8Sci"
+
+__builtin_neon_vqmovn_v
+    .param_str = "V8ScV16Sci"
+
+__builtin_neon_vqmovun_v
+    .param_str = "V8ScV16Sci"
+
+__builtin_neon_vqneg_v
+    .param_str = "V8ScV8Sci"
+
+__builtin_neon_vqnegq_v
+    .param_str = "V16ScV16Sci"
+
+__builtin_neon_vqrdmlah_s16
+    .param_str = "V8ScV8ScV8ScV8Sci"
+
+__builtin_neon_vqrdmlah_s32
+    .param_str = "V8ScV8ScV8ScV8Sci"
+
+__builtin_neon_vqrdmlahq_s16
+    .param_str = "V16ScV16ScV16ScV16Sci"
+
+__builtin_neon_vqrdmlahq_s32
+    .param_str = "V16ScV16ScV16ScV16Sci"
+
+__builtin_neon_vqrdmlsh_s16
+    .param_str = "V8ScV8ScV8ScV8Sci"
+
+__builtin_neon_vqrdmlsh_s32
+    .param_str = "V8ScV8ScV8ScV8Sci"
+
+__builtin_neon_vqrdmlshq_s16
+    .param_str = "V16ScV16ScV16ScV16Sci"
+
+__builtin_neon_vqrdmlshq_s32
+    .param_str = "V16ScV16ScV16ScV16Sci"
+
+__builtin_neon_vqrdmulh_v
+    .param_str = "V8ScV8ScV8Sci"
+
+__builtin_neon_vqrdmulhq_v
+    .param_str = "V16ScV16ScV16Sci"
+
+__builtin_neon_vqrshl_v
+    .param_str = "V8ScV8ScV8Sci"
+
+__builtin_neon_vqrshlq_v
+    .param_str = "V16ScV16ScV16Sci"
+
+__builtin_neon_vqshl_n_v
+    .param_str = "V8ScV8Scii"
+
+__builtin_neon_vqshl_v
+    .param_str = "V8ScV8ScV8Sci"
+
+__builtin_neon_vqshlq_n_v
+    .param_str = "V16ScV16Scii"
+
+__builtin_neon_vqshlq_v
+    .param_str = "V16ScV16ScV16Sci"
+
+__builtin_neon_vqshlu_n_v
+    .param_str = "V8ScV8Scii"
+
+__builtin_neon_vqshluq_n_v
+    .param_str = "V16ScV16Scii"
+
+__builtin_neon_vqsub_v
+    .param_str = "V8ScV8ScV8Sci"
+
+__builtin_neon_vqsubq_v
+    .param_str = "V16ScV16ScV16Sci"
+
+__builtin_neon_vraddhn_v
+    .param_str = "V8ScV16ScV16Sci"
+
+__builtin_neon_vrecpe_v
+    .param_str = "V8ScV8Sci"
+
+__builtin_neon_vrecpeq_v
+    .param_str = "V16ScV16Sci"
+
+__builtin_neon_vrecps_v
+    .param_str = "V8ScV8ScV8Sci"
+
+__builtin_neon_vrecpsq_v
+    .param_str = "V16ScV16ScV16Sci"
+
+__builtin_neon_vrhadd_v
+    .param_str = "V8ScV8ScV8Sci"
+
+__builtin_neon_vrhaddq_v
+    .param_str = "V16ScV16ScV16Sci"
+
+__builtin_neon_vrnd_v
+    .param_str = "V8ScV8Sci"
+
+__builtin_neon_vrnda_v
+    .param_str = "V8ScV8Sci"
+
+__builtin_neon_vrndaq_v
+    .param_str = "V16ScV16Sci"
+
+__builtin_neon_vrndi_v
+    .param_str = "V8ScV8Sci"
+
+__builtin_neon_vrndiq_v
+    .param_str = "V16ScV16Sci"
+
+__builtin_neon_vrndm_v
+    .param_str = "V8ScV8Sci"
+
+__builtin_neon_vrndmq_v
+    .param_str = "V16ScV16Sci"
+
+__builtin_neon_vrndn_v
+    .param_str = "V8ScV8Sci"
+
+__builtin_neon_vrndnq_v
+    .param_str = "V16ScV16Sci"
+
+__builtin_neon_vrndp_v
+    .param_str = "V8ScV8Sci"
+
+__builtin_neon_vrndpq_v
+    .param_str = "V16ScV16Sci"
+
+__builtin_neon_vrndq_v
+    .param_str = "V16ScV16Sci"
+
+__builtin_neon_vrndx_v
+    .param_str = "V8ScV8Sci"
+
+__builtin_neon_vrndxq_v
+    .param_str = "V16ScV16Sci"
+
+__builtin_neon_vrshl_v
+    .param_str = "V8ScV8ScV8Sci"
+
+__builtin_neon_vrshlq_v
+    .param_str = "V16ScV16ScV16Sci"
+
+__builtin_neon_vrshr_n_v
+    .param_str = "V8ScV8Scii"
+
+__builtin_neon_vrshrq_n_v
+    .param_str = "V16ScV16Scii"
+
+__builtin_neon_vrsqrte_v
+    .param_str = "V8ScV8Sci"
+
+__builtin_neon_vrsqrteq_v
+    .param_str = "V16ScV16Sci"
+
+__builtin_neon_vrsqrts_v
+    .param_str = "V8ScV8ScV8Sci"
+
+__builtin_neon_vrsqrtsq_v
+    .param_str = "V16ScV16ScV16Sci"
+
+__builtin_neon_vrsubhn_v
+    .param_str = "V8ScV16ScV16Sci"
+
+__builtin_neon_vsha1su0q_u32
+    .param_str = "V16ScV16ScV16ScV16Sci"
+
+__builtin_neon_vsha1su1q_u32
+    .param_str = "V16ScV16ScV16Sci"
+
+__builtin_neon_vsha256h2q_u32
+    .param_str = "V16ScV16ScV16ScV16Sci"
+
+__builtin_neon_vsha256hq_u32
+    .param_str = "V16ScV16ScV16ScV16Sci"
+
+__builtin_neon_vsha256su0q_u32
+    .param_str = "V16ScV16ScV16Sci"
+
+__builtin_neon_vsha256su1q_u32
+    .param_str = "V16ScV16ScV16ScV16Sci"
+
+__builtin_neon_vshl_n_v
+    .param_str = "V8ScV8Scii"
+
+__builtin_neon_vshl_v
+    .param_str = "V8ScV8ScV8Sci"
+
+__builtin_neon_vshll_n_v
+    .param_str = "V16ScV8Scii"
+
+__builtin_neon_vshlq_n_v
+    .param_str = "V16ScV16Scii"
+
+__builtin_neon_vshlq_v
+    .param_str = "V16ScV16ScV16Sci"
+
+__builtin_neon_vshr_n_v
+    .param_str = "V8ScV8Scii"
+
+__builtin_neon_vshrn_n_v
+    .param_str = "V8ScV16Scii"
+
+__builtin_neon_vshrq_n_v
+    .param_str = "V16ScV16Scii"
+
+__builtin_neon_vst1_v
+    .param_str = "vv*V8Sci"
+
+__builtin_neon_vst1_x2_v
+    .param_str = "vv*V8ScV8Sci"
+
+__builtin_neon_vst1_x3_v
+    .param_str = "vv*V8ScV8ScV8Sci"
+
+__builtin_neon_vst1_x4_v
+    .param_str = "vv*V8ScV8ScV8ScV8Sci"
+
+__builtin_neon_vst1q_v
+    .param_str = "vv*V16Sci"
+
+__builtin_neon_vst1q_x2_v
+    .param_str = "vv*V16ScV16Sci"
+
+__builtin_neon_vst1q_x3_v
+    .param_str = "vv*V16ScV16ScV16Sci"
+
+__builtin_neon_vst1q_x4_v
+    .param_str = "vv*V16ScV16ScV16ScV16Sci"
+
+__builtin_neon_vst2_lane_v
+    .param_str = "vv*V8ScV8Scii"
+
+__builtin_neon_vst2_v
+    .param_str = "vv*V8ScV8Sci"
+
+__builtin_neon_vst2q_lane_v
+    .param_str = "vv*V16ScV16Scii"
+
+__builtin_neon_vst2q_v
+    .param_str = "vv*V16ScV16Sci"
+
+__builtin_neon_vst3_lane_v
+    .param_str = "vv*V8ScV8ScV8Scii"
+
+__builtin_neon_vst3_v
+    .param_str = "vv*V8ScV8ScV8Sci"
+
+__builtin_neon_vst3q_lane_v
+    .param_str = "vv*V16ScV16ScV16Scii"
+
+__builtin_neon_vst3q_v
+    .param_str = "vv*V16ScV16ScV16Sci"
+
+__builtin_neon_vst4_lane_v
+    .param_str = "vv*V8ScV8ScV8ScV8Scii"
+
+__builtin_neon_vst4_v
+    .param_str = "vv*V8ScV8ScV8ScV8Sci"
+
+__builtin_neon_vst4q_lane_v
+    .param_str = "vv*V16ScV16ScV16ScV16Scii"
+
+__builtin_neon_vst4q_v
+    .param_str = "vv*V16ScV16ScV16ScV16Sci"
+
+__builtin_neon_vsubhn_v
+    .param_str = "V8ScV16ScV16Sci"
+
+__builtin_neon_vtrn_v
+    .param_str = "vv*V8ScV8Sci"
+
+__builtin_neon_vtrnq_v
+    .param_str = "vv*V16ScV16Sci"
+
+__builtin_neon_vtst_v
+    .param_str = "V8ScV8ScV8Sci"
+
+__builtin_neon_vtstq_v
+    .param_str = "V16ScV16ScV16Sci"
+
+__builtin_neon_vusdot_s32
+    .param_str = "V8ScV8ScV8ScV8Sci"
+
+__builtin_neon_vusdotq_s32
+    .param_str = "V16ScV16ScV16ScV16Sci"
+
+__builtin_neon_vusmmlaq_s32
+    .param_str = "V16ScV16ScV16ScV16Sci"
+
+__builtin_neon_vuzp_v
+    .param_str = "vv*V8ScV8Sci"
+
+__builtin_neon_vuzpq_v
+    .param_str = "vv*V16ScV16Sci"
+
+__builtin_neon_vzip_v
+    .param_str = "vv*V8ScV8Sci"
+
+__builtin_neon_vzipq_v
+    .param_str = "vv*V16ScV16Sci"
+
+#AArch64SIMDIntrinsicMap
+__builtin_neon_vaddq_p128
+    .param_str = "ULLWiULLWiULLWi"
+
+__builtin_neon_vbcaxq_s16
+    .param_str = "V16ScV16ScV16ScV16Sci"
+
+__builtin_neon_vbcaxq_s32
+    .param_str = "V16ScV16ScV16ScV16Sci"
+
+__builtin_neon_vbcaxq_s64
+    .param_str = "V16ScV16ScV16ScV16Sci"
+
+__builtin_neon_vbcaxq_s8
+    .param_str = "V16ScV16ScV16ScV16Sci"
+
+__builtin_neon_vbcaxq_u16
+    .param_str = "V16ScV16ScV16ScV16Sci"
+
+__builtin_neon_vbcaxq_u32
+    .param_str = "V16ScV16ScV16ScV16Sci"
+
+__builtin_neon_vbcaxq_u64
+    .param_str = "V16ScV16ScV16ScV16Sci"
+
+__builtin_neon_vbcaxq_u8
+    .param_str = "V16ScV16ScV16ScV16Sci"
+
+__builtin_neon_vcmla_f16
+    .param_str = "V8ScV8ScV8ScV8Sci"
+
+__builtin_neon_vcmla_f32
+    .param_str = "V8ScV8ScV8ScV8Sci"
+
+__builtin_neon_vcmla_rot180_f16
+    .param_str = "V8ScV8ScV8ScV8Sci"
+
+__builtin_neon_vcmla_rot180_f32
+    .param_str = "V8ScV8ScV8ScV8Sci"
+
+__builtin_neon_vcmla_rot270_f16
+    .param_str = "V8ScV8ScV8ScV8Sci"
+
+__builtin_neon_vcmla_rot270_f32
+    .param_str = "V8ScV8ScV8ScV8Sci"
+
+__builtin_neon_vcmla_rot90_f16
+    .param_str = "V8ScV8ScV8ScV8Sci"
+
+__builtin_neon_vcmla_rot90_f32
+    .param_str = "V8ScV8ScV8ScV8Sci"
+
+__builtin_neon_vcmlaq_f16
+    .param_str = "V16ScV16ScV16ScV16Sci"
+
+__builtin_neon_vcmlaq_f32
+    .param_str = "V16ScV16ScV16ScV16Sci"
+
+__builtin_neon_vcmlaq_f64
+    .param_str = "V16ScV16ScV16ScV16Sci"
+
+__builtin_neon_vcmlaq_rot180_f16
+    .param_str = "V16ScV16ScV16ScV16Sci"
+
+__builtin_neon_vcmlaq_rot180_f32
+    .param_str = "V16ScV16ScV16ScV16Sci"
+
+__builtin_neon_vcmlaq_rot180_f64
+    .param_str = "V16ScV16ScV16ScV16Sci"
+
+__builtin_neon_vcmlaq_rot270_f16
+    .param_str = "V16ScV16ScV16ScV16Sci"
+
+__builtin_neon_vcmlaq_rot270_f32
+    .param_str = "V16ScV16ScV16ScV16Sci"
+
+__builtin_neon_vcmlaq_rot270_f64
+    .param_str = "V16ScV16ScV16ScV16Sci"
+
+__builtin_neon_vcmlaq_rot90_f16
+    .param_str = "V16ScV16ScV16ScV16Sci"
+
+__builtin_neon_vcmlaq_rot90_f32
+    .param_str = "V16ScV16ScV16ScV16Sci"
+
+__builtin_neon_vcmlaq_rot90_f64
+    .param_str = "V16ScV16ScV16ScV16Sci"
+
+__builtin_neon_vcvt_n_f64_v
+    .param_str = "V8ScV8Scii"
+
+__builtin_neon_vcvtq_high_bf16_f32
+    .param_str = "V16ScV16ScV16Sci"
+
+__builtin_neon_vcvtq_low_bf16_f32
+    .param_str = "V16ScV16Sci"
+
+__builtin_neon_vcvtq_n_f64_v
+    .param_str = "V16ScV16Scii"
+
+__builtin_neon_vcvtx_f32_v
+    .param_str = "V8ScV16Sci"
+
+__builtin_neon_veor3q_s16
+    .param_str = "V16ScV16ScV16ScV16Sci"
+
+__builtin_neon_veor3q_s32
+    .param_str = "V16ScV16ScV16ScV16Sci"
+
+__builtin_neon_veor3q_s64
+    .param_str = "V16ScV16ScV16ScV16Sci"
+
+__builtin_neon_veor3q_s8
+    .param_str = "V16ScV16ScV16ScV16Sci"
+
+__builtin_neon_veor3q_u16
+    .param_str = "V16ScV16ScV16ScV16Sci"
+
+__builtin_neon_veor3q_u32
+    .param_str = "V16ScV16ScV16ScV16Sci"
+
+__builtin_neon_veor3q_u64
+    .param_str = "V16ScV16ScV16ScV16Sci"
+
+__builtin_neon_veor3q_u8
+    .param_str = "V16ScV16ScV16ScV16Sci"
+
+__builtin_neon_vfmlal_high_f16
+    .param_str = "V8ScV8ScV8ScV8Sci"
+
+__builtin_neon_vfmlal_low_f16
+    .param_str = "V8ScV8ScV8ScV8Sci"
+
+__builtin_neon_vfmlalq_high_f16
+    .param_str = "V16ScV16ScV16ScV16Sci"
+
+__builtin_neon_vfmlalq_low_f16
+    .param_str = "V16ScV16ScV16ScV16Sci"
+
+__builtin_neon_vfmlsl_high_f16
+    .param_str = "V8ScV8ScV8ScV8Sci"
+
+__builtin_neon_vfmlsl_low_f16
+    .param_str = "V8ScV8ScV8ScV8Sci"
+
+__builtin_neon_vfmlslq_high_f16
+    .param_str = "V16ScV16ScV16ScV16Sci"
+
+__builtin_neon_vfmlslq_low_f16
+    .param_str = "V16ScV16ScV16ScV16Sci"
+
+__builtin_neon_vqdmulh_lane_v
+    .param_str = "V8ScV8ScV8Scii"
+
+__builtin_neon_vqdmulh_laneq_v
+    .param_str = "V8ScV8ScV16Scii"
+
+__builtin_neon_vqdmulhq_lane_v
+    .param_str = "V16ScV16ScV8Scii"
+
+__builtin_neon_vqdmulhq_laneq_v
+    .param_str = "V16ScV16ScV16Scii"
+
+__builtin_neon_vqrdmulh_lane_v
+    .param_str = "V8ScV8ScV8Scii"
+
+__builtin_neon_vqrdmulh_laneq_v
+    .param_str = "V8ScV8ScV16Scii"
+
+__builtin_neon_vqrdmulhq_lane_v
+    .param_str = "V16ScV16ScV8Scii"
+
+__builtin_neon_vqrdmulhq_laneq_v
+    .param_str = "V16ScV16ScV16Scii"
+
+__builtin_neon_vrax1q_u64
+    .param_str = "V16ScV16ScV16Sci"
+
+__builtin_neon_vrnd32x_f32
+    .param_str = "V8ScV8Sci"
+
+__builtin_neon_vrnd32x_f64
+    .param_str = "V8ScV8Sci"
+
+__builtin_neon_vrnd32xq_f32
+    .param_str = "V16ScV16Sci"
+
+__builtin_neon_vrnd32xq_f64
+    .param_str = "V16ScV16Sci"
+
+__builtin_neon_vrnd32z_f32
+    .param_str = "V8ScV8Sci"
+
+__builtin_neon_vrnd32z_f64
+    .param_str = "V8ScV8Sci"
+
+__builtin_neon_vrnd32zq_f32
+    .param_str = "V16ScV16Sci"
+
+__builtin_neon_vrnd32zq_f64
+    .param_str = "V16ScV16Sci"
+
+__builtin_neon_vrnd64x_f32
+    .param_str = "V8ScV8Sci"
+
+__builtin_neon_vrnd64x_f64
+    .param_str = "V8ScV8Sci"
+
+__builtin_neon_vrnd64xq_f32
+    .param_str = "V16ScV16Sci"
+
+__builtin_neon_vrnd64xq_f64
+    .param_str = "V16ScV16Sci"
+
+__builtin_neon_vrnd64z_f32
+    .param_str = "V8ScV8Sci"
+
+__builtin_neon_vrnd64z_f64
+    .param_str = "V8ScV8Sci"
+
+__builtin_neon_vrnd64zq_f32
+    .param_str = "V16ScV16Sci"
+
+__builtin_neon_vrnd64zq_f64
+    .param_str = "V16ScV16Sci"
+
+__builtin_neon_vsha512h2q_u64
+    .param_str = "V16ScV16ScV16ScV16Sci"
+
+__builtin_neon_vsha512hq_u64
+    .param_str = "V16ScV16ScV16ScV16Sci"
+
+__builtin_neon_vsha512su0q_u64
+    .param_str = "V16ScV16ScV16Sci"
+
+__builtin_neon_vsha512su1q_u64
+    .param_str = "V16ScV16ScV16ScV16Sci"
+
+__builtin_neon_vsm3partw1q_u32
+    .param_str = "V16ScV16ScV16ScV16Sci"
+
+__builtin_neon_vsm3partw2q_u32
+    .param_str = "V16ScV16ScV16ScV16Sci"
+
+__builtin_neon_vsm3ss1q_u32
+    .param_str = "V16ScV16ScV16ScV16Sci"
+
+__builtin_neon_vsm3tt1aq_u32
+    .param_str = "V16ScV16ScV16ScV16Scii"
+
+__builtin_neon_vsm3tt1bq_u32
+    .param_str = "V16ScV16ScV16ScV16Scii"
+
+__builtin_neon_vsm3tt2aq_u32
+    .param_str = "V16ScV16ScV16ScV16Scii"
+
+__builtin_neon_vsm3tt2bq_u32
+    .param_str = "V16ScV16ScV16ScV16Scii"
+
+__builtin_neon_vsm4ekeyq_u32
+    .param_str = "V16ScV16ScV16Sci"
+
+__builtin_neon_vsm4eq_u32
+    .param_str = "V16ScV16ScV16Sci"
+
+__builtin_neon_vxarq_u64
+    .param_str = "V16ScV16ScV16Scii"
+
+#AArch64SISDIntrinsicMap
+__builtin_neon_vabdd_f64
+    .param_str = "ddd"
+
+__builtin_neon_vabds_f32
+    .param_str = "fff"
+
+__builtin_neon_vabsd_s64
+    .param_str = "WiWi"
+
+__builtin_neon_vaddlv_s32
+    .param_str = "WiV2i"
+
+__builtin_neon_vaddlv_u32
+    .param_str = "UWiV2Ui"
+
+__builtin_neon_vaddlvq_s32
+    .param_str = "WiV4i"
+
+__builtin_neon_vaddlvq_u32
+    .param_str = "UWiV4Ui"
+
+__builtin_neon_vaddv_f32
+    .param_str = "fV2f"
+
+__builtin_neon_vaddv_s16
+    .param_str = "sV4s"
+
+__builtin_neon_vaddv_s32
+    .param_str = "iV2i"
+
+__builtin_neon_vaddv_s8
+    .param_str = "ScV8Sc"
+
+__builtin_neon_vaddv_u16
+    .param_str = "UsV4Us"
+
+__builtin_neon_vaddv_u32
+    .param_str = "UiV2Ui"
+
+__builtin_neon_vaddv_u8
+    .param_str = "UcV8Uc"
+
+__builtin_neon_vaddvq_f32
+    .param_str = "fV4f"
+
+__builtin_neon_vaddvq_f64
+    .param_str = "dV2d"
+
+__builtin_neon_vaddvq_s16
+    .param_str = "sV8s"
+
+__builtin_neon_vaddvq_s32
+    .param_str = "iV4i"
+
+__builtin_neon_vaddvq_s64
+    .param_str = "WiV2Wi"
+
+__builtin_neon_vaddvq_s8
+    .param_str = "ScV16Sc"
+
+__builtin_neon_vaddvq_u16
+    .param_str = "UsV8Us"
+
+__builtin_neon_vaddvq_u32
+    .param_str = "UiV4Ui"
+
+__builtin_neon_vaddvq_u64
+    .param_str = "UWiV2UWi"
+
+__builtin_neon_vaddvq_u8
+    .param_str = "UcV16Uc"
+
+__builtin_neon_vcaged_f64
+    .param_str = "UWidd"
+
+__builtin_neon_vcages_f32
+    .param_str = "Uiff"
+
+__builtin_neon_vcagtd_f64
+    .param_str = "UWidd"
+
+__builtin_neon_vcagts_f32
+    .param_str = "Uiff"
+
+__builtin_neon_vcaled_f64
+    .param_str = "UWidd"
+
+__builtin_neon_vcales_f32
+    .param_str = "Uiff"
+
+__builtin_neon_vcaltd_f64
+    .param_str = "UWidd"
+
+__builtin_neon_vcalts_f32
+    .param_str = "Uiff"
+
+__builtin_neon_vcvtad_s64_f64
+    .param_str = "Wid"
+
+__builtin_neon_vcvtad_u64_f64
+    .param_str = "UWid"
+
+__builtin_neon_vcvtas_s32_f32
+    .param_str = "if"
+
+__builtin_neon_vcvtas_u32_f32
+    .param_str = "Uif"
+
+__builtin_neon_vcvtd_n_f64_s64
+    .param_str = "dWii"
+
+__builtin_neon_vcvtd_n_f64_u64
+    .param_str = "dUWii"
+
+__builtin_neon_vcvtd_n_s64_f64
+    .param_str = "Widi"
+
+__builtin_neon_vcvtd_n_u64_f64
+    .param_str = "UWidi"
+
+__builtin_neon_vcvtd_s64_f64
+    .param_str = "Wid"
+
+__builtin_neon_vcvtd_u64_f64
+    .param_str = "UWid"
+
+__builtin_neon_vcvtmd_s64_f64
+    .param_str = "Wid"
+
+__builtin_neon_vcvtmd_u64_f64
+    .param_str = "UWid"
+
+__builtin_neon_vcvtms_s32_f32
+    .param_str = "if"
+
+__builtin_neon_vcvtms_u32_f32
+    .param_str = "Uif"
+
+__builtin_neon_vcvtnd_s64_f64
+    .param_str = "Wid"
+
+__builtin_neon_vcvtnd_u64_f64
+    .param_str = "UWid"
+
+__builtin_neon_vcvtns_s32_f32
+    .param_str = "if"
+
+__builtin_neon_vcvtns_u32_f32
+    .param_str = "Uif"
+
+__builtin_neon_vcvtpd_s64_f64
+    .param_str = "Wid"
+
+__builtin_neon_vcvtpd_u64_f64
+    .param_str = "UWid"
+
+__builtin_neon_vcvtps_s32_f32
+    .param_str = "if"
+
+__builtin_neon_vcvtps_u32_f32
+    .param_str = "Uif"
+
+__builtin_neon_vcvts_n_f32_s32
+    .param_str = "fii"
+
+__builtin_neon_vcvts_n_f32_u32
+    .param_str = "fUii"
+
+__builtin_neon_vcvts_n_s32_f32
+    .param_str = "ifi"
+
+__builtin_neon_vcvts_n_u32_f32
+    .param_str = "Uifi"
+
+__builtin_neon_vcvts_s32_f32
+    .param_str = "if"
+
+__builtin_neon_vcvts_u32_f32
+    .param_str = "Uif"
+
+__builtin_neon_vcvtxd_f32_f64
+    .param_str = "fd"
+
+__builtin_neon_vmaxnmv_f32
+    .param_str = "fV2f"
+
+__builtin_neon_vmaxnmvq_f32
+    .param_str = "fV4f"
+
+__builtin_neon_vmaxnmvq_f64
+    .param_str = "dV2d"
+
+__builtin_neon_vmaxv_f32
+    .param_str = "fV2f"
+
+__builtin_neon_vmaxv_s16
+    .param_str = "sV4s"
+
+__builtin_neon_vmaxv_s32
+    .param_str = "iV2i"
+
+__builtin_neon_vmaxv_s8
+    .param_str = "ScV8Sc"
+
+__builtin_neon_vmaxv_u16
+    .param_str = "UsV4Us"
+
+__builtin_neon_vmaxv_u32
+    .param_str = "UiV2Ui"
+
+__builtin_neon_vmaxv_u8
+    .param_str = "UcV8Uc"
+
+__builtin_neon_vmaxvq_f32
+    .param_str = "fV4f"
+
+__builtin_neon_vmaxvq_f64
+    .param_str = "dV2d"
+
+__builtin_neon_vmaxvq_s16
+    .param_str = "sV8s"
+
+__builtin_neon_vmaxvq_s32
+    .param_str = "iV4i"
+
+__builtin_neon_vmaxvq_s8
+    .param_str = "ScV16Sc"
+
+__builtin_neon_vmaxvq_u16
+    .param_str = "UsV8Us"
+
+__builtin_neon_vmaxvq_u32
+    .param_str = "UiV4Ui"
+
+__builtin_neon_vmaxvq_u8
+    .param_str = "UcV16Uc"
+
+__builtin_neon_vminnmv_f32
+    .param_str = "fV2f"
+
+__builtin_neon_vminnmvq_f32
+    .param_str = "fV4f"
+
+__builtin_neon_vminnmvq_f64
+    .param_str = "dV2d"
+
+__builtin_neon_vminv_f32
+    .param_str = "fV2f"
+
+__builtin_neon_vminv_s16
+    .param_str = "sV4s"
+
+__builtin_neon_vminv_s32
+    .param_str = "iV2i"
+
+__builtin_neon_vminv_s8
+    .param_str = "ScV8Sc"
+
+__builtin_neon_vminv_u16
+    .param_str = "UsV4Us"
+
+__builtin_neon_vminv_u32
+    .param_str = "UiV2Ui"
+
+__builtin_neon_vminv_u8
+    .param_str = "UcV8Uc"
+
+__builtin_neon_vminvq_f32
+    .param_str = "fV4f"
+
+__builtin_neon_vminvq_f64
+    .param_str = "dV2d"
+
+__builtin_neon_vminvq_s16
+    .param_str = "sV8s"
+
+__builtin_neon_vminvq_s32
+    .param_str = "iV4i"
+
+__builtin_neon_vminvq_s8
+    .param_str = "ScV16Sc"
+
+__builtin_neon_vminvq_u16
+    .param_str = "UsV8Us"
+
+__builtin_neon_vminvq_u32
+    .param_str = "UiV4Ui"
+
+__builtin_neon_vminvq_u8
+    .param_str = "UcV16Uc"
+
+__builtin_neon_vmull_p64
+    .param_str = "ULLWiUWiUWi"
+
+__builtin_neon_vmulxd_f64
+    .param_str = "ddd"
+
+__builtin_neon_vmulxs_f32
+    .param_str = "fff"
+
+__builtin_neon_vpaddd_s64
+    .param_str = "WiV2Wi"
+
+__builtin_neon_vpaddd_u64
+    .param_str = "UWiV2UWi"
+
+__builtin_neon_vpmaxnmqd_f64
+    .param_str = "dV2d"
+
+__builtin_neon_vpmaxnms_f32
+    .param_str = "fV2f"
+
+__builtin_neon_vpmaxqd_f64
+    .param_str = "dV2d"
+
+__builtin_neon_vpmaxs_f32
+    .param_str = "fV2f"
+
+__builtin_neon_vpminnmqd_f64
+    .param_str = "dV2d"
+
+__builtin_neon_vpminnms_f32
+    .param_str = "fV2f"
+
+__builtin_neon_vpminqd_f64
+    .param_str = "dV2d"
+
+__builtin_neon_vpmins_f32
+    .param_str = "fV2f"
+
+__builtin_neon_vqabsb_s8
+    .param_str = "ScSc"
+
+__builtin_neon_vqabsd_s64
+    .param_str = "WiWi"
+
+__builtin_neon_vqabsh_s16
+    .param_str = "ss"
+
+__builtin_neon_vqabss_s32
+    .param_str = "ii"
+
+__builtin_neon_vqaddb_s8
+    .param_str = "ScScSc"
+
+__builtin_neon_vqaddb_u8
+    .param_str = "UcUcUc"
+
+__builtin_neon_vqaddd_s64
+    .param_str = "WiWiWi"
+
+__builtin_neon_vqaddd_u64
+    .param_str = "UWiUWiUWi"
+
+__builtin_neon_vqaddh_s16
+    .param_str = "sss"
+
+__builtin_neon_vqaddh_u16
+    .param_str = "UsUsUs"
+
+__builtin_neon_vqadds_s32
+    .param_str = "iii"
+
+__builtin_neon_vqadds_u32
+    .param_str = "UiUiUi"
+
+__builtin_neon_vqdmulhh_s16
+    .param_str = "sss"
+
+__builtin_neon_vqdmulhs_s32
+    .param_str = "iii"
+
+__builtin_neon_vqdmullh_s16
+    .param_str = "iss"
+
+__builtin_neon_vqdmulls_s32
+    .param_str = "Wiii"
+
+__builtin_neon_vqmovnd_s64
+    .param_str = "iWi"
+
+__builtin_neon_vqmovnd_u64
+    .param_str = "UiUWi"
+
+__builtin_neon_vqmovnh_s16
+    .param_str = "Scs"
+
+__builtin_neon_vqmovnh_u16
+    .param_str = "UcUs"
+
+__builtin_neon_vqmovns_s32
+    .param_str = "si"
+
+__builtin_neon_vqmovns_u32
+    .param_str = "UsUi"
+
+__builtin_neon_vqmovund_s64
+    .param_str = "UiWi"
+
+__builtin_neon_vqmovunh_s16
+    .param_str = "Ucs"
+
+__builtin_neon_vqmovuns_s32
+    .param_str = "Usi"
+
+__builtin_neon_vqnegb_s8
+    .param_str = "ScSc"
+
+__builtin_neon_vqnegd_s64
+    .param_str = "WiWi"
+
+__builtin_neon_vqnegh_s16
+    .param_str = "ss"
+
+__builtin_neon_vqnegs_s32
+    .param_str = "ii"
+
+__builtin_neon_vqrdmlahh_s16
+    .param_str = "ssss"
+
+__builtin_neon_vqrdmlahs_s32
+    .param_str = "iiii"
+
+__builtin_neon_vqrdmlshh_s16
+    .param_str = "ssss"
+
+__builtin_neon_vqrdmlshs_s32
+    .param_str = "iiii"
+
+__builtin_neon_vqrdmulhh_s16
+    .param_str = "sss"
+
+__builtin_neon_vqrdmulhs_s32
+    .param_str = "iii"
+
+__builtin_neon_vqrshlb_s8
+    .param_str = "ScScSc"
+
+__builtin_neon_vqrshlb_u8
+    .param_str = "UcUcSc"
+
+__builtin_neon_vqrshld_s64
+    .param_str = "WiWiWi"
+
+__builtin_neon_vqrshld_u64
+    .param_str = "UWiUWiWi"
+
+__builtin_neon_vqrshlh_s16
+    .param_str = "sss"
+
+__builtin_neon_vqrshlh_u16
+    .param_str = "UsUss"
+
+__builtin_neon_vqrshls_s32
+    .param_str = "iii"
+
+__builtin_neon_vqrshls_u32
+    .param_str = "UiUii"
+
+__builtin_neon_vqrshrnd_n_s64
+    .param_str = "iWii"
+
+__builtin_neon_vqrshrnd_n_u64
+    .param_str = "UiUWii"
+
+__builtin_neon_vqrshrnh_n_s16
+    .param_str = "Scsi"
+
+__builtin_neon_vqrshrnh_n_u16
+    .param_str = "UcUsi"
+
+__builtin_neon_vqrshrns_n_s32
+    .param_str = "sii"
+
+__builtin_neon_vqrshrns_n_u32
+    .param_str = "UsUii"
+
+__builtin_neon_vqrshrund_n_s64
+    .param_str = "UiWii"
+
+__builtin_neon_vqrshrunh_n_s16
+    .param_str = "Ucsi"
+
+__builtin_neon_vqrshruns_n_s32
+    .param_str = "Usii"
+
+__builtin_neon_vqshlb_n_s8
+    .param_str = "ScSci"
+
+__builtin_neon_vqshlb_n_u8
+    .param_str = "UcUci"
+
+__builtin_neon_vqshlb_s8
+    .param_str = "ScScSc"
+
+__builtin_neon_vqshlb_u8
+    .param_str = "UcUcSc"
+
+__builtin_neon_vqshld_s64
+    .param_str = "WiWiWi"
+
+__builtin_neon_vqshld_u64
+    .param_str = "UWiUWiWi"
+
+__builtin_neon_vqshlh_n_s16
+    .param_str = "ssi"
+
+__builtin_neon_vqshlh_n_u16
+    .param_str = "UsUsi"
+
+__builtin_neon_vqshlh_s16
+    .param_str = "sss"
+
+__builtin_neon_vqshlh_u16
+    .param_str = "UsUss"
+
+__builtin_neon_vqshls_n_s32
+    .param_str = "iii"
+
+__builtin_neon_vqshls_n_u32
+    .param_str = "UiUii"
+
+__builtin_neon_vqshls_s32
+    .param_str = "iii"
+
+__builtin_neon_vqshls_u32
+    .param_str = "UiUii"
+
+__builtin_neon_vqshlub_n_s8
+    .param_str = "ScSci"
+
+__builtin_neon_vqshluh_n_s16
+    .param_str = "ssi"
+
+__builtin_neon_vqshlus_n_s32
+    .param_str = "iii"
+
+__builtin_neon_vqshrnd_n_s64
+    .param_str = "iWii"
+
+__builtin_neon_vqshrnd_n_u64
+    .param_str = "UiUWii"
+
+__builtin_neon_vqshrnh_n_s16
+    .param_str = "Scsi"
+
+__builtin_neon_vqshrnh_n_u16
+    .param_str = "UcUsi"
+
+__builtin_neon_vqshrns_n_s32
+    .param_str = "sii"
+
+__builtin_neon_vqshrns_n_u32
+    .param_str = "UsUii"
+
+__builtin_neon_vqshrund_n_s64
+    .param_str = "UiWii"
+
+__builtin_neon_vqshrunh_n_s16
+    .param_str = "Ucsi"
+
+__builtin_neon_vqshruns_n_s32
+    .param_str = "Usii"
+
+__builtin_neon_vqsubb_s8
+    .param_str = "ScScSc"
+
+__builtin_neon_vqsubb_u8
+    .param_str = "UcUcUc"
+
+__builtin_neon_vqsubd_s64
+    .param_str = "WiWiWi"
+
+__builtin_neon_vqsubd_u64
+    .param_str = "UWiUWiUWi"
+
+__builtin_neon_vqsubh_s16
+    .param_str = "sss"
+
+__builtin_neon_vqsubh_u16
+    .param_str = "UsUsUs"
+
+__builtin_neon_vqsubs_s32
+    .param_str = "iii"
+
+__builtin_neon_vqsubs_u32
+    .param_str = "UiUiUi"
+
+__builtin_neon_vrecped_f64
+    .param_str = "dd"
+
+__builtin_neon_vrecpes_f32
+    .param_str = "ff"
+
+__builtin_neon_vrecpxd_f64
+    .param_str = "dd"
+
+__builtin_neon_vrecpxs_f32
+    .param_str = "ff"
+
+__builtin_neon_vrshld_s64
+    .param_str = "WiWiWi"
+
+__builtin_neon_vrshld_u64
+    .param_str = "UWiUWiWi"
+
+__builtin_neon_vrsqrted_f64
+    .param_str = "dd"
+
+__builtin_neon_vrsqrtes_f32
+    .param_str = "ff"
+
+__builtin_neon_vrsqrtsd_f64
+    .param_str = "ddd"
+
+__builtin_neon_vrsqrtss_f32
+    .param_str = "fff"
+
+__builtin_neon_vsha1cq_u32
+    .param_str = "V4iV4UiUiV4Ui"
+
+__builtin_neon_vsha1h_u32
+    .param_str = "UiUi"
+
+__builtin_neon_vsha1mq_u32
+    .param_str = "V4iV4UiUiV4Ui"
+
+__builtin_neon_vsha1pq_u32
+    .param_str = "V4iV4UiUiV4Ui"
+
+__builtin_neon_vshld_s64
+    .param_str = "WiWiWi"
+
+__builtin_neon_vshld_u64
+    .param_str = "UWiUWiWi"
+
+__builtin_neon_vslid_n_s64
+    .param_str = "WiWiWii"
+
+__builtin_neon_vslid_n_u64
+    .param_str = "UWiUWiUWii"
+
+__builtin_neon_vsqaddb_u8
+    .param_str = "UcUcSc"
+
+__builtin_neon_vsqaddd_u64
+    .param_str = "UWiUWiWi"
+
+__builtin_neon_vsqaddh_u16
+    .param_str = "UsUss"
+
+__builtin_neon_vsqadds_u32
+    .param_str = "UiUii"
+
+__builtin_neon_vsrid_n_s64
+    .param_str = "WiWiWii"
+
+__builtin_neon_vsrid_n_u64
+    .param_str = "UWiUWiUWii"
+
+__builtin_neon_vuqaddb_s8
+    .param_str = "ScScUc"
+
+__builtin_neon_vuqaddd_s64
+    .param_str = "WiWiUWi"
+
+__builtin_neon_vuqaddh_s16
+    .param_str = "ssUs"
+
+__builtin_neon_vuqadds_s32
+    .param_str = "iiUi"
+
+__builtin_neon_vabdh_f16
+    .param_str = "hhh"
+
+__builtin_neon_vcvtah_s32_f16
+    .param_str = "ih"
+
+__builtin_neon_vcvtah_s64_f16
+    .param_str = "Wih"
+
+__builtin_neon_vcvtah_u32_f16
+    .param_str = "Uih"
+
+__builtin_neon_vcvtah_u64_f16
+    .param_str = "UWih"
+
+__builtin_neon_vcvth_n_f16_s32
+    .param_str = "hii"
+
+__builtin_neon_vcvth_n_f16_s64
+    .param_str = "hWii"
+
+__builtin_neon_vcvth_n_f16_u32
+    .param_str = "hUii"
+
+__builtin_neon_vcvth_n_f16_u64
+    .param_str = "hUWii"
+
+__builtin_neon_vcvth_n_s32_f16
+    .param_str = "ihi"
+
+__builtin_neon_vcvth_n_s64_f16
+    .param_str = "Wihi"
+
+__builtin_neon_vcvth_n_u32_f16
+    .param_str = "Uihi"
+
+__builtin_neon_vcvth_n_u64_f16
+    .param_str = "UWihi"
+
+__builtin_neon_vcvth_s32_f16
+    .param_str = "ih"
+
+__builtin_neon_vcvth_s64_f16
+    .param_str = "Wih"
+
+__builtin_neon_vcvth_u32_f16
+    .param_str = "Uih"
+
+__builtin_neon_vcvth_u64_f16
+    .param_str = "UWih"
+
+__builtin_neon_vcvtmh_s32_f16
+    .param_str = "ih"
+
+__builtin_neon_vcvtmh_s64_f16
+    .param_str = "Wih"
+
+__builtin_neon_vcvtmh_u32_f16
+    .param_str = "Uih"
+
+__builtin_neon_vcvtmh_u64_f16
+    .param_str = "UWih"
+
+__builtin_neon_vcvtnh_s32_f16
+    .param_str = "ih"
+
+__builtin_neon_vcvtnh_s64_f16
+    .param_str = "Wih"
+
+__builtin_neon_vcvtnh_u32_f16
+    .param_str = "Uih"
+
+__builtin_neon_vcvtnh_u64_f16
+    .param_str = "UWih"
+
+__builtin_neon_vcvtph_s32_f16
+    .param_str = "ih"
+
+__builtin_neon_vcvtph_s64_f16
+    .param_str = "Wih"
+
+__builtin_neon_vcvtph_u32_f16
+    .param_str = "Uih"
+
+__builtin_neon_vcvtph_u64_f16
+    .param_str = "UWih"
+
+__builtin_neon_vmulxh_f16
+    .param_str = "hhh"
+
+__builtin_neon_vrecpeh_f16
+    .param_str = "hh"
+
+__builtin_neon_vrecpxh_f16
+    .param_str = "hh"
+
+__builtin_neon_vrsqrteh_f16
+    .param_str = "hh"
+
+__builtin_neon_vrsqrtsh_f16
+    .param_str = "hhh"

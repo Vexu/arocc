@@ -194,6 +194,7 @@ pub fn build(b: *Build) !void {
             generateDef(b, "Builtins/hexagon.def"),
             generateDef(b, "Builtins/loongarch.def"),
             generateDef(b, "Builtins/mips.def"),
+            generateDef(b, "Builtins/neon.def"),
             generateDef(b, "Builtins/nvptx.def"),
             generateDef(b, "Builtins/powerpc.def"),
             generateDef(b, "Builtins/riscv.def"),
