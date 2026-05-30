@@ -32,8 +32,8 @@ void valid_mfp8_use(__mfp8 param) {
     __mfp8 local;
     __mfp8 init_local = param;
     mfloat8_t alias_local;
-    __mfp8 array[4];
-    struct mfp8_holder holder;
+    __mfp8 array[4] = { param, param, param, param };
+    struct mfp8_holder holder = { param };
     __mfp8 *ptr;
     const __mfp8 const_local = param;
     volatile __mfp8 volatile_local = param;
