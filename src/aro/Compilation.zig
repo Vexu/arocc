@@ -1373,7 +1373,18 @@ pub fn float80Type(comp: *const Compilation) ?QualType {
     };
 }
 
-/// Smallest integer type with at least N bits
+/// target-independent lowest-rank integer type with at least N bits
+pub fn smallestNBitIntTargetIndependent(comp: *const Compilation, bits: usize, signedness: std.builtin.Signedness) QualType {
+    const candidates: [5]QualType = switch (signedness) {
+        .signed => .{ .schar, .short, .int, .long, .long_long },
+        .unsigned => .{ .uchar, .ushort, .uint, .ulong, .ulong_long },
+    };
+    for (candidates) |qt| {
+        if (qt.bitSizeof(comp) >= bits) return qt;
+    } else unreachable;
+}
+
+/// Lowest-rank integer type with at least N bits; subject to platform idiosyncrasies
 pub fn intLeastN(comp: *const Compilation, bits: usize, signedness: std.builtin.Signedness) QualType {
     if (bits == 64 and (comp.target.os.tag.isDarwin() or comp.target.cpu.arch.isWasm())) {
         // WebAssembly and Darwin use `long long` for `int_least64_t` and `int_fast64_t`.
@@ -1383,13 +1394,7 @@ pub fn intLeastN(comp: *const Compilation, bits: usize, signedness: std.builtin.
         // AVR uses int for int_least16_t and int_fast16_t.
         return if (signedness == .signed) .int else .uint;
     }
-    const candidates: [5]QualType = switch (signedness) {
-        .signed => .{ .schar, .short, .int, .long, .long_long },
-        .unsigned => .{ .uchar, .ushort, .uint, .ulong, .ulong_long },
-    };
-    for (candidates) |qt| {
-        if (qt.bitSizeof(comp) >= bits) return qt;
-    } else unreachable;
+    return comp.smallestNBitIntTargetIndependent(bits, signedness);
 }
 
 fn generateFastOrLeastType(

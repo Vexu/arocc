@@ -190,3 +190,11 @@ pub fn setFpEvalMethod(self: *LangOpts, fp_eval_method: FPEvalMethod) void {
 pub fn setCharSignedness(self: *LangOpts, signedness: std.builtin.Signedness) void {
     self.char_signedness_override = signedness;
 }
+
+pub fn allowFixedSizedIntSuffixes(self: *const LangOpts) bool {
+    return switch (self.emulate) {
+        .msvc => true,
+        .clang, .no => self.ms_extensions,
+        .gcc => false,
+    };
+}
