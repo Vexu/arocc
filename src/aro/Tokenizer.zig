@@ -295,6 +295,7 @@ pub const Token = struct {
         // clang keywords
         keyword_fp16,
         keyword_bf16,
+        keyword_mfp8,
 
         // ms keywords
         keyword_declspec,
@@ -468,6 +469,7 @@ pub const Token = struct {
                 .keyword_float16,
                 .keyword_fp16,
                 .keyword_bf16,
+                .keyword_mfp8,
                 .keyword_declspec,
                 .keyword_int64,
                 .keyword_int64_2,
@@ -777,6 +779,7 @@ pub const Token = struct {
                 .keyword_real2 => "__real__",
                 .keyword_fp16 => "__fp16",
                 .keyword_bf16 => "__bf16",
+                .keyword_mfp8 => "__mfp8",
                 .keyword_declspec => "__declspec",
                 .keyword_int64 => "__int64",
                 .keyword_int64_2 => "_int64",
@@ -1109,6 +1112,7 @@ pub const Token = struct {
         // clang keywords
         .{ "__fp16", .keyword_fp16 },
         .{ "__bf16", .keyword_bf16 },
+        .{ "__mfp8", .keyword_mfp8 },
 
         // ms keywords
         .{ "__declspec", .keyword_declspec },
