@@ -1058,9 +1058,8 @@ fn parseTarget(d: *Driver, arch_os_abi: []const u8, opt_cpu_features: ?[]const u
         } else if (mem.eql(u8, cpu_name, "baseline")) {
             query.cpu_model = .baseline;
         } else {
-            query.cpu_model = .{ .explicit = arch.parseCpuModel(cpu_name) catch |er| switch (er) {
-                error.UnknownCpuModel => return d.fatal("unknown CPU model: '{s}'", .{cpu_name}),
-            } };
+            query.cpu_model = .{ .explicit = arch.parseCpuModel(cpu_name) orelse
+                return d.fatal("unknown CPU model: '{s}'", .{cpu_name}) };
         }
 
         if (opt_sub_arch) |sub_arch| {
