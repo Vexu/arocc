@@ -7445,6 +7445,10 @@ pub const Result = struct {
                 try res.castToFloat(p, dest_unqual, tok);
                 return;
             }
+        } else if (dest_unqual.is(p.comp, .storage_float)) {
+            // Storage floats are copy-only; conversions from other scalar types
+            // are diagnosed by the common switch statement below this
+            // large if/else block
         } else if (dest_sk.isPointer() and dest_sk != .block_pointer) {
             if (src_sk == .nullptr_t or res.val.isZero(p.comp)) {
                 try res.nullToPointer(p, dest_unqual, tok);
