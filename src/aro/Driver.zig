@@ -509,12 +509,16 @@ pub fn parseArgs(
                 pic_arg = arg;
             } else if (mem.eql(u8, arg, "-fropi")) {
                 d.ropi = true;
+                d.comp.code_gen_options.is_ropi = true;
             } else if (mem.eql(u8, arg, "-fno-ropi")) {
                 d.ropi = false;
+                d.comp.code_gen_options.is_ropi = false;
             } else if (mem.eql(u8, arg, "-frwpi")) {
                 d.rwpi = true;
+                d.comp.code_gen_options.is_rwpi = true;
             } else if (mem.eql(u8, arg, "-fno-rwpi")) {
                 d.rwpi = false;
+                d.comp.code_gen_options.is_rwpi = false;
             } else if (mem.eql(u8, arg, "-fshort-enums")) {
                 d.comp.langopts.short_enums = true;
             } else if (mem.eql(u8, arg, "-fno-short-enums")) {

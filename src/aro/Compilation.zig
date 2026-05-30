@@ -822,6 +822,13 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
                 try define(w, "__ARMEB__");
                 try define(w, "__ARM_BIG_ENDIAN");
             }
+            if (comp.code_gen_options.is_ropi) {
+                try define(w, "__ARM_ROPI");
+            }
+
+            if (comp.code_gen_options.is_rwpi) {
+                try define(w, "__ARM_RWPI");
+            }
         },
         .aarch64, .aarch64_be => |arch| {
             try define(w, "__aarch64__");
