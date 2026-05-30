@@ -29,12 +29,13 @@ _Static_assert(IS_MFP8_PTR(global_mfp8_ptr), "_Generic __mfp8 pointer");
 
 void valid_mfp8_use(__mfp8 param) {
     __mfp8 local;
+    __mfp8 init_local = param;
     mfloat8_t alias_local;
     __mfp8 array[4];
     struct mfp8_holder holder;
     __mfp8 *ptr;
 
-    local = param;
+    local = init_local;
     alias_local = local;
     array[0] = alias_local;
 

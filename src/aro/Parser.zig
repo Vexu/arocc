@@ -7411,6 +7411,10 @@ pub const Result = struct {
         const dest_sk = dest_unqual.scalarKind(p.comp);
         const src_sk = res.qt.scalarKind(p.comp);
 
+        if (dest_unqual.is(p.comp, .storage_float) and dest_unqual.eql(res.qt, p.comp)) {
+            return;
+        }
+
         if (dest_qt.is(p.comp, .vector) and res.qt.is(p.comp, .vector)) {
             if (dest_unqual.eql(res.qt, p.comp)) return;
             if (dest_unqual.sizeCompare(res.qt, p.comp) == .eq) {
