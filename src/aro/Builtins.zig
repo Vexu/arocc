@@ -107,14 +107,7 @@ fn createType(desc: TypeDescription, it: *TypeDescription.TypeIterator, comp: *C
         switch (prefix) {
             .L => builder.combine(.long, 0) catch unreachable,
             .LL => builder.combine(.long_long, 0) catch unreachable,
-            .LLL => {
-                switch (builder.type) {
-                    .none => builder.type = .int128,
-                    .signed => builder.type = .sint128,
-                    .unsigned => builder.type = .uint128,
-                    else => unreachable,
-                }
-            },
+            .LLL => builder.combine(.int128, 0) catch unreachable,
             .Z => require_native_int32 = true,
             .W => require_native_int64 = true,
             .N => {
@@ -143,9 +136,9 @@ fn createType(desc: TypeDescription, it: *TypeDescription.TypeIterator, comp: *C
         .s => builder.combine(.short, 0) catch unreachable,
         .i => {
             if (require_native_int32) {
-                builder.type = specForSize(comp, 32);
+                builder.combine(specForSize(comp, 32), 0) catch unreachable;
             } else if (require_native_int64) {
-                builder.type = specForSize(comp, 64);
+                builder.combine(specForSize(comp, 64), 0) catch unreachable;
             } else {
                 switch (builder.type) {
                     .int128, .sint128, .uint128 => {},
