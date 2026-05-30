@@ -41,6 +41,11 @@ void foo(__mfp8 a, __mfp8 b) {
     auto c23_auto_mfp8 = a;
     auto_mfp8 = auto_int;
     c23_auto_mfp8 = c23_auto_int;
+    void take_mfp8(__mfp8);
+    void take_int(int);
+    take_mfp8(0);
+    take_mfp8(1.0f);
+    take_int(a);
     _Complex __mfp8 complex_mfp8;
 }
 
@@ -85,6 +90,12 @@ __mfp8 invalid.c:34:27: error: initializing '__mfp8' from incompatible type 'int
 __mfp8 invalid.c:37:22: error: initializing '__mfp8' from incompatible type 'int'
 __mfp8 invalid.c:42:15: error: assignment to '__mfp8' from incompatible type 'int'
 __mfp8 invalid.c:43:19: error: assignment to '__mfp8' from incompatible type 'int'
-__mfp8 invalid.c:44:14: error: cannot combine with previous '_Complex' specifier
-__mfp8 invalid.c:44:14: warning: plain '_Complex' requires a type specifier; assuming '_Complex double'
+__mfp8 invalid.c:46:15: error: passing 'int' to parameter of incompatible type '__mfp8'
+__mfp8 invalid.c:44:26: note: passing argument to parameter here
+__mfp8 invalid.c:47:15: error: passing 'float' to parameter of incompatible type '__mfp8'
+__mfp8 invalid.c:44:26: note: passing argument to parameter here
+__mfp8 invalid.c:48:14: error: passing '__mfp8' to parameter of incompatible type 'int'
+__mfp8 invalid.c:45:22: note: passing argument to parameter here
+__mfp8 invalid.c:49:14: error: cannot combine with previous '_Complex' specifier
+__mfp8 invalid.c:49:14: warning: plain '_Complex' requires a type specifier; assuming '_Complex double'
 */

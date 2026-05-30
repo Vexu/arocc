@@ -70,6 +70,7 @@ void valid_mfp8_use(__mfp8 param) {
     ptr_to_const_volatile = &volatile_local;
     local = *ptr_to_const_volatile;
 
+    take_mfp8(param);
     take_mfp8(alias_local);
     local = return_mfp8(alias_local);
     local = 1 ? init_local : alias_local;
