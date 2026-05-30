@@ -40,10 +40,18 @@ void valid_mfp8_use(__mfp8 param) {
     const __mfp8 *ptr_to_const;
     const volatile __mfp8 *ptr_to_const_volatile;
     __mfp8 *const const_ptr = &local;
+    typeof(param) typeof_expr_local = param;
+    typeof(__mfp8) typeof_type_local = param;
+    __auto_type auto_local = param;
+    auto c23_auto_local = param;
 
     local = init_local;
     alias_local = local;
     array[0] = alias_local;
+    local = typeof_expr_local;
+    local = typeof_type_local;
+    local = auto_local;
+    local = c23_auto_local;
     local = const_local;
     volatile_local = local;
     local = volatile_local;
@@ -73,9 +81,13 @@ void valid_mfp8_use(__mfp8 param) {
     _Static_assert(IS_MFP8(((void)local, alias_local)), "__mfp8 comma operator");
     _Static_assert(IS_MFP8((local = init_local)), "__mfp8 assignment");
     _Static_assert(IS_MFP8((__mfp8)init_local), "__mfp8 explicit cast");
+    _Static_assert(IS_MFP8(typeof_expr_local), "__mfp8 typeof_expr");
+    _Static_assert(IS_MFP8(typeof_type_local), "__mfp8 typeof_type");
+    _Static_assert(IS_MFP8(auto_local), "__mfp8 __auto_type");
+    _Static_assert(IS_MFP8(c23_auto_local), "__mfp8 C23 auto");
 }
 
 /** manifest:
 syntax
-args = --target=aarch64-linux-gnu
+args = -std=c23 --target=aarch64-linux-gnu
 */
