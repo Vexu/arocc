@@ -858,18 +858,25 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
                 try define(w, "__ARM_RWPI");
             }
         },
-        .aarch64, .aarch64_be => |arch| { // `aarch64` means 64 bit ARM. It does not mean A profile.
+        .aarch64, .aarch64_be => |arch| {
             try define(w, "__aarch64__");
             try define(w, "__ARM_64BIT_STATE");
             try define(w, "__ARM_ARCH_ISA_A64");
             try w.writeAll("#define __ARM_ALIGN_MAX_STACK_PWR 4\n");
+
+            try define(w, "__ARM_FEATURE_CLZ");
+            try define(w, "__ARM_FEATURE_FMA");
+            try w.writeAll("#define __ARM_FEATURE_LDREX 0xF\n");
+            try define(w, "__ARM_FEATURE_IDIV");
+            try define(w, "__ARM_FEATURE_DIV");
+            try define(w, "__ARM_FEATURE_NUMERIC_MAXMIN");
+            try define(w, "__ARM_FEATURE_DIRECTED_ROUNDING");
 
             try w.writeAll("#define __ARM_ACLE_VERSION(year,quarter,patch) (100 * (year) + 10 * (quarter) + (patch))\n");
             const acle_version = (100 * 2024) + (10 * 2) + 0; // ACLE 2024.2
             try w.print("#define __ARM_ACLE {d}\n", .{acle_version});
 
             const arm_features = target.cpu.features;
-            var arm_version: u8 = 6;
             for ([_]struct { std.Target.aarch64.Feature, []const u8 }{
                 .{ .v9_6a, "9_6A" },
                 .{ .v9_5a, "9_5A" },
@@ -892,8 +899,8 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
             }) |fs| {
                 if (arm_features.isEnabled(@intFromEnum(fs[0]))) {
                     try w.print("#define __ARM_ARCH_{s}__ 1\n", .{fs[1]});
-                    arm_version = fs[1][0] - '0';
-                    try w.print("#define __ARM_ARCH {d}\n", .{arm_version});
+                    const arm_version = fs[1][0];
+                    try w.print("#define __ARM_ARCH {c}\n", .{arm_version});
                     const profile = fs[1][fs[1].len - 1];
                     try w.print("#define __ARM_ARCH_PROFILE '{c}'\n", .{profile});
                     break;

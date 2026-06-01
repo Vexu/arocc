@@ -33,7 +33,7 @@ const common = @import("Builtins/common.def").with(BuiltinBase);
 const hexagon = @import("Builtins/hexagon.def").with(BuiltinTarget);
 const loongarch = @import("Builtins/loongarch.def").with(BuiltinTarget);
 const mips = @import("Builtins/mips.def").with(BuiltinBase);
-const neon = @import("Builtins/neon.def").with(BuiltinBase);
+const neon = @import("Builtins/neon.def").with(BuiltinTarget);
 const nvptx = @import("Builtins/nvptx.def").with(BuiltinTarget);
 const powerpc = @import("Builtins/powerpc.def").with(BuiltinTarget);
 const riscv = @import("Builtins/riscv.def").with(BuiltinTarget);
@@ -151,6 +151,7 @@ fn createType(desc: TypeDescription, it: *TypeDescription.TypeIterator, comp: *C
         .h => builder.combine(.fp16, 0) catch unreachable,
         .x => builder.combine(.float16, 0) catch unreachable,
         .y => builder.combine(.bf16, 0) catch unreachable,
+        .m => builder.combine(.mfp8, 0) catch unreachable,
         .f => builder.combine(.float, 0) catch unreachable,
         .d => {
             if (builder.type == .long_long) {

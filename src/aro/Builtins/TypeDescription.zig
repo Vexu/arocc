@@ -63,6 +63,7 @@ pub const ComponentIterator = struct {
             'h' => return .{ .spec = .h },
             'x' => return .{ .spec = .x },
             'y' => return .{ .spec = .y },
+            'm' => return .{ .spec = .m },
             'f' => return .{ .spec = .f },
             'd' => return .{ .spec = .d },
             'z' => return .{ .spec = .z },
@@ -228,6 +229,8 @@ const Spec = union(enum) {
     x,
     /// half (__bf16)
     y,
+    /// __mfp8
+    m,
     /// float
     f,
     /// double
