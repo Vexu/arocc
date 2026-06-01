@@ -102,6 +102,7 @@ const Index = enum(u29) {
     float_dfloat64 = std.math.maxInt(u29) - 36,
     float_dfloat128 = std.math.maxInt(u29) - 37,
     float_dfloat64x = std.math.maxInt(u29) - 38,
+    mfp8 = std.math.maxInt(u29) - 39,
     _,
 };
 
@@ -149,6 +150,7 @@ pub const QualType = packed struct(u32) {
     pub const dfloat64: QualType = .{ ._index = .float_dfloat64 };
     pub const dfloat128: QualType = .{ ._index = .float_dfloat128 };
     pub const dfloat64x: QualType = .{ ._index = .float_dfloat64x };
+    pub const mfp8: QualType = .{ ._index = .mfp8 };
     pub const void_pointer: QualType = .{ ._index = .void_pointer };
     pub const char_pointer: QualType = .{ ._index = .char_pointer };
     pub const int_pointer: QualType = .{ ._index = .int_pointer };
@@ -220,6 +222,7 @@ pub const QualType = packed struct(u32) {
             .float_dfloat64 => return .{ .float = .dfloat64 },
             .float_dfloat128 => return .{ .float = .dfloat128 },
             .float_dfloat64x => return .{ .float = .dfloat64x },
+            .mfp8 => return .{ .storage_float = .mfp8 },
             .void_pointer => return .{ .pointer = .{ .child = .void } },
             .char_pointer => return .{ .pointer = .{ .child = .char } },
             .int_pointer => return .{ .pointer = .{ .child = .int } },
@@ -497,6 +500,7 @@ pub const QualType = packed struct(u32) {
             .bool => 1,
             .func => 1,
             .nullptr_t, .pointer, .block => if (qt.bitSizeofOrNull(comp)) |sz| sz / 8 else null,
+            .storage_float => |storage_float| storage_float.bits() / 8,
             .int => |int_ty| int_ty.bits(comp) / 8,
             .float => |float_ty| float_ty.bits(comp) / 8,
             .complex => |complex| complex.sizeofOrNull(comp),
@@ -570,6 +574,7 @@ pub const QualType = packed struct(u32) {
         return loop: switch (qt.base(comp).type) {
             .bool => if (comp.langopts.emulate == .msvc) 8 else 1,
             .bit_int => |bit_int| bit_int.bits,
+            .storage_float => |storage_float| storage_float.bits(),
             .float => |float_ty| float_ty.bits(comp),
             .int => |int_ty| int_ty.bits(comp),
             .nullptr_t, .pointer, .block => qt.attributedPointerBitSize(comp) orelse comp.target.ptrBitWidth(),
@@ -636,6 +641,7 @@ pub const QualType = packed struct(u32) {
         return loop: switch (qt.base(comp).type) {
             .void => 1,
             .bool => 1,
+            .storage_float => |storage_float| storage_float.alignment(),
             .int => |int_ty| switch (int_ty) {
                 .char,
                 .schar,
@@ -1072,6 +1078,7 @@ pub const QualType = packed struct(u32) {
             .void => return true,
             .bool => return true,
             .nullptr_t => return true,
+            .storage_float => |a_storage_float| return a_storage_float == b_type.storage_float,
             .int => |a_int| return a_int == b_type.int,
             .float => |a_float| return a_float == b_type.float,
             .complex => |a_complex| {
@@ -1362,6 +1369,7 @@ pub const QualType = packed struct(u32) {
             .void => try w.writeAll("void"),
             .bool => try w.writeAll(if (comp.langopts.standard.atLeast(.c23)) "bool" else "_Bool"),
             .nullptr_t => try w.writeAll("nullptr_t"),
+            .storage_float => |storage_float| try w.writeAll(storage_float.name()),
             .int => |int_ty| switch (int_ty) {
                 .char => try w.writeAll("char"),
                 .schar => try w.writeAll("signed char"),
@@ -1578,6 +1586,7 @@ pub const Type = union(enum) {
 
     int: Int,
     float: Float,
+    storage_float: StorageFloat,
     complex: QualType,
     bit_int: BitInt,
     atomic: QualType,
@@ -1666,6 +1675,29 @@ pub const Type = union(enum) {
                 .dfloat64 => 64,
                 .dfloat128 => 128,
                 .dfloat64x => 64 * 2,
+            };
+        }
+    };
+
+    /// non-arithmetic floats
+    pub const StorageFloat = enum {
+        mfp8,
+
+        pub fn bits(storage_float: StorageFloat) u16 {
+            return switch (storage_float) {
+                .mfp8 => 8,
+            };
+        }
+
+        pub fn alignment(storage_float: StorageFloat) u32 {
+            return switch (storage_float) {
+                .mfp8 => 1,
+            };
+        }
+
+        pub fn name(storage_float: StorageFloat) []const u8 {
+            return switch (storage_float) {
+                .mfp8 => "__mfp8",
             };
         }
     };
@@ -1940,6 +1972,9 @@ pub fn putExtra(ts: *TypeStore, gpa: std.mem.Allocator, ty: Type) !Index {
             .dfloat128 => return .float_dfloat128,
             .dfloat64x => return .float_dfloat64x,
         },
+        .storage_float => |storage_float| switch (storage_float) {
+            .mfp8 => return .mfp8,
+        },
         else => {},
     }
     const index = try ts.types.addOne(gpa);
@@ -1955,6 +1990,7 @@ pub fn set(ts: *TypeStore, gpa: std.mem.Allocator, ty: Type, index: usize) !void
         .nullptr_t => unreachable,
         .int => unreachable,
         .float => unreachable,
+        .storage_float => unreachable,
         .complex => |complex| {
             repr.tag = .complex;
             repr.data[0] = @bitCast(complex);
@@ -2590,6 +2626,7 @@ pub const Builder = struct {
 
         bf16,
         fp16,
+        mfp8,
         float16,
         float,
         double,
@@ -2688,6 +2725,7 @@ pub const Builder = struct {
 
                 .bf16 => "__bf16",
                 .fp16 => "__fp16",
+                .mfp8 => "__mfp8",
                 .float16 => "_Float16",
                 .float => "float",
                 .double => "double",
@@ -2820,6 +2858,7 @@ pub const Builder = struct {
 
             .bf16 => .bf16,
             .fp16 => .fp16,
+            .mfp8 => .mfp8,
             .float16 => .float16,
             .float => .float,
             .double => .double,
@@ -3234,6 +3273,10 @@ pub const Builder = struct {
                 .none => .fp16,
                 else => return b.cannotCombine(source_tok),
             },
+            .mfp8 => switch (b.type) {
+                .none => .mfp8,
+                else => return b.cannotCombine(source_tok),
+            },
             .float16 => switch (b.type) {
                 .none => .float16,
                 .complex => .complex_float16,
@@ -3431,6 +3474,9 @@ pub const Builder = struct {
                 .dfloat64 => .dfloat64,
                 .dfloat128 => .dfloat128,
                 .dfloat64x => .dfloat64x,
+            },
+            .storage_float => |storage_float| switch (storage_float) {
+                .mfp8 => .mfp8,
             },
             .complex => |complex| switch (complex.base(comp).type) {
                 .int => |int| switch (int) {

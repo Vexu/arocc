@@ -13,6 +13,9 @@ implicit typedef: '*char'
 implicit typedef: 'struct __NSConstantString_tag'
  name: __NSConstantString
 
+implicit typedef: '__mfp8'
+ name: __mfp8
+
 function: 'fn () void'
  name: foo
  body:

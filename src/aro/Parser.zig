@@ -859,6 +859,9 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
         if (p.comp.float80Type()) |float80_ty| {
             try p.addImplicitTypedef("__float80", float80_ty);
         }
+        if (p.comp.target.hasAArch64ACLETypes()) {
+            try p.addImplicitTypedef("__mfp8", .mfp8);
+        }
 
         // Set here so that the newly generated tokens are included.
         p.tree.tokens = p.pp.tokens.slice();
@@ -6620,6 +6623,8 @@ pub const Result = struct {
                 }
                 if (a_sk.isPointer() and b_sk.isPointer()) return a.adjustCondExprPtrs(tok, b, p);
 
+                if (a.qt.is(p.comp, .storage_float) and a.qt.eql(b.qt, p.comp)) return true;
+
                 if (a.qt.getRecord(p.comp) != null and b.qt.getRecord(p.comp) != null and a.qt.eql(b.qt, p.comp)) {
                     return true;
                 }
@@ -7114,6 +7119,16 @@ pub const Result = struct {
         } else if (res.qt.is(p.comp, .void)) {
             try p.err(operand_tok, .invalid_cast_operand_type, .{res.qt});
             return error.ParsingFailed;
+        } else if (dest_qt.is(p.comp, .storage_float) or res.qt.is(p.comp, .storage_float)) {
+            if (dest_qt.is(p.comp, .storage_float) and dest_qt.eql(res.qt, p.comp)) {
+                cast_kind = .no_op;
+            } else if (dest_qt.is(p.comp, .storage_float)) {
+                try p.err(l_paren, .invalid_cast_type, .{dest_qt});
+                return error.ParsingFailed;
+            } else {
+                try p.err(operand_tok, .invalid_cast_operand_type, .{res.qt});
+                return error.ParsingFailed;
+            }
         } else if (dest_vec and src_vec) {
             if (dest_qt.eql(res.qt, p.comp)) {
                 cast_kind = .no_op;
@@ -7410,6 +7425,10 @@ pub const Result = struct {
         const dest_sk = dest_unqual.scalarKind(p.comp);
         const src_sk = res.qt.scalarKind(p.comp);
 
+        if (dest_unqual.is(p.comp, .storage_float) and dest_unqual.eql(res.qt, p.comp)) {
+            return;
+        }
+
         if (dest_qt.is(p.comp, .vector) and res.qt.is(p.comp, .vector)) {
             if (dest_unqual.eql(res.qt, p.comp)) return;
             if (dest_unqual.sizeCompare(res.qt, p.comp) == .eq) {
@@ -7440,6 +7459,10 @@ pub const Result = struct {
                 try res.castToFloat(p, dest_unqual, tok);
                 return;
             }
+        } else if (dest_unqual.is(p.comp, .storage_float)) {
+            // Storage floats are copy-only; conversions from other scalar types
+            // are diagnosed by the common switch statement below this
+            // large if/else block
         } else if (dest_sk.isPointer() and dest_sk != .block_pointer) {
             if (src_sk == .nullptr_t or res.val.isZero(p.comp)) {
                 try res.nullToPointer(p, dest_unqual, tok);

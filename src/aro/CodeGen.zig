@@ -158,6 +158,7 @@ fn genType(c: *CodeGen, qt: QualType) !Interner.Ref {
         .int => |int| .{ .int_ty = int.bits(c.comp) },
         .bit_int => |bit_int| .{ .int_ty = bit_int.bits },
         .float => |float| .{ .float_ty = float.bits(c.comp) },
+        .storage_float => |storage_float| .{ .int_ty = storage_float.bits() },
         .array => |array| blk: {
             switch (array.len) {
                 .fixed, .static => |len| {
