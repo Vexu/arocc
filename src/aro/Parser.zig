@@ -6342,7 +6342,7 @@ pub const Result = struct {
                 if (!vec.elem.isInt(p.comp) or vec.kind != .generic) {
                     lhs.qt = try p.comp.type_store.put(p.comp.gpa, .{
                         .vector = .{
-                            .elem = p.comp.smallestNBitIntTargetIndependent(vec.elem.bitSizeof(p.comp), .signed),
+                            .elem = p.comp.smallestNBitIntTargetIndependent(@intCast(vec.elem.bitSizeof(p.comp)), .signed),
                             .len = vec.len,
                             .kind = .generic,
                         },

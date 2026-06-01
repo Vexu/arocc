@@ -9,6 +9,14 @@ __attribute__((neon_polyvector_type(2))) unsigned long g;
 __attribute__((neon_polyvector_type(4))) unsigned long h;
 __attribute__((neon_polyvector_type(2))) unsigned short i;
 
+void foo(void) {
+    __attribute__((neon_vector_type(4))) int a;
+    __attribute__((neon_vector_type(4))) float b;
+    a = b;
+    b = a;
+    (void)(b == a);
+}
+
 /** manifest:
 syntax
 args = -target aarch64-linux
