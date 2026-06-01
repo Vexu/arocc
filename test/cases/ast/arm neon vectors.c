@@ -13,6 +13,9 @@ implicit typedef: 'struct __va_list'
 implicit typedef: 'struct __NSConstantString_tag'
  name: __NSConstantString
 
+implicit typedef: '__mfp8'
+ name: __mfp8
+
 variable: 'neon_vector(2, unsigned long)'
  name: a
 

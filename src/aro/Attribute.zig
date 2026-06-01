@@ -1279,9 +1279,9 @@ fn applyNeonVector(attr: Attribute, p: *Parser, tok: TokenIndex, qt: *QualType, 
                 .double => p.comp.target.cpu.arch.isAARCH64(),
                 else => false,
             },
-            // .storage_float => |storage_float| switch (storage_float) {
-            //     .mfp8 => true,
-            // },
+            .storage_float => |storage_float| switch (storage_float) {
+                .mfp8 => true,
+            },
             else => false,
         };
     };
