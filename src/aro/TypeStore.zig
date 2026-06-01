@@ -38,6 +38,8 @@ const Repr = struct {
         array_variable,
         array_unspecified_variable,
         vector,
+        vector_neon,
+        vector_neon_poly,
         @"struct",
         struct_incomplete,
         @"union",
@@ -314,6 +316,17 @@ pub const QualType = packed struct(u32) {
             .vector => .{ .vector = .{
                 .elem = @bitCast(repr.data[0]),
                 .len = repr.data[1],
+                .kind = .generic,
+            } },
+            .vector_neon => .{ .vector = .{
+                .elem = @bitCast(repr.data[0]),
+                .len = repr.data[1],
+                .kind = .neon,
+            } },
+            .vector_neon_poly => .{ .vector = .{
+                .elem = @bitCast(repr.data[0]),
+                .len = repr.data[1],
+                .kind = .neon_poly,
             } },
             .@"struct", .@"union" => {
                 const layout_size = 5;
@@ -1163,10 +1176,7 @@ pub const QualType = packed struct(u32) {
             },
             .vector => |a_vector| {
                 const b_vector = b_type.vector;
-                if (a_vector.len != b_vector.len) return false;
-
-                // Vector elemnent qualifiers are checked.
-                return a_vector.elem.eqlQualified(b_vector.elem, comp);
+                return a_vector.eql(b_vector, comp, false);
             },
             .@"struct", .@"union", .@"enum" => return a_type_qt.qt._index == b_type_qt.qt._index,
             .block => |a_block| return a_block.func.eql(b_type.block.func, comp),
@@ -1416,9 +1426,15 @@ pub const QualType = packed struct(u32) {
             },
 
             .vector => |vector| {
-                try w.print("__attribute__((__vector_size__({d} * sizeof(", .{vector.len});
-                _ = try vector.elem.printPrologue(comp, desugar, w);
-                try w.writeAll(")))) ");
+                switch (vector.kind) {
+                    .generic => {
+                        try w.print("__attribute__((__vector_size__({d} * sizeof(", .{vector.len});
+                        _ = try vector.elem.printPrologue(comp, desugar, w);
+                        try w.writeAll(")))) ");
+                    },
+                    .neon => try w.print("__attribute__((neon_vector_type({d}))) ", .{vector.len}),
+                    .neon_poly => try w.print("__attribute__((neon_polyvector_type({d}))) ", .{vector.len}),
+                }
                 _ = try vector.elem.printPrologue(comp, desugar, w);
             },
 
@@ -1545,7 +1561,12 @@ pub const QualType = packed struct(u32) {
                 try array.elem.dump(comp, w);
             },
             .vector => |vector| {
-                try w.print("vector({d}, ", .{vector.len});
+                const kind = switch (vector.kind) {
+                    .generic => "vector",
+                    .neon => "neon_vector",
+                    .neon_poly => "neon_polyvector",
+                };
+                try w.print("{s}({d}, ", .{ kind, vector.len });
                 try vector.elem.dump(comp, w);
                 try w.writeAll(")");
             },
@@ -1770,6 +1791,20 @@ pub const Type = union(enum) {
     pub const Vector = struct {
         elem: QualType,
         len: u32,
+        kind: Kind = .generic,
+
+        pub const Kind = enum {
+            generic,
+            neon,
+            neon_poly,
+        };
+
+        pub fn eql(a: Vector, b: Vector, comp: *const Compilation, check_kind: bool) bool {
+            if (a.len != b.len) return false;
+            if (!a.elem.eqlQualified(b.elem, comp)) return false;
+            if (check_kind and a.kind != b.kind) return false;
+            return true;
+        }
     };
 
     pub const Record = struct {
@@ -2084,7 +2119,11 @@ pub fn set(ts: *TypeStore, gpa: std.mem.Allocator, ty: Type, index: usize) !void
             }
         },
         .vector => |vector| {
-            repr.tag = .vector;
+            repr.tag = switch (vector.kind) {
+                .generic => .vector,
+                .neon => .vector_neon,
+                .neon_poly => .vector_neon_poly,
+            };
             repr.data[0] = @bitCast(vector.elem);
             repr.data[1] = vector.len;
         },

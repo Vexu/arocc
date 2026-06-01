@@ -6342,9 +6342,13 @@ pub const Result = struct {
         }
         if (!lhs.qt.isInvalid()) {
             if (lhs.qt.get(p.comp, .vector)) |vec| {
-                if (!vec.elem.isInt(p.comp)) {
+                if (!vec.elem.isInt(p.comp) or vec.kind != .generic) {
                     lhs.qt = try p.comp.type_store.put(p.comp.gpa, .{
-                        .vector = .{ .elem = .int, .len = vec.len },
+                        .vector = .{
+                            .elem = p.comp.smallestNBitIntTargetIndependent(@intCast(vec.elem.bitSizeof(p.comp)), .signed),
+                            .len = vec.len,
+                            .kind = .generic,
+                        },
                     });
                 }
             } else {
@@ -6472,13 +6476,15 @@ pub const Result = struct {
         try a.lvalConversion(p, tok);
         try b.lvalConversion(p, tok);
 
-        const a_vec = a.qt.is(p.comp, .vector);
-        const b_vec = b.qt.is(p.comp, .vector);
-        if (a_vec and b_vec) {
+        const opt_a_vec = a.qt.get(p.comp, .vector);
+        const opt_b_vec = b.qt.get(p.comp, .vector);
+        if (opt_a_vec != null and opt_b_vec != null) {
+            const a_vec = opt_a_vec.?;
+            const b_vec = opt_b_vec.?;
             if (kind == .boolean_logic) {
                 return a.invalidBinTy(tok, b, p);
             }
-            if (a.qt.eql(b.qt, p.comp)) {
+            if (a_vec.eql(b_vec, p.comp, true) and a_vec.kind == .generic) {
                 return a.shouldEval(b, p);
             }
             if (a.qt.sizeCompare(b.qt, p.comp) == .eq) {
@@ -6491,8 +6497,8 @@ pub const Result = struct {
             b.val = .{};
             a.qt = .invalid;
             return false;
-        } else if (a_vec) {
-            if (b.coerceExtra(p, a.qt.childType(p.comp), tok, .test_coerce)) {
+        } else if (opt_a_vec) |a_vec| {
+            if (b.coerceExtra(p, a_vec.elem, tok, .test_coerce)) {
                 try b.saveValue(p);
                 b.qt = a.qt;
                 try b.implicitCast(p, .vector_splat, tok);
@@ -6501,8 +6507,8 @@ pub const Result = struct {
                 error.CoercionFailed => return a.invalidBinTy(tok, b, p),
                 else => |e| return e,
             }
-        } else if (b_vec) {
-            if (a.coerceExtra(p, b.qt.childType(p.comp), tok, .test_coerce)) {
+        } else if (opt_b_vec) |b_vec| {
+            if (a.coerceExtra(p, b_vec.elem, tok, .test_coerce)) {
                 try a.saveValue(p);
                 a.qt = b.qt;
                 try a.implicitCast(p, .vector_splat, tok);
@@ -7429,8 +7435,14 @@ pub const Result = struct {
             return;
         }
 
-        if (dest_qt.is(p.comp, .vector) and res.qt.is(p.comp, .vector)) {
-            if (dest_unqual.eql(res.qt, p.comp)) return;
+        const dest_opt_vec = dest_qt.get(p.comp, .vector);
+        const res_opt_vec = res.qt.get(p.comp, .vector);
+
+        if (dest_opt_vec != null and res_opt_vec != null) {
+            const dest_vector = dest_opt_vec.?;
+            const res_vector = res_opt_vec.?;
+
+            if (dest_vector.eql(res_vector, p.comp, true)) return;
             if (dest_unqual.sizeCompare(res.qt, p.comp) == .eq) {
                 res.qt = dest_unqual;
                 return res.implicitCast(p, .bitcast, tok);

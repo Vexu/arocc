@@ -1968,6 +1968,11 @@ pub const vec_size_not_multiple: Diagnostic = .{
     .kind = .@"error",
 };
 
+pub const invalid_neon_vec_size: Diagnostic = .{
+    .fmt = "Neon vector size must be 64 or 128 bits",
+    .kind = .@"error",
+};
+
 pub const invalid_imag: Diagnostic = .{
     .fmt = "invalid type {qt} to __imag operator",
     .kind = .@"error",

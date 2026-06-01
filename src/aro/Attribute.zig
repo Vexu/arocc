@@ -742,6 +742,12 @@ const attributes = struct {
     // TODO cannot be combined with weak or selectany
     pub const internal_linkage = struct {};
     pub const availability = struct {};
+    pub const neon_vector_type = struct {
+        len: u32,
+    };
+    pub const neon_polyvector_type = struct {
+        len: u32,
+    };
 };
 
 pub const Tag = std.meta.DeclEnum(attributes);
@@ -846,6 +852,8 @@ pub fn applyVariableAttributes(p: *Parser, qt: QualType, attr_buf_start: usize, 
             nocommon = true;
         },
         .vector_size => try attr.applyVectorSize(p, tok, &base_qt),
+        .neon_vector_type => try attr.applyNeonVector(p, tok, &base_qt, .neon),
+        .neon_polyvector_type => try attr.applyNeonVector(p, tok, &base_qt, .neon_poly),
         .aligned => try attr.applyAligned(p, base_qt, diagnostic),
         .nonstring => {
             if (base_qt.get(p.comp, .array)) |array_ty| {
@@ -938,6 +946,8 @@ pub fn applyTypeAttributes(p: *Parser, qt: QualType, attr_buf_start: usize, diag
             // zig fmt: on
             .transparent_union => try attr.applyTransparentUnion(p, tok, base_qt),
             .vector_size => try attr.applyVectorSize(p, tok, &base_qt),
+            .neon_vector_type => try attr.applyNeonVector(p, tok, &base_qt, .neon),
+            .neon_polyvector_type => try attr.applyNeonVector(p, tok, &base_qt, .neon_poly),
             .aligned => try attr.applyAligned(p, base_qt, diagnostic),
             .designated_init => if (base_qt.is(p.comp, .@"struct")) {
                 try p.attr_application_buf.append(gpa, attr);
@@ -1238,6 +1248,61 @@ fn applyVectorSize(attr: Attribute, p: *Parser, tok: TokenIndex, qt: *QualType) 
     qt.* = try p.comp.type_store.put(p.comp.gpa, .{ .vector = .{
         .elem = qt.*,
         .len = @intCast(vec_bytes / elem_size),
+    } });
+}
+
+fn applyNeonVector(attr: Attribute, p: *Parser, tok: TokenIndex, qt: *QualType, kind: Type.Vector.Kind) !void {
+    if (qt.isInvalid()) return;
+    const valid_elem_ty = blk: {
+        if (kind == .neon_poly) {
+            const int_ty = qt.get(p.comp, .int) orelse break :blk false;
+            const poly_unsigned = p.comp.target.cpu.arch.isAARCH64();
+            break :blk if (poly_unsigned)
+                switch (int_ty) {
+                    .uchar, .ushort, .ulong, .ulong_long => true,
+                    else => false,
+                }
+            else switch (int_ty) {
+                .schar, .short, .long_long => true,
+                else => false,
+            };
+        }
+
+        const base_ty = qt.base(p.comp).type;
+        break :blk switch (base_ty) {
+            .int => |int| switch (int) {
+                .schar, .uchar, .short, .ushort, .int, .uint, .long, .ulong, .long_long, .ulong_long => true,
+                else => false,
+            },
+            .float => |float| switch (float) {
+                .float, .fp16, .bf16 => true,
+                .double => p.comp.target.cpu.arch.isAARCH64(),
+                else => false,
+            },
+            .storage_float => |storage_float| switch (storage_float) {
+                .mfp8 => true,
+            },
+            else => false,
+        };
+    };
+    if (!valid_elem_ty) {
+        try p.err(tok, .invalid_vec_elem_ty, .{qt.*});
+        return error.ParsingFailed;
+    }
+
+    // Neon vector size must be 64 or 128 bits
+    const elem_size = qt.bitSizeof(p.comp);
+    const vec_len = if (kind == .neon) attr.args.neon_vector_type.len else attr.args.neon_polyvector_type.len;
+    const vec_size = elem_size * vec_len;
+    if (vec_size != 64 and vec_size != 128) {
+        try p.err(tok, .invalid_neon_vec_size, .{});
+        return error.ParsingFailed;
+    }
+
+    qt.* = try p.comp.type_store.put(p.comp.gpa, .{ .vector = .{
+        .elem = qt.*,
+        .len = vec_len,
+        .kind = kind,
     } });
 }
 

@@ -1375,9 +1375,9 @@ pub fn float80Type(comp: *const Compilation) ?QualType {
 
 /// target-independent lowest-rank integer type with at least N bits
 pub fn smallestNBitIntTargetIndependent(comp: *const Compilation, bits: usize, signedness: std.builtin.Signedness) QualType {
-    const candidates: [5]QualType = switch (signedness) {
-        .signed => .{ .schar, .short, .int, .long, .long_long },
-        .unsigned => .{ .uchar, .ushort, .uint, .ulong, .ulong_long },
+    const candidates: [6]QualType = switch (signedness) {
+        .signed => .{ .schar, .short, .int, .long, .long_long, .int128 },
+        .unsigned => .{ .uchar, .ushort, .uint, .ulong, .ulong_long, .uint128 },
     };
     for (candidates) |qt| {
         if (qt.bitSizeof(comp) >= bits) return qt;
