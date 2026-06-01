@@ -3062,25 +3062,25 @@ fn dumpAttribute(tree: *const Tree, attr: Attribute, w: *std.Io.Writer) !void {
     switch (attr.tag) {
         inline else => |tag| {
             const args = @field(attr.args, @tagName(tag));
-            const fields = @typeInfo(@TypeOf(args)).@"struct".fields;
-            if (fields.len == 0) {
+            const info = @typeInfo(@TypeOf(args)).@"struct";
+            if (info.field_names.len == 0) {
                 try w.writeByte('\n');
                 return;
             }
             try w.writeByte(' ');
-            inline for (fields, 0..) |f, i| {
-                if (comptime std.mem.eql(u8, f.name, "__name_tok")) continue;
+            inline for (info.field_names, info.field_types, 0..) |f_name, f_type, i| {
+                if (comptime std.mem.eql(u8, f_name, "__name_tok")) continue;
                 if (i != 0) {
                     try w.writeAll(", ");
                 }
-                try w.writeAll(f.name);
+                try w.writeAll(f_name);
                 try w.writeAll(": ");
-                switch (f.type) {
-                    Interner.Ref => try w.print("\"{s}\"", .{tree.interner.get(@field(args, f.name)).bytes}),
-                    ?Interner.Ref => try w.print("\"{?s}\"", .{if (@field(args, f.name)) |str| tree.interner.get(str).bytes else null}),
-                    else => switch (@typeInfo(f.type)) {
-                        .@"enum" => try w.writeAll(@tagName(@field(args, f.name))),
-                        else => try w.print("{any}", .{@field(args, f.name)}),
+                switch (f_type) {
+                    Interner.Ref => try w.print("\"{s}\"", .{tree.interner.get(@field(args, f_name)).bytes}),
+                    ?Interner.Ref => try w.print("\"{?s}\"", .{if (@field(args, f_name)) |str| tree.interner.get(str).bytes else null}),
+                    else => switch (@typeInfo(f_type)) {
+                        .@"enum" => try w.writeAll(@tagName(@field(args, f_name))),
+                        else => try w.print("{any}", .{@field(args, f_name)}),
                     },
                 }
             }

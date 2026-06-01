@@ -89,9 +89,9 @@ pub fn requiredArgCount(attr: Tag) u32 {
         inline else => |tag| {
             comptime var needed = 0;
             comptime {
-                const fields = @typeInfo(@field(attributes, @tagName(tag))).@"struct".fields;
-                for (fields) |arg_field| {
-                    if (!mem.eql(u8, arg_field.name, "__name_tok") and @typeInfo(arg_field.type) != .optional) needed += 1;
+                const info = @typeInfo(@field(attributes, @tagName(tag))).@"struct";
+                for (info.field_names, info.field_types) |arg_name, arg_type| {
+                    if (!mem.eql(u8, arg_name, "__name_tok") and @typeInfo(arg_type) != .optional) needed += 1;
                 }
             }
             return needed;
@@ -105,9 +105,9 @@ pub fn maxArgCount(attr: Tag) u32 {
         inline else => |tag| {
             comptime var max = 0;
             comptime {
-                const fields = @typeInfo(@field(attributes, @tagName(tag))).@"struct".fields;
-                for (fields) |arg_field| {
-                    if (!mem.eql(u8, arg_field.name, "__name_tok")) max += 1;
+                const field_names = @typeInfo(@field(attributes, @tagName(tag))).@"struct".field_names;
+                for (field_names) |arg_field_name| {
+                    if (!mem.eql(u8, arg_field_name, "__name_tok")) max += 1;
                 }
             }
             return max;
@@ -130,10 +130,10 @@ pub const Formatting = struct {
         switch (attr) {
             .calling_convention => unreachable,
             inline else => |tag| {
-                const fields = @typeInfo(@field(attributes, @tagName(tag))).@"struct".fields;
+                const field_types = @typeInfo(@field(attributes, @tagName(tag))).@"struct".field_types;
 
-                if (fields.len == 0) unreachable;
-                const Unwrapped = UnwrapOptional(fields[0].type);
+                if (field_types.len == 0) unreachable;
+                const Unwrapped = UnwrapOptional(field_types[0]);
                 if (@typeInfo(Unwrapped) != .@"enum") unreachable;
 
                 return if (Unwrapped.opts.enum_kind == .identifier) "'" else "\"";
@@ -147,18 +147,18 @@ pub const Formatting = struct {
         switch (attr) {
             .calling_convention => unreachable,
             inline else => |tag| {
-                const fields = @typeInfo(@field(attributes, @tagName(tag))).@"struct".fields;
+                const field_types = @typeInfo(@field(attributes, @tagName(tag))).@"struct".field_types;
 
-                if (fields.len == 0) unreachable;
-                const Unwrapped = UnwrapOptional(fields[0].type);
+                if (field_types.len == 0) unreachable;
+                const Unwrapped = UnwrapOptional(field_types[0]);
                 if (@typeInfo(Unwrapped) != .@"enum") unreachable;
 
-                const enum_fields = @typeInfo(Unwrapped).@"enum".fields;
+                const enum_field_names = @typeInfo(Unwrapped).@"enum".field_names;
                 const quote = comptime quoteChar(@enumFromInt(@intFromEnum(tag)));
-                comptime var values: []const u8 = quote ++ enum_fields[0].name ++ quote;
-                inline for (enum_fields[1..]) |enum_field| {
+                comptime var values: []const u8 = quote ++ enum_field_names[0] ++ quote;
+                inline for (enum_field_names[1..]) |enum_field_name| {
                     values = values ++ ", ";
-                    values = values ++ quote ++ enum_field.name ++ quote;
+                    values = values ++ quote ++ enum_field_name ++ quote;
                 }
                 return values;
             },
@@ -171,10 +171,10 @@ pub fn wantsIdentEnum(attr: Tag) bool {
     switch (attr) {
         .calling_convention => return false,
         inline else => |tag| {
-            const fields = @typeInfo(@field(attributes, @tagName(tag))).@"struct".fields;
+            const field_types = @typeInfo(@field(attributes, @tagName(tag))).@"struct".field_types;
 
-            if (fields.len == 0) return false;
-            const Unwrapped = UnwrapOptional(fields[0].type);
+            if (field_types.len == 0) return false;
+            const Unwrapped = UnwrapOptional(field_types[0]);
             if (@typeInfo(Unwrapped) != .@"enum") return false;
 
             return Unwrapped.opts.enum_kind == .identifier;
@@ -185,12 +185,12 @@ pub fn wantsIdentEnum(attr: Tag) bool {
 pub fn diagnoseIdent(attr: Tag, arguments: *Arguments, ident: TokenIndex, p: *Parser) !bool {
     switch (attr) {
         inline else => |tag| {
-            const fields = @typeInfo(@field(attributes, @tagName(tag))).@"struct".fields;
-            if (fields.len == 0) unreachable;
-            const Unwrapped = UnwrapOptional(fields[0].type);
+            const info = @typeInfo(@field(attributes, @tagName(tag))).@"struct";
+            if (info.field_names.len == 0) unreachable;
+            const Unwrapped = UnwrapOptional(info.field_types[0]);
             if (@typeInfo(Unwrapped) != .@"enum") unreachable;
             if (std.meta.stringToEnum(Unwrapped, normalize(p.tokSlice(ident)))) |enum_val| {
-                @field(@field(arguments, @tagName(tag)), fields[0].name) = enum_val;
+                @field(@field(arguments, @tagName(tag)), info.field_names[0]) = enum_val;
                 return false;
             }
 
@@ -203,11 +203,11 @@ pub fn diagnoseIdent(attr: Tag, arguments: *Arguments, ident: TokenIndex, p: *Pa
 pub fn wantsAlignment(attr: Tag, idx: usize) bool {
     switch (attr) {
         inline else => |tag| {
-            const fields = @typeInfo(@field(attributes, @tagName(tag))).@"struct".fields;
-            if (fields.len == 0) return false;
+            const field_types = @typeInfo(@field(attributes, @tagName(tag))).@"struct".field_types;
+            if (field_types.len == 0) return false;
 
             return switch (idx) {
-                inline 0...fields.len - 1 => |i| UnwrapOptional(fields[i].type) == Alignment,
+                inline 0...field_types.len - 1 => |i| UnwrapOptional(field_types[i]) == Alignment,
                 else => false,
             };
         },
@@ -217,12 +217,12 @@ pub fn wantsAlignment(attr: Tag, idx: usize) bool {
 pub fn diagnoseAlignment(attr: Tag, arguments: *Arguments, arg_idx: u32, res: Parser.Result, arg_start: TokenIndex, p: *Parser) !bool {
     switch (attr) {
         inline else => |tag| {
-            const arg_fields = @typeInfo(@field(attributes, @tagName(tag))).@"struct".fields;
-            if (arg_fields.len == 0) unreachable;
+            const arg_info = @typeInfo(@field(attributes, @tagName(tag))).@"struct";
+            if (arg_info.field_names.len == 0) unreachable;
 
             switch (arg_idx) {
-                inline 0...arg_fields.len - 1 => |arg_i| {
-                    if (UnwrapOptional(arg_fields[arg_i].type) != Alignment) unreachable;
+                inline 0...arg_info.field_names.len - 1 => |arg_i| {
+                    if (UnwrapOptional(arg_info.field_types[arg_i]) != Alignment) unreachable;
 
                     if (!res.val.is(.int, p.comp)) {
                         try p.err(arg_start, .alignas_unavailable, .{});
@@ -241,7 +241,7 @@ pub fn diagnoseAlignment(attr: Tag, arguments: *Arguments, arg_idx: u32, res: Pa
                         return true;
                     }
 
-                    @field(@field(arguments, @tagName(tag)), arg_fields[arg_i].name) = .{ .requested = requested };
+                    @field(@field(arguments, @tagName(tag)), arg_info.field_names[arg_i]) = .{ .requested = requested };
                     return false;
                 },
                 else => unreachable,
@@ -251,8 +251,8 @@ pub fn diagnoseAlignment(attr: Tag, arguments: *Arguments, arg_idx: u32, res: Pa
 }
 
 fn diagnoseField(
-    comptime decl: ZigType.Declaration,
-    comptime field: ZigType.StructField,
+    comptime decl_name: [:0]const u8,
+    comptime field_name: [:0]const u8,
     comptime Wanted: type,
     arguments: *Arguments,
     res: Parser.Result,
@@ -283,7 +283,7 @@ fn diagnoseField(
 
     if (res.val.opt_ref == .none) {
         if (Wanted == Identifier and node == .decl_ref_expr) {
-            @field(@field(arguments, decl.name), field.name) = .{ .tok = node.decl_ref_expr.name_tok };
+            @field(@field(arguments, decl_name), field_name) = .{ .tok = node.decl_ref_expr.name_tok };
             return false;
         }
 
@@ -294,7 +294,7 @@ fn diagnoseField(
     switch (key) {
         .int => {
             if (@typeInfo(Wanted) == .int) {
-                @field(@field(arguments, decl.name), field.name) = res.val.toInt(Wanted, p.comp) orelse {
+                @field(@field(arguments, decl_name), field_name) = res.val.toInt(Wanted, p.comp) orelse {
                     try p.err(arg_start, .attribute_int_out_of_range, .{res});
                     return true;
                 };
@@ -310,20 +310,20 @@ fn diagnoseField(
                         .char, .uchar, .schar => {},
                         else => break :validate,
                     }
-                    @field(@field(arguments, decl.name), field.name) = try p.removeNull(res.val);
+                    @field(@field(arguments, decl_name), field_name) = try p.removeNull(res.val);
                     return false;
                 }
 
-                try p.err(arg_start, .attribute_requires_string, .{decl.name});
+                try p.err(arg_start, .attribute_requires_string, .{decl_name});
                 return true;
             } else if (@typeInfo(Wanted) == .@"enum" and @hasDecl(Wanted, "opts") and Wanted.opts.enum_kind == .string) {
                 const str = bytes[0 .. bytes.len - 1];
                 if (std.meta.stringToEnum(Wanted, str)) |enum_val| {
-                    @field(@field(arguments, decl.name), field.name) = enum_val;
+                    @field(@field(arguments, decl_name), field_name) = enum_val;
                     return false;
                 }
 
-                try p.err(arg_start, .unknown_attr_enum, .{ decl.name, Formatting.choices(@field(Tag, decl.name)) });
+                try p.err(arg_start, .unknown_attr_enum, .{ decl_name, Formatting.choices(@field(Tag, decl_name)) });
                 return true;
             }
         },
@@ -344,17 +344,17 @@ fn diagnoseField(
 pub fn diagnose(attr: Tag, arguments: *Arguments, arg_idx: u32, res: Parser.Result, arg_start: TokenIndex, node: Tree.Node, p: *Parser) !bool {
     switch (attr) {
         inline else => |tag| {
-            const decl = @typeInfo(attributes).@"struct".decls[@intFromEnum(tag)];
+            const decl_name = @typeInfo(attributes).@"struct".decl_names[@intFromEnum(tag)];
             const max_arg_count = comptime maxArgCount(tag);
             if (arg_idx >= max_arg_count) {
                 try p.err(arg_start, .attribute_too_many_args, .{ @tagName(attr), max_arg_count });
                 return true;
             }
 
-            const arg_fields = @typeInfo(@field(attributes, decl.name)).@"struct".fields;
+            const arg_info = @typeInfo(@field(attributes, decl_name)).@"struct";
             switch (arg_idx) {
-                inline 0...arg_fields.len - 1 => |arg_i| {
-                    return diagnoseField(decl, arg_fields[arg_i], UnwrapOptional(arg_fields[arg_i].type), arguments, res, arg_start, node, p);
+                inline 0...arg_info.field_names.len - 1 => |arg_i| {
+                    return diagnoseField(decl_name, arg_info.field_names[arg_i], UnwrapOptional(arg_info.field_types[arg_i]), arguments, res, arg_start, node, p);
                 },
                 else => unreachable,
             }
@@ -753,20 +753,18 @@ const attributes = struct {
 pub const Tag = std.meta.DeclEnum(attributes);
 
 pub const Arguments = blk: {
-    const decls = @typeInfo(attributes).@"struct".decls;
-    var names: [decls.len][]const u8 = undefined;
-    var types: [decls.len]type = undefined;
-    for (decls, &names, &types) |decl, *name, *T| {
-        name.* = decl.name;
-        T.* = @field(attributes, decl.name);
+    const decl_names = @typeInfo(attributes).@"struct".decl_names;
+    var types: [decl_names.len]type = undefined;
+    for (decl_names, &types) |decl_name, *T| {
+        T.* = @field(attributes, decl_name);
     }
 
-    break :blk @Union(.auto, null, &names, &types, &@splat(.{}));
+    break :blk @Union(.auto, null, decl_names, &types, &@splat(.{}));
 };
 
 pub fn ArgumentsForTag(comptime tag: Tag) type {
-    const decl = @typeInfo(attributes).@"struct".decls[@intFromEnum(tag)];
-    return @field(attributes, decl.name);
+    const decl_name = @typeInfo(attributes).@"struct".decl_names[@intFromEnum(tag)];
+    return @field(attributes, decl_name);
 }
 
 pub fn initArguments(tag: Tag, name_tok: TokenIndex) Arguments {
