@@ -494,3 +494,10 @@ uuid
     .tag = .uuid
     .declspec = true
 
+neon_vector_type
+    .tag = .neon_vector_type
+    .gnu = true
+
+neon_polyvector_type
+    .tag = .neon_polyvector_type
+    .gnu = true
