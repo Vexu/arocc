@@ -33,6 +33,7 @@ const common = @import("Builtins/common.def").with(BuiltinBase);
 const hexagon = @import("Builtins/hexagon.def").with(BuiltinTarget);
 const loongarch = @import("Builtins/loongarch.def").with(BuiltinTarget);
 const mips = @import("Builtins/mips.def").with(BuiltinBase);
+const neon = @import("Builtins/neon.def").with(BuiltinBase);
 const nvptx = @import("Builtins/nvptx.def").with(BuiltinTarget);
 const powerpc = @import("Builtins/powerpc.def").with(BuiltinTarget);
 const riscv = @import("Builtins/riscv.def").with(BuiltinTarget);
@@ -52,6 +53,7 @@ pub const Tag = union(enum) {
     hexagon: hexagon.Tag,
     loongarch: loongarch.Tag,
     mips: mips.Tag,
+    neon: neon.Tag,
     nvptx: nvptx.Tag,
     powerpc: powerpc.Tag,
     riscv: riscv.Tag,
@@ -193,6 +195,10 @@ fn createType(desc: TypeDescription, it: *TypeDescription.TypeIterator, comp: *C
             } });
             builder.type = .{ .other = vector_qt };
         },
+        .q => {
+            // Todo: scalable vector
+            return .invalid;
+        },
         .Q => {
             // Todo: target builtin type
             return .invalid;
@@ -329,9 +335,15 @@ pub const FromName = struct {
 pub fn fromName(comp: *Compilation, name: []const u8) ?FromName {
     if (fromNameExtra(name, .common)) |found| return found;
     switch (comp.target.cpu.arch) {
-        .aarch64, .aarch64_be => if (fromNameExtra(name, .aarch64)) |found| return found,
+        .aarch64, .aarch64_be => {
+            if (fromNameExtra(name, .aarch64)) |found| return found;
+            if (fromNameExtra(name, .neon)) |found| return found;
+        },
         .amdgcn => if (fromNameExtra(name, .amdgcn)) |found| return found,
-        .arm, .armeb, .thumb, .thumbeb => if (fromNameExtra(name, .arm)) |found| return found,
+        .arm, .armeb, .thumb, .thumbeb => {
+            if (fromNameExtra(name, .arm)) |found| return found;
+            if (fromNameExtra(name, .neon)) |found| return found;
+        },
         .bpfeb, .bpfel => if (fromNameExtra(name, .bpf)) |found| return found,
         .hexagon => if (fromNameExtra(name, .hexagon)) |found| return found,
         .loongarch32, .loongarch64 => if (fromNameExtra(name, .loongarch)) |found| return found,
@@ -364,7 +376,7 @@ fn fromNameExtra(name: []const u8, comptime arch: std.meta.Tag(Tag)) ?FromName {
         .header = builtin.header,
         .language = builtin.language,
         .attributes = builtin.attributes,
-        .features = if (@hasField(@TypeOf(builtin), "features")) builtin.features else null,
+        .features = if (@hasField(@TypeOf(builtin), "features")) builtin.features else if (arch == .neon) "neon" else null,
     };
 }
 
@@ -378,7 +390,7 @@ test "all builtins" {
                 while (it.next()) |_| {}
             }
             if (@hasField(@TypeOf(builtin), "features")) {
-                const corrected_name = comptime if (std.mem.eql(u8, list_name, "x86_64")) "x86" else list_name;
+                const corrected_name = comptime if (std.mem.eql(u8, list_name, "x86_64")) "x86" else if (std.mem.eql(u8, list_name, "neon")) "aarch64" else list_name;
                 const features = &@field(std.Target, corrected_name).all_features;
 
                 const feature_string = builtin.features orelse continue;
