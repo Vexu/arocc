@@ -46,8 +46,8 @@ pub fn hasFeature(comp: *Compilation, ext: []const u8) bool {
         .c_thread_local = comp.langopts.standard.atLeast(.c11) and comp.target.isTlsSupported(),
         .bounds_attributes = comp.langopts.bounds_safety == .clang,
     };
-    inline for (@typeInfo(@TypeOf(list)).@"struct".fields) |f| {
-        if (std.mem.eql(u8, f.name, ext)) return @field(list, f.name);
+    inline for (@typeInfo(@TypeOf(list)).@"struct".field_names) |f_name| {
+        if (std.mem.eql(u8, f_name, ext)) return @field(list, f_name);
     }
     return false;
 }
@@ -70,8 +70,8 @@ pub fn hasExtension(comp: *Compilation, ext: []const u8) bool {
         .matrix_types = false, // TODO
         .matrix_types_scalar_division = false, // TODO
     };
-    inline for (@typeInfo(@TypeOf(list)).@"struct".fields) |f| {
-        if (std.mem.eql(u8, f.name, ext)) return @field(list, f.name);
+    inline for (@typeInfo(@TypeOf(list)).@"struct".field_names) |f_name| {
+        if (std.mem.eql(u8, f_name, ext)) return @field(list, f_name);
     }
     return false;
 }

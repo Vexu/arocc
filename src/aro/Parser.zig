@@ -455,8 +455,8 @@ pub fn err(p: *Parser, tok_i: TokenIndex, diagnostic: Diagnostic, args: anytype)
 
 fn formatArgs(p: *Parser, w: *std.Io.Writer, fmt: []const u8, args: anytype) !void {
     var i: usize = 0;
-    inline for (std.meta.fields(@TypeOf(args))) |arg_info| {
-        const arg = @field(args, arg_info.name);
+    inline for (comptime std.meta.fieldNames(@TypeOf(args))) |arg_name| {
+        const arg = @field(args, arg_name);
         i += switch (@TypeOf(arg)) {
             []const u8 => try Diagnostics.formatString(w, fmt[i..], arg),
             Tree.Token.Id => try formatTokenId(w, fmt[i..], arg),

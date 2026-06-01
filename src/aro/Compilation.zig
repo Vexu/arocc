@@ -78,12 +78,12 @@ pub const Environment = struct {
     pub fn loadAll(environ_map: *const std.process.Environ.Map) Environment {
         var env: Environment = .{};
 
-        inline for (@typeInfo(@TypeOf(env)).@"struct".fields) |field| {
-            std.debug.assert(@field(env, field.name) == null);
+        inline for (@typeInfo(@TypeOf(env)).@"struct".field_names) |field_name| {
+            std.debug.assert(@field(env, field_name) == null);
 
-            var env_var_buf: [field.name.len]u8 = undefined;
-            const env_var_name = std.ascii.upperString(&env_var_buf, field.name);
-            @field(env, field.name) = environ_map.get(env_var_name);
+            var env_var_buf: [field_name.len]u8 = undefined;
+            const env_var_name = std.ascii.upperString(&env_var_buf, field_name);
+            @field(env, field_name) = environ_map.get(env_var_name);
         }
         return env;
     }
