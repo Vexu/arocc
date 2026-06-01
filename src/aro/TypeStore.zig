@@ -1252,7 +1252,12 @@ pub const QualType = packed struct(u32) {
                 continue :loop func.return_type.type(comp);
             },
             .typeof => return true,
-            .typedef => |typedef| return !typedef.base.is(comp, .nullptr_t),
+            .typedef => |typedef| {
+                if (Builder.fromType(comp, typedef.base).str(comp.langopts)) |some| {
+                    return !std.mem.eql(u8, some, typedef.name.lookup(comp));
+                }
+                return true;
+            },
             else => return false,
         }
     }
@@ -1340,6 +1345,13 @@ pub const QualType = packed struct(u32) {
             .typeof => |typeof| if (desugar) {
                 continue :loop typeof.base.type(comp);
             } else {
+                if (qt.@"const" and !typeof.base.@"const") {
+                    try w.writeAll("const ");
+                }
+                if (qt.@"volatile" and !typeof.base.@"volatile") {
+                    try w.writeAll("volatile ");
+                }
+
                 try w.writeAll("typeof(");
                 try typeof.base.print(comp, w);
                 try w.writeAll(")");
@@ -1348,6 +1360,9 @@ pub const QualType = packed struct(u32) {
             .typedef => |typedef| if (desugar) {
                 continue :loop typedef.base.type(comp);
             } else {
+                if (qt.@"const") try w.writeAll("const ");
+                if (qt.@"volatile") try w.writeAll("volatile ");
+
                 try w.writeAll(typedef.name.lookup(comp));
                 return true;
             },

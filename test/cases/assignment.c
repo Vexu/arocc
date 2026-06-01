@@ -166,7 +166,7 @@ assignment.c:86:23: error: cannot assign to variable 'nested_struct' with const-
 assignment.c:85:24: note: variable 'nested_struct' declared const here
 assignment.c:88:15: error: cannot assign to variable 'func' with const-qualified type 'const int *(void)'
 assignment.c:99:12: error: variable has incomplete type 'enum E'
-assignment.c:106:7: error: cannot assign to variable 'a' with const-qualified type 'A' (aka 'const int')
+assignment.c:106:7: error: cannot assign to variable 'a' with const-qualified type 'const A' (aka 'const int')
 assignment.c:105:7: note: variable 'a' declared const here
 assignment.c:113:7: warning: incompatible pointer types assigning to 'unsigned int *' from incompatible type 'int *' converts between pointers to integer types with different sign [-Wpointer-sign]
 assignment.c:117:23: warning: implicit conversion from 'int' to 'unsigned char' changes value from 1000 to 232 [-Wconstant-conversion]

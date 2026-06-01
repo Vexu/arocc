@@ -135,27 +135,27 @@ skip = typeof type in error message missing const
 typeof.c:23:9: warning: incompatible pointer types assigning to 'typeof(typeof(int)) *' (aka 'int *') from incompatible type 'typeof(float) *' (aka 'float *') [-Wincompatible-pointer-types]
 typeof.c:27:7: error: cannot assign to variable 'x' with const-qualified type 'typeof(const int)' (aka 'const int')
 typeof.c:26:22: note: variable 'x' declared const here
-typeof.c:29:7: error: cannot assign to variable 'y' with const-qualified type 'typeof(typeof(typeof(int)))' (aka 'const int')
+typeof.c:29:7: error: cannot assign to variable 'y' with const-qualified type 'const typeof(typeof(typeof(int)))' (aka 'const int')
 typeof.c:28:23: note: variable 'y' declared const here
 typeof.c:33:30: error: initializing 'typeof(int *)' (aka 'int *') from incompatible type 'float'
 typeof.c:34:8: error: expected expression
 typeof.c:58:13: error: cannot assign to variable 'arr1' with const-qualified type 'const int [2]'
 typeof.c:57:25: note: variable 'arr1' declared const here
-typeof.c:60:13: error: cannot assign to variable 'arr2' with const-qualified type 'typeof(int [2])' (aka 'const int [2]')
+typeof.c:60:13: error: cannot assign to variable 'arr2' with const-qualified type 'const typeof(int [2])' (aka 'const int [2]')
 typeof.c:59:26: note: variable 'arr2' declared const here
 typeof.c:63:13: error: cannot assign to variable 'arr3' with const-qualified type 'const int [2]'
 typeof.c:62:25: note: variable 'arr3' declared const here
 typeof.c:65:13: error: cannot assign to variable 'arr4' with const-qualified type 'typeof(const int [2])' (aka 'const int [2]')
 typeof.c:64:26: note: variable 'arr4' declared const here
-typeof.c:68:13: error: cannot assign to variable 'arr5' with const-qualified type 'typeof(int) [2]'
+typeof.c:68:13: error: cannot assign to variable 'arr5' with const-qualified type 'const typeof(int) [2]'
 typeof.c:67:23: note: variable 'arr5' declared const here
 typeof.c:70:13: error: cannot assign to variable 'arr6' with const-qualified type 'typeof(const int) [2]'
 typeof.c:69:23: note: variable 'arr6' declared const here
 typeof.c:73:13: error: cannot assign to variable 'arr7' with const-qualified type 'const int [2]'
 typeof.c:72:15: note: variable 'arr7' declared const here
-typeof.c:76:13: error: cannot assign to variable 'arr8' with const-qualified type 'typeof(typeof(typeof(int [2])))' (aka 'const int [2]')
+typeof.c:76:13: error: cannot assign to variable 'arr8' with const-qualified type 'typeof(const typeof(typeof(int [2])))' (aka 'const int [2]')
 typeof.c:75:42: note: variable 'arr8' declared const here
-typeof.c:97:29: warning: initializing 'typeof(int *)' (aka 'int *const') from incompatible type 'const int [2]' discards qualifiers [-Wincompatible-pointer-types-discards-qualifiers]
+typeof.c:97:29: warning: initializing 'const typeof(int *)' (aka 'int *const') from incompatible type 'const int [2]' discards qualifiers [-Wincompatible-pointer-types-discards-qualifiers]
 typeof.c:112:5: error: invalid argument type 'char *' to unary expression
 typeof.c:118:5: warning: declaration does not declare anything [-Wmissing-declaration]
 typeof.c:127:26: error: array initializer must be an initializer list or wide string literal
