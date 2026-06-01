@@ -598,6 +598,10 @@ pub fn hasHalfPrecisionFloatABI(target: *const Target) bool {
     };
 }
 
+pub fn hasAArch64ACLETypes(target: *const Target) bool {
+    return target.cpu.arch.isAARCH64();
+}
+
 pub const FPSemantics = enum {
     None,
     IEEEHalf,
