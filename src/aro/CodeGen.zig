@@ -9,6 +9,7 @@ const Builder = Ir.Builder;
 
 const Builtins = @import("Builtins.zig");
 const Compilation = @import("Compilation.zig");
+const Preprocessor = @import("Preprocessor.zig");
 const StringId = @import("StringInterner.zig").StringId;
 const Tree = @import("Tree.zig");
 const Node = Tree.Node;
@@ -37,6 +38,7 @@ const CodeGen = @This();
 
 tree: *const Tree,
 comp: *Compilation,
+pp: *const Preprocessor,
 builder: Builder,
 wip_switch: *WipSwitch = undefined,
 symbols: std.ArrayList(Symbol) = .empty,
@@ -65,7 +67,7 @@ fn fail(c: *CodeGen, comptime fmt: []const u8, args: anytype) error{ FatalError,
     return error.FatalError;
 }
 
-pub fn genIr(tree: *const Tree) Compilation.Error!Ir {
+pub fn genIr(tree: *const Tree, pp: *const Preprocessor) Compilation.Error!Ir {
     const gpa = tree.comp.gpa;
     var c: CodeGen = .{
         .builder = .{
@@ -75,6 +77,7 @@ pub fn genIr(tree: *const Tree) Compilation.Error!Ir {
         },
         .tree = tree,
         .comp = tree.comp,
+        .pp = pp,
     };
     defer c.symbols.deinit(gpa);
     defer c.ret_nodes.deinit(gpa);
@@ -101,6 +104,7 @@ pub fn genIr(tree: *const Tree) Compilation.Error!Ir {
 
             .function => |function| {
                 if (function.body == null) continue;
+                if (function.@"inline") continue;
                 c.genFn(function) catch |err| switch (err) {
                     error.FatalError => return error.FatalError,
                     error.OutOfMemory => return error.OutOfMemory,
@@ -873,6 +877,14 @@ fn genExpr(c: *CodeGen, node_index: Node.Index) Error!Ir.Ref {
         .builtin_va_arg_pack,
         .builtin_va_arg_pack_len,
         => return c.fail("TODO CodeGen.genExpr {t}\n", .{node}),
+        .codegen_diagnostic => |diagnostic| {
+            try c.comp.diagnostics.addWithLocation(c.comp, .{
+                .kind = diagnostic.kind,
+                .text = @ptrCast(diagnostic.text),
+                .opt = diagnostic.opt,
+                .location = node_index.loc(c.tree).expand(c.comp),
+            }, c.pp.expansionSlice(diagnostic.tok), true);
+        },
         else => unreachable, // Not an expression.
     }
     return .none;

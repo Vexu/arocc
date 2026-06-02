@@ -1520,7 +1520,7 @@ fn processSource(
             return;
         }
     } else {
-        var ir = try tree.genIr();
+        var ir = try tree.genIr(&pp);
         defer ir.deinit(gpa);
 
         if (d.verbose_ir) {

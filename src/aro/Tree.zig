@@ -5,6 +5,7 @@ const Interner = @import("backend").Interner;
 const Attribute = @import("Attribute.zig");
 const CodeGen = @import("CodeGen.zig");
 const Compilation = @import("Compilation.zig");
+const Diagnostics = @import("Diagnostics.zig");
 const number_affixes = @import("Tree/number_affixes.zig");
 const Source = @import("Source.zig");
 const Tokenizer = @import("Tokenizer.zig");
@@ -296,6 +297,8 @@ pub const Node = union(enum) {
     array_filler_expr: ArrayFiller,
     /// Inserted in record and scalar initializers for unspecified elements.
     default_init_expr: DefaultInit,
+
+    codegen_diagnostic: CodegenDiagnostic,
 
     pub const EmptyDecl = struct {
         semicolon: TokenIndex,
@@ -740,6 +743,13 @@ pub const Node = union(enum) {
     pub const DefaultInit = struct {
         last_tok: TokenIndex,
         qt: QualType,
+    };
+
+    pub const CodegenDiagnostic = struct {
+        tok: TokenIndex,
+        kind: Diagnostics.Message.Kind,
+        opt: ?Diagnostics.Option,
+        text: []const u32,
     };
 
     pub const Index = enum(u32) {
@@ -1785,6 +1795,23 @@ pub const Node = union(enum) {
                         },
                     };
                 },
+                .codegen_diagnostic => {
+                    const attr: Node.Repr.DiagnosticPack = @bitCast(node_data[0]);
+                    return .{
+                        .codegen_diagnostic = .{
+                            .tok = node_tok,
+                            .kind = switch (attr.kind) {
+                                .@"error" => .@"error",
+                                .warning => .warning,
+                            },
+                            .opt = switch (attr.opt) {
+                                .none => null,
+                                .@"attribute-warning" => .@"attribute-warning",
+                            },
+                            .text = @ptrCast(tree.extra.items[node_data[1]..][0..node_data[2]]),
+                        },
+                    };
+                },
             };
         }
 
@@ -1870,6 +1897,18 @@ pub const Node = union(enum) {
             implicit: bool = false,
             register: bool = false,
             _: u26 = 0,
+        };
+
+        const DiagnosticPack = packed struct(u32) {
+            kind: enum(u1) {
+                @"error",
+                warning,
+            },
+            opt: enum(u1) {
+                none,
+                @"attribute-warning",
+            },
+            _: u30 = 0,
         };
 
         pub const Tag = enum(u8) {
@@ -2005,6 +2044,7 @@ pub const Node = union(enum) {
             array_filler_expr,
             default_init_expr,
             compound_literal_expr,
+            codegen_diagnostic,
         };
     };
 
@@ -2883,6 +2923,22 @@ pub fn setNode(tree: *Tree, node: Node, index: usize) !void {
             });
             repr.data[2] = @intFromEnum(literal.initializer);
             repr.tok = literal.l_paren_tok;
+        },
+        .codegen_diagnostic => |diagnostic| {
+            repr.tag = .codegen_diagnostic;
+            repr.data[0] = @bitCast(Node.Repr.DiagnosticPack{
+                .kind = switch (diagnostic.kind) {
+                    .@"error" => .@"error",
+                    .warning => .warning,
+                    else => unreachable,
+                },
+                .opt = if (diagnostic.opt) |opt| switch (opt) {
+                    .@"attribute-warning" => .@"attribute-warning",
+                    else => unreachable,
+                } else .none,
+            });
+            repr.data[1], repr.data[2] = try tree.addExtra(@ptrCast(diagnostic.text));
+            repr.tok = diagnostic.tok;
         },
     }
     tree.nodes.set(index, repr);
@@ -3821,5 +3877,12 @@ fn dumpNode(
         .cond_dummy_expr,
         .compound_assign_dummy_expr,
         => {},
+        .codegen_diagnostic => |diagnostic| {
+            try w.splatByteAll(' ', level + 1);
+            try w.print("{t}: {s}", .{ diagnostic.kind, @as([]const u8, @ptrCast(diagnostic.text)) });
+            if (diagnostic.opt) |opt| {
+                try w.print(" [-W{t}]", .{opt});
+            }
+        },
     }
 }
