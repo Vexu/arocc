@@ -113,11 +113,13 @@ __attribute__((void)) int a;
 
 int (__attribute__((aligned)) a);
 
+[[deprecated("foo")]] int c23_extension;
+
 __attribute__(()) // test attribute at eof
 
 /** manifest:
 syntax
-args = -Wno-deprecated-non-prototype
+args = -Wno-deprecated-non-prototype -Wc23-extensions -std=gnu17
 
 attributes.c:8:26: warning: attribute 'noreturn' ignored on variables [-Wignored-attributes]
 attributes.c:9:26: warning: unknown attribute 'does_not_exist' ignored [-Wunknown-attributes]
@@ -128,5 +130,6 @@ attributes.c:40:20: error: 'noreturn' attribute cannot be applied to a statement
 attributes.c:76:6: error: cannot call non function type 'int'
 attributes.c:110:24: error: attribute argument is invalid, expected a string but got an integer constant
 attributes.c:112:16: warning: unknown attribute 'void' ignored [-Wunknown-attributes]
-attributes.c:116:18: error: expected external declaration
+attributes.c:116:1: warning: [[]] attributes are a C23 extension [-Wc23-extensions]
+attributes.c:118:18: error: expected external declaration
 */

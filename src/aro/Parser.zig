@@ -1940,12 +1940,12 @@ fn msvcAttributeList(p: *Parser) Error!void {
 }
 
 fn c23Attribute(p: *Parser) !bool {
-    if (!p.comp.langopts.standard.atLeast(.c23)) return false;
     const bracket1 = p.eatToken(.l_bracket) orelse return false;
     const bracket2 = p.eatToken(.l_bracket) orelse {
         p.tok_i -= 1;
         return false;
     };
+    try p.err(bracket1, .c23_attribute, .{});
 
     try p.c23AttributeList();
 
