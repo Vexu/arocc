@@ -10,6 +10,11 @@
 # define SZ_KEYINFO_0   sizeof(KeyInfo)
 #endif
 
+#define FOO
+#if FOO + 1 != 1
+#error
+#endif
+
 
 /** manifest:
 syntax

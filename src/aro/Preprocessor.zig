@@ -1176,7 +1176,7 @@ fn expr(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!bool {
         removePlacemarkers(gpa, &pp.top_expansion_buf);
     }
     for (pp.top_expansion_buf.items) |tok| {
-        if (tok.id == .macro_ws) continue;
+        if (tok.id == .macro_ws or tok.id == .whitespace) continue;
         if (!tok.id.validPreprocessorExprStart()) {
             try pp.err(tok, .invalid_preproc_expr_start, .{});
             return false;
