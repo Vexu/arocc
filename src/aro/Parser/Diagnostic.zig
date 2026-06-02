@@ -2583,3 +2583,11 @@ pub const block_to_non_function: Diagnostic = .{
     .fmt = "block pointer to non-function type is invalid",
     .kind = .@"error",
 };
+
+pub const c23_attribute: Diagnostic = .{
+    .fmt = "[[]] attributes are a C23 extension",
+    .opt = .@"c23-extensions",
+    .kind = .off,
+    .suppress_version = .c23,
+    .extension = true,
+};
