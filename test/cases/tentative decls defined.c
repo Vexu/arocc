@@ -12,6 +12,9 @@ int a = 1;
 extern int a;
 int a;
 
+extern int b;
+int b;
+
 int bar(void) {
     int baz(void);
     int baz(void);

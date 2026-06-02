@@ -18,12 +18,15 @@ implicit typedef: '__mfp8'
 
 variable: 'neon_vector(2, unsigned long)'
  name: a
+ definition: 0x7
 
 variable: 'neon_vector(2, double)'
  name: b
+ definition: 0x9
 
 variable: 'neon_polyvector(2, unsigned long)'
  name: g
+ definition: 0x13
 
 function: 'fn () void'
  name: foo

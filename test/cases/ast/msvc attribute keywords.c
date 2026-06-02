@@ -15,10 +15,12 @@ implicit typedef: 'struct __NSConstantString_tag'
 
 variable: '*attributed(int)'
  name: a
+ definition: 0x5
 
 variable: 'attributed(int)'
  attr: unaligned
  name: b
+ definition: 0x6
 
 function: 'kr (...) int'
  name: foo
@@ -35,7 +37,9 @@ function: 'fn (fn_ptr: *fn () void) void'
 
 variable: 'unsigned long long'
  name: l
+ definition: 0xE
 
 variable: 'unsigned long long'
  name: l
+ definition: 0xE
 

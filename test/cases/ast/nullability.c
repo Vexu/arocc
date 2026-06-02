@@ -19,14 +19,17 @@ implicit typedef: 'long double'
 variable: 'attributed(*int)'
  attr: nullability kind: nonnull
  name: a
+ definition: 0x6
 
 variable: 'attributed(*int)'
  attr: nullability kind: nonnull
  name: b
+ definition: 0x7
 
 variable: 'attributed(int)'
  attr: nullability kind: nonnull
  name: c
+ definition: 0x8
 
 function: 'attributed(fn () int)'
  attr: nullability kind: nullable

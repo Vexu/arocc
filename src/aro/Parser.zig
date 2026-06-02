@@ -711,11 +711,34 @@ pub fn setTentativeDeclDefinition(p: *Parser, tentative_decl: Node.Index, defini
     }
 }
 
-/// Clears the defintion field of declarations that were not defined so that
-/// the field always contains a _def if present.
-fn clearNonTentativeDefinitions(p: *Parser) void {
+/// Resolves file-scope tentative definitions, then clears definition fields of
+/// declarations that were not defined.
+fn finalizeTentativeDefinitions(p: *Parser) Allocator.Error!void {
+    var finalized: std.AutoHashMapUnmanaged(StringId, void) = .empty;
+    defer finalized.deinit(p.comp.gpa);
+
     const tags = p.tree.nodes.items(.tag);
     const data = p.tree.nodes.items(.data);
+
+    var i = p.tree.root_decls.items.len;
+    while (i > 0) {
+        i -= 1;
+        const root_decl = p.tree.root_decls.items[i];
+        if (tags[@intFromEnum(root_decl)] != .variable) continue;
+
+        const variable = root_decl.get(&p.tree).variable;
+        if (variable.storage_class == .@"extern") continue;
+
+        const name = try p.comp.internString(p.tree.tokSlice(variable.name_tok));
+        const gop = try finalized.getOrPut(p.comp.gpa, name);
+        if (gop.found_existing) continue;
+
+        const node_data = &data[@intFromEnum(root_decl)];
+        if (node_data[2] == @intFromEnum(Node.OptIndex.null) or tags[node_data[2]] != .variable_def) {
+            p.setTentativeDeclDefinition(root_decl, root_decl);
+        }
+    }
+
     for (p.tree.root_decls.items) |root_decl| {
         switch (tags[@intFromEnum(root_decl)]) {
             .fn_proto => {
@@ -729,7 +752,7 @@ fn clearNonTentativeDefinitions(p: *Parser) void {
             .variable => {
                 const node_data = &data[@intFromEnum(root_decl)];
                 if (node_data[2] != @intFromEnum(Node.OptIndex.null)) {
-                    if (tags[node_data[2]] != .variable_def) {
+                    if (tags[node_data[2]] != .variable_def and !p.isTentativeDefinitionNode(@enumFromInt(node_data[2]))) {
                         node_data[2] = @intFromEnum(Node.OptIndex.null);
                     }
                 }
@@ -737,6 +760,11 @@ fn clearNonTentativeDefinitions(p: *Parser) void {
             else => {},
         }
     }
+}
+
+fn isTentativeDefinitionNode(p: *Parser, node: Node.Index) bool {
+    const var_node = p.getNode(node, .variable) orelse return false;
+    return var_node.storage_class != .@"extern";
 }
 
 fn findLabel(p: *Parser, name: []const u8) ?TokenIndex {
@@ -953,7 +981,7 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
     }
     pp.comp.pragmaEvent(.after_parse);
 
-    p.clearNonTentativeDefinitions();
+    try p.finalizeTentativeDefinitions();
 
     return p.tree;
 }
