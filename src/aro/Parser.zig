@@ -618,11 +618,11 @@ pub fn errValueChanged(p: *Parser, tok_i: TokenIndex, diagnostic: Diagnostic, re
 fn checkDeprecatedUnavailable(p: *Parser, ty: QualType, usage_tok: TokenIndex, decl_tok: TokenIndex) !void {
     if (ty.getAttribute(p.comp, .@"error")) |@"error"| {
         const msg_str = p.comp.interner.get(@"error".msg.ref()).bytes;
-        try p.err(usage_tok, .error_attribute, .{ p.tokSlice(@"error".__name_tok), Escaped.init(msg_str) });
+        try p.codegenDiagnostic(usage_tok, .error_attribute, .{ p.tokSlice(@"error".__name_tok), Escaped.init(msg_str) });
     }
     if (ty.getAttribute(p.comp, .warning)) |warning| {
         const msg_str = p.comp.interner.get(warning.msg.ref()).bytes;
-        try p.err(usage_tok, .warning_attribute, .{ p.tokSlice(warning.__name_tok), Escaped.init(msg_str) });
+        try p.codegenDiagnostic(usage_tok, .warning_attribute, .{ p.tokSlice(warning.__name_tok), Escaped.init(msg_str) });
     }
     if (ty.getAttribute(p.comp, .unavailable)) |unavailable| {
         try p.errDeprecated(usage_tok, .unavailable, unavailable.msg);
@@ -637,6 +637,33 @@ fn checkDeprecatedUnavailable(p: *Parser, ty: QualType, usage_tok: TokenIndex, d
         }
         try p.err(deprecated.__name_tok, .deprecated_note, .{p.tokSlice(decl_tok)});
     }
+}
+
+fn codegenDiagnostic(p: *Parser, usage_tok: TokenIndex, diagnostic: Diagnostic, args: anytype) !void {
+    assert(!diagnostic.extension);
+    assert(diagnostic.suppress_unless_version == null);
+    assert(diagnostic.suppress_version == null);
+    if (p.diagnostics.effectiveKind(diagnostic) == .off) return;
+
+    var bfa_buf: [1024]u8 align(4) = undefined;
+    var bfa: std.heap.BufferFirstAllocator = .init(&bfa_buf, p.comp.gpa);
+    var allocating: std.Io.Writer.Allocating = .initAligned(bfa.allocator(), .of(u32));
+    defer allocating.deinit();
+
+    p.formatArgs(&allocating.writer, diagnostic.fmt, args) catch return error.OutOfMemory;
+
+    const remainder = 4 - allocating.written().len % 4;
+    allocating.writer.splatByteAll(0, remainder) catch return error.OutOfMemory;
+
+    const node = try p.tree.addNode(.{
+        .codegen_diagnostic = .{
+            .tok = usage_tok,
+            .kind = diagnostic.kind,
+            .opt = diagnostic.opt,
+            .text = @ptrCast(@alignCast(allocating.written())),
+        },
+    });
+    try p.decl_buf.append(p.comp.gpa, node);
 }
 
 fn errDeprecated(p: *Parser, tok_i: TokenIndex, diagnostic: Diagnostic, msg: ?Value) Compilation.Error!void {
