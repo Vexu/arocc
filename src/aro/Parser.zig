@@ -3577,7 +3577,7 @@ const Declarator = struct {
                     if (elem_array_ty.len == .static) {
                         try p.err(source_tok, .static_non_outermost_array, .{});
                     }
-                    if (elem_qt.isQualified()) {
+                    if (elem_qt.isQualified() and elem_qt.type(p.comp) != .typedef) {
                         try p.err(source_tok, .qualifier_non_outermost_array, .{});
                     }
                 }
