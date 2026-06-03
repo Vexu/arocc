@@ -140,19 +140,6 @@ fn runCaseExtra(
         }
     }
 
-    if (@import("builtin").os.tag == .windows) {
-        // I have no idea why these block on windows
-        if (mem.eql(u8, case.name, "assignment") or
-            mem.eql(u8, case.name, "attribute errors") or
-            mem.eql(u8, case.name, "initializers") or
-            mem.eql(u8, case.name, "layout overflow"))
-        {
-            print("{s}: skipped on windows\n", .{case.name});
-            _ = @atomicRmw(u32, &stats.skipped, .Add, @intCast(case.skips.len), .monotonic);
-            return;
-        }
-    }
-
     const stdout, const stderr = run: {
         var child = try process.spawn(io, .{
             .argv = args.items,
