@@ -739,22 +739,6 @@ fn finalizeTentativeDefinitions(p: *Parser) Allocator.Error!void {
     while (i > 0) {
         i -= 1;
         const root_decl = p.tree.root_decls.items[i];
-        if (tags[@intFromEnum(root_decl)] != .variable) continue;
-
-        const variable = root_decl.get(&p.tree).variable;
-        if (variable.storage_class == .@"extern") continue;
-
-        const name = try p.comp.internString(p.tree.tokSlice(variable.name_tok));
-        const gop = try finalized.getOrPut(p.comp.gpa, name);
-        if (gop.found_existing) continue;
-
-        const node_data = &data[@intFromEnum(root_decl)];
-        if (node_data[2] == @intFromEnum(Node.OptIndex.null) or tags[node_data[2]] != .variable_def) {
-            p.setTentativeDeclDefinition(root_decl, root_decl);
-        }
-    }
-
-    for (p.tree.root_decls.items) |root_decl| {
         switch (tags[@intFromEnum(root_decl)]) {
             .fn_proto => {
                 const node_data = &data[@intFromEnum(root_decl)];
@@ -765,7 +749,15 @@ fn finalizeTentativeDefinitions(p: *Parser) Allocator.Error!void {
                 }
             },
             .variable => {
+                const variable = root_decl.get(&p.tree).variable;
                 const node_data = &data[@intFromEnum(root_decl)];
+                if (variable.storage_class != .@"extern") {
+                    const name = try p.comp.internString(p.tree.tokSlice(variable.name_tok));
+                    const gop = try finalized.getOrPut(p.comp.gpa, name);
+                    if (!gop.found_existing and (node_data[2] == @intFromEnum(Node.OptIndex.null) or tags[node_data[2]] != .variable_def)) {
+                        p.setTentativeDeclDefinition(root_decl, root_decl);
+                    }
+                }
                 if (node_data[2] != @intFromEnum(Node.OptIndex.null)) {
                     if (tags[node_data[2]] != .variable_def and !p.isTentativeDefinitionNode(@enumFromInt(node_data[2]))) {
                         node_data[2] = @intFromEnum(Node.OptIndex.null);
