@@ -53,11 +53,11 @@ invalid types.c:20:17: error: array has incomplete element type 'struct bar'
 invalid types.c:23:9: error: size of array has non-integer type 'char [4]'
 invalid types.c:24:13: error: array initializer must be an initializer list or wide string literal
 invalid types.c:25:13: error: array initializer must be an initializer list or wide string literal
-invalid types.c:27:5: warning: tentative array definition assumed to have one element
 invalid types.c:29:6: error: redefinition of 'foo'
 invalid types.c:14:6: note: previous definition is here
 invalid types.c:30:9: error: variable has incomplete type 'int []'
 invalid types.c:34:44: error: array has incomplete element type 'struct Incomplete'
 invalid types.c:8:12: error: tentative definition has type 'struct Bar' that is never completed
 invalid types.c:8:8: note: forward declaration of 'struct Bar'
+invalid types.c:27:5: warning: tentative array definition assumed to have one element
 */

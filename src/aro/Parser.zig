@@ -32,6 +32,24 @@ const QualType = TypeStore.QualType;
 const Value = @import("Value.zig");
 
 const NodeList = std.ArrayList(Node.Index);
+const TentativeDefinitionKey = struct {
+    name: StringId,
+    kind: Kind,
+
+    const Kind = enum {
+        incomplete_type,
+        tentative_array,
+    };
+
+    fn incompleteType(name: StringId) TentativeDefinitionKey {
+        return .{ .name = name, .kind = .incomplete_type };
+    }
+
+    fn tentativeArray(name: StringId) TentativeDefinitionKey {
+        return .{ .name = name, .kind = .tentative_array };
+    }
+};
+
 const Switch = struct {
     default: ?TokenIndex = null,
     ranges: std.ArrayList(Range) = .empty,
@@ -124,13 +142,10 @@ record_buf: std.ArrayList(Type.Record.Field) = .empty,
 attr_buf: std.MultiArrayList(TentativeAttribute) = .empty,
 /// Used to store validated attributes before they are applied to types.
 attr_application_buf: std.ArrayList(Attribute) = .empty,
-/// type name -> variable name location for tentative definitions (top-level defs with thus-far-incomplete types)
-/// e.g. `struct Foo bar;` where `struct Foo` is not defined yet.
-/// The key is the StringId of `Foo` and the value is the TokenIndex of `bar`
-/// Items are removed if the type is subsequently completed with a definition.
-/// We only store the first tentative definition that uses a given type because this map is only used
-/// for issuing an error message, and correcting the first error for a type will fix all of them for that type.
-tentative_defs: std.AutoHashMapUnmanaged(StringId, TokenIndex) = .empty,
+/// Tentative definitions that require a delayed diagnostic unless completed later.
+/// For incomplete records/enums, the key stores the type name and the value is a variable name token.
+/// For incomplete arrays, the key stores the variable name and the value is the name token.
+tentative_defs: std.AutoArrayHashMapUnmanaged(TentativeDefinitionKey, TokenIndex) = .empty,
 
 // configuration and miscellaneous info
 no_eval: bool = false,
@@ -767,6 +782,19 @@ fn isTentativeDefinitionNode(p: *Parser, node: Node.Index) bool {
     return var_node.storage_class != .@"extern";
 }
 
+fn completesTentativeArray(p: *Parser, name: StringId, qt: QualType) bool {
+    if (!p.tentative_defs.contains(TentativeDefinitionKey.tentativeArray(name))) return false;
+    const array_ty = qt.get(p.comp, .array) orelse return false;
+    if (array_ty.len != .fixed) return false;
+
+    const prev = p.syms.findSymbol(name) orelse return false;
+    if (prev.kind != .decl) return false;
+    const prev_array_ty = prev.qt.get(p.comp, .array) orelse return false;
+    if (prev_array_ty.len != .incomplete) return false;
+
+    return qt.eqlQualified(prev.qt, p.comp);
+}
+
 fn findLabel(p: *Parser, name: []const u8) ?TokenIndex {
     for (p.labels.items) |item| {
         switch (item) {
@@ -844,9 +872,17 @@ fn diagnoseIncompleteDefinitions(p: *Parser) !void {
             else => unreachable,
         };
 
-        const tentative_def_tok = p.tentative_defs.get(decl_type_name) orelse continue;
+        const tentative_def_tok = p.tentative_defs.get(TentativeDefinitionKey.incompleteType(decl_type_name)) orelse continue;
         try p.err(tentative_def_tok, .tentative_definition_incomplete, .{forward.container_qt});
         try p.err(forward.name_or_kind_tok, .forward_declaration_here, .{forward.container_qt});
+    }
+}
+
+fn diagnoseTentativeArrays(p: *Parser) !void {
+    var it = p.tentative_defs.iterator();
+    while (it.next()) |entry| {
+        if (entry.key_ptr.kind != .tentative_array) continue;
+        try p.err(entry.value_ptr.*, .tentative_array, .{});
     }
 }
 
@@ -971,6 +1007,7 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
     }
     if (p.tentative_defs.count() > 0) {
         try p.diagnoseIncompleteDefinitions();
+        try p.diagnoseTentativeArrays();
     }
 
     p.tree.root_decls = p.decl_buf;
@@ -1467,6 +1504,7 @@ fn decl(p: *Parser) Error!bool {
         try p.decl_buf.append(gpa, decl_node);
 
         const interned_name = try p.comp.internString(p.tokSlice(init_d.d.name));
+        const completes_tentative_array = p.completesTentativeArray(interned_name, init_d.d.qt);
         if (decl_spec.storage_class == .typedef) {
             const typedef_qt = if (init_d.d.qt.isInvalid())
                 init_d.d.qt
@@ -1496,6 +1534,7 @@ fn decl(p: *Parser) Error!bool {
         } else {
             try p.syms.declareSymbol(p, interned_name, init_d.d.qt, init_d.d.name, decl_node);
         }
+        if (completes_tentative_array) _ = p.tentative_defs.orderedRemove(TentativeDefinitionKey.tentativeArray(interned_name));
 
         if (p.eatToken(.comma) == null) break;
 
@@ -2235,16 +2274,16 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec, attr_buf_top: usize, decl_no
         if (p.func.qt == null) {
             switch (init_type) {
                 .array => |array_ty| if (array_ty.len == .incomplete) {
-                    // TODO properly check this after finishing parsing
-                    try p.err(name, .tentative_array, .{});
+                    const interned_name = try p.comp.internString(p.tokSlice(name));
+                    _ = try p.tentative_defs.getOrPutValue(gpa, TentativeDefinitionKey.tentativeArray(interned_name), name);
                     break :incomplete;
                 },
                 .@"struct", .@"union" => |record_ty| {
-                    _ = try p.tentative_defs.getOrPutValue(gpa, record_ty.name, init_d.d.name);
+                    _ = try p.tentative_defs.getOrPutValue(gpa, TentativeDefinitionKey.incompleteType(record_ty.name), init_d.d.name);
                     break :incomplete;
                 },
                 .@"enum" => |enum_ty| {
-                    _ = try p.tentative_defs.getOrPutValue(gpa, enum_ty.name, init_d.d.name);
+                    _ = try p.tentative_defs.getOrPutValue(gpa, TentativeDefinitionKey.incompleteType(enum_ty.name), init_d.d.name);
                     break :incomplete;
                 },
                 else => {},
@@ -2726,7 +2765,7 @@ fn recordSpec(p: *Parser) Error!QualType {
     };
     try p.tree.setNode(if (is_struct) .{ .struct_decl = cd } else .{ .union_decl = cd }, reserved_index);
     if (p.func.qt == null) {
-        _ = p.tentative_defs.remove(record_ty.name);
+        _ = p.tentative_defs.orderedRemove(TentativeDefinitionKey.incompleteType(record_ty.name));
     }
     return attributed_qt;
 }
@@ -3209,7 +3248,7 @@ fn enumSpec(p: *Parser) Error!QualType {
     } }, reserved_index);
 
     if (p.func.qt == null) {
-        _ = p.tentative_defs.remove(enum_ty.name);
+        _ = p.tentative_defs.orderedRemove(TentativeDefinitionKey.incompleteType(enum_ty.name));
     }
     return attributed_qt;
 }
