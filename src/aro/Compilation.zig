@@ -2369,8 +2369,15 @@ pub fn findInclude(
     }) orelse return null;
     if (found.used_ms_search_rule) {
         const diagnostic: Diagnostic = .ms_search_rule;
+        var buf: [1024]u8 = undefined;
+        var bfa: std.heap.BufferFirstAllocator = .init(&buf, comp.gpa);
+        var allocating: std.Io.Writer.Allocating = .init(bfa.allocator());
+        defer allocating.deinit();
+
+        Diagnostics.formatArgs(&allocating.writer, diagnostic.fmt, .{filename}) catch return error.OutOfMemory;
+
         try comp.diagnostics.add(.{
-            .text = diagnostic.fmt,
+            .text = allocating.written(),
             .kind = diagnostic.kind,
             .opt = diagnostic.opt,
             .extension = diagnostic.extension,
