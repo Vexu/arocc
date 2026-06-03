@@ -2086,9 +2086,10 @@ pub fn hasInclude(
     include_type: IncludeType,
     /// __has_include vs __has_include_next
     which: WhichInclude,
+    umbrella_framework: ?[]const u8,
     opt_dep_file: ?*DepFile,
 ) Compilation.Error!bool {
-    if (try FindInclude.run(comp, filename, include_type, switch (which) {
+    if (try FindInclude.run(comp, filename, umbrella_framework, include_type, switch (which) {
         .next => .{ .only_search_after_dir = comp.getSource(includer_token_source).path },
         .first => switch (include_type) {
             .cli => unreachable,
@@ -2116,11 +2117,14 @@ const FindInclude = struct {
         source: Source.Id,
         kind: Source.Kind,
         used_ms_search_rule: bool,
+        /// Allocated using the compilation arena allocator.
+        umbrella_framework: ?[]const u8 = null,
     };
 
     fn run(
         comp: *Compilation,
         include_path: []const u8,
+        umbrella_framework: ?[]const u8,
         include_type: IncludeType,
         search_strat: union(enum) {
             allow_same_dir: []const u8,
@@ -2156,6 +2160,7 @@ const FindInclude = struct {
                 find.wait_for = std.fs.path.dirname(other_file);
             },
         }
+
         for (comp.search_path.items) |include| {
             if (include.kind == .quote) {
                 if (include_type != .angle_brackets) {
@@ -2170,9 +2175,18 @@ const FindInclude = struct {
                 if (try find.checkIncludeDir(include.path, source_kind)) |res| return res;
             }
         }
+
         if (comp.ms_cwd_source_id) |source_id| {
             if (try find.checkMsCwdIncludeDir(source_id)) |res| return res;
         }
+
+        if (umbrella_framework) |uf| {
+            if (try find.checkSubframeworkDir(uf, switch (include_type) {
+                .quotes, .cli => .user,
+                .angle_brackets => .system,
+            })) |res| return res;
+        }
+
         return null;
     }
     fn checkIncludeDir(find: *FindInclude, include_dir: []const u8, kind: Source.Kind) Allocator.Error!?Result {
@@ -2189,6 +2203,7 @@ const FindInclude = struct {
             find.include_path,
         }, .user, true);
     }
+
     fn checkFrameworkDir(find: *FindInclude, framework_dir: []const u8, kind: Source.Kind) Allocator.Error!?Result {
         // For an include like 'Foo/Bar.h', search in '<framework_dir>/Foo.framework/Headers/Bar.h'.
         const framework_name: []const u8, const header_sub_path: []const u8 = f: {
@@ -2198,15 +2213,51 @@ const FindInclude = struct {
         var bfa_buf: [path_buf_stack_limit]u8 = undefined;
         var bfa_state: std.heap.BufferFirstAllocator = .init(&bfa_buf, find.comp.gpa);
         const bfa = bfa_state.allocator();
+
+        // If the search succeeds, we consider the curent framework the umbrella framework for all
+        // downstream includes.
+        const umbrella_framework = try std.fmt.allocPrint(bfa, "{f}", .{std.fs.path.fmtJoin(&.{
+            framework_dir,
+            try std.fmt.allocPrint(bfa, "{s}.framework", .{framework_name}),
+        })});
+        defer bfa.free(umbrella_framework);
+        std.debug.print("checking = '{s}'\n", .{umbrella_framework});
+
+        var res = try find.check(&.{
+            umbrella_framework,
+            "Headers",
+            header_sub_path,
+        }, kind, false) orelse return null;
+
+        find.comp.normalizePath(umbrella_framework);
+        res.umbrella_framework = try find.comp.arena.dupe(u8, umbrella_framework);
+        return res;
+    }
+
+    fn checkSubframeworkDir(find: *FindInclude, umbrella_framework: []const u8, kind: Source.Kind) Allocator.Error!?Result {
+        const framework_name: []const u8, const header_sub_path: []const u8 = f: {
+            const i = std.mem.indexOfScalar(u8, find.include_path, '/') orelse return null;
+            break :f .{ find.include_path[0..i], find.include_path[i + 1 ..] };
+        };
+        var bfa_buf: [path_buf_stack_limit]u8 = undefined;
+        var bfa_state: std.heap.BufferFirstAllocator = .init(&bfa_buf, find.comp.gpa);
+        const bfa = bfa_state.allocator();
         const framework_lookup = try std.fmt.allocPrint(bfa, "{s}.framework", .{framework_name});
         defer bfa.free(framework_lookup);
+
+        // A match into a subframework resets the active umbrella framework
+        // back to null (by not setting the relative Result field) because
+        // we assume that subframeworks don't see one another within the
+        // same umbrella framework.
         return find.check(&.{
-            framework_dir,
+            umbrella_framework,
+            "Frameworks",
             framework_lookup,
             "Headers",
             header_sub_path,
         }, kind, false);
     }
+
     fn check(
         find: *FindInclude,
         paths: []const []const u8,
@@ -2350,16 +2401,25 @@ pub fn findEmbed(
     return null;
 }
 
+pub const FoundInclude = struct {
+    source: Source,
+    /// When serching macOS frameworks, used to resolve subframework headers.
+    /// Allocated on the Compilation arena allocator.
+    umbrella_framework: ?[]const u8,
+};
+
+/// On success returns a new source and, if the new source is part of a macOS umbrella framework, a non-null framework path.
 pub fn findInclude(
     comp: *Compilation,
     filename: []const u8,
+    umbrella_framework: ?[]const u8,
     includer_token: Token,
     /// angle bracket vs quotes
     include_type: IncludeType,
     /// include vs include_next
     which: WhichInclude,
-) Compilation.Error!?Source {
-    const found = try FindInclude.run(comp, filename, include_type, switch (which) {
+) Compilation.Error!?FoundInclude {
+    const found = try FindInclude.run(comp, filename, umbrella_framework, include_type, switch (which) {
         .next => .{ .only_search_after_dir = comp.getSource(includer_token.source).path },
         .first => switch (include_type) {
             .cli => .{ .allow_same_dir = "." },
@@ -2388,7 +2448,10 @@ pub fn findInclude(
             }).expand(comp),
         });
     }
-    return comp.getSource(found.source);
+    return .{
+        .source = comp.getSource(found.source),
+        .umbrella_framework = found.umbrella_framework,
+    };
 }
 
 pub fn addPragmaHandler(comp: *Compilation, name: []const u8, handler: *Pragma) Allocator.Error!void {

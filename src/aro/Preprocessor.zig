@@ -253,6 +253,8 @@ expansion_source_loc: Source.Location = undefined,
 poisoned_identifiers: std.StringHashMapUnmanaged(void) = .empty,
 /// Map from Source.Id to macro name in the `#ifndef` condition which guards the source, if any
 include_guards: std.AutoHashMapUnmanaged(Source.Id, []const u8) = .empty,
+/// Used to resolve macOS subframeworks
+umbrella_framework: ?[]const u8 = null,
 
 /// Store `keyword_define` and `keyword_undef` tokens.
 /// Used to implement preprocessor debug dump options
@@ -1959,9 +1961,9 @@ fn handleBuiltinMacro(pp: *Preprocessor, builtin: Macro.Builtin.Func, param_toks
                 if (builtin == .has_include_next) {
                     try pp.err(src_loc, .include_next_outside_header, .{});
                 }
-                return pp.comp.hasInclude(filename, src_loc.id, include_type, .first, pp.dep_file);
+                return pp.comp.hasInclude(filename, src_loc.id, include_type, .first, pp.umbrella_framework, pp.dep_file);
             }
-            return pp.comp.hasInclude(filename, src_loc.id, include_type, .next, pp.dep_file);
+            return pp.comp.hasInclude(filename, src_loc.id, include_type, .next, pp.umbrella_framework, pp.dep_file);
         },
         else => unreachable,
     }
@@ -3538,7 +3540,7 @@ fn embed(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!void {
 // Handle a #include directive.
 fn include(pp: *Preprocessor, tokenizer: *Tokenizer, which: Compilation.WhichInclude) MacroError!void {
     const first = tokenizer.nextNoWS();
-    const new_source = findIncludeSource(pp, tokenizer, first, which) catch |er| switch (er) {
+    const match = findIncludeSource(pp, tokenizer, first, which) catch |er| switch (er) {
         error.InvalidInclude => return,
         else => |e| return e,
     };
@@ -3553,7 +3555,7 @@ fn include(pp: *Preprocessor, tokenizer: *Tokenizer, which: Compilation.WhichInc
         return error.StopPreprocessing;
     }
 
-    if (pp.include_guards.get(new_source.id)) |guard| {
+    if (pp.include_guards.get(match.source.id)) |guard| {
         if (pp.defines.contains(guard)) return;
     }
 
@@ -3566,14 +3568,14 @@ fn include(pp: *Preprocessor, tokenizer: *Tokenizer, which: Compilation.WhichInc
     // here, the source file data is needed).
     for (pp.comp.pragma_handlers.keys(), pp.comp.pragma_handlers.values()) |handler_pragma_name, handler_pragma| {
         if (handler_pragma.beforeInclude) |func| {
-            func(handler_pragma, pp, new_source) catch |handler_err| {
+            func(handler_pragma, pp, match.source) catch |handler_err| {
                 switch (handler_err) {
                     error.SkipInclude => {
                         if (pp.verbose) {
                             pp.verboseLog(
                                 first,
                                 "skipping include file {s} under direction of \"{s}\" pragma",
-                                .{ new_source.path, handler_pragma_name },
+                                .{ match.source.path, handler_pragma_name },
                             );
                         }
 
@@ -3585,14 +3587,15 @@ fn include(pp: *Preprocessor, tokenizer: *Tokenizer, which: Compilation.WhichInc
         }
     }
 
-    if (pp.dep_file) |dep| try dep.addDependency(gpa, new_source.path);
+    if (pp.dep_file) |dep| try dep.addDependency(gpa, match.source.path);
     if (pp.verbose) {
-        pp.verboseLog(first, "include file {s}", .{new_source.path});
+        pp.verboseLog(first, "include file {s}", .{match.source.path});
     }
 
     const token_state = pp.getTokenState();
-    try pp.addIncludeStart(new_source.id);
-    const eof = pp.preprocessExtra(new_source) catch |er| switch (er) {
+    try pp.addIncludeStart(match.source.id);
+    pp.umbrella_framework = match.umbrella_framework;
+    const eof = pp.preprocessExtra(match.source) catch |er| switch (er) {
         error.StopPreprocessing => {
             for (pp.expansion_entries.items(.locs)[token_state.expansion_entries_len..]) |loc| TokenWithExpansionLocs.free(loc, gpa);
             pp.restoreTokenState(token_state);
@@ -3600,7 +3603,8 @@ fn include(pp: *Preprocessor, tokenizer: *Tokenizer, which: Compilation.WhichInc
         },
         else => |e| return e,
     };
-    try eof.checkMsEof(new_source, pp.comp);
+    pp.umbrella_framework = match.umbrella_framework;
+    try eof.checkMsEof(match.source, pp.comp);
     if (pp.preserve_whitespace and pp.tokens.items(.id)[pp.tokens.len - 1] != .nl) {
         try pp.addToken(.{ .id = .nl, .loc = .{
             .id = tokenizer.source,
@@ -3757,7 +3761,8 @@ fn findIncludeFilenameToken(
     return filename_tok;
 }
 
-fn findIncludeSource(pp: *Preprocessor, tokenizer: *Tokenizer, first: RawToken, which: Compilation.WhichInclude) !Source {
+/// On success returns a new source and, if the new source is part of a macOS umbrella framework, a non-null framework path.
+fn findIncludeSource(pp: *Preprocessor, tokenizer: *Tokenizer, first: RawToken, which: Compilation.WhichInclude) !Compilation.FoundInclude {
     const filename_tok = try pp.findIncludeFilenameToken(first, tokenizer, .expect_nl_eof);
     defer TokenWithExpansionLocs.free(filename_tok.expansion_locs, pp.comp.gpa);
 
@@ -3776,7 +3781,7 @@ fn findIncludeSource(pp: *Preprocessor, tokenizer: *Tokenizer, first: RawToken, 
         else => unreachable,
     };
 
-    return (try pp.comp.findInclude(filename, first, include_type, which)) orelse
+    return (try pp.comp.findInclude(filename, pp.umbrella_framework, first, include_type, which)) orelse
         return pp.fatalNotFound(filename_tok, filename);
 }
 
