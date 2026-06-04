@@ -58,6 +58,9 @@ id: Id,
 splice_locs: []const u32,
 kind: Kind,
 
+// Path of the umbrella framework. Slice of `path`.
+umbrella_framework_path: ?[]const u8 = null,
+
 pub fn lineCol(source: Source, loc: Location) ExpandedLocation {
     var start: usize = 0;
     // find the start of the line which is either a newline or a splice

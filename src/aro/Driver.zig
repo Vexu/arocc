@@ -947,10 +947,10 @@ fn addSource(d: *Driver, path: []const u8) !Source {
 }
 
 fn findIncludeCLI(d: *Driver, path: []const u8, kind: []const u8) !Source {
-    const match = (d.comp.findInclude(path, null, .{ .id = .keyword_include, .source = .generated }, .cli, .first) catch |er|
+    const source = (d.comp.findInclude(path, .{ .id = .keyword_include, .source = .generated }, .cli, .first) catch |er|
         return d.fatal("unable to add {s} file '{s}': {s}", .{ kind, path, errorDescription(er) })) orelse
         return d.fatal("unable to add {s} file '{s}': NotFound", .{ kind, path });
-    return match.source;
+    return source;
 }
 
 fn addImplicitInclude(d: *Driver, path: []const u8) !void {
