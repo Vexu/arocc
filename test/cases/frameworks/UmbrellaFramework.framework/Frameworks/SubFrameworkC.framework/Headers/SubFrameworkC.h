@@ -1,0 +1,1 @@
+#define SUB_FRAMEWORK_C_FOO 789
