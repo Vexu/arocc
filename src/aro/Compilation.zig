@@ -2204,16 +2204,11 @@ const FindInclude = struct {
 
     fn checkFrameworkDir(find: *FindInclude, framework_dir: []const u8, kind: Source.Kind) Allocator.Error!?Result {
         // For an include like 'Foo/Bar.h', search in '<framework_dir>/Foo.framework/Headers/Bar.h'.
-        const framework_name: []const u8, const header_sub_path: []const u8 = f: {
-            const i = mem.findScalar(u8, find.include_path, '/') orelse return null;
-            break :f .{ find.include_path[0..i], find.include_path[i + 1 ..] };
-        };
+        const framework_name, const header_sub_path = mem.cutScalar(u8, find.include_path, '/') orelse return null;
+
         var bfa_buf: [path_buf_stack_limit]u8 = undefined;
         var bfa_state: std.heap.BufferFirstAllocator = .init(&bfa_buf, find.comp.gpa);
         const bfa = bfa_state.allocator();
-
-        // If the search succeeds, we consider the curent framework the umbrella framework for all
-        // downstream includes.
         const framework_lookup = try std.fmt.allocPrint(bfa, "{s}.framework", .{framework_name});
         defer bfa.free(framework_lookup);
 
@@ -2223,16 +2218,18 @@ const FindInclude = struct {
             "Headers",
             header_sub_path,
         }, kind, false) orelse return null;
+
+        // Mark the new source as an umbrella framework for subframework search within it.
         const new_source = &find.comp.sources.values()[@intFromEnum(res.source.index)];
-        new_source.umbrella_framework_path = new_source.path[0 .. framework_dir.len + 1 + framework_lookup.len];
+        const framework_name_index = mem.find(u8, new_source.path, framework_lookup) orelse return res;
+        new_source.umbrella_framework_path = new_source.path[0 .. framework_name_index + framework_lookup.len];
         return res;
     }
 
     fn checkSubframeworkDir(find: *FindInclude, umbrella_framework_path: []const u8, kind: Source.Kind) Allocator.Error!?Result {
-        const framework_name: []const u8, const header_sub_path: []const u8 = f: {
-            const i = mem.findScalar(u8, find.include_path, '/') orelse return null;
-            break :f .{ find.include_path[0..i], find.include_path[i + 1 ..] };
-        };
+        // For an include like 'Foo/Bar.h', search in '<umbrella_framework_path>/Frameworks/Foo.framework/Headers/Bar.h'.
+        const framework_name, const header_sub_path = mem.cutScalar(u8, find.include_path, '/') orelse return null;
+
         var bfa_buf: [path_buf_stack_limit]u8 = undefined;
         var bfa_state: std.heap.BufferFirstAllocator = .init(&bfa_buf, find.comp.gpa);
         const bfa = bfa_state.allocator();
@@ -2246,6 +2243,7 @@ const FindInclude = struct {
             "Headers",
             header_sub_path,
         }, kind, false) orelse return null;
+
         // Subframeworks are assumed to not be able to contain other
         // subframeworks (i.e. they can't be umbrella frameworks), but they
         // can reference one another, meaning that we keep the same
@@ -2398,7 +2396,6 @@ pub fn findEmbed(
     return null;
 }
 
-/// On success returns a new source and, if the new source is part of a macOS umbrella framework, a non-null framework path.
 pub fn findInclude(
     comp: *Compilation,
     filename: []const u8,
