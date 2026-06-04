@@ -71,6 +71,13 @@ variable: 'int'
  name: a
  definition: 0x14
 
+variable: 'int'
+ extern name: b
+ definition: 0x19
+
+variable: 'int'
+ name: b
+
 function: 'fn () int'
  name: bar
  body:
@@ -80,14 +87,14 @@ function: 'fn () int'
 
     function: 'fn () int'
      name: baz
-     definition: 0x19
-
-    variable: 'int'
-     extern name: b
-
-    variable: 'int'
-     extern name: b
      definition: 0x1B
+
+    variable: 'int'
+     extern name: b
+
+    variable: 'int'
+     extern name: b
+     definition: 0x1D
 
     return_stmt: 'int'
      expr:

@@ -35,6 +35,7 @@ function: 'fn (fn_ptr: *fn () void) void'
 
 variable: 'unsigned long long'
  name: l
+ definition: 0xE
 
 variable: 'unsigned long long'
  name: l
