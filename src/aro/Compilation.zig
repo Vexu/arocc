@@ -2245,17 +2245,20 @@ const FindInclude = struct {
         const framework_lookup = try std.fmt.allocPrint(bfa, "{s}.framework", .{framework_name});
         defer bfa.free(framework_lookup);
 
-        // A match into a subframework resets the active umbrella framework
-        // back to null (by not setting the relative Result field) because
-        // we assume that subframeworks don't see one another within the
-        // same umbrella framework.
-        return find.check(&.{
+        var result = try find.check(&.{
             umbrella_framework,
             "Frameworks",
             framework_lookup,
             "Headers",
             header_sub_path,
-        }, kind, false);
+        }, kind, false) orelse return null;
+
+        // Subframeworks are assumed to not be able to contain other
+        // subframeworks (i.e. they can't be umbrella frameworks), but they
+        // can reference one another, meaning that we keep the same
+        // umbrella framework.
+        result.umbrella_framework = umbrella_framework;
+        return result;
     }
 
     fn check(

@@ -1,1 +1,0 @@
-#define SUB_FRAMEWORK_FOO 123 

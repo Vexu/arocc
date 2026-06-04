@@ -3594,6 +3594,7 @@ fn include(pp: *Preprocessor, tokenizer: *Tokenizer, which: Compilation.WhichInc
 
     const token_state = pp.getTokenState();
     try pp.addIncludeStart(match.source.id);
+    const old_framework = pp.umbrella_framework;
     pp.umbrella_framework = match.umbrella_framework;
     const eof = pp.preprocessExtra(match.source) catch |er| switch (er) {
         error.StopPreprocessing => {
@@ -3603,7 +3604,7 @@ fn include(pp: *Preprocessor, tokenizer: *Tokenizer, which: Compilation.WhichInc
         },
         else => |e| return e,
     };
-    pp.umbrella_framework = match.umbrella_framework;
+    pp.umbrella_framework = old_framework;
     try eof.checkMsEof(match.source, pp.comp);
     if (pp.preserve_whitespace and pp.tokens.items(.id)[pp.tokens.len - 1] != .nl) {
         try pp.addToken(.{ .id = .nl, .loc = .{
