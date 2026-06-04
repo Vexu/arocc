@@ -21,13 +21,10 @@ implicit typedef: 'long double'
 
 variable: 'const int'
  name: a
- definition: 0x7
 
 variable: 'const typeof(<expr>: const int)'
  name: b
- definition: 0x9
 
 variable: 'typeof(<expr>: const int)'
  name: c
- definition: 0xB
 

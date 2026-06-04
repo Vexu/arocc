@@ -26,12 +26,10 @@ variable: 'int'
 
 variable: 'int'
  static thread_local name: pedantic_static
- definition: 0x9
 
 variable: 'int'
  extern thread_local name: quiet_extern
 
 variable: 'int'
  static thread_local name: quiet_static
- definition: 0xB
 

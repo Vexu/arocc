@@ -21,29 +21,23 @@ implicit typedef: 'long double'
 
 variable: 'invalid'
  name: a
- definition: 0x7
 
 variable: 'invalid'
  name: b
- definition: 0x9
 
 variable: 'invalid'
  name: c
- definition: 0xA
 
 struct_forward_decl: 'struct A'
 
 variable: 'invalid'
  name: d
- definition: 0xC
 
 variable: 'invalid'
  name: e
- definition: 0xD
 
 variable: 'invalid'
  name: f
- definition: 0xE
 
 variable: 'invalid'
  name: g
@@ -52,19 +46,15 @@ variable: 'invalid'
 
 variable: '_Atomic(int *)'
  name: i
- definition: 0x11
 
 variable: '_Atomic(int (*)[2])'
  name: j
- definition: 0x12
 
 variable: '_Atomic(int)'
  name: k
- definition: 0x14
 
 variable: 'invalid'
  name: l
- definition: 0x15
 
 function: 'fn () void'
  name: test_coerce

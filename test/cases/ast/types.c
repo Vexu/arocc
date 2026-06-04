@@ -21,19 +21,15 @@ variable: 'attributed(int)'
  attr: aligned alignment: .{ .node = .null, .requested = 4 }
  attr: aligned alignment: .{ .node = @enumFromInt(6), .requested = 16 }
  name: a
- definition: 0x7
 
 variable: 'const volatile int'
  name: b
- definition: 0x8
 
 variable: 'const volatile int'
  name: c
- definition: 0x9
 
 variable: 'const volatile int'
  name: d
- definition: 0xA
 
 function: 'fn (a: restrict *int, b: restrict *int, c: restrict *int) int'
  name: foo

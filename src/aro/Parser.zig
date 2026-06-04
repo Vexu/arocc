@@ -759,7 +759,9 @@ fn finalizeTentativeDefinitions(p: *Parser) Allocator.Error!void {
                     }
                 }
                 if (node_data[2] != @intFromEnum(Node.OptIndex.null)) {
-                    if (tags[node_data[2]] != .variable_def and !p.isTentativeDefinitionNode(@enumFromInt(node_data[2]))) {
+                    if (node_data[2] == @intFromEnum(root_decl) or
+                        (tags[node_data[2]] != .variable_def and !p.isTentativeDefinitionNode(@enumFromInt(node_data[2]))))
+                    {
                         node_data[2] = @intFromEnum(Node.OptIndex.null);
                     }
                 }

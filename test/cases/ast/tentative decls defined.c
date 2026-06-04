@@ -77,7 +77,6 @@ variable: 'int'
 
 variable: 'int'
  name: b
- definition: 0x19
 
 function: 'fn () int'
  name: bar
