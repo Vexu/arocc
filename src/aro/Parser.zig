@@ -7604,13 +7604,14 @@ pub const Result = struct {
                         (src_child.@"volatile" and !dest_child.@"volatile") or
                         (src_child.restrict and !dest_child.restrict))
                     {
-                        try p.err(tok, switch (c) {
-                            .assign => .ptr_assign_discards_quals,
-                            .init => .ptr_init_discards_quals,
-                            .ret => .ptr_ret_discards_quals,
-                            .arg => .ptr_arg_discards_quals,
+                        const data: struct { diag: Diagnostic, qts: [2]QualType } = switch (c) {
+                            .assign => .{ .diag = .ptr_assign_discards_quals, .qts = .{ dest_qt, src_original_qt } },
+                            .init => .{ .diag = .ptr_init_discards_quals, .qts = .{ dest_qt, src_original_qt } },
+                            .ret => .{ .diag = .ptr_ret_discards_quals, .qts = .{ src_original_qt, dest_qt } },
+                            .arg => .{ .diag = .ptr_arg_discards_quals, .qts = .{ src_original_qt, dest_qt } },
                             .test_coerce => return error.CoercionFailed,
-                        }, .{ dest_qt, src_original_qt });
+                        };
+                        try p.err(tok, data.diag, .{ data.qts[0], data.qts[1] });
                     }
                     try res.castToPointer(p, dest_unqual, tok);
                     return;
