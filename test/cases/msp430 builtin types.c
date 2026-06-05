@@ -1,7 +1,7 @@
 #include <stddef.h>
 #include <stdarg.h>
 
-#if !defined(MSP430) or !defined(__MSP430__)
+#if !defined(MSP430) || !defined(__MSP430__)
 #error "Missing target macros"
 #endif
 
