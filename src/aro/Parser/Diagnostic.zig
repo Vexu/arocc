@@ -2591,3 +2591,18 @@ pub const c23_attribute: Diagnostic = .{
     .suppress_version = .c23,
     .extension = true,
 };
+
+pub const builtin_arm_ldrex_strex_invalid_ptr_type: Diagnostic = .{
+    .fmt = "address argument to {s} must be a pointer to integer, floating-point, or pointer ({qt} invalid)",
+    .kind = .@"error",
+};
+
+pub const builtin_arm_ldrex_strex_unsupported: Diagnostic = .{
+    .fmt = "{s} is not supported on this architecture",
+    .kind = .@"error",
+};
+
+pub const builtin_arm_ldrex_strex_unsupported_size: Diagnostic = .{
+    .fmt = "address argument to {s} must be a pointer to {s} byte type ({qt} invalid)",
+    .kind = .@"error",
+};

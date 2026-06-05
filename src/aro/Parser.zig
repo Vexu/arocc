@@ -30,6 +30,7 @@ const TypeStore = @import("TypeStore.zig");
 const Type = TypeStore.Type;
 const QualType = TypeStore.QualType;
 const Value = @import("Value.zig");
+const ArmLdrex = @import("LangOpts.zig").ArmLdrex;
 
 const NodeList = std.ArrayList(Node.Index);
 const TentativeDefinitionKey = struct {
@@ -6074,6 +6075,24 @@ const CallExpr = union(enum) {
                 => return p.checkSyncArg(param_tok, arg, arg_idx, 3),
                 else => {},
             },
+            .aarch64 => |tag| switch (tag) {
+                .__builtin_arm_ldrex,
+                .__builtin_arm_ldaex,
+                .__builtin_arm_strex,
+                .__builtin_arm_stlex,
+                => return p.checkARMExclusive(self.builtin.expanded.tag, builtin_tok, param_tok, arg, arg_idx),
+                else => {},
+            },
+            .arm => |tag| switch (tag) {
+                .__builtin_arm_ldrex,
+                .__builtin_arm_ldrexd,
+                .__builtin_arm_ldaex,
+                .__builtin_arm_strex,
+                .__builtin_arm_strexd,
+                .__builtin_arm_stlex,
+                => return p.checkARMExclusive(self.builtin.expanded.tag, builtin_tok, param_tok, arg, arg_idx),
+                else => {},
+            },
             else => {},
         }
     }
@@ -6190,6 +6209,28 @@ const CallExpr = union(enum) {
                     .__builtin_elementwise_clzg,
                     .__builtin_elementwise_ctzg,
                     => null,
+                    else => null,
+                },
+                .aarch64 => |tag| switch (tag) {
+                    .__builtin_arm_ldrex,
+                    .__builtin_arm_ldaex,
+                    => 1,
+
+                    .__builtin_arm_strex,
+                    .__builtin_arm_stlex,
+                    => 2,
+                    else => null,
+                },
+                .arm => |tag| switch (tag) {
+                    .__builtin_arm_ldrex,
+                    .__builtin_arm_ldrexd,
+                    .__builtin_arm_ldaex,
+                    => 1,
+
+                    .__builtin_arm_strex,
+                    .__builtin_arm_strexd,
+                    .__builtin_arm_stlex,
+                    => 2,
                     else => null,
                 },
                 else => null,
@@ -6338,6 +6379,34 @@ const CallExpr = union(enum) {
                     if (!first_param.isPointer(p.comp)) return .invalid;
                     return first_param.childType(p.comp);
                 },
+                else => func_ty.return_type,
+            },
+            .aarch64 => |tag| switch (tag) {
+                .__builtin_arm_ldrex,
+                .__builtin_arm_ldaex,
+                => {
+                    const first_param = args[0].qt(&p.tree);
+                    if (!first_param.isPointer(p.comp)) return .invalid;
+                    return first_param.childType(p.comp);
+                },
+                .__builtin_arm_strex,
+                .__builtin_arm_stlex,
+                => .int, // STREX/STREXD returns int
+                else => func_ty.return_type,
+            },
+            .arm => |tag| switch (tag) {
+                .__builtin_arm_ldrex,
+                .__builtin_arm_ldrexd,
+                .__builtin_arm_ldaex,
+                => {
+                    const first_param = args[0].qt(&p.tree);
+                    if (!first_param.isPointer(p.comp)) return .invalid;
+                    return first_param.childType(p.comp);
+                },
+                .__builtin_arm_strex,
+                .__builtin_arm_strexd,
+                .__builtin_arm_stlex,
+                => .int, // STREX/STREXD returns int
                 else => func_ty.return_type,
             },
             else => func_ty.return_type,
@@ -9607,6 +9676,146 @@ fn checkComplexArg(p: *Parser, builtin_tok: TokenIndex, first_after: TokenIndex,
             try p.err(param_tok, .argument_types_differ, .{ prev_qt, arg.qt });
         }
     }
+}
+
+fn checkARMExclusive(
+    p: *Parser,
+    tag: Builtins.Tag,
+    builtin_tok: TokenIndex,
+    param_tok: TokenIndex,
+    arg: *Result,
+    idx: u32,
+) !void {
+    const name = p.tokSlice(builtin_tok);
+    const is_ldrex = switch (tag) {
+        .aarch64 => |t| switch (t) {
+            .__builtin_arm_ldrex, .__builtin_arm_ldaex => true,
+            else => false,
+        },
+        .arm => |t| switch (t) {
+            .__builtin_arm_ldrex, .__builtin_arm_ldrexd, .__builtin_arm_ldaex => true,
+            else => false,
+        },
+        else => false,
+    };
+    const is_dword = switch (tag) {
+        .arm => |t| switch (t) {
+            .__builtin_arm_ldrexd, .__builtin_arm_strexd => true,
+            else => false,
+        },
+        else => false,
+    };
+
+    // Fast-path return based on arg index
+    switch (is_ldrex) {
+        true => switch (idx) {
+            0 => {},
+            else => return, // Too many arguments
+        },
+        false => switch (idx) {
+            0 => return, // We check source args for strex after checking the destination
+            1 => {},
+            else => return, // Too many arguments
+        },
+    }
+
+    // Arg should be a pointer
+    const orig_ptr_arg = arg.qt; // For errors
+    const ptr_arg = orig_ptr_arg.get(p.comp, .pointer) orelse
+        return p.err(param_tok, .builtin_arm_ldrex_strex_invalid_ptr_type, .{ name, orig_ptr_arg });
+
+    const ptr_arg_child = ptr_arg.child;
+    {
+        // Insert implicit cast to "const volatile" (ldrex) or "volatile"
+        // (strex).
+        var ptr_arg_child_coerced = ptr_arg_child.unqualified();
+        switch (is_ldrex) {
+            true => {
+                ptr_arg_child_coerced.@"const" = true;
+                ptr_arg_child_coerced.@"volatile" = true;
+            },
+            false => {
+                ptr_arg_child_coerced.@"volatile" = true;
+            },
+        }
+        const qt = try p.comp.type_store.put(p.comp.gpa, .{ .pointer = .{
+            .child = ptr_arg_child_coerced,
+        } });
+        try arg.coerce(p, qt, param_tok, .{ .arg = null });
+    }
+
+    // Child should be a int, float, or pointer
+    const ptr_arg_child_scalar = ptr_arg_child.scalarKind(p.comp);
+    const is_valid_number = (ptr_arg_child_scalar.isInt() or
+        ptr_arg_child_scalar.isFloat()) and
+        ptr_arg_child_scalar.isReal();
+    if (!is_valid_number and !ptr_arg_child_scalar.isPointer()) {
+        // Cannot continue without a valid child type
+        return p.err(param_tok, .builtin_arm_ldrex_strex_invalid_ptr_type, .{ name, orig_ptr_arg });
+    }
+
+    {
+        // Check child type size
+        const ptr_arg_bit_size = ptr_arg_child.bitSizeof(p.comp);
+        var mask: u4 = @bitCast(p.comp.langopts.arm_ldrex orelse ArmLdrex.none);
+
+        if (is_dword) {
+            // ldrexd has been used explicitly
+            mask &= ArmLdrex.d_int;
+        }
+
+        if (mask == 0) {
+            // Unsupported on this CPU, no point in continuing
+            return p.err(builtin_tok, .builtin_arm_ldrex_strex_unsupported, .{name});
+        }
+
+        const supported = std.math.isPowerOfTwo(ptr_arg_bit_size) and
+            ptr_arg_bit_size <= 64 and
+            ptr_arg_bit_size >= 8 and
+            (mask & (ptr_arg_bit_size / 8) != 0);
+        if (!supported) {
+            // "1, 2, 4 or 8" is max 12 bytes
+            var buf: [12]u8 = undefined;
+            var writer: std.Io.Writer = .fixed(&buf);
+            const sizes: [4]u4 = .{ ArmLdrex.b_int, ArmLdrex.h_int, ArmLdrex.w_int, ArmLdrex.d_int };
+            for (sizes) |size| {
+                if (mask & size != 0) {
+                    mask &= ~size;
+                    if (writer.end == 0) {
+                        // First element
+                        writer.print("{d}", .{size}) catch break;
+                    } else if (mask != 0) {
+                        // Middle item(s) w/separator
+                        writer.print(", {d}", .{size}) catch break;
+                    } else {
+                        // Last size with multiple sizes
+                        writer.print(" or {d}", .{size}) catch break;
+                    }
+                }
+            }
+
+            try p.err(param_tok, .builtin_arm_ldrex_strex_unsupported_size, .{
+                name,
+                writer.buffered(),
+                orig_ptr_arg,
+            });
+        }
+    }
+
+    if (is_ldrex) {
+        return; // Done for ldrex
+    }
+
+    assert(idx == 1); // strex only has 2 args and we skip idx 0 at the start
+
+    // Set up the coercion for the value arg for strex
+    const value_idx = p.list_buf.items[p.list_buf.items.len - 1]; // Always previous arg to ptr arg
+    var value_arg: Result = .{
+        .node = value_idx,
+        .qt = value_idx.qt(&p.tree),
+    };
+    try value_arg.coerce(p, ptr_arg_child, value_idx.tok(&p.tree), .{ .arg = null });
+    p.list_buf.items[p.list_buf.items.len - 1] = value_arg.node;
 }
 
 fn checkElementwiseArg(

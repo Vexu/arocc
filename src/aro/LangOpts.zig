@@ -2,6 +2,7 @@ const std = @import("std");
 
 const char_info = @import("char_info.zig");
 const DiagnosticTag = @import("Diagnostics.zig").Tag;
+const Target = @import("Target.zig");
 
 pub const Compiler = enum {
     clang,
@@ -120,6 +121,20 @@ pub const Standard = enum {
     }
 };
 
+pub const ArmLdrex = packed struct(u4) {
+    b: bool = false, // byte (8-bit)
+    h: bool = false, // half (16-bit)
+    w: bool = false, // word (32-bit)
+    d: bool = false, // double (64-bit)
+
+    pub const b_int: u4 = 1;
+    pub const h_int: u4 = 2;
+    pub const w_int: u4 = 4;
+    pub const d_int: u4 = 8;
+    pub const none: ArmLdrex = .{};
+    pub const all: ArmLdrex = @bitCast(@as(u4, 15));
+};
+
 const LangOpts = @This();
 
 emulate: Compiler = .no,
@@ -161,6 +176,9 @@ default_symbol_visibility: std.builtin.SymbolVisibility = .default,
 
 blocks: bool = false,
 
+/// If non-null, contains ARM LDREX/STREX mask. Only populated on ARM targets.
+arm_ldrex: ?ArmLdrex = null,
+
 pub fn setStandard(self: *LangOpts, name: []const u8) error{InvalidStandard}!void {
     self.standard = Standard.NameMap.get(name) orelse return error.InvalidStandard;
 }
@@ -197,4 +215,65 @@ pub fn allowFixedSizedIntSuffixes(self: *const LangOpts) bool {
         .clang, .no => self.ms_extensions,
         .gcc => false,
     };
+}
+
+pub fn setTargetOptions(self: *LangOpts, target: Target) void {
+    // TODO: Move more stuff here :)
+    switch (target.cpu.arch) {
+        .arm, .armeb, .thumb, .thumbeb => {
+            {
+                // ARM exclusive load/store support.
+                // See this: https://arm-software.github.io/acle/main/acle.html#ldrexstrex
+                // These constants define masks containing data sizes are suitable for
+                // __builtin_arm_ldrex and __builtin_arm_strex.
+
+                const arm_version = if (target.armVersion()) |v| v.version else 6;
+                const ldrex: ArmLdrex = switch (arm_version) {
+                    6 => if (target.cpu.has(.arm, .mclass))
+                        .none
+                    else if (target.cpu.has(.arm, .v6k) or target.cpu.has(.arm, .v6kz))
+                        .all
+                    else
+                        .{ .w = true },
+                    7, 8 => if (target.cpu.has(.arm, .mclass))
+                        .{ .b = true, .h = true, .w = true }
+                    else
+                        .all,
+                    9 => .all,
+                    else => .none,
+                };
+
+                self.arm_ldrex = ldrex;
+            }
+        },
+        .aarch64, .aarch64_be => {
+            // ARM ldrex is always full-width
+            self.arm_ldrex = .all;
+        },
+        else => {},
+    }
+}
+
+test "ArmLdrex versions" {
+    const cases = [_]struct {
+        ldrex: ArmLdrex,
+        val: u4,
+    }{
+        .{ .ldrex = .{ .b = true }, .val = 1 },
+        .{ .ldrex = .{ .b = true, .h = true }, .val = 3 },
+        .{ .ldrex = .{ .b = true, .h = true, .w = true }, .val = 7 },
+        .{ .ldrex = .{ .b = true, .h = true, .w = true, .d = true }, .val = 15 },
+
+        .{ .ldrex = .{ .b = true }, .val = ArmLdrex.b_int },
+        .{ .ldrex = .{ .h = true }, .val = ArmLdrex.h_int },
+        .{ .ldrex = .{ .w = true }, .val = ArmLdrex.w_int },
+        .{ .ldrex = .{ .d = true }, .val = ArmLdrex.d_int },
+
+        .{ .ldrex = .none, .val = 0 },
+        .{ .ldrex = .all, .val = 15 },
+    };
+
+    for (cases) |c| {
+        try std.testing.expectEqual(c.val, @as(u4, @bitCast(c.ldrex)));
+    }
 }

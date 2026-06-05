@@ -875,6 +875,7 @@ pub fn parseArgs(
         if (d.raw_darwin_variant_target_triple) |darwin_triple| {
             d.comp.darwin_target_variant = try d.parseTarget(darwin_triple, null);
         }
+        d.comp.langopts.setTargetOptions(d.comp.target);
     }
     if (emulate != null or d.raw_target_triple != null) {
         d.comp.langopts.setEmulatedCompiler(emulate orelse d.comp.target.systemCompiler());
