@@ -62,6 +62,9 @@ error "failed"
 #if 1 + &x
 #endif
 
+#if 1 < ABC 2
+#endif
+
 /** manifest:
 syntax
 
@@ -80,4 +83,5 @@ preprocessor binary operators.c:53:13: note: expanded from here
 preprocessor binary operators.c:58:5: error: invalid token at start of a preprocessor expression
 preprocessor binary operators.c:53:13: note: expanded from here
 preprocessor binary operators.c:62:9: error: token is not a valid binary operator in a preprocessor subexpression
+preprocessor binary operators.c:65:13: error: token is not a valid binary operator in a preprocessor subexpression
 */

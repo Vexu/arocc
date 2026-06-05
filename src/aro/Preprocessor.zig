@@ -1154,6 +1154,7 @@ fn restoreTokenState(pp: *Preprocessor, state: TokenState) void {
 fn expr(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!bool {
     const gpa = pp.comp.gpa;
     const token_state = pp.getTokenState();
+    const error_count = pp.diagnostics.errors;
     defer {
         for (pp.top_expansion_buf.items) |tok| TokenWithExpansionLocs.free(tok.expansion_locs, gpa);
         pp.restoreTokenState(token_state);
@@ -1278,7 +1279,7 @@ fn expr(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!bool {
         .string_ids = undefined,
     };
     defer parser.strings.deinit(gpa);
-    return parser.macroExpr();
+    return parser.macroExpr(pp.diagnostics.errors == error_count);
 }
 
 /// Turns macro_tok from .keyword_defined into .zero or .one depending on whether the argument is defined

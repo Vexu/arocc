@@ -5905,12 +5905,16 @@ fn returnStmt(p: *Parser) Error!?Node.Index {
 
 // ====== expressions ======
 
-pub fn macroExpr(p: *Parser) Compilation.Error!bool {
+pub fn macroExpr(p: *Parser, check_trailing: bool) Compilation.Error!bool {
     const res = p.expect(condExpr) catch |e| switch (e) {
         error.OutOfMemory => return error.OutOfMemory,
         error.FatalError => return error.FatalError,
         error.ParsingFailed => return false,
     };
+    if (check_trailing and p.tok_ids[p.tok_i] != .eof) {
+        try p.err(p.tok_i, .invalid_preproc_operator, .{});
+        return false;
+    }
     return res.val.toBool(p.comp);
 }
 
