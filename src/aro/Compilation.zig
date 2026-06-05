@@ -705,65 +705,10 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
             }
 
             var arm_version: u8 = 6;
-            const arm_features = target.cpu.features;
-            for ([_]struct { std.Target.arm.Feature, []const u8 }{
-                .{ .v9_6a, "9_6A" },
-                .{ .v9_5a, "9_5A" },
-                .{ .v9_4a, "9_4A" },
-                .{ .v9_3a, "9_3A" },
-                .{ .v9_2a, "9_2A" },
-                .{ .v9_1a, "9_1A" },
-                .{ .v9a, "9A" },
-
-                .{ .v8_9a, "8_9A" },
-                .{ .v8_8a, "8_8A" },
-                .{ .v8_7a, "8_7A" },
-                .{ .v8_6a, "8_6A" },
-                .{ .v8_5a, "8_5A" },
-                .{ .v8_4a, "8_4A" },
-                .{ .v8_3a, "8_3A" },
-                .{ .v8_2a, "8_2A" },
-                .{ .v8_1a, "8_1A" },
-                .{ .v8_1m_main, "8_1M_MAIN" },
-                .{ .v8a, "8A" },
-                .{ .v8r, "8R" },
-                .{ .v8m_main, "8M_MAIN" },
-                .{ .v8m, "8M_BASE" },
-
-                .{ .v7ve, "7VE" },
-                .{ .v7a, "7A" },
-                .{ .v7r, "7R" },
-                .{ .v7m, "7M" },
-                .{ .v7em, "7EM" },
-                .{ .has_v7, "7A" }, // bare armv7 with no profile: default to A
-
-                .{ .v6t2, "6T2" },
-                .{ .v6kz, "6KZ" },
-                .{ .v6k, "6K" },
-                .{ .v6j, "6J" },
-                .{ .v6sm, "6SM" },
-                .{ .v6m, "6M" },
-                .{ .v6, "6" },
-
-                .{ .v5tej, "5TEJ" },
-                .{ .v5te, "5TE" },
-                .{ .v5t, "5T" },
-
-                .{ .v4t, "4T" },
-                .{ .v4, "4" },
-
-                .{ .v3m, "3M" },
-                .{ .v3, "3" },
-
-                .{ .v2a, "2A" },
-                .{ .v2, "2" },
-            }) |fs| {
-                if (arm_features.isEnabled(@intFromEnum(fs[0]))) {
-                    try w.print("#define __ARM_ARCH_{s}__ 1\n", .{fs[1]});
-                    arm_version = fs[1][0] - '0';
-                    try w.print("#define __ARM_ARCH {d}\n", .{arm_version});
-                    break;
-                }
+            if (target.armVersion()) |v| {
+                arm_version = v.version;
+                try w.print("#define __ARM_ARCH_{s}__ 1\n", .{v.string});
+                try w.print("#define __ARM_ARCH {d}\n", .{v.version});
             }
 
             const arm_profile: ?u8 =
@@ -810,29 +755,8 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
                 try define(w, "__ARM_FEATURE_SIMD32");
             }
 
-            // See this: https://arm-software.github.io/acle/main/acle.html#ldrexstrex
-            // These constants define masks containing data sizes are suitable for __builtin_arm_ldrex and __builtin_arm_strex.
-            const ARM_LDREX_B: u4 = 1 << 0; // byte (8-bit)
-            const ARM_LDREX_H: u4 = 1 << 1; // half (16-bit)
-            const ARM_LDREX_W: u4 = 1 << 2; // word (32-bit)
-            const ARM_LDREX_D: u4 = 1 << 3; // double (64-bit)
-
-            const ldrex: u4 = switch (arm_version) {
-                6 => if (target.cpu.has(.arm, .mclass))
-                    0
-                else if (target.cpu.has(.arm, .v6k) or target.cpu.has(.arm, .v6kz))
-                    ARM_LDREX_D | ARM_LDREX_W | ARM_LDREX_H | ARM_LDREX_B
-                else
-                    ARM_LDREX_W,
-                7, 8 => if (target.cpu.has(.arm, .mclass))
-                    ARM_LDREX_W | ARM_LDREX_H | ARM_LDREX_B
-                else
-                    ARM_LDREX_D | ARM_LDREX_W | ARM_LDREX_H | ARM_LDREX_B,
-                9 => ARM_LDREX_D | ARM_LDREX_W | ARM_LDREX_H | ARM_LDREX_B,
-                else => 0,
-            };
-            if (ldrex != 0) {
-                try w.print("#define __ARM_FEATURE_LDREX 0x{x}\n", .{ldrex});
+            if (comp.langopts.arm_ldrex) |ldrex| {
+                try w.print("#define __ARM_FEATURE_LDREX 0x{x}\n", .{@as(u4, @bitCast(ldrex))});
             }
 
             if (!target.cpu.has(.arm, .strict_align)) {
@@ -865,7 +789,9 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
             try define(w, "__ARM_ARCH_ISA_A64");
             try define(w, "__ARM_FEATURE_CLZ");
             try define(w, "__ARM_FEATURE_FMA");
-            try w.writeAll("#define __ARM_FEATURE_LDREX 0xF\n");
+            if (comp.langopts.arm_ldrex) |ldrex| {
+                try w.print("#define __ARM_FEATURE_LDREX 0x{x}\n", .{@as(u4, @bitCast(ldrex))});
+            }
             try define(w, "__ARM_FEATURE_IDIV"); // As specified in ACLE
             try define(w, "__ARM_FEATURE_DIV"); // For backwards compatibility
             try define(w, "__ARM_STATE_ZA");
