@@ -423,9 +423,6 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
         .ps4,
         .ps5,
         => try defineStd(w, "unix", is_gnu),
-        .windows => if (target.abi.isGnu()) {
-            try defineStd(w, "unix", is_gnu);
-        },
         else => {},
     }
     if (target.abi.isAndroid()) {
