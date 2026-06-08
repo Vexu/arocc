@@ -35,6 +35,19 @@ _Static_assert(5ll + 4.0il == 5ll + 4.0il, "");
 unsigned long complex_integer = 2.0i;
 bool d = 3 != 2.0i;
 
+const _Complex double e = {1, 2};
+const _Complex float f = {e};
+_Static_assert(__imag f == 2, "");
+const _Complex float g = {e, 4};
+_Static_assert(__imag g == 4, "");
+
+_Complex float h[] = { { 1.0f, 1.0f } }; // [0] = (1, 1)
+_Static_assert(sizeof(h) == sizeof(_Complex float), "");
+
+_Complex float i[] = { 1.0f, 1.0f }; // [0] = (1, 0), [1] = (1, 0)
+_Static_assert(sizeof(i) == 2 * sizeof(_Complex float), "");
+
+
 /** manifest:
 syntax
 args = -std=c23

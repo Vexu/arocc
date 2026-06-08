@@ -4393,7 +4393,12 @@ fn findScalarInitializer(
                 warned_excess.* = true;
                 return true;
             }
-            if (res.qt.eql(qt, p.comp) and il.list.items.len == 0) {
+            const is_direct_complex_init = index_list_top == 0;
+            const is_last_init_item = p.tok_ids[p.tok_i] == .r_brace or
+                (p.tok_ids[p.tok_i] == .comma and p.tok_ids[p.tok_i + 1] == .r_brace);
+            const last_is_complex = is_last_init_item and res.qt.is(p.comp, .complex);
+            const can_init_whole_complex = il.list.items.len == 0 and (!is_direct_complex_init or last_is_complex);
+            if (can_init_whole_complex) {
                 try p.setInitializer(il, qt, first_tok, res);
                 return true;
             }
