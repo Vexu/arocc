@@ -345,7 +345,6 @@ pub const Node = union(enum) {
             static,
             @"extern",
             register,
-            block,
         },
         thread_local: bool,
         /// From predefined macro  __func__, __FUNCTION__ or __PRETTY_FUNCTION__.
@@ -838,8 +837,6 @@ pub const Node = union(enum) {
                                 .@"extern"
                             else if (attr.register)
                                 .register
-                            else if (attr.block)
-                                .block
                             else
                                 .auto,
                             .thread_local = attr.thread_local,
@@ -861,8 +858,6 @@ pub const Node = union(enum) {
                                 .@"extern"
                             else if (attr.register)
                                 .register
-                            else if (attr.block)
-                                .block
                             else
                                 .auto,
                             .thread_local = attr.thread_local,
@@ -1923,8 +1918,7 @@ pub const Node = union(enum) {
             thread_local: bool = false,
             implicit: bool = false,
             register: bool = false,
-            block: bool = false,
-            _: u25 = 0,
+            _: u26 = 0,
         };
 
         const DiagnosticPack = packed struct(u32) {
@@ -2150,7 +2144,6 @@ pub fn setNode(tree: *Tree, node: Node, index: usize) !void {
                 .thread_local = variable.thread_local,
                 .implicit = variable.implicit,
                 .register = variable.storage_class == .register,
-                .block = variable.storage_class == .block,
             });
             if (variable.initializer) |some| {
                 repr.data[2] = @intFromEnum(some);
@@ -3092,10 +3085,8 @@ pub fn isLvalExtra(tree: *const Tree, node: Node.Index, extra: *LvalExtra) bool 
     var cur_node = node;
     switch (cur_node.get(tree)) {
         .block_capture_ref_expr => |capture| {
-            const decl = capture.decl.get(tree);
-            extra.block_capture_kind = if (decl == .variable and decl.variable.storage_class == .block) kind: {
-                break :kind .by_ref;
-            } else .by_val;
+            const blocks_attr = capture.qt.getAttribute(tree.comp, .blocks);
+            extra.block_capture_kind = if (blocks_attr != null and blocks_attr.?.capture == .byref) .by_ref else .by_val;
             return true;
         },
         .compound_literal_expr => |literal| {
@@ -3384,7 +3375,6 @@ fn dumpNode(
                 .static => try w.writeAll("static "),
                 .@"extern" => try w.writeAll("extern "),
                 .register => try w.writeAll("register "),
-                .block => try w.writeAll("__block "),
             }
             if (variable.thread_local) try w.writeAll("thread_local ");
             try term.setColor(.reset);
