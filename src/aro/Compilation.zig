@@ -2035,7 +2035,7 @@ fn removeDuplicateSearchPaths(comp: *Compilation, start: usize, verbose: bool) !
                 continue;
             }
         } else {
-            const gop = try seen_frameworks.getOrPut(allocator, include.path);
+            const gop = try seen_includes.getOrPut(allocator, include.path);
             if (!gop.found_existing) {
                 comp.search_path.items[i] = include;
                 i += 1;
