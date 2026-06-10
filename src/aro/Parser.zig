@@ -9714,17 +9714,17 @@ fn callExpr(p: *Parser, lhs: Result) Error!Result {
 
     // We cannot refer to the function type here because the pointer to
     // type_store.extra might get invalidated while parsing args.
-    const func_qt, const typed_params_len, const func_kind_base = blk: {
+    const func_qt, const typed_params_len, const func_kind_base, const maybe_nonnull = blk: {
         var base_qt = lhs.qt;
         if (base_qt.get(p.comp, .pointer)) |pointer_ty| base_qt = pointer_ty.child else if (base_qt.get(p.comp, .block)) |block_ty| base_qt = block_ty.func;
-        if (base_qt.isInvalid()) break :blk .{ base_qt, std.math.maxInt(usize), undefined };
+        if (base_qt.isInvalid()) break :blk .{ base_qt, std.math.maxInt(usize), undefined, null };
 
         const func_type_qt = base_qt.base(p.comp);
         if (func_type_qt.type != .func) {
             try p.err(l_paren, .not_callable, .{lhs.qt});
             return error.ParsingFailed;
         }
-        break :blk .{ func_type_qt.qt, func_type_qt.type.func.params.len, func_type_qt.type.func.kind };
+        break :blk .{ func_type_qt.qt, func_type_qt.type.func.params.len, func_type_qt.type.func.kind, base_qt.getAttribute(p.comp, .nonnull) };
     };
 
     var func = lhs;
@@ -9818,6 +9818,18 @@ fn callExpr(p: *Parser, lhs: Result) Error!Result {
                 if (arg.val.isZero(p.comp)) {
                     try p.err(param_tok, .non_null_argument, .{});
                     try p.err(param.name_tok, .callee_with_static_array, .{});
+                }
+            }
+
+            if (maybe_nonnull) |nonnull| {
+                const indices = p.comp.type_store.nonnull_args.items[nonnull.indices_start..][0..nonnull.indices_len];
+                const needs_nonnull = if (nonnull.indices_len == 0)
+                    param.qt.isPointer(p.comp)
+                else
+                    std.mem.indexOfScalar(u32, indices, @intCast(arg_count + 1)) != null;
+
+                if (needs_nonnull and arg.val.isZero(p.comp)) {
+                    try p.err(param_tok, .non_null_argument, .{});
                 }
             }
 
