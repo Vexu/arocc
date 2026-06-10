@@ -233,9 +233,9 @@ noipa
     .tag = .noipa
     .gnu = true
 
-# nonnull
-#     .tag = .nonnull
-#     .gnu = true
+nonnull
+    .tag = .nonnull
+    .gnu = true
 
 nonstring
     .tag = .nonstring

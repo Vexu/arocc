@@ -1,5 +1,6 @@
 const std = @import("std");
 const mem = std.mem;
+const Interner = @import("backend").Interner;
 const ZigType = std.builtin.Type;
 const CallingConvention = @import("backend").CallingConvention;
 const Compilation = @import("Compilation.zig");
@@ -86,6 +87,7 @@ pub const Iterator = struct {
 /// number of required arguments
 pub fn requiredArgCount(attr: Tag) u32 {
     switch (attr) {
+        .nonnull => return 0,
         inline else => |tag| {
             comptime var needed = 0;
             comptime {
@@ -102,6 +104,7 @@ pub fn requiredArgCount(attr: Tag) u32 {
 /// maximum number of args that can be passed
 pub fn maxArgCount(attr: Tag) u32 {
     switch (attr) {
+        .nonnull => return std.math.maxInt(u32),
         inline else => |tag| {
             comptime var max = 0;
             comptime {
@@ -250,6 +253,26 @@ pub fn diagnoseAlignment(attr: Tag, arguments: *Arguments, arg_idx: u32, res: Pa
     }
 }
 
+const type_strings = struct {
+    const string = "a string";
+    const int = "an integer constant";
+    const expression = "an expression";
+};
+
+fn diagnoseInvalidArgType(p: *Parser, arg_start: TokenIndex, expected: []const u8, actual: Interner.Key) !void {
+    try p.err(arg_start, .attribute_arg_invalid, .{
+        expected,
+        switch (actual) {
+            .int => type_strings.int,
+            .bytes => type_strings.string,
+            .float => "a floating point number",
+            .complex => "a complex floating point number",
+            .null => "nullptr",
+            else => unreachable,
+        },
+    });
+}
+
 fn diagnoseField(
     comptime decl_name: [:0]const u8,
     comptime field_name: [:0]const u8,
@@ -260,23 +283,17 @@ fn diagnoseField(
     node: Tree.Node,
     p: *Parser,
 ) !bool {
-    const string = "a string";
     const identifier = "an identifier";
-    const int = "an integer constant";
     const alignment = "an integer constant";
-    const nullptr_t = "nullptr";
-    const float = "a floating point number";
-    const complex_float = "a complex floating point number";
-    const expression = "an expression";
 
     const expected: []const u8 = switch (Wanted) {
-        Value => string,
+        Value => type_strings.string,
         Identifier => identifier,
-        u32 => int,
+        u32 => type_strings.int,
         Alignment => alignment,
         CallingConvention => identifier,
         else => switch (@typeInfo(Wanted)) {
-            .@"enum" => if (Wanted.opts.enum_kind == .string) string else identifier,
+            .@"enum" => if (Wanted.opts.enum_kind == .string) type_strings.string else identifier,
             else => unreachable,
         },
     };
@@ -287,7 +304,7 @@ fn diagnoseField(
             return false;
         }
 
-        try p.err(arg_start, .attribute_arg_invalid, .{ expected, expression });
+        try p.err(arg_start, .attribute_arg_invalid, .{ expected, type_strings.expression });
         return true;
     }
     const key = p.comp.interner.get(res.val.ref());
@@ -330,19 +347,36 @@ fn diagnoseField(
         else => {},
     }
 
-    try p.err(arg_start, .attribute_arg_invalid, .{ expected, switch (key) {
-        .int => int,
-        .bytes => string,
-        .float => float,
-        .complex => complex_float,
-        .null => nullptr_t,
-        else => unreachable,
-    } });
+    try diagnoseInvalidArgType(p, arg_start, expected, key);
+    return true;
+}
+
+fn diagnoseNonnull(arguments: *Arguments, res: Parser.Result, arg_start: TokenIndex, p: *Parser) !bool {
+    if (res.val.opt_ref == .none) {
+        try p.err(arg_start, .attribute_arg_invalid, .{ type_strings.int, type_strings.expression });
+        return true;
+    }
+    const key = p.comp.interner.get(res.val.ref());
+    if (key == .int) {
+        const index = res.val.toInt(u32, p.comp) orelse {
+            try p.err(arg_start, .attribute_int_out_of_range, .{res});
+            return true;
+        };
+        if (arguments.nonnull.indices_len == 0) {
+            arguments.nonnull.indices_start = @intCast(p.comp.type_store.nonnull_args.items.len);
+        }
+        try p.comp.type_store.nonnull_args.append(p.comp.gpa, index);
+        arguments.nonnull.indices_len += 1;
+        return false;
+    }
+
+    try diagnoseInvalidArgType(p, arg_start, type_strings.int, key);
     return true;
 }
 
 pub fn diagnose(attr: Tag, arguments: *Arguments, arg_idx: u32, res: Parser.Result, arg_start: TokenIndex, node: Tree.Node, p: *Parser) !bool {
     switch (attr) {
+        .nonnull => return diagnoseNonnull(arguments, res, arg_start, p),
         inline else => |tag| {
             const decl_name = @typeInfo(attributes).@"struct".decl_names[@intFromEnum(tag)];
             const max_arg_count = comptime maxArgCount(tag);
@@ -530,11 +564,11 @@ const attributes = struct {
     pub const noinit = struct {};
     pub const @"noinline" = struct {};
     pub const noipa = struct {};
-    // TODO: arbitrary number of arguments
-    //    const nonnull = struct {
-    //    //            arg_index: []const u32,
-    //        };
-    //    };
+    pub const nonnull = struct {
+        /// index into type_store.nonnull_args
+        indices_start: u32 = 0,
+        indices_len: u32 = 0,
+    };
     pub const nonstring = struct {};
     pub const noplt = struct {};
     pub const @"noreturn" = struct {};
@@ -1070,6 +1104,28 @@ pub fn applyFunctionAttributes(p: *Parser, qt: QualType, attr_buf_start: usize) 
                 try p.err(tok, .alloc_align_requires_ptr_return, .{});
             }
         },
+        .nonnull => {
+            const func_ty = base_qt.get(p.comp, .func).?;
+            var valid = true;
+            const nonnull = attr.args.nonnull;
+            if (nonnull.indices_len != 0) {
+                const indices = p.comp.type_store.nonnull_args.items[nonnull.indices_start..][0..nonnull.indices_len];
+                for (indices, 0..) |position, arg_i| {
+                    if (position == 0 or position > func_ty.params.len) {
+                        try p.err(tok, .attribute_param_out_of_bounds, .{ "nonnull", arg_i + 1 });
+                        valid = false;
+                        continue;
+                    }
+                    const arg_qt = func_ty.params[position - 1].qt;
+                    if (arg_qt.isInvalid()) continue;
+                    if (!arg_qt.isPointer(p.comp)) {
+                        try p.err(tok, .attribute_requires_pointer, .{"nonnull"});
+                        valid = false;
+                    }
+                }
+            }
+            if (valid) try p.attr_application_buf.append(gpa, attr);
+        },
         .access,
         .alloc_size,
         .artificial,
@@ -1096,7 +1152,6 @@ pub fn applyFunctionAttributes(p: *Parser, qt: QualType, attr_buf_start: usize) 
         .no_stack_protector,
         .noclone,
         .noipa,
-        // .nonnull,
         .noplt,
         // .optimize,
         .patchable_function_entry,

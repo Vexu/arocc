@@ -1952,6 +1952,9 @@ pub const Type = union(enum) {
 types: std.MultiArrayList(Repr) = .empty,
 extra: std.ArrayList(u32) = .empty,
 attributes: std.ArrayList(Attribute) = .empty,
+/// contains the numeric arguments to __attribute__((nonnull(X,Y,...))); the arguments are indices of the arguments
+/// of the attributed function which are declared nonnull
+nonnull_args: std.ArrayList(u32) = .empty,
 anon_name_arena: std.heap.ArenaAllocator.State = .{},
 
 wchar: QualType = .invalid,
@@ -1976,6 +1979,7 @@ pub fn deinit(ts: *TypeStore, gpa: std.mem.Allocator) void {
     ts.types.deinit(gpa);
     ts.extra.deinit(gpa);
     ts.attributes.deinit(gpa);
+    ts.nonnull_args.deinit(gpa);
     ts.anon_name_arena.promote(gpa).deinit();
     ts.* = undefined;
 }
