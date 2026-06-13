@@ -48,6 +48,15 @@ void array_fixed(void) {
     _Static_assert(_Alignof(__typeof(a)) == 32, "");
 }
 
+void array_element_typedef(void) {
+    typedef int pair[2];
+    typedef pair elem __attribute__((aligned(8)));
+    typedef elem arr[3];
+    arr a = {{1, 2}, {3, 4}, {5, 6}};
+    _Static_assert(_Alignof(arr) == 8, "");
+    _Static_assert(_Alignof(__typeof(a)) == 8, "");
+}
+
 /** manifest:
 syntax
 args = -Wno-implicit-int

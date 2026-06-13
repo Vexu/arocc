@@ -706,7 +706,7 @@ pub const QualType = packed struct(u32) {
 
             .func => comp.target.defaultFunctionAlignment(),
 
-            .array => |array| continue :loop array.elem.base(comp).type,
+            .array => |array| return array.elem.alignof(comp),
             .vector => |vector| continue :loop vector.elem.base(comp).type,
 
             .@"struct", .@"union" => |record| {
