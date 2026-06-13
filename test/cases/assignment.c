@@ -122,6 +122,17 @@ void constant_sign_conversion(void) {
 #pragma GCC diagnostic pop
 }
 
+void assign_cast(void) {
+    int a;
+    (float)a = 1.2f;
+}
+
+void assign_incomplete(void) {
+    typedef struct S S;
+    extern S s;
+    s = 1;
+}
+
 /** manifest:
 syntax
 
@@ -171,4 +182,6 @@ assignment.c:105:7: note: variable 'a' declared const here
 assignment.c:113:7: warning: incompatible pointer types assigning to 'unsigned int *' from incompatible type 'int *' converts between pointers to integer types with different sign [-Wpointer-sign]
 assignment.c:117:23: warning: implicit conversion from 'int' to 'unsigned char' changes value from 1000 to 232 [-Wconstant-conversion]
 assignment.c:121:22: warning: implicit conversion changes signedness: 'int' to 'unsigned int' [-Wsign-conversion]
+assignment.c:127:14: error: assignment to cast is not allowed
+assignment.c:133:7: error: incomplete type 'S' (aka 'struct S') is not assignable
 */

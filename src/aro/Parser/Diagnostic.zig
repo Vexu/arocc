@@ -486,6 +486,11 @@ pub const not_assignable: Diagnostic = .{
     .kind = .@"error",
 };
 
+pub const cast_not_assignable: Diagnostic = .{
+    .fmt = "assignment to cast is not allowed",
+    .kind = .@"error",
+};
+
 pub const ident_or_l_brace: Diagnostic = .{
     .fmt = "expected identifier or '{'",
     .kind = .@"error",
@@ -2502,6 +2507,11 @@ pub const array_not_assignable: Diagnostic = .{
 
 pub const non_object_not_assignable: Diagnostic = .{
     .fmt = "non-object type {qt} is not assignable",
+    .kind = .@"error",
+};
+
+pub const incomplete_type_not_assignable: Diagnostic = .{
+    .fmt = "incomplete type {qt} is not assignable",
     .kind = .@"error",
 };
 

@@ -7531,6 +7531,16 @@ pub const Result = struct {
         if (dest_unqual.is(p.comp, .storage_float) and dest_unqual.eql(res.qt, p.comp)) {
             return;
         }
+        if (c == .assign) {
+            const base_type = dest_unqual.base(p.comp);
+            switch (base_type.type) {
+                .array => return p.err(tok, .array_not_assignable, .{dest_qt}),
+                .func => return p.err(tok, .non_object_not_assignable, .{dest_qt}),
+                else => if (base_type.qt.hasIncompleteSize(p.comp)) {
+                    return p.err(tok, .incomplete_type_not_assignable, .{dest_qt});
+                },
+            }
+        }
 
         const dest_opt_vec = dest_qt.get(p.comp, .vector);
         const res_opt_vec = res.qt.get(p.comp, .vector);
@@ -7659,14 +7669,7 @@ pub const Result = struct {
                 return; // ok
             }
         } else {
-            if (c == .assign) {
-                const base_type = dest_unqual.base(p.comp);
-                switch (base_type.type) {
-                    .array => return p.err(tok, .array_not_assignable, .{base_type.qt}),
-                    .func => return p.err(tok, .non_object_not_assignable, .{base_type.qt}),
-                    else => {},
-                }
-            } else if (c == .test_coerce) {
+            if (c == .test_coerce) {
                 return error.CoercionFailed;
             }
             // This case should not be possible and an error should have already been emitted but we
@@ -7770,13 +7773,16 @@ fn unwrapNestedOperation(p: *Parser, node_idx: Node.Index) ?Node.DeclRef {
         .member_access_ptr_expr,
         .member_access_expr,
         => |memb_or_arr_access| continue :loop memb_or_arr_access.base.get(&p.tree),
-        inline .cast,
+        .cast => |cast| {
+            if (!cast.implicit) return null;
+            continue :loop cast.operand.get(&p.tree);
+        },
         .paren_expr,
         .pre_inc_expr,
         .post_inc_expr,
         .pre_dec_expr,
         .post_dec_expr,
-        => |cast_or_unary| continue :loop cast_or_unary.operand.get(&p.tree),
+        => |unary| continue :loop unary.operand.get(&p.tree),
         .sub_expr,
         .add_expr,
         => |bin| continue :loop bin.lhs.get(&p.tree),
@@ -7809,6 +7815,8 @@ fn issueConstAssignmentDiagnostics(p: *Parser, node_idx: Node.Index, tok: TokenI
         const name = p.tokSlice(unwrapped.name_tok);
         try p.err(tok, .const_var_assignment, .{ name, unwrapped.qt });
         try p.issueDeclaredConstHereNote(unwrapped, name);
+    } else if (node_idx.get(&p.tree) == .cast) {
+        try p.err(tok, .cast_not_assignable, .{});
     } else {
         try p.err(tok, .not_assignable, .{});
     }
