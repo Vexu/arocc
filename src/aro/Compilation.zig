@@ -708,19 +708,6 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
                 try define(w, "__ARM_ARCH_ISA_ARM");
             }
 
-            const profile = if (target.cpu.has(.arm, .aclass))
-                "A"
-            else if (target.cpu.has(.arm, .rclass))
-                "R"
-            else if (target.cpu.has(.arm, .mclass))
-                "M"
-            else
-                "";
-
-            if (profile.len > 0) {
-                try w.print("#define __ARM_ARCH_PROFILE '{s}'\n", .{profile});
-            }
-
             var arm_version: u8 = 6;
             const arm_features = target.cpu.features;
             for ([_]struct { std.Target.arm.Feature, []const u8 }{
@@ -752,6 +739,7 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
                 .{ .v7r, "7R" },
                 .{ .v7m, "7M" },
                 .{ .v7em, "7EM" },
+                .{ .has_v7, "7A" }, // bare armv7 with no profile: default to A
 
                 .{ .v6t2, "6T2" },
                 .{ .v6kz, "6KZ" },
@@ -780,6 +768,19 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
                     try w.print("#define __ARM_ARCH {d}\n", .{arm_version});
                     break;
                 }
+            }
+
+            const arm_profile: u8 =
+                if (target.cpu.has(.arm, .aclass))
+                    'A'
+                else if (target.cpu.has(.arm, .rclass))
+                    'R'
+                else if (target.cpu.has(.arm, .mclass))
+                    'M'
+                else
+                    '-';
+            if (arm_profile != '-') {
+                try w.print("#define __ARM_ARCH_PROFILE '{c}'\n", .{arm_profile});
             }
 
             if (arm_version == 5 or (arm_version == 6 and !target.cpu.has(.arm, .mclass)) or arm_version > 6) {
@@ -857,18 +858,25 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
             if (comp.code_gen_options.is_rwpi) {
                 try define(w, "__ARM_RWPI");
             }
+
+            const min_enum_size: u8 = if (comp.langopts.short_enums) 1 else 4;
+            try w.print("#define __ARM_SIZEOF_MINIMAL_ENUM {d}\n", .{min_enum_size});
+            try w.print("#define __ARM_SIZEOF_WCHAR_T {d}\n", .{comp.type_store.wchar.sizeof(comp)});
         },
         .aarch64, .aarch64_be => |arch| {
             try define(w, "__aarch64__");
             try define(w, "__ARM_64BIT_STATE");
             try define(w, "__ARM_ARCH_ISA_A64");
-            try w.writeAll("#define __ARM_ALIGN_MAX_STACK_PWR 4\n");
-
             try define(w, "__ARM_FEATURE_CLZ");
             try define(w, "__ARM_FEATURE_FMA");
             try w.writeAll("#define __ARM_FEATURE_LDREX 0xF\n");
-            try define(w, "__ARM_FEATURE_IDIV");
-            try define(w, "__ARM_FEATURE_DIV");
+            try define(w, "__ARM_FEATURE_IDIV"); // As specified in ACLE
+            try define(w, "__ARM_FEATURE_DIV"); // For backwards compatibility
+            try define(w, "__ARM_FEATURE_NUMERIC_MAXMIN");
+            try w.writeAll("#define __ARM_FEATURE_DIRECTED_ROUNDING 1\n");
+            try w.writeAll("#define __ARM_STATE_ZA 1\n");
+            try w.writeAll("#define __ARM_STATE_ZT0 1\n");
+            try w.writeAll("#define __ARM_ALIGN_MAX_STACK_PWR 4\n");
             try define(w, "__ARM_FEATURE_NUMERIC_MAXMIN");
             try define(w, "__ARM_FEATURE_DIRECTED_ROUNDING");
 
@@ -876,35 +884,14 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
             const acle_version = (100 * 2024) + (10 * 2) + 0; // ACLE 2024.2
             try w.print("#define __ARM_ACLE {d}\n", .{acle_version});
 
-            const arm_features = target.cpu.features;
-            for ([_]struct { std.Target.aarch64.Feature, []const u8 }{
-                .{ .v9_6a, "9_6A" },
-                .{ .v9_5a, "9_5A" },
-                .{ .v9_4a, "9_4A" },
-                .{ .v9_3a, "9_3A" },
-                .{ .v9_2a, "9_2A" },
-                .{ .v9_1a, "9_1A" },
-                .{ .v9a, "9A" },
-                .{ .v8_9a, "8_9A" },
-                .{ .v8_8a, "8_8A" },
-                .{ .v8_7a, "8_7A" },
-                .{ .v8_6a, "8_6A" },
-                .{ .v8_5a, "8_5A" },
-                .{ .v8_4a, "8_4A" },
-                .{ .v8_3a, "8_3A" },
-                .{ .v8_2a, "8_2A" },
-                .{ .v8_1a, "8_1A" },
-                .{ .v8a, "8A" },
-                .{ .v8r, "8R" },
-            }) |fs| {
-                if (arm_features.isEnabled(@intFromEnum(fs[0]))) {
-                    try w.print("#define __ARM_ARCH_{s}__ 1\n", .{fs[1]});
-                    const arm_version = fs[1][0];
-                    try w.print("#define __ARM_ARCH {c}\n", .{arm_version});
-                    const profile = fs[1][fs[1].len - 1];
-                    try w.print("#define __ARM_ARCH_PROFILE '{c}'\n", .{profile});
-                    break;
-                }
+            const arm_version: u8 = if (target.cpu.has(.aarch64, .v9a)) 9 else 8;
+            const arm_profile: u8 = if (target.cpu.has(.aarch64, .v8r)) 'R' else 'A';
+            try w.print("#define __ARM_ARCH {d}\n", .{arm_version});
+            try w.print("#define __ARM_ARCH_PROFILE '{c}'\n", .{arm_profile});
+
+            if (target.cpu.has(.aarch64, .v8_3a)) {
+                try define(w, "__ARM_FEATURE_COMPLEX");
+                try define(w, "__ARM_FEATURE_JCVT");
             }
 
             switch (arch) {
@@ -1031,6 +1018,9 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
                     try w.print("#define __ARM_FEATURE_{s} 1\n", .{fs[1]});
                 }
             }
+            const min_enum_size: u8 = if (comp.langopts.short_enums) 1 else 4;
+            try w.print("#define __ARM_SIZEOF_MINIMAL_ENUM {d}\n", .{min_enum_size});
+            try w.print("#define __ARM_SIZEOF_WCHAR_T {d}\n", .{comp.type_store.wchar.sizeof(comp)});
         },
         .msp430 => {
             try define(w, "MSP430");
