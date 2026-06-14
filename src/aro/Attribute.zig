@@ -448,6 +448,15 @@ const attributes = struct {
         alignment: Alignment,
         offset: ?u32 = null,
     };
+    pub const blocks = struct {
+        capture: enum {
+            byref,
+
+            pub const opts = struct {
+                const enum_kind = .identifier;
+            };
+        },
+    };
     pub const cleanup = struct {
         function: Identifier,
     };
@@ -854,7 +863,22 @@ fn ignoredAttrErr(p: *Parser, tok: TokenIndex, attr: Attribute.Tag, context: []c
     try p.err(tok, .ignored_attribute, .{ @tagName(attr), context });
 }
 
-pub const applyParameterAttributes = applyVariableAttributes;
+pub fn applyParameterAttributes(p: *Parser, qt: QualType, attr_buf_start: usize, diagnostic: ?Parser.Diagnostic) !QualType {
+    const attrs = p.attr_buf.items(.attr)[attr_buf_start..];
+    const toks = p.attr_buf.items(.tok)[attr_buf_start..];
+    var filter_attrs: std.ArrayList(usize) = .empty;
+    defer filter_attrs.deinit(p.comp.gpa);
+    for (attrs, toks, 0..) |attr, tok, i| switch (attr.tag) {
+        .blocks => {
+            try p.err(tok, .block_attribute_not_allowed, .{});
+            try filter_attrs.append(p.comp.gpa, i);
+        },
+        else => {},
+    };
+    p.attr_buf.orderedRemoveMany(filter_attrs.items);
+    return applyVariableAttributes(p, qt, attr_buf_start, diagnostic);
+}
+
 pub fn applyVariableAttributes(p: *Parser, qt: QualType, attr_buf_start: usize, diagnostic: ?Parser.Diagnostic) !QualType {
     const gpa = p.comp.gpa;
     const attrs = p.attr_buf.items(.attr)[attr_buf_start..];
@@ -936,6 +960,10 @@ pub fn applyVariableAttributes(p: *Parser, qt: QualType, attr_buf_start: usize, 
         => |t| try p.err(tok, .attribute_todo, .{ @tagName(t), "variables" }),
         // There is already an error in Parser for _Noreturn keyword
         .noreturn => if (attr.syntax != .keyword) try ignoredAttrErr(p, tok, attr.tag, "variables"),
+        .blocks => if (p.func.qt != null)
+            try p.attr_application_buf.append(gpa, attr)
+        else
+            try p.err(tok, .block_attribute_not_allowed, .{}),
         else => try ignoredAttrErr(p, tok, attr.tag, "variables"),
     };
     return applySelected(base_qt, p);
@@ -1012,6 +1040,8 @@ pub fn applyTypeAttributes(p: *Parser, qt: QualType, attr_buf_start: usize, diag
             .scalar_storage_order,
             .nonstring,
             => |t| try p.err(tok, .attribute_todo, .{ @tagName(t), "types" }),
+            // TODO: clang doesn't emit a dx here, but behavior for `__block <typedef>` is unspecified
+            .blocks => {},
             else => try ignoredAttrErr(p, tok, attr.tag, "types"),
         }
     }
@@ -1106,25 +1136,7 @@ pub fn applyFunctionAttributes(p: *Parser, qt: QualType, attr_buf_start: usize) 
         },
         .nonnull => {
             const func_ty = base_qt.get(p.comp, .func).?;
-            var valid = true;
-            const nonnull = attr.args.nonnull;
-            if (nonnull.indices_len != 0) {
-                const indices = p.comp.type_store.nonnull_args.items[nonnull.indices_start..][0..nonnull.indices_len];
-                for (indices, 0..) |position, arg_i| {
-                    if (position == 0 or position > func_ty.params.len) {
-                        try p.err(tok, .attribute_param_out_of_bounds, .{ "nonnull", arg_i + 1 });
-                        valid = false;
-                        continue;
-                    }
-                    const arg_qt = func_ty.params[position - 1].qt;
-                    if (arg_qt.isInvalid()) continue;
-                    if (!arg_qt.isPointer(p.comp)) {
-                        try p.err(tok, .attribute_requires_pointer, .{"nonnull"});
-                        valid = false;
-                    }
-                }
-            }
-            if (valid) try p.attr_application_buf.append(gpa, attr);
+            try applyNonnull(p, attr, tok, func_ty);
         },
         .access,
         .alloc_size,
@@ -1164,7 +1176,88 @@ pub fn applyFunctionAttributes(p: *Parser, qt: QualType, attr_buf_start: usize) 
         .weakref,
         .zero_call_used_regs,
         => |t| try p.err(tok, .attribute_todo, .{ @tagName(t), "functions" }),
+        // TODO: clang doesn't emit a dx here, but behavior for `__block <function>` is unspecified
+        .blocks => {},
         else => try ignoredAttrErr(p, tok, attr.tag, "functions"),
+    };
+    return applySelected(qt, p);
+}
+
+fn applyNonnull(p: *Parser, attr: Attribute, tok: TokenIndex, func_ty: Type.Func) !void {
+    const gpa = p.comp.gpa;
+    var valid = true;
+    const nonnull = attr.args.nonnull;
+    if (nonnull.indices_len != 0) {
+        const indices = p.comp.type_store.nonnull_args.items[nonnull.indices_start..][0..nonnull.indices_len];
+        for (indices, 0..) |position, arg_i| {
+            if (position == 0 or position > func_ty.params.len) {
+                try p.err(tok, .attribute_param_out_of_bounds, .{ "nonnull", arg_i + 1 });
+                valid = false;
+                continue;
+            }
+            const arg_qt = func_ty.params[position - 1].qt;
+            if (arg_qt.isInvalid()) continue;
+            if (!arg_qt.isPointer(p.comp)) {
+                try p.err(tok, .attribute_requires_pointer, .{"nonnull"});
+                valid = false;
+            }
+        }
+    }
+    if (valid) try p.attr_application_buf.append(gpa, attr);
+}
+
+pub fn applyBlockAttributes(p: *Parser, qt: QualType, attr_buf_start: usize) !QualType {
+    const gpa = p.comp.gpa;
+    const attrs = p.attr_buf.items(.attr)[attr_buf_start..];
+    const toks = p.attr_buf.items(.tok)[attr_buf_start..];
+    p.attr_application_buf.items.len = 0;
+    for (attrs, toks) |attr, tok| switch (attr.tag) {
+        // zig fmt: off
+        .noreturn, .deprecated, .unavailable, .pure, .@"const", .visibility,
+        // zig fmt: on
+        => try p.attr_application_buf.append(gpa, attr),
+        .aligned => try attr.applyAligned(p, qt, null),
+        .format => try attr.applyFormat(p, qt),
+        // zig fmt: off
+        .fastcall, .stdcall, .thiscall, .vectorcall, .cdecl, .pcs,
+        .riscv_vector_cc, .aarch64_sve_pcs, .aarch64_vector_pcs, .sysv_abi,
+        .ms_abi,
+        // zig fmt: on
+        => try applyGnuAttrCallingConvention(attr, p, tok, qt),
+
+        .nonnull => {
+            const block_ty = qt.get(p.comp, .block).?;
+            const func_ty = block_ty.func.get(p.comp, .func).?;
+            try applyNonnull(p, attr, tok, func_ty);
+        },
+
+        .sentinel,
+        .blocks, // TODO: clang doesn't emit any diagnostic, but it's not clear what this does
+        => |t| try p.err(tok, .attribute_todo, .{ @tagName(t), "blocks" }),
+
+        // TODO: clang warns with the specific contexts they're allowed in
+        // (eg "'weakref' attribute only applies to variables and functions")
+        // zig fmt: off
+        .unused, .used, .weak, .leaf, .warn_unused_result, .returns_nonnull,
+        .returns_twice, .retain, .gnu_inline, .nothrow, .internal_linkage, .hot,
+        .cold, .always_inline, .@"noinline", .malloc, .artificial, .assume_aligned,
+        .constructor, .ifunc, .no_address_safety_analysis,
+        .no_instrument_function, .no_profile_instrument_function,
+        .no_stack_protector, .patchable_function_entry, .simd, .stack_protect,
+        .symver, .weakref,
+        => try ignoredAttrErr(p, tok, attr.tag, "blocks"),
+        // zig fmt: on
+
+        // TODO: clang errors with the specific contexts they're allowed in
+        // (eg "'warning' attribute only applies to functions")
+        // zig fmt: off
+        .warning, .section, .@"error", .flatten, .alias, .no_sanitize,
+        .no_sanitize_address, .no_sanitize_thread, .no_split_stack, .target,
+        .target_clones, .zero_call_used_regs,
+        => try ignoredAttrErr(p, tok, attr.tag, "blocks"),
+        // zig fmt: on
+
+        else => try ignoredAttrErr(p, tok, attr.tag, "blocks"),
     };
     return applySelected(qt, p);
 }

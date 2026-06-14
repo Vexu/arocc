@@ -1,0 +1,457 @@
+implicit typedef: 'unsigned char'
+ name: char8_t
+
+implicit typedef: '__int128'
+ name: __int128_t
+
+implicit typedef: 'unsigned __int128'
+ name: __uint128_t
+
+implicit typedef: '*char'
+ name: __builtin_ms_va_list
+
+implicit typedef: '*char'
+ name: __builtin_va_list
+
+implicit typedef: 'struct __NSConstantString_tag'
+ name: __NSConstantString
+
+implicit typedef: '__mfp8'
+ name: __mfp8
+
+typedef: 'block (int) int'
+ name: IntToIntBlock
+
+variable: 'IntToIntBlock: block (int) int'
+ name: my_block
+ init:
+  block_literal: 'block (anotherArg: int) int'
+   body:
+    compound_stmt
+      return_stmt: 'int'
+       expr:
+        decl_ref_expr: 'int' lvalue
+         name: anotherArg
+
+function: 'fn (block: IntToIntBlock: block (int) int) void'
+ name: my_func
+ body:
+  compound_stmt
+    call_expr: 'int'
+     callee:
+      implicit cast: (lval_to_rval) 'IntToIntBlock: block (int) int'
+        decl_ref_expr: 'IntToIntBlock: block (int) int' lvalue
+         name: block
+     args:
+      int_literal: 'int' (value: 42)
+
+    variable: 'int'
+     name: counter
+     init:
+      int_literal: 'int' (value: 0)
+
+    variable: 'attributed(int)'
+     attr: blocks capture: byref
+     name: prev
+     init:
+      int_literal: 'int' (value: 0)
+
+    assign_expr: 'IntToIntBlock: block (int) int'
+     lhs:
+      decl_ref_expr: 'IntToIntBlock: block (int) int' lvalue
+       name: block
+     rhs:
+      block_literal: 'block (arg: int) int'
+       body:
+        compound_stmt
+          post_inc_expr: 'int'
+           operand:
+            block_capture_ref_expr: 'int' lvalue
+             name: counter
+
+          variable: '*int'
+           name: pprev
+           init:
+            implicit cast: (int_to_pointer) '*int'
+              implicit cast: (lval_to_rval) 'attributed(int)'
+               attr: blocks capture: byref
+                block_capture_ref_expr: 'attributed(int)' lvalue
+                 attr: blocks capture: byref
+                 name: prev
+
+          variable: 'int'
+           name: res
+           init:
+            add_expr: 'attributed(int)'
+             attr: blocks capture: byref
+             lhs:
+              implicit cast: (lval_to_rval) 'attributed(int)'
+               attr: blocks capture: byref
+                block_capture_ref_expr: 'attributed(int)' lvalue
+                 attr: blocks capture: byref
+                 name: prev
+             rhs:
+              implicit cast: (lval_to_rval) 'int'
+                block_capture_ref_expr: 'int' lvalue
+                 name: counter
+
+          assign_expr: 'attributed(int)'
+           attr: blocks capture: byref
+           lhs:
+            block_capture_ref_expr: 'attributed(int)' lvalue
+             attr: blocks capture: byref
+             name: prev
+           rhs:
+            implicit cast: (lval_to_rval) 'int'
+              decl_ref_expr: 'int' lvalue
+               name: arg
+
+          return_stmt: 'int'
+           expr:
+            implicit cast: (lval_to_rval) 'int'
+              decl_ref_expr: 'int' lvalue
+               name: res
+
+    call_expr: 'int'
+     callee:
+      implicit cast: (lval_to_rval) 'IntToIntBlock: block (int) int'
+        decl_ref_expr: 'IntToIntBlock: block (int) int' lvalue
+         name: block
+     args:
+      int_literal: 'int' (value: 67)
+
+    call_expr: 'int'
+     callee:
+      implicit cast: (lval_to_rval) 'IntToIntBlock: block (int) int'
+        decl_ref_expr: 'IntToIntBlock: block (int) int' lvalue
+         name: block
+     args:
+      int_literal: 'int' (value: 68)
+
+    decl_ref_expr: 'attributed(int)' lvalue
+     attr: blocks capture: byref
+     name: prev
+
+    assign_expr: 'IntToIntBlock: block (int) int'
+     lhs:
+      decl_ref_expr: 'IntToIntBlock: block (int) int' lvalue
+       name: block
+     rhs:
+      block_literal: 'block (another_arg: int) int'
+       body:
+        compound_stmt
+          return_stmt: 'int'
+           expr:
+            add_expr: 'int'
+             lhs:
+              implicit cast: (lval_to_rval) 'int'
+                block_capture_ref_expr: 'int' lvalue
+                 name: counter
+             rhs:
+              implicit cast: (lval_to_rval) 'int'
+                decl_ref_expr: 'int' lvalue
+                 name: another_arg
+
+    variable: 'block () void'
+     name: void_to_void_block
+     init:
+      block_literal: 'block () void'
+       body:
+        compound_stmt
+          return_stmt: 'void'
+
+    variable: 'block () void'
+     name: any_to_void_block
+     init:
+      block_literal: 'block () void'
+       body:
+        compound_stmt
+          variable: 'IntToIntBlock: block (int) int'
+           name: nested_block
+           init:
+            block_literal: 'block (arg: int) int'
+             body:
+              compound_stmt
+                return_stmt: 'int'
+                 expr:
+                  add_expr: 'int'
+                   lhs:
+                    implicit cast: (lval_to_rval) 'int'
+                      decl_ref_expr: 'int' lvalue
+                       name: arg
+                   rhs:
+                    implicit cast: (lval_to_rval) 'attributed(int)'
+                     attr: blocks capture: byref
+                      block_capture_ref_expr: 'attributed(int)' lvalue
+                       attr: blocks capture: byref
+                       name: prev
+
+    variable: '*void'
+     name: b
+     init:
+      implicit cast: (bitcast) '*void'
+        block_literal: 'block () int'
+         body:
+          compound_stmt
+            implicit return_stmt: 'int'
+
+    assign_expr: '*void'
+     lhs:
+      decl_ref_expr: '*void' lvalue
+       name: b
+     rhs:
+      implicit cast: (bitcast) '*void'
+        block_literal: 'block () int'
+         body:
+          compound_stmt
+            if_stmt
+             cond:
+              int_literal: 'int' (value: 0)
+             then:
+              return_stmt: 'int'
+               expr:
+                int_literal: 'int' (value: 4)
+
+            implicit return_stmt: 'int'
+
+    assign_expr: '*void'
+     lhs:
+      decl_ref_expr: '*void' lvalue
+       name: b
+     rhs:
+      implicit cast: (bitcast) '*void'
+        block_literal: 'block (fmt: *const char, buf: *char, ...) int'
+         body:
+          compound_stmt
+            implicit return_stmt: 'int'
+
+    assign_expr: '*void'
+     lhs:
+      decl_ref_expr: '*void' lvalue
+       name: b
+     rhs:
+      implicit cast: (bitcast) '*void'
+        block_literal: 'block () void'
+         body:
+          compound_stmt
+            return_stmt: 'void'
+             expr:
+              int_literal: 'int' (value: 4)
+
+    implicit return_stmt: 'void'
+
+variable: 'int'
+ name: thing
+
+function: 'fn () void'
+ name: blockstoragefunc
+ body:
+  compound_stmt
+    implicit return_stmt: 'void'
+
+struct_decl: 'struct a_fake_type'
+  record_field: 'int'
+   name: a
+
+function: 'fn () void'
+ name: blocks_attribute
+ body:
+  compound_stmt
+    variable: 'attributed(int)'
+     attr: blocks capture: byref
+     name: attr_cap
+
+    variable: 'int'
+     name: yet_another_attr_cap
+
+    variable: 'int'
+     name: so_many_attr_caps
+
+    variable: 'attributed(int)'
+     attr: blocks capture: byref
+     name: attr_capping
+
+    variable: 'attributed(int)'
+     attr: blocks capture: byref
+     name: c23_attr_cap
+
+    variable: 'int'
+     name: more_attr_caps
+
+    variable: 'int'
+     name: maybe_you_misunderstood_attr_capping
+
+    variable: 'int'
+     name: we_need_more_attr_caps
+
+    variable: 'int'
+     name: never_enough_attr_caps
+
+    variable: 'int'
+     name: this_is_probably_enough_attr_capping
+
+    variable: 'attributed(int)'
+     attr: blocks capture: byref
+     name: gnu_blocks_not_supported_tho
+
+    implicit return_stmt: 'void'
+
+function: 'fn () void'
+ name: noreturn_attribute
+ body:
+  compound_stmt
+    variable: '*void'
+     name: b
+     init:
+      implicit cast: (bitcast) '*void'
+        block_literal: 'attributed(block () int)'
+         attr: noreturn
+         body:
+          compound_stmt
+            return_stmt: 'int'
+             expr:
+              int_literal: 'int' (value: 4)
+
+    assign_expr: '*void'
+     lhs:
+      decl_ref_expr: '*void' lvalue
+       name: b
+     rhs:
+      implicit cast: (bitcast) '*void'
+        block_literal: 'attributed(block () int)'
+         attr: noreturn
+         body:
+          compound_stmt
+            implicit return_stmt: 'int'
+
+    assign_expr: '*void'
+     lhs:
+      decl_ref_expr: '*void' lvalue
+       name: b
+     rhs:
+      implicit cast: (bitcast) '*void'
+        block_literal: 'attributed(block () int)'
+         attr: noreturn
+         body:
+          compound_stmt
+            while_stmt
+             cond:
+              int_literal: 'int' (value: 1)
+             body:
+              compound_stmt
+
+            null_stmt: 'void'
+
+            return_stmt: 'int'
+             expr:
+              int_literal: 'int' (value: 4)
+
+    assign_expr: '*void'
+     lhs:
+      decl_ref_expr: '*void' lvalue
+       name: b
+     rhs:
+      implicit cast: (bitcast) '*void'
+        block_literal: 'attributed(block () int)'
+         attr: noreturn
+         body:
+          compound_stmt
+            while_stmt
+             cond:
+              int_literal: 'int' (value: 1)
+             body:
+              compound_stmt
+                return_stmt: 'int'
+                 expr:
+                  int_literal: 'int' (value: 4)
+
+            implicit return_stmt: 'int'
+
+    assign_expr: '*void'
+     lhs:
+      decl_ref_expr: '*void' lvalue
+       name: b
+     rhs:
+      implicit cast: (bitcast) '*void'
+        block_literal: 'block () int'
+         body:
+          compound_stmt
+            implicit return_stmt: 'int'
+
+    assign_expr: '*void'
+     lhs:
+      decl_ref_expr: '*void' lvalue
+       name: b
+     rhs:
+      implicit cast: (bitcast) '*void'
+        block_literal: 'attributed(block () int)'
+         attr: noreturn
+         body:
+          compound_stmt
+            return_stmt: 'int'
+             expr:
+              int_literal: 'int' (value: 4)
+
+    assign_expr: '*void'
+     lhs:
+      decl_ref_expr: '*void' lvalue
+       name: b
+     rhs:
+      implicit cast: (bitcast) '*void'
+        block_literal: 'attributed(block (i: int) int)'
+         attr: noreturn
+         body:
+          compound_stmt
+            return_stmt: 'int'
+             expr:
+              decl_ref_expr: 'int' lvalue
+               name: i
+
+    implicit return_stmt: 'void'
+
+function: 'fn () void'
+ name: nonnull_attribute
+ body:
+  compound_stmt
+    variable: '*void'
+     name: b
+     init:
+      implicit cast: (bitcast) '*void'
+        block_literal: 'attributed(block (a: *void) void)'
+         attr: nonnull indices_start: 0, indices_len: 0
+         body:
+          compound_stmt
+
+    assign_expr: '*void'
+     lhs:
+      decl_ref_expr: '*void' lvalue
+       name: b
+     rhs:
+      implicit cast: (bitcast) '*void'
+        block_literal: 'block (a: *void) void'
+         body:
+          compound_stmt
+
+    assign_expr: '*void'
+     lhs:
+      decl_ref_expr: '*void' lvalue
+       name: b
+     rhs:
+      implicit cast: (bitcast) '*void'
+        block_literal: 'attributed(block (a: *void) void)'
+         attr: nonnull indices_start: 1, indices_len: 1
+         body:
+          compound_stmt
+
+    assign_expr: '*void'
+     lhs:
+      decl_ref_expr: '*void' lvalue
+       name: b
+     rhs:
+      implicit cast: (bitcast) '*void'
+        block_literal: 'block (a: *void) void'
+         body:
+          compound_stmt
+
+    implicit return_stmt: 'void'
+
