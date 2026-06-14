@@ -1539,14 +1539,9 @@ pub fn next(self: *Tokenizer) Token {
                     break;
                 },
                 ':' => {
-                    if (self.langopts.standard.atLeast(.c23)) {
-                        id = .colon_colon;
-                        self.index += 1;
-                        break;
-                    } else {
-                        id = .colon;
-                        break;
-                    }
+                    id = .colon_colon;
+                    self.index += 1;
+                    break;
                 },
                 else => {
                     id = .colon;
