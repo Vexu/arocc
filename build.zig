@@ -204,7 +204,6 @@ pub fn build(b: *Build) !void {
             generateDef(b, "Builtins/x86_64.def"),
             generateDef(b, "Builtins/x86.def"),
             generateDef(b, "Builtins/xcore.def"),
-            generateDef(b, "Attribute/names.def"),
         },
     });
     const assembly_backend = b.addModule("assembly_backend", .{

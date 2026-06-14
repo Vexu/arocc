@@ -92,15 +92,6 @@ const InitContext = enum {
     static,
 };
 
-pub const Error = Compilation.Error || error{ParsingFailed};
-
-/// An attribute that has been parsed but not yet validated in its context
-const TentativeAttribute = struct {
-    attr: Attribute,
-    tok: TokenIndex,
-    seen: bool = false,
-};
-
 /// How the parser handles const int decl references when it is expecting an integer
 /// constant expression.
 const ConstDeclFoldingMode = enum {
@@ -113,6 +104,8 @@ const ConstDeclFoldingMode = enum {
     /// folding const decls is prohibited; return an unavailable value
     no_const_decl_folding,
 };
+
+pub const Error = Compilation.Error || error{ParsingFailed};
 
 const Parser = @This();
 
@@ -139,10 +132,9 @@ param_buf: std.ArrayList(Type.Func.Param) = .empty,
 enum_buf: std.ArrayList(Type.Enum.Field) = .empty,
 /// Record type fields.
 record_buf: std.ArrayList(Type.Record.Field) = .empty,
-/// Attributes that have been parsed but not yet validated or applied.
-attr_buf: std.MultiArrayList(TentativeAttribute) = .empty,
-/// Used to store validated attributes before they are applied to types.
-attr_application_buf: std.ArrayList(Attribute) = .empty,
+
+wip_attrs: Attribute.Wip = .{},
+
 /// Tentative definitions that require a delayed diagnostic unless completed later.
 /// For incomplete records/enums, the key stores the type name and the value is a variable name token.
 /// For incomplete arrays, the key stores the variable name and the value is the name token.
@@ -477,7 +469,6 @@ fn formatArgs(p: *Parser, w: *std.Io.Writer, fmt: []const u8, args: anytype) !vo
             []const u8 => try Diagnostics.formatString(w, fmt[i..], arg),
             Tree.Token.Id => try formatTokenId(w, fmt[i..], arg),
             QualType => try p.formatQualType(w, fmt[i..], arg),
-            text_literal.Ascii => try arg.format(w, fmt[i..]),
             Result => try p.formatResult(w, fmt[i..], arg),
             *Result => try p.formatResult(w, fmt[i..], arg.*),
             Enumerator, *Enumerator => try p.formatResult(w, fmt[i..], .{
@@ -485,12 +476,12 @@ fn formatArgs(p: *Parser, w: *std.Io.Writer, fmt: []const u8, args: anytype) !vo
                 .val = arg.val,
                 .qt = arg.qt,
             }),
-            Codepoint => try arg.format(w, fmt[i..]),
-            Normalized => try arg.format(w, fmt[i..]),
-            Escaped => try arg.format(w, fmt[i..]),
+            *const Attribute.Wip.Parsed => try formatAttributeName(w, fmt[i..], arg),
+            Attribute => try formatAttributeName(w, fmt[i..], arg),
             else => switch (@typeInfo(@TypeOf(arg))) {
                 .int, .comptime_int => try Diagnostics.formatInt(w, fmt[i..], arg),
                 .pointer => try Diagnostics.formatString(w, fmt[i..], arg),
+                .@"struct" => try arg.format(w, fmt[i..]),
                 else => comptime unreachable,
             },
         };
@@ -536,6 +527,22 @@ fn formatResult(p: *Parser, w: *std.Io.Writer, fmt: []const u8, res: Result) !us
             },
         },
     }
+    return i;
+}
+
+fn formatAttributeName(w: *std.Io.Writer, fmt: []const u8, attr: anytype) !usize {
+    const i = Diagnostics.templateIndex(w, fmt, "{at}");
+
+    try w.writeByte('\'');
+    if (attr.syntax == .standard) {
+        try w.writeAll(@tagName(attr.name));
+        try w.writeAll("::");
+    }
+    switch (attr.name) {
+        .aro => {},
+        inline else => |tag| try w.writeAll(@tagName(tag)),
+    }
+    try w.writeByte('\'');
     return i;
 }
 
@@ -601,6 +608,37 @@ const Escaped = struct {
     }
 };
 
+pub fn Choices(comptime E: type) type {
+    return struct {
+        choices: []const E,
+        quote: ?u8,
+
+        pub fn init(choices: []const E, quote: ?u8) @This() {
+            return .{ .choices = choices, .quote = quote };
+        }
+
+        pub fn format(ctx: @This(), w: *std.Io.Writer, fmt: []const u8) !usize {
+            const i = Diagnostics.templateIndex(w, fmt, "{choices}");
+
+            for (ctx.choices, 0..) |choice, choice_i| {
+                if (choice_i != 0) {
+                    if (ctx.choices.len > 2) try w.writeByte(',');
+                    try w.writeByte(' ');
+                    if (choice_i == ctx.choices.len - 1) try w.writeAll("and ");
+                }
+
+                if (@hasDecl(E, "str")) {
+                    try w.writeAll(choice.str());
+                } else {
+                    try w.writeAll(@tagName(choice));
+                }
+            }
+
+            return i;
+        }
+    };
+}
+
 pub fn todo(p: *Parser, msg: []const u8) Error {
     try p.err(p.tok_i, .todo, .{msg});
     return error.ParsingFailed;
@@ -632,6 +670,7 @@ pub fn errValueChanged(p: *Parser, tok_i: TokenIndex, diagnostic: Diagnostic, re
 }
 
 fn checkDeprecatedUnavailable(p: *Parser, ty: QualType, usage_tok: TokenIndex, decl_tok: TokenIndex) !void {
+    if (true) return;
     if (ty.getAttribute(p.comp, .@"error")) |@"error"| {
         const msg_str = p.comp.interner.get(@"error".msg.ref()).bytes;
         try p.codegenDiagnostic(usage_tok, .error_attribute, .{ p.tokSlice(@"error".__name_tok), Escaped.init(msg_str) });
@@ -832,6 +871,7 @@ pub fn isAddressOfStringLiteral(p: *Parser, node: Node.Index) bool {
     return p.nodeIs(addr_of.operand, .string_literal_expr);
 }
 
+// TODO pragma in any position and shoud be checked in eatToken
 fn pragma(p: *Parser) Compilation.Error!bool {
     var found_pragma = false;
     while (p.eatToken(.keyword_pragma)) |_| {
@@ -919,8 +959,7 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
         p.enum_buf.deinit(gpa);
         p.record_buf.deinit(gpa);
         p.record_members.deinit(gpa);
-        p.attr_buf.deinit(gpa);
-        p.attr_application_buf.deinit(gpa);
+        p.wip_attrs.deinit(gpa);
         p.tentative_defs.deinit(gpa);
     }
 
@@ -957,6 +996,17 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
 
     while (p.eatToken(.eof) == null) {
         if (try p.pragma()) continue;
+
+        const attr_state = p.wip_attrs.state(true);
+        defer p.wip_attrs.restore(attr_state);
+        p.attributeSpecifier() catch |er| switch (er) {
+            error.ParsingFailed => {
+                p.nextExternDecl();
+                continue;
+            },
+            else => |e| return e,
+        };
+
         if (try p.parseOrNextDecl(staticAssert)) continue;
         if (try p.parseOrNextDecl(decl)) continue;
         if (p.eatToken(.keyword_extension)) |_| {
@@ -1047,7 +1097,7 @@ fn addImplicitTypedef(p: *Parser, name: []const u8, qt: QualType) !void {
         .name = interned_name,
         .decl_node = node,
     } })).withQualifiers(qt);
-    try p.syms.defineTypedef(p, interned_name, typedef_qt, name_tok, node);
+    assert(try p.syms.defineTypedef(p, interned_name, typedef_qt, name_tok, node) == .null);
     try p.decl_buf.append(gpa, node);
 }
 
@@ -1170,8 +1220,6 @@ fn decl(p: *Parser) Error!bool {
     const gpa = p.comp.gpa;
     _ = try p.pragma();
     const first_tok = p.tok_i;
-    const attr_buf_top = p.attr_buf.len;
-    defer p.attr_buf.len = attr_buf_top;
 
     try p.attributeSpecifier();
 
@@ -1202,14 +1250,15 @@ fn decl(p: *Parser) Error!bool {
         break :blk DeclSpec{ .qt = try builder.finish() };
     };
     if (decl_spec.noreturn) |tok| {
-        const attr = Attribute{ .tag = .noreturn, .args = .{ .noreturn = .{} }, .syntax = .keyword };
-        try p.attr_buf.append(gpa, .{ .attr = attr, .tok = tok });
+        try p.wip_attrs.addKeyword(p, tok, &.{});
     }
+
+    const declarator_attr_state = p.wip_attrs.state(false);
 
     var decl_node = try p.tree.addNode(.{ .empty_decl = .{
         .semicolon = first_tok,
     } });
-    var init_d = (try p.initDeclarator(&decl_spec, attr_buf_top, decl_node)) orelse {
+    var init_d = (try p.initDeclarator(&decl_spec, decl_node)) orelse {
         _ = try p.expectToken(.semicolon);
 
         missing_decl: {
@@ -1228,13 +1277,11 @@ fn decl(p: *Parser) Error!bool {
             return true;
         }
 
-        const attrs = p.attr_buf.items(.attr)[attr_buf_top..];
-        const toks = p.attr_buf.items(.tok)[attr_buf_top..];
-        for (attrs, toks) |attr, tok| {
-            try p.err(tok, .ignored_record_attr, .{
-                @tagName(attr.tag), @tagName(decl_spec.qt.base(p.comp).type),
-            });
+        const base_tag_name = @tagName(decl_spec.qt.base(p.comp).type);
+        for (p.wip_attrs.attrs.items[p.wip_attrs.top..]) |wip_attr| {
+            try p.err(wip_attr.tok, .ignored_record_attr, .{ &wip_attr, base_tag_name });
         }
+
         return true;
     };
 
@@ -1251,7 +1298,7 @@ fn decl(p: *Parser) Error!bool {
         if (p.func.qt != null) try p.err(p.tok_i, .func_not_in_root, .{});
 
         const interned_declarator_name = try p.comp.internString(p.tokSlice(init_d.d.name));
-        try p.syms.defineSymbol(p, interned_declarator_name, init_d.d.qt, init_d.d.name, decl_node, .{}, false);
+        const previous_decl = try p.syms.defineSymbol(p, interned_declarator_name, init_d.d.qt, init_d.d.name, decl_node, .{}, false);
         const func = p.func;
         p.func = .{
             .qt = init_d.d.qt,
@@ -1295,8 +1342,8 @@ fn decl(p: *Parser) Error!bool {
                 }
 
                 while (true) {
-                    const attr_buf_top_declarator = p.attr_buf.len;
-                    defer p.attr_buf.len = attr_buf_top_declarator;
+                    const param_attr_state = p.wip_attrs.state(true);
+                    defer p.wip_attrs.restore(param_attr_state);
 
                     var param_d = (try p.declarator(param_decl_spec.qt, .param)) orelse {
                         try p.err(first_tok, .missing_declaration, .{});
@@ -1316,13 +1363,11 @@ fn decl(p: *Parser) Error!bool {
                         param_d.qt = try param_d.qt.decay(p.comp);
                     }
 
-                    const attributed_qt = try Attribute.applyParameterAttributes(p, param_d.qt, attr_buf_top_declarator, .alignas_on_param);
-
                     try param_decl_spec.validateParam(p);
                     const param_node = try p.addNode(.{
                         .param = .{
                             .name_tok = param_d.name,
-                            .qt = attributed_qt,
+                            .qt = param_d.qt,
                             .storage_class = switch (param_decl_spec.storage_class) {
                                 .none => .auto,
                                 .register => .register,
@@ -1330,16 +1375,17 @@ fn decl(p: *Parser) Error!bool {
                             },
                         },
                     });
+                    try p.wip_attrs.applyDeclAttrs(p, param_node, .null);
 
                     const name_str = p.tokSlice(param_d.name);
                     const interned_name = try p.comp.internString(name_str);
-                    try p.syms.defineParam(p, interned_name, attributed_qt, param_d.name, param_node);
+                    try p.syms.defineParam(p, interned_name, param_d.qt, param_d.name, param_node);
 
                     // find and correct parameter types
                     for (func_qt.get(p.comp, .func).?.params, new_params) |param, *new_param| {
                         if (param.name == interned_name) {
                             new_param.* = .{
-                                .qt = attributed_qt,
+                                .qt = param_d.qt,
                                 .name = param.name,
                                 .node = .pack(param_node),
                                 .name_tok = param.name_tok,
@@ -1421,6 +1467,7 @@ fn decl(p: *Parser) Error!bool {
             .body = body,
             .definition = null,
         } }, @intFromEnum(decl_node));
+        try p.wip_attrs.applyDeclAttrs(p, decl_node, previous_decl);
 
         try p.decl_buf.append(gpa, decl_node);
 
@@ -1498,6 +1545,7 @@ fn decl(p: *Parser) Error!bool {
         }
         try p.decl_buf.append(gpa, decl_node);
 
+        var previous_decl: Node.OptIndex = .null;
         const interned_name = try p.comp.internString(p.tokSlice(init_d.d.name));
         const completes_tentative_array = p.completesTentativeArray(interned_name, init_d.d.qt);
         if (decl_spec.storage_class == .typedef) {
@@ -1509,11 +1557,11 @@ fn decl(p: *Parser) Error!bool {
                     .name = interned_name,
                     .decl_node = decl_node,
                 } })).withQualifiers(init_d.d.qt);
-            try p.syms.defineTypedef(p, interned_name, typedef_qt, init_d.d.name, decl_node);
+            _ = try p.syms.defineTypedef(p, interned_name, typedef_qt, init_d.d.name, decl_node);
             p.typedefDefined(interned_name, typedef_qt);
         } else if (init_d.initializer) |init| {
             // TODO validate global variable/constexpr initializer comptime known
-            try p.syms.defineSymbol(
+            previous_decl = try p.syms.defineSymbol(
                 p,
                 interned_name,
                 init_d.d.qt,
@@ -1523,19 +1571,18 @@ fn decl(p: *Parser) Error!bool {
                 decl_spec.constexpr != null,
             );
         } else if (init_d.d.qt.is(p.comp, .func)) {
-            try p.syms.declareSymbol(p, interned_name, init_d.d.qt, init_d.d.name, decl_node);
+            previous_decl = try p.syms.declareSymbol(p, interned_name, init_d.d.qt, init_d.d.name, decl_node);
         } else if (p.func.qt != null and decl_spec.storage_class != .@"extern") {
-            try p.syms.defineSymbol(p, interned_name, init_d.d.qt, init_d.d.name, decl_node, .{}, false);
+            previous_decl = try p.syms.defineSymbol(p, interned_name, init_d.d.qt, init_d.d.name, decl_node, .{}, false);
         } else {
-            try p.syms.declareSymbol(p, interned_name, init_d.d.qt, init_d.d.name, decl_node);
+            previous_decl = try p.syms.declareSymbol(p, interned_name, init_d.d.qt, init_d.d.name, decl_node);
         }
         if (completes_tentative_array) _ = p.tentative_defs.orderedRemove(.tentativeArray(interned_name));
+        try p.wip_attrs.applyDeclAttrs(p, decl_node, previous_decl);
 
         if (p.eatToken(.comma) == null) break;
 
-        const attr_buf_top_declarator = p.attr_buf.len;
-        defer p.attr_buf.len = attr_buf_top_declarator;
-
+        p.wip_attrs.restore(declarator_attr_state);
         try p.attributeSpecifierGnu();
 
         if (!warned_auto) {
@@ -1553,7 +1600,7 @@ fn decl(p: *Parser) Error!bool {
         decl_node = try p.tree.addNode(.{ .empty_decl = .{
             .semicolon = p.tok_i - 1,
         } });
-        init_d = (try p.initDeclarator(&decl_spec, attr_buf_top, decl_node)) orelse {
+        init_d = (try p.initDeclarator(&decl_spec, decl_node)) orelse {
             try p.err(p.tok_i, .expected_ident_or_l_paren, .{});
             continue;
         };
@@ -1805,10 +1852,7 @@ fn declSpec(p: *Parser) Error!?DeclSpec {
                 continue;
             },
             .keyword_forceinline, .keyword_forceinline2 => {
-                try p.attr_buf.append(p.comp.gpa, .{
-                    .attr = .{ .tag = .always_inline, .args = .{ .always_inline = .{} }, .syntax = .keyword },
-                    .tok = p.tok_i,
-                });
+                try p.wip_attrs.addKeyword(p, p.tok_i, &.{});
                 p.tok_i += 1;
                 continue;
             },
@@ -1913,121 +1957,82 @@ const InitDeclarator = struct {
 
 /// attribute
 ///  : attrIdentifier
-///  | attrIdentifier '(' identifier ')'
-///  | attrIdentifier '(' identifier (',' expr)+ ')'
 ///  | attrIdentifier '(' (expr (',' expr)*)? ')'
-fn attribute(p: *Parser, kind: Attribute.Kind, namespace: ?[]const u8) Error!?TentativeAttribute {
-    const name_tok = p.tok_i;
+/// c23Attribute : (attrIdentifier '::')? attribute
+fn attribute(p: *Parser, syntax: Attribute.Syntax) Error!void {
+    const first_tok = p.tok_i;
+    const namespaced = blk: {
+        var opt_namespace: ?[]const u8 = null;
+        var name: []const u8 = undefined;
+
+        const namespace_or_name = try p.attrIdentifier();
+        if (syntax == .standard and p.eatToken(.colon_colon) != null) {
+            opt_namespace = p.tokSlice(namespace_or_name);
+            name = p.tokSlice(try p.attrIdentifier());
+        } else {
+            name = p.tokSlice(namespace_or_name);
+        }
+
+        if (Attribute.Namespaced.fromString(syntax, opt_namespace, name)) |some| break :blk some;
+        if (syntax == .declspec) {
+            try p.err(first_tok, .declspec_attr_not_supported, .{name});
+        } else if (opt_namespace) |namespace| {
+            try p.err(first_tok, .unknown_namespaced_attribute, .{ namespace, name });
+        } else {
+            try p.err(first_tok, .unknown_attribute, .{name});
+        }
+        if (p.eatToken(.l_paren)) |_| p.skipTo(.r_paren);
+        return;
+    };
+    if (namespaced == .clang and namespaced.clang == .availability) {
+        return p.parseAvailabilityArgs();
+    }
+
+    const list_buf_top = p.list_buf.items.len;
+    defer p.list_buf.items.len = list_buf_top;
+    const gpa = p.comp.gpa;
+    const arg_top = p.wip_attrs.args.items.len;
+
+    if (p.eatToken(.l_paren)) |_| args: {
+        if (p.eatToken(.r_paren)) |_| break :args;
+
+        while (true) {
+            const arg = try p.expect(assignExpr);
+            try p.wip_attrs.args.append(gpa, arg);
+
+            if (p.eatToken(.r_paren)) |_| break;
+            _ = try p.expectToken(.comma);
+        }
+    }
+
+    try p.wip_attrs.attrs.append(gpa, .{
+        .name = namespaced,
+        .syntax = syntax,
+        .args_len = @intCast(p.wip_attrs.args.items.len - arg_top),
+        .args_index = @intCast(arg_top),
+        .tok = first_tok,
+    });
+}
+
+/// attrIdentifier : identifier | keyword
+fn attrIdentifier(p: *Parser) !TokenIndex {
+    const res = p.tok_i;
     if (!p.tok_ids[p.tok_i].isMacroIdentifier()) {
         return p.errExpectedToken(.identifier, p.tok_ids[p.tok_i]);
     }
     _ = (try p.eatIdentifier()) orelse {
         p.tok_i += 1;
     };
-    const name = p.tokSlice(name_tok);
-
-    const attr = Attribute.fromString(kind, namespace, name) orelse {
-        try p.err(name_tok, if (kind == .declspec) .declspec_attr_not_supported else .unknown_attribute, .{name});
-        if (p.eatToken(.l_paren)) |_| p.skipTo(.r_paren);
-        return null;
-    };
-    if (attr == .availability) {
-        // TODO parse introduced=10.4 etc
-        if (p.eatToken(.l_paren)) |_| p.skipTo(.r_paren);
-        return null;
-    }
-
-    const required_count = Attribute.requiredArgCount(attr);
-    var arguments = Attribute.initArguments(attr, name_tok);
-    var arg_idx: u32 = 0;
-
-    switch (p.tok_ids[p.tok_i]) {
-        .comma, .r_paren => {}, // will be consumed in attributeList
-        .l_paren => blk: {
-            p.tok_i += 1;
-            if (p.eatToken(.r_paren)) |_| break :blk;
-
-            if (Attribute.wantsIdentEnum(attr)) {
-                if (try p.eatIdentifier()) |ident| {
-                    if (try Attribute.diagnoseIdent(attr, &arguments, ident, p)) {
-                        p.skipTo(.r_paren);
-                        return null;
-                    }
-                } else {
-                    try p.err(name_tok, .attribute_requires_identifier, .{name});
-                    return null;
-                }
-            } else {
-                const arg_start = p.tok_i;
-                const first_expr = try p.expect(assignExpr);
-                if (try p.diagnose(attr, &arguments, arg_idx, first_expr, arg_start)) {
-                    p.skipTo(.r_paren);
-                    return null;
-                }
-            }
-            arg_idx += 1;
-            while (p.eatToken(.r_paren) == null) : (arg_idx += 1) {
-                _ = try p.expectToken(.comma);
-
-                const arg_start = p.tok_i;
-                const arg_expr = try p.expect(assignExpr);
-                if (try p.diagnose(attr, &arguments, arg_idx, arg_expr, arg_start)) {
-                    p.skipTo(.r_paren);
-                    return null;
-                }
-            }
-        },
-        else => {},
-    }
-    if (arg_idx < required_count) {
-        try p.err(name_tok, .attribute_not_enough_args, .{
-            @tagName(attr), required_count,
-        });
-        return null;
-    }
-    return .{ .attr = .{ .tag = attr, .args = arguments, .syntax = kind.toSyntax() }, .tok = name_tok };
+    return res;
 }
 
-fn diagnose(p: *Parser, attr: Attribute.Tag, arguments: *Attribute.Arguments, arg_idx: u32, res: Result, arg_start: TokenIndex) !bool {
-    if (Attribute.wantsAlignment(attr, arg_idx)) {
-        return Attribute.diagnoseAlignment(attr, arguments, arg_idx, res, arg_start, p);
-    }
-    return Attribute.diagnose(attr, arguments, arg_idx, res, arg_start, res.node.get(&p.tree), p);
+fn parseAvailabilityArgs(p: *Parser) Error!void {
+    // TODO
+    if (p.eatToken(.l_paren)) |_| p.skipTo(.r_paren);
 }
 
-/// attributeList : (attribute (',' attribute)*)?
-fn gnuAttributeList(p: *Parser) Error!void {
-    if (p.tok_ids[p.tok_i] == .r_paren) return;
-    const gpa = p.comp.gpa;
-
-    if (try p.attribute(.gnu, null)) |attr| try p.attr_buf.append(gpa, attr);
-    while (p.tok_ids[p.tok_i] != .r_paren) {
-        _ = try p.expectToken(.comma);
-        if (try p.attribute(.gnu, null)) |attr| try p.attr_buf.append(gpa, attr);
-    }
-}
-
-fn c23AttributeList(p: *Parser) Error!void {
-    while (p.tok_ids[p.tok_i] != .r_bracket) {
-        const namespace_tok = try p.expectIdentifier();
-        var namespace: ?[]const u8 = null;
-        if (p.eatToken(.colon_colon)) |_| {
-            namespace = p.tokSlice(namespace_tok);
-        } else {
-            p.tok_i -= 1;
-        }
-        if (try p.attribute(.c23, namespace)) |attr| try p.attr_buf.append(p.comp.gpa, attr);
-        _ = p.eatToken(.comma);
-    }
-}
-
-fn msvcAttributeList(p: *Parser) Error!void {
-    while (p.tok_ids[p.tok_i] != .r_paren) {
-        if (try p.attribute(.declspec, null)) |attr| try p.attr_buf.append(p.comp.gpa, attr);
-        _ = p.eatToken(.comma);
-    }
-}
-
+/// c23Attribute : '[' '[' c23AttributeList ']' ']'
+/// c23AttributeList : ','* (c23Attribute ','+)*
 fn c23Attribute(p: *Parser) !bool {
     const bracket1 = p.eatToken(.l_bracket) orelse return false;
     const bracket2 = p.eatToken(.l_bracket) orelse {
@@ -2036,7 +2041,10 @@ fn c23Attribute(p: *Parser) !bool {
     };
     try p.err(bracket1, .c23_attribute, .{});
 
-    try p.c23AttributeList();
+    while (p.tok_ids[p.tok_i] != .r_bracket) {
+        if (p.eatToken(.comma)) |_| continue;
+        try p.attribute(.standard);
+    }
 
     _ = try p.expectClosing(bracket2, .r_bracket);
     _ = try p.expectClosing(bracket1, .r_bracket);
@@ -2044,10 +2052,15 @@ fn c23Attribute(p: *Parser) !bool {
     return true;
 }
 
-fn msvcAttribute(p: *Parser) !bool {
+fn declspecAttribute(p: *Parser) !bool {
     _ = p.eatToken(.keyword_declspec) orelse return false;
     const l_paren = try p.expectToken(.l_paren);
-    try p.msvcAttributeList();
+
+    while (p.tok_ids[p.tok_i] != .r_paren) {
+        if (p.eatToken(.comma)) |_| continue;
+        try p.attribute(.declspec);
+    }
+
     _ = try p.expectClosing(l_paren, .r_paren);
 
     return true;
@@ -2061,7 +2074,10 @@ fn gnuAttribute(p: *Parser) !bool {
     const paren1 = try p.expectToken(.l_paren);
     const paren2 = try p.expectToken(.l_paren);
 
-    try p.gnuAttributeList();
+    while (p.tok_ids[p.tok_i] != .r_paren) {
+        if (p.eatToken(.comma)) |_| continue;
+        try p.attribute(.gnu);
+    }
 
     _ = try p.expectClosing(paren2, .r_paren);
     _ = try p.expectClosing(paren1, .r_paren);
@@ -2073,14 +2089,14 @@ fn attributeSpecifierGnu(p: *Parser) Error!void {
         if (try p.gnuAttribute()) continue;
 
         const tok = p.tok_i;
-        const attr_buf_top_declarator = p.attr_buf.len;
-        defer p.attr_buf.len = attr_buf_top_declarator;
+        const discarded_attr_state = p.wip_attrs.state(true);
+        defer p.wip_attrs.restore(discarded_attr_state);
 
         if (try p.c23Attribute()) {
             try p.err(tok, .invalid_attribute_location, .{"an attribute list"});
             continue;
         }
-        if (try p.msvcAttribute()) {
+        if (try p.declspecAttribute()) {
             try p.err(tok, .invalid_attribute_location, .{"a declspec attribute"});
             continue;
         }
@@ -2088,22 +2104,30 @@ fn attributeSpecifierGnu(p: *Parser) Error!void {
     }
 }
 
+/// attributeSpecifier
+///  : gnuAttribute
+///  | c23Attribute
+///  | declspecAttribute
+/// gnuAttribute : keyword_attribute '( '(' attributeList ')' ')'
+/// declspecAttribute : keyword_declspec '( attributeList ')'
+/// attributeList : ','* (attribute ','+)*
 fn attributeSpecifier(p: *Parser) Error!void {
     return attributeSpecifierExtra(p, null);
 }
 
-/// attributeSpecifier : (keyword_attribute '( '(' attributeList ')' ')')*
 fn attributeSpecifierExtra(p: *Parser, declarator_name: ?TokenIndex) Error!void {
     while (true) {
         if (try p.gnuAttribute()) continue;
         if (try p.c23Attribute()) continue;
+
+        const discarded_attr_state = p.wip_attrs.state(false);
+        defer p.wip_attrs.restore(discarded_attr_state);
+
         const maybe_declspec_tok = p.tok_i;
-        const attr_buf_top = p.attr_buf.len;
-        if (try p.msvcAttribute()) {
+        if (try p.declspecAttribute()) {
             if (declarator_name) |name_tok| {
                 try p.err(maybe_declspec_tok, .declspec_not_allowed_after_declarator, .{});
                 try p.err(name_tok, .declarator_name_tok, .{});
-                p.attr_buf.len = attr_buf_top;
             }
             continue;
         }
@@ -2112,10 +2136,10 @@ fn attributeSpecifierExtra(p: *Parser, declarator_name: ?TokenIndex) Error!void 
 }
 
 /// initDeclarator : declarator assembly? attributeSpecifier? ('=' initializer)?
-fn initDeclarator(p: *Parser, decl_spec: *DeclSpec, attr_buf_top: usize, decl_node: Node.Index) Error!?InitDeclarator {
-    const this_attr_buf_top = p.attr_buf.len;
-    defer p.attr_buf.len = this_attr_buf_top;
+fn initDeclarator(p: *Parser, decl_spec: *DeclSpec, decl_node: Node.Index) Error!?InitDeclarator {
     const gpa = p.comp.gpa;
+
+    decl_spec.qt = try p.wip_attrs.applyTypeAttrs(p, decl_spec.qt);
 
     var init_d: InitDeclarator = .{
         .d = (try p.declarator(decl_spec.qt, .normal)) orelse return null,
@@ -2167,15 +2191,6 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec, attr_buf_top: usize, decl_no
         },
     }
 
-    var apply_var_attributes = false;
-    if (decl_spec.storage_class == .typedef) {
-        init_d.d.qt = try Attribute.applyTypeAttributes(p, init_d.d.qt, attr_buf_top, null);
-    } else if (init_d.d.declarator_type == .func or init_d.d.qt.is(p.comp, .func)) {
-        init_d.d.qt = try Attribute.applyFunctionAttributes(p, init_d.d.qt, attr_buf_top);
-    } else {
-        apply_var_attributes = true;
-    }
-
     if (p.eatToken(.equal)) |eq| {
         if (decl_spec.storage_class == .typedef or
             (init_d.d.declarator_type == .func and init_d.d.qt.is(p.comp, .func)))
@@ -2204,7 +2219,7 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec, attr_buf_top: usize, decl_no
         defer p.syms.popScope();
 
         const interned_name = try p.comp.internString(p.tokSlice(init_d.d.name));
-        try p.syms.declareSymbol(p, interned_name, init_d.d.qt, init_d.d.name, decl_node);
+        _ = try p.syms.declareSymbol(p, interned_name, init_d.d.qt, init_d.d.name, decl_node);
 
         // TODO this should be a stack of auto type names because of statement expressions.
         if (init_d.d.qt.isAutoType() or init_d.d.qt.isC23Auto()) {
@@ -2247,9 +2262,6 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec, attr_buf_top: usize, decl_no
             init_d.d.qt = .invalid;
             return init_d;
         }
-    }
-    if (apply_var_attributes) {
-        init_d.d.qt = try Attribute.applyVariableAttributes(p, init_d.d.qt, attr_buf_top, null);
     }
 
     incomplete: {
@@ -2418,34 +2430,19 @@ fn typeSpec(p: *Parser, builder: *TypeStore.Builder) Error!bool {
             => {
                 const align_tok = p.tok_i;
                 p.tok_i += 1;
-                const gpa = p.comp.gpa;
                 const l_paren = try p.expectToken(.l_paren);
                 const typename_start = p.tok_i;
                 if (try p.typeName()) |inner_qt| {
                     if (!inner_qt.alignable(p.comp)) {
                         try p.err(typename_start, .invalid_alignof, .{inner_qt});
                     }
-                    const alignment = Attribute.Alignment{ .requested = inner_qt.alignof(p.comp) };
-                    try p.attr_buf.append(gpa, .{
-                        .attr = .{ .tag = .aligned, .args = .{
-                            .aligned = .{ .alignment = alignment, .__name_tok = align_tok },
-                        }, .syntax = .keyword },
-                        .tok = align_tok,
-                    });
-                } else check: {
-                    const arg_start = p.tok_i;
+                    try p.wip_attrs.addKeyword(p, align_tok, &.{.{
+                        .node = undefined, // TODO
+                        .qt = inner_qt,
+                    }});
+                } else {
                     const res = try p.integerConstExpr(.no_const_decl_folding);
-                    if (!res.val.isZero(p.comp)) {
-                        var args = Attribute.initArguments(.aligned, align_tok);
-                        if (try p.diagnose(.aligned, &args, 0, res, arg_start)) {
-                            break :check;
-                        }
-                        args.aligned.alignment.?.node = .pack(res.node);
-                        try p.attr_buf.append(gpa, .{
-                            .attr = .{ .tag = .aligned, .args = args, .syntax = .keyword },
-                            .tok = align_tok,
-                        });
-                    }
+                    try p.wip_attrs.addKeyword(p, align_tok, &.{res});
                 }
                 try p.expectClosing(l_paren, .r_paren);
                 continue;
@@ -2539,8 +2536,9 @@ fn recordSpec(p: *Parser) Error!QualType {
     const kind_tok = p.tok_i;
     const is_struct = p.tok_ids[kind_tok] == .keyword_struct;
     p.tok_i += 1;
-    const attr_buf_top = p.attr_buf.len;
-    defer p.attr_buf.len = attr_buf_top;
+
+    const attr_state = p.wip_attrs.state(true);
+    defer p.wip_attrs.restore(attr_state);
     try p.attributeSpecifier();
 
     const reserved_index = try p.tree.nodes.addOne(gpa);
@@ -2568,18 +2566,17 @@ fn recordSpec(p: *Parser) Error!QualType {
             else
                 .{ .@"union" = record_ty });
 
-            const attributed_qt = try Attribute.applyTypeAttributes(p, record_qt, attr_buf_top, null);
             try p.syms.define(gpa, .{
                 .kind = if (is_struct) .@"struct" else .@"union",
                 .name = interned_name,
                 .tok = ident,
-                .qt = attributed_qt,
+                .qt = record_qt,
                 .val = .{},
             });
 
             const fw: Node.ContainerForwardDecl = .{
                 .name_or_kind_tok = ident,
-                .container_qt = attributed_qt,
+                .container_qt = record_qt,
                 .definition = null,
             };
             try p.tree.setNode(if (is_struct)
@@ -2587,7 +2584,8 @@ fn recordSpec(p: *Parser) Error!QualType {
             else
                 .{ .union_forward_decl = fw }, reserved_index);
             try p.decl_buf.append(gpa, @enumFromInt(reserved_index));
-            return attributed_qt;
+            try p.wip_attrs.applyDeclAttrs(p, @enumFromInt(reserved_index), .null);
+            return record_qt;
         }
     };
 
@@ -2595,7 +2593,7 @@ fn recordSpec(p: *Parser) Error!QualType {
     errdefer if (!done) p.skipTo(.r_brace);
 
     // Get forward declared type or create a new one
-    var record_ty: Type.Record, const qt: QualType = blk: {
+    var record_ty: Type.Record, const qt: QualType, const prev_decl: Node.OptIndex = blk: {
         const interned_name = if (maybe_ident) |ident| interned: {
             const ident_str = p.tokSlice(ident);
             const interned_name = try p.comp.internString(ident_str);
@@ -2606,7 +2604,7 @@ fn recordSpec(p: *Parser) Error!QualType {
                     try p.err(ident, .redefinition, .{ident_str});
                     try p.err(prev.tok, .previous_definition, .{});
                 } else {
-                    break :blk .{ record_ty, prev.qt };
+                    break :blk .{ record_ty, prev.qt, .pack(record_ty.decl_node) };
                 }
             }
             break :interned interned_name;
@@ -2637,7 +2635,7 @@ fn recordSpec(p: *Parser) Error!QualType {
             });
         }
 
-        break :blk .{ record_ty, record_qt };
+        break :blk .{ record_ty, record_qt, .null };
     };
 
     try p.decl_buf.append(gpa, @enumFromInt(reserved_index));
@@ -2680,95 +2678,50 @@ fn recordSpec(p: *Parser) Error!QualType {
     done = true;
     try p.attributeSpecifier();
 
-    const any_incomplete = blk: {
-        for (fields) |field| {
-            if (field.qt.hasIncompleteSize(p.comp) and !field.qt.is(p.comp, .array)) break :blk true;
-        }
-        // Set fields and a dummy layout before addign attributes.
-        record_ty.fields = fields;
-        record_ty.layout = .{
-            .size_bits = 8,
-            .field_alignment_bits = 8,
-            .pointer_alignment_bits = 8,
-            .required_alignment_bits = 8,
-        };
-        record_ty.decl_node = @enumFromInt(reserved_index);
-
-        const base_type = qt.base(p.comp);
-        if (is_struct) {
-            std.debug.assert(base_type.type.@"struct".name == record_ty.name);
-            try p.comp.type_store.set(gpa, .{ .@"struct" = record_ty }, @intFromEnum(base_type.qt._index));
-        } else {
-            std.debug.assert(base_type.type.@"union".name == record_ty.name);
-            try p.comp.type_store.set(gpa, .{ .@"union" = record_ty }, @intFromEnum(base_type.qt._index));
-        }
-        break :blk false;
-    };
-
-    const attributed_qt = try Attribute.applyTypeAttributes(p, qt, attr_buf_top, null);
-
-    // Make sure the symbol for this record points to the attributed type.
-    if (attributed_qt != qt and maybe_ident != null) {
-        const ident_str = p.tokSlice(maybe_ident.?);
-        const interned_name = try p.comp.internString(ident_str);
-        const ptr = p.syms.getPtr(interned_name, .tags);
-        ptr.qt = attributed_qt;
-    }
-
-    if (!any_incomplete) {
-        const pragma_pack_value = switch (p.comp.langopts.emulate) {
-            .clang, .no => starting_pragma_pack,
-            .gcc => p.pragma_pack,
-            // TODO: msvc considers `#pragma pack` on a per-field basis
-            .msvc => p.pragma_pack,
-        };
-        if (record_layout.compute(fields, attributed_qt, p.comp, pragma_pack_value)) |layout| {
-            record_ty.fields = fields;
-            record_ty.layout = layout;
-        } else |er| switch (er) {
-            error.Overflow => try p.err(maybe_ident orelse kind_tok, .record_too_large, .{qt}),
-        }
-
-        // Override previous incomplete layout and fields.
-        const base_qt = qt.base(p.comp).qt;
-        const ts = &p.comp.type_store;
-        var extra_index = ts.types.items(.data)[@intFromEnum(base_qt._index)][1];
-
-        const layout_size = 5;
-        comptime std.debug.assert(@sizeOf(Type.Record.Layout) == @sizeOf(u32) * layout_size);
-        const field_size = 10;
-        comptime std.debug.assert(@sizeOf(Type.Record.Field) == @sizeOf(u32) * field_size);
-
-        extra_index += 1; // For decl_node
-        const casted_layout: *const [layout_size]u32 = @ptrCast(&record_ty.layout);
-        ts.extra.items[extra_index..][0..layout_size].* = casted_layout.*;
-        extra_index += layout_size;
-        extra_index += 1; // For field length
-
-        for (record_ty.fields) |*field| {
-            const casted: *const [field_size]u32 = @ptrCast(field);
-            ts.extra.items[extra_index..][0..field_size].* = casted.*;
-            extra_index += field_size;
-        }
-    }
-
-    // finish by creating a node
+    // Set the node and apply attributes to it.
     const cd: Node.ContainerDecl = .{
         .name_or_kind_tok = maybe_ident orelse kind_tok,
-        .container_qt = attributed_qt,
+        .container_qt = qt,
         .fields = p.decl_buf.items[decl_buf_top..],
     };
     try p.tree.setNode(if (is_struct) .{ .struct_decl = cd } else .{ .union_decl = cd }, reserved_index);
     if (p.func.qt == null) {
         _ = p.tentative_defs.orderedRemove(.incompleteType(record_ty.name));
     }
-    return attributed_qt;
+    const record_decl: Node.Index = @enumFromInt(reserved_index);
+    try p.wip_attrs.applyDeclAttrs(p, record_decl, prev_decl);
+
+    // Calculate record layout.
+    const pragma_pack_value = switch (p.comp.langopts.emulate) {
+        .clang, .no => starting_pragma_pack,
+        .gcc => p.pragma_pack,
+        // TODO: msvc considers `#pragma pack` on a per-field basis
+        .msvc => p.pragma_pack,
+    };
+    if (record_layout.compute(fields, record_decl, p.comp, pragma_pack_value)) |layout| {
+        record_ty.fields = fields;
+        record_ty.layout = layout;
+    } else |er| switch (er) {
+        error.Overflow => try p.err(maybe_ident orelse kind_tok, .record_too_large, .{qt}),
+    }
+
+    if (is_struct) {
+        try p.comp.type_store.set(gpa, .{ .@"struct" = record_ty }, @intFromEnum(qt._index));
+    } else {
+        try p.comp.type_store.set(gpa, .{ .@"union" = record_ty }, @intFromEnum(qt._index));
+    }
+    return qt;
 }
 
 /// recordDecls : (keyword_extension? recordDecl | staticAssert)*
 fn recordDecls(p: *Parser) Error!void {
     while (true) {
         if (try p.pragma()) continue;
+
+        const attr_state = p.wip_attrs.state(true);
+        defer p.wip_attrs.restore(attr_state);
+        try p.attributeSpecifier();
+
         if (try p.parseOrNextDecl(staticAssert)) continue;
         if (p.eatToken(.keyword_extension)) |_| {
             const saved_extension = p.extension_suppressed;
@@ -2789,8 +2742,6 @@ fn recordDecls(p: *Parser) Error!void {
 /// recordDeclarator : declarator (':' integerConstExpr)?
 fn recordDecl(p: *Parser) Error!bool {
     const gpa = p.comp.gpa;
-    const attr_buf_top = p.attr_buf.len;
-    defer p.attr_buf.len = attr_buf_top;
 
     const base_qt: QualType = blk: {
         const start = p.tok_i;
@@ -2827,11 +2778,12 @@ fn recordDecl(p: *Parser) Error!bool {
         };
     };
 
-    try p.attributeSpecifier(); // .record
+    try p.attributeSpecifier();
+
     var error_on_unnamed = false;
     while (true) {
-        const this_decl_top = p.attr_buf.len;
-        defer p.attr_buf.len = this_decl_top;
+        const declarator_attr_state = p.wip_attrs.state(false);
+        defer p.wip_attrs.restore(declarator_attr_state);
 
         try p.attributeSpecifier();
 
@@ -2878,16 +2830,7 @@ fn recordDecl(p: *Parser) Error!bool {
             bits_node = res.node;
         }
 
-        try p.attributeSpecifier(); // .record
-
-        const to_append = try Attribute.applyFieldAttributes(p, &qt, attr_buf_top);
-
-        const attr_index: u32 = @intCast(p.comp.type_store.attributes.items.len);
-        const attr_len: u32 = @intCast(to_append.len);
-        try p.comp.type_store.attributes.appendSlice(gpa, to_append);
-
-        qt = try Attribute.applyTypeAttributes(p, qt, attr_buf_top, null);
-        @memset(p.attr_buf.items(.seen)[attr_buf_top..], false);
+        try p.attributeSpecifier();
 
         if (name_tok == 0 and bits == null) unnamed: {
             var is_typedef = false;
@@ -2905,13 +2848,6 @@ fn recordDecl(p: *Parser) Error!bool {
                     if (!(record_ty.isAnonymous(p.comp) and !is_typedef)) {
                         try p.err(first_tok, .anonymous_struct, .{});
                     }
-                    // An anonymous record appears as indirect fields on the parent
-                    try p.record_buf.append(gpa, .{
-                        .name = try p.getAnonymousName(first_tok),
-                        .qt = qt,
-                        ._attr_index = attr_index,
-                        ._attr_len = attr_len,
-                    });
 
                     const node = try p.addNode(.{
                         .record_field = .{
@@ -2920,8 +2856,17 @@ fn recordDecl(p: *Parser) Error!bool {
                             .bit_width = null,
                         },
                     });
+
+                    // An anonymous record appears as indirect fields on the parent
+                    try p.record_buf.append(gpa, .{
+                        .name = try p.getAnonymousName(first_tok),
+                        .qt = qt,
+                        .field_decl = node,
+                    });
+
                     try p.decl_buf.append(gpa, node);
                     try p.record.addFieldsFromAnonymous(p, record_ty);
+                    try p.wip_attrs.applyDeclAttrs(p, node, .null);
                     break; // must be followed by a semicolon
                 },
                 else => {},
@@ -2934,16 +2879,6 @@ fn recordDecl(p: *Parser) Error!bool {
             if (p.eatToken(.comma) == null) break;
             continue;
         } else {
-            const interned_name = if (name_tok != 0) try p.comp.internString(p.tokSlice(name_tok)) else try p.getAnonymousName(first_tok);
-            try p.record_buf.append(gpa, .{
-                .name = interned_name,
-                .qt = qt,
-                .name_tok = name_tok,
-                .bit_width = if (bits) |some| @enumFromInt(some) else .null,
-                ._attr_index = attr_index,
-                ._attr_len = attr_len,
-            });
-            if (name_tok != 0) try p.record.addField(p, interned_name, name_tok);
             const node = try p.addNode(.{
                 .record_field = .{
                     .name_or_first_tok = name_tok,
@@ -2951,7 +2886,18 @@ fn recordDecl(p: *Parser) Error!bool {
                     .bit_width = bits_node,
                 },
             });
+
+            const interned_name = if (name_tok != 0) try p.comp.internString(p.tokSlice(name_tok)) else try p.getAnonymousName(first_tok);
+            try p.record_buf.append(gpa, .{
+                .name = interned_name,
+                .qt = qt,
+                .name_tok = name_tok,
+                .bit_width = if (bits) |some| @enumFromInt(some) else .null,
+                .field_decl = node,
+            });
+            if (name_tok != 0) try p.record.addField(p, interned_name, name_tok);
             try p.decl_buf.append(gpa, node);
+            try p.wip_attrs.applyDeclAttrs(p, node, .null);
         }
 
         if (!qt.isInvalid()) {
@@ -3026,13 +2972,16 @@ fn enumSpec(p: *Parser) Error!QualType {
     const gpa = p.comp.gpa;
     const enum_tok = p.tok_i;
     p.tok_i += 1;
-    const attr_buf_top = p.attr_buf.len;
-    defer p.attr_buf.len = attr_buf_top;
+    const attr_state = p.wip_attrs.state(true);
+    defer p.wip_attrs.restore(attr_state);
     try p.attributeSpecifier();
 
     const maybe_ident = try p.eatIdentifier();
     const fixed_qt: ?QualType = if (p.eatToken(.colon)) |colon| fixed: {
         const ty_start = p.tok_i;
+
+        const fixed_attr_state = p.wip_attrs.state(true);
+        defer p.wip_attrs.restore(fixed_attr_state);
         const fixed = (try p.specQual()) orelse {
             if (p.record.kind != .invalid) {
                 // This is a bit field.
@@ -3044,7 +2993,7 @@ fn enumSpec(p: *Parser) Error!QualType {
             break :fixed .int;
         };
 
-        var final = fixed;
+        var final = try p.wip_attrs.applyTypeAttrs(p, fixed);
         while (true) {
             switch (final.base(p.comp).type) {
                 .int => {
@@ -3090,21 +3039,23 @@ fn enumSpec(p: *Parser) Error!QualType {
                 .fields = &.{},
             } });
 
-            const attributed_qt = try Attribute.applyTypeAttributes(p, enum_qt, attr_buf_top, null);
             try p.syms.define(gpa, .{
                 .kind = .@"enum",
                 .name = interned_name,
                 .tok = ident,
-                .qt = attributed_qt,
+                .qt = enum_qt,
                 .val = .{},
             });
 
-            try p.decl_buf.append(gpa, try p.addNode(.{ .enum_forward_decl = .{
+            const decl_node = try p.addNode(.{ .enum_forward_decl = .{
                 .name_or_kind_tok = ident,
-                .container_qt = attributed_qt,
+                .container_qt = enum_qt,
                 .definition = null,
-            } }));
-            return attributed_qt;
+            } });
+            try p.decl_buf.append(gpa, decl_node);
+            try p.wip_attrs.applyDeclAttrs(p, decl_node, .null);
+
+            return enum_qt;
         }
     };
 
@@ -3113,7 +3064,7 @@ fn enumSpec(p: *Parser) Error!QualType {
 
     // Get forward declared type or create a new one
     var defined = false;
-    var enum_ty: Type.Enum, const qt: QualType = blk: {
+    var enum_ty: Type.Enum, const qt: QualType, const prev_decl: Node.OptIndex = blk: {
         const interned_name = if (maybe_ident) |ident| interned: {
             const ident_str = p.tokSlice(ident);
             const interned_name = try p.comp.internString(ident_str);
@@ -3126,7 +3077,7 @@ fn enumSpec(p: *Parser) Error!QualType {
                 } else {
                     try p.checkEnumFixedTy(fixed_qt, ident, prev);
                     defined = true;
-                    break :blk .{ enum_ty, prev.qt };
+                    break :blk .{ enum_ty, prev.qt, .pack(enum_ty.decl_node) };
                 }
             }
             break :interned interned_name;
@@ -3143,7 +3094,7 @@ fn enumSpec(p: *Parser) Error!QualType {
             .fields = &.{},
         };
         const enum_qt = try p.comp.type_store.put(gpa, .{ .@"enum" = enum_ty });
-        break :blk .{ enum_ty, enum_qt };
+        break :blk .{ enum_ty, enum_qt, .null };
     };
 
     // reserve space for this enum
@@ -3168,19 +3119,27 @@ fn enumSpec(p: *Parser) Error!QualType {
     if (p.enum_buf.items.len == enum_buf_top) try p.err(p.tok_i, .empty_enum, .{});
     try p.expectClosing(l_brace, .r_brace);
     done = true;
+
     try p.attributeSpecifier();
 
-    const attributed_qt = try Attribute.applyTypeAttributes(p, qt, attr_buf_top, null);
-    if (!enum_ty.fixed) {
-        enum_ty.tag = try e.getTypeSpecifier(p, attributed_qt.enumIsPacked(p.comp), maybe_ident orelse enum_tok);
-    }
+    // Set temporary node to apply attributes to.
+    try p.tree.setNode(.{ .enum_decl = .{
+        .name_or_kind_tok = maybe_ident orelse enum_tok,
+        .container_qt = qt,
+        .fields = &.{},
+    } }, reserved_index);
+    try p.wip_attrs.applyDeclAttrs(p, @enumFromInt(reserved_index), prev_decl);
 
     const enum_fields = p.enum_buf.items[enum_buf_top..];
     const field_nodes = p.list_buf.items[list_buf_top..];
 
     if (fixed_qt == null) {
+        // Set tag type.
+        const enum_is_packed = p.comp.langopts.short_enums or p.comp.target.packAllEnums() or qt.hasAttribute(p.comp, .@"packed");
+        const tag_qt = try e.getTypeSpecifier(p, enum_is_packed, maybe_ident orelse enum_tok);
+        enum_ty.tag = tag_qt;
+
         // Coerce all fields to final type.
-        const tag_qt = enum_ty.tag.?;
         const keep_int = e.num_positive_bits < Type.Int.int.bits(p.comp);
         for (enum_fields, field_nodes) |*field, field_node| {
             const sym = p.syms.get(field.name, .vars) orelse continue;
@@ -3219,7 +3178,7 @@ fn enumSpec(p: *Parser) Error!QualType {
         enum_ty.fields = enum_fields;
         enum_ty.incomplete = false;
         enum_ty.decl_node = @enumFromInt(reserved_index);
-        const base_type = attributed_qt.base(p.comp);
+        const base_type = qt.base(p.comp);
         std.debug.assert(base_type.type.@"enum".name == enum_ty.name);
         try p.comp.type_store.set(gpa, .{ .@"enum" = enum_ty }, @intFromEnum(base_type.qt._index));
     }
@@ -3229,7 +3188,7 @@ fn enumSpec(p: *Parser) Error!QualType {
         try p.syms.define(gpa, .{
             .kind = .@"enum",
             .name = enum_ty.name,
-            .qt = attributed_qt,
+            .qt = qt,
             .tok = maybe_ident.?,
             .val = .{},
         });
@@ -3238,14 +3197,14 @@ fn enumSpec(p: *Parser) Error!QualType {
     // finish by creating a node
     try p.tree.setNode(.{ .enum_decl = .{
         .name_or_kind_tok = maybe_ident orelse enum_tok,
-        .container_qt = attributed_qt,
+        .container_qt = qt,
         .fields = field_nodes,
     } }, reserved_index);
 
     if (p.func.qt == null) {
         _ = p.tentative_defs.orderedRemove(.incompleteType(enum_ty.name));
     }
-    return attributed_qt;
+    return qt;
 }
 
 fn checkEnumFixedTy(p: *Parser, fixed_qt: ?QualType, ident_tok: TokenIndex, prev: Symbol) !void {
@@ -3381,8 +3340,10 @@ fn enumerator(p: *Parser, e: *Enumerator) Error!?EnumFieldAndNode {
         p.skipTo(.r_brace);
         return error.ParsingFailed;
     };
-    const attr_buf_top = p.attr_buf.len;
-    defer p.attr_buf.len = attr_buf_top;
+
+    const attr_state = p.wip_attrs.state(true);
+    defer p.wip_attrs.restore(attr_state);
+    // TODO __declspec not allowed here
     try p.attributeSpecifier();
 
     const prev_total = p.diagnostics.total;
@@ -3422,22 +3383,22 @@ fn enumerator(p: *Parser, e: *Enumerator) Error!?EnumFieldAndNode {
         }
     }
 
-    const attributed_qt = try Attribute.applyEnumeratorAttributes(p, e.qt, attr_buf_top);
     const node = try p.addNode(.{
         .enum_field = .{
             .name_tok = name_tok,
-            .qt = attributed_qt,
+            .qt = e.qt,
             .init = field_init,
         },
     });
+    try p.wip_attrs.applyDeclAttrs(p, node, .null);
     try p.tree.value_map.put(p.comp.gpa, node, e.val);
 
     const interned_name = try p.comp.internString(p.tokSlice(name_tok));
-    try p.syms.defineEnumeration(p, interned_name, attributed_qt, name_tok, e.val, node);
+    try p.syms.defineEnumeration(p, interned_name, e.qt, name_tok, e.val, node);
 
     return .{ .field = .{
         .name = interned_name,
-        .qt = attributed_qt,
+        .qt = e.qt,
         .name_tok = name_tok,
     }, .node = node };
 }
@@ -3496,18 +3457,7 @@ fn typeQual(p: *Parser, b: *TypeStore.Builder, allow_attr: bool) Error!bool {
                 } else switch (b.nullability) {
                     .none => {
                         b.nullability = new;
-                        try p.attr_buf.append(p.comp.gpa, .{
-                            .attr = .{ .tag = .nullability, .args = .{
-                                .nullability = .{ .kind = switch (tok_id) {
-                                    .keyword_nonnull => .nonnull,
-                                    .keyword_nullable => .nullable,
-                                    .keyword_nullable_result => .nullable_result,
-                                    .keyword_null_unspecified => .unspecified,
-                                    else => unreachable,
-                                } },
-                            }, .syntax = .keyword },
-                            .tok = p.tok_i,
-                        });
+                        try p.wip_attrs.addKeyword(p, p.tok_i, &.{});
                     },
                     .nonnull,
                     .nullable,
@@ -3540,31 +3490,7 @@ fn msTypeAttribute(p: *Parser) !bool {
             .keyword_cdecl,
             .keyword_cdecl2,
             => {
-                try p.attr_buf.append(p.comp.gpa, .{
-                    .attr = .{ .tag = .calling_convention, .args = .{
-                        .calling_convention = .{ .cc = switch (p.tok_ids[p.tok_i]) {
-                            .keyword_stdcall,
-                            .keyword_stdcall2,
-                            => .stdcall,
-                            .keyword_thiscall,
-                            .keyword_thiscall2,
-                            => .thiscall,
-                            .keyword_vectorcall,
-                            .keyword_vectorcall2,
-                            => .vectorcall,
-                            .keyword_fastcall,
-                            .keyword_fastcall2,
-                            => .fastcall,
-                            .keyword_regcall,
-                            => .regcall,
-                            .keyword_cdecl,
-                            .keyword_cdecl2,
-                            => .c,
-                            else => unreachable,
-                        } },
-                    }, .syntax = .keyword },
-                    .tok = p.tok_i,
-                });
+                try p.wip_attrs.addKeyword(p, p.tok_i, &.{});
                 any = true;
                 p.tok_i += 1;
             },
@@ -3572,18 +3498,9 @@ fn msTypeAttribute(p: *Parser) !bool {
             .keyword_ptr32,
             .keyword_sptr,
             .keyword_uptr,
-            => |kw| {
+            => {
                 try p.err(p.tok_i, .extension_token_used, .{});
-                try p.attr_buf.append(p.comp.gpa, .{
-                    .attr = .{ .tag = .msvc_ptr, .args = .{ .msvc_ptr = .{ .kind = switch (kw) {
-                        .keyword_ptr64 => .ptr64,
-                        .keyword_ptr32 => .ptr32,
-                        .keyword_sptr => .sptr,
-                        .keyword_uptr => .uptr,
-                        else => unreachable,
-                    } } }, .syntax = .keyword },
-                    .tok = p.tok_i,
-                });
+                try p.wip_attrs.addKeyword(p, p.tok_i, &.{});
                 any = true;
                 p.tok_i += 1;
             },
@@ -3729,6 +3646,7 @@ fn declarator(
             .func = d.qt,
         } });
         d.qt = try builder.finishQuals(block_qt);
+        d.qt = try p.wip_attrs.applyTypeAttrs(p, d.qt);
     }
 
     // Parse potential pointer declarators first.
@@ -3741,6 +3659,7 @@ fn declarator(
             .child = d.qt,
         } });
         d.qt = try builder.finishQuals(pointer_qt);
+        d.qt = try p.wip_attrs.applyTypeAttrs(p, d.qt);
     }
 
     const maybe_ident = p.tok_i;
@@ -3764,7 +3683,8 @@ fn declarator(
         };
         try p.expectClosing(l_paren, .r_paren);
         const suffix_start = p.tok_i;
-        const outer = try p.directDeclarator(&d, kind);
+        const outer_bare = try p.directDeclarator(&d, kind);
+        const outer = try p.wip_attrs.applyTypeAttrs(p, outer_bare);
 
         // Correct the base type now that it is known.
         // If res.qt is the special marker there was no inner type.
@@ -4037,8 +3957,10 @@ fn paramDecls(p: *Parser) Error!?[]Type.Func.Param {
     const gpa = p.comp.gpa;
 
     while (true) {
-        const attr_buf_top = p.attr_buf.len;
-        defer p.attr_buf.len = attr_buf_top;
+        const first_tok = p.tok_i;
+        const param_attr_state = p.wip_attrs.state(true);
+        defer p.wip_attrs.restore(param_attr_state);
+
         const param_decl_spec = if (try p.declSpec()) |some|
             some
         else if (p.comp.langopts.standard.atLeast(.c23) and
@@ -4067,7 +3989,6 @@ fn paramDecls(p: *Parser) Error!?[]Type.Func.Param {
 
         var name_tok: TokenIndex = 0;
         var interned_name: StringId = .empty;
-        const first_tok = p.tok_i;
         var param_qt = param_decl_spec.qt;
         if (param_decl_spec.auto_type) |tok_i| {
             try p.err(tok_i, .auto_type_not_allowed, .{"function prototype"});
@@ -4084,6 +4005,7 @@ fn paramDecls(p: *Parser) Error!?[]Type.Func.Param {
             name_tok = some.name;
             param_qt = some.qt;
         }
+        const param_tok = if (name_tok != 0) name_tok else first_tok;
 
         if (param_qt.is(p.comp, .void)) {
             // validate void parameters
@@ -4102,37 +4024,36 @@ fn paramDecls(p: *Parser) Error!?[]Type.Func.Param {
             param_qt = try param_qt.decay(p.comp);
         }
         try param_decl_spec.validateParam(p);
-        param_qt = try Attribute.applyParameterAttributes(p, param_qt, attr_buf_top, .alignas_on_param);
 
         if (param_qt.get(p.comp, .float)) |float| {
             if (float == .fp16 and !p.comp.hasHalfPrecisionFloatABI()) {
-                try p.err(first_tok, .suggest_pointer_for_invalid_fp16, .{"parameters"});
+                try p.err(param_tok, .suggest_pointer_for_invalid_fp16, .{"parameters"});
             }
         }
 
-        var param_node: Node.OptIndex = .null;
-        if (name_tok != 0) {
-            const node = try p.addNode(.{
-                .param = .{
-                    .name_tok = name_tok,
-                    .qt = param_qt,
-                    .storage_class = switch (param_decl_spec.storage_class) {
-                        .none => .auto,
-                        .register => .register,
-                        else => .auto, // Error reported in `validateParam`
-                    },
+        const param_node = try p.addNode(.{
+            .param = .{
+                .name_tok = param_tok,
+                .qt = param_qt,
+                .storage_class = switch (param_decl_spec.storage_class) {
+                    .none => .auto,
+                    .register => .register,
+                    else => .auto, // Error reported in `validateParam`
                 },
-            });
-            param_node = .pack(node);
+            },
+        });
+        try p.wip_attrs.applyDeclAttrs(p, param_node, .null);
+
+        if (name_tok != 0) {
             interned_name = try p.comp.internString(p.tokSlice(name_tok));
-            try p.syms.defineParam(p, interned_name, param_qt, name_tok, node);
+            try p.syms.defineParam(p, interned_name, param_qt, name_tok, param_node);
         }
 
         try p.param_buf.append(gpa, .{
             .name = interned_name,
-            .name_tok = if (name_tok == 0) first_tok else name_tok,
+            .name_tok = param_tok,
             .qt = param_qt,
-            .node = param_node,
+            .node = .pack(param_node),
         });
 
         if (p.eatToken(.comma) == null) break;
@@ -4143,14 +4064,16 @@ fn paramDecls(p: *Parser) Error!?[]Type.Func.Param {
 
 /// typeName : specQual abstractDeclarator
 fn typeName(p: *Parser) Error!?QualType {
-    const attr_buf_top = p.attr_buf.len;
-    defer p.attr_buf.len = attr_buf_top;
-    const ty = (try p.specQual()) orelse return null;
-    if (try p.declarator(ty, .abstract)) |some| {
-        if (some.old_style_func) |tok_i| try p.err(tok_i, .invalid_old_style_params, .{});
-        return try Attribute.applyTypeAttributes(p, some.qt, attr_buf_top, .align_ignored);
+    const attr_state = p.wip_attrs.state(true);
+    defer p.wip_attrs.restore(attr_state);
+
+    const qt = (try p.specQual()) orelse return null;
+    const attr_qt = try p.wip_attrs.applyTypeAttrs(p, qt);
+    if (try p.declarator(attr_qt, .abstract)) |abstract_d| {
+        if (abstract_d.old_style_func) |tok_i| try p.err(tok_i, .invalid_old_style_params, .{});
+        return try p.wip_attrs.applyTypeAttrs(p, abstract_d.qt);
     }
-    return try Attribute.applyTypeAttributes(p, ty, attr_buf_top, .align_ignored);
+    return try p.wip_attrs.applyTypeAttrs(p, attr_qt);
 }
 
 /// initializer
@@ -5195,10 +5118,9 @@ fn assembly(p: *Parser, kind: enum { global, decl_label, stmt }) Error!?Node.Ind
     const res = switch (kind) {
         .decl_label => blk: {
             const asm_str = try p.asmStr();
-            const str = try p.removeNull(asm_str.val);
+            // const str = try p.removeNull(asm_str.val);
 
-            const attr = Attribute{ .tag = .asm_label, .args = .{ .asm_label = .{ .name = str } }, .syntax = .keyword };
-            try p.attr_buf.append(p.comp.gpa, .{ .attr = attr, .tok = asm_tok });
+            try p.wip_attrs.addKeyword(p, asm_tok, &.{asm_str});
             break :blk asm_str.node;
         },
         .global => blk: {
@@ -5260,6 +5182,14 @@ fn asmStr(p: *Parser) Error!Result {
 ///  | assembly ';'
 ///  | expr? ';'
 fn stmt(p: *Parser) Error!Node.Index {
+    try p.attributeSpecifier();
+
+    const bare_stmt = try p.attributedStmt();
+    try p.wip_attrs.applyStmtAttrs(p, bare_stmt);
+    return bare_stmt;
+}
+
+fn attributedStmt(p: *Parser) Error!Node.Index {
     if (try p.labeledStmt()) |some| return some;
     if (try p.compoundStmt(false, null)) |some| return some;
     const gpa = p.comp.gpa;
@@ -5507,14 +5437,9 @@ fn stmt(p: *Parser) Error!Node.Index {
         return some.node;
     }
 
-    const attr_buf_top = p.attr_buf.len;
-    defer p.attr_buf.len = attr_buf_top;
-    try p.attributeSpecifier();
-
     if (p.eatToken(.semicolon)) |semicolon| {
         return p.addNode(.{ .null_stmt = .{
             .semicolon_or_r_brace_tok = semicolon,
-            .qt = try Attribute.applyStatementAttributes(p, expr_start, attr_buf_top),
         } });
     }
 
@@ -5547,12 +5472,7 @@ fn labeledStmt(p: *Parser) Error!?Node.Index {
         }
 
         p.tok_i += 1;
-        const attr_buf_top = p.attr_buf.len;
-        defer p.attr_buf.len = attr_buf_top;
-        try p.attributeSpecifier();
-
         return try p.addNode(.{ .labeled_stmt = .{
-            .qt = try Attribute.applyLabelAttributes(p, attr_buf_top),
             .body = try p.labelableStmt(),
             .label_tok = name_tok,
         } });
@@ -5631,7 +5551,6 @@ fn labelableStmt(p: *Parser) Error!Node.Index {
         try p.err(p.tok_i, .label_compound_end, .{});
         return p.addNode(.{ .null_stmt = .{
             .semicolon_or_r_brace_tok = p.tok_i,
-            .qt = .void,
         } });
     }
     return p.stmt();
@@ -5658,6 +5577,10 @@ fn compoundStmt(p: *Parser, is_fn_body: bool, stmt_expr_state: ?*StmtExprState) 
     var noreturn_label_count: u32 = 0;
 
     while (p.eatToken(.r_brace) == null) : (_ = try p.pragma()) {
+        const attr_state = p.wip_attrs.state(true);
+        defer p.wip_attrs.restore(attr_state);
+        try p.attributeSpecifier();
+
         if (stmt_expr_state) |state| state.* = .{};
         if (try p.parseOrNextStmt(staticAssert, l_brace)) continue;
         if (try p.parseOrNextStmt(decl, l_brace)) continue;
@@ -6483,14 +6406,12 @@ pub const Result = struct {
             => {},
             .call_expr => |call| {
                 const call_info = p.tree.callableResultUsage(call.callee) orelse return;
-                if (call_info.nodiscard) try p.err(expr_start, .nodiscard_unused, .{p.tokSlice(call_info.tok)});
-                if (call_info.warn_unused_result) try p.err(expr_start, .warn_unused_result, .{p.tokSlice(call_info.tok)});
+                if (call_info.warn_unused_result) |attr| try p.err(expr_start, .warn_unused_result, .{ p.tokSlice(call_info.tok), attr });
             },
             .builtin_call_expr => |call| {
                 const expanded = p.comp.builtins.lookup(p.tokSlice(call.builtin_tok));
-                const attributes = expanded.attributes;
-                if (attributes.pure) try p.err(call.builtin_tok, .builtin_unused, .{"pure"});
-                if (attributes.@"const") try p.err(call.builtin_tok, .builtin_unused, .{"const"});
+                if (expanded.attributes.pure) try p.err(call.builtin_tok, .builtin_unused, .{"pure"});
+                if (expanded.attributes.@"const") try p.err(call.builtin_tok, .builtin_unused, .{"const"});
             },
             .stmt_expr => |stmt_expr| {
                 const compound = stmt_expr.operand.get(&p.tree).compound_stmt;
@@ -8704,15 +8625,16 @@ fn builtinVaArgPackLen(p: *Parser, builtin_tok: TokenIndex) Error!Result {
 
 fn checkVaPackFunc(p: *Parser, builtin_tok: TokenIndex, va_func_name: []const u8) !bool {
     const func_qt, _ = (try p.checkVaFunc(builtin_tok, va_func_name)) orelse return false;
+    _ = func_qt; // autofix
 
-    var it = Attribute.Iterator.initType(func_qt, p.comp);
-    while (it.next()) |item| switch (item[0].tag) {
-        .always_inline, .gnu_inline => break,
-        else => {},
-    } else {
-        try p.err(builtin_tok, .va_func_not_always_inline, .{va_func_name});
-        return false;
-    }
+    // var it = Attribute.Iterator.initType(func_qt, p.comp);
+    // while (it.next()) |item| switch (item[0].tag) {
+    //     .always_inline, .gnu_inline => break,
+    //     else => {},
+    // } else {
+    //     try p.err(builtin_tok, .va_func_not_always_inline, .{va_func_name});
+    //     return false;
+    // }
     return true;
 }
 
@@ -10040,15 +9962,16 @@ fn callExpr(p: *Parser, lhs: Result) Error!Result {
             }
 
             if (maybe_nonnull) |nonnull| {
-                const indices = p.comp.type_store.nonnull_args.items[nonnull.indices_start..][0..nonnull.indices_len];
-                const needs_nonnull = if (nonnull.indices_len == 0)
-                    param.qt.isPointer(p.comp)
-                else
-                    std.mem.indexOfScalar(u32, indices, @intCast(arg_count + 1)) != null;
+                _ = nonnull; // autofix
+                // const indices = p.comp.type_store.nonnull_args.items[nonnull.indices_start..][0..nonnull.indices_len];
+                // const needs_nonnull = if (nonnull.indices_len == 0)
+                //     param.qt.isPointer(p.comp)
+                // else
+                //     std.mem.indexOfScalar(u32, indices, @intCast(arg_count + 1)) != null;
 
-                if (needs_nonnull and arg.val.isZero(p.comp)) {
-                    try p.err(param_tok, .non_null_argument, .{});
-                }
+                // if (needs_nonnull and arg.val.isZero(p.comp)) {
+                //     try p.err(param_tok, .non_null_argument, .{});
+                // }
             }
 
             if (call_expr.shouldCoerceArg(arg_count)) {
@@ -10341,7 +10264,7 @@ fn primaryExpr(p: *Parser) Error!?Result {
                 });
 
                 try p.decl_buf.append(gpa, node);
-                try p.syms.declareSymbol(p, interned_name, func_qt, name_tok, node);
+                _ = try p.syms.declareSymbol(p, interned_name, func_qt, name_tok, node);
 
                 return .{
                     .qt = func_qt,

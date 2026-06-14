@@ -1216,10 +1216,10 @@ pub const unknown_attribute: Diagnostic = .{
     .opt = .@"unknown-attributes",
 };
 
-pub const ignored_attribute: Diagnostic = .{
-    .fmt = "attribute '{s}' ignored on {s}",
+pub const unknown_namespaced_attribute: Diagnostic = .{
+    .fmt = "unknown attribute '{s}::{s}' ignored",
     .kind = .warning,
-    .opt = .@"ignored-attributes",
+    .opt = .@"unknown-attributes",
 };
 
 pub const invalid_fallthrough: Diagnostic = .{
@@ -1564,37 +1564,6 @@ pub const va_start_not_last_param: Diagnostic = .{
     .kind = .warning,
 };
 
-pub const attribute_not_enough_args: Diagnostic = .{
-    .fmt = "'{s}' attribute takes at least {d} argument(s)",
-    .kind = .@"error",
-};
-
-pub const attribute_too_many_args: Diagnostic = .{
-    .fmt = "'{s}' attribute takes at most {d} argument(s)",
-    .kind = .@"error",
-};
-
-pub const attribute_arg_invalid: Diagnostic = .{
-    .fmt = "attribute argument is invalid, expected {s} but got {s}",
-    .kind = .@"error",
-};
-
-pub const unknown_attr_enum: Diagnostic = .{
-    .fmt = "unknown `{s}` argument. Possible values are: {s}",
-    .kind = .warning,
-    .opt = .@"ignored-attributes",
-};
-
-pub const attribute_requires_identifier: Diagnostic = .{
-    .fmt = "'{s}' attribute requires an identifier",
-    .kind = .@"error",
-};
-
-pub const attribute_int_out_of_range: Diagnostic = .{
-    .fmt = "attribute value '{value}' out of range",
-    .kind = .@"error",
-};
-
 pub const declspec_not_enabled: Diagnostic = .{
     .fmt = "'__declspec' attributes are not enabled; use '-fdeclspec' or '-fms-extensions' to enable support for __declspec attributes",
     .kind = .@"error",
@@ -1644,7 +1613,7 @@ pub const error_attribute: Diagnostic = .{
 };
 
 pub const ignored_record_attr: Diagnostic = .{
-    .fmt = "attribute '{s}' is ignored, place it after \"{s}\" to apply attribute to type declaration",
+    .fmt = "attribute {at} is ignored, place it after \"{s}\" to apply attribute to type declaration",
     .kind = .warning,
     .opt = .@"ignored-attributes",
 };
@@ -1929,14 +1898,8 @@ pub const invalid_noreturn: Diagnostic = .{
     .opt = .@"invalid-noreturn",
 };
 
-pub const nodiscard_unused: Diagnostic = .{
-    .fmt = "ignoring return value of '{s}', declared with 'nodiscard' attribute",
-    .kind = .warning,
-    .opt = .@"unused-result",
-};
-
 pub const warn_unused_result: Diagnostic = .{
-    .fmt = "ignoring return value of '{s}', declared with 'warn_unused_result' attribute",
+    .fmt = "ignoring return value of '{s}', declared with '{at}' attribute",
     .kind = .warning,
     .opt = .@"unused-result",
 };
@@ -1951,26 +1914,6 @@ pub const unused_value: Diagnostic = .{
     .fmt = "expression result unused",
     .kind = .warning,
     .opt = .@"unused-value",
-};
-
-pub const invalid_vec_elem_ty: Diagnostic = .{
-    .fmt = "invalid vector element type {qt}",
-    .kind = .@"error",
-};
-
-pub const bit_int_vec_too_small: Diagnostic = .{
-    .fmt = "'_BitInt' vector element width must be at least as wide as 'CHAR_BIT'",
-    .kind = .@"error",
-};
-
-pub const bit_int_vec_not_pow2: Diagnostic = .{
-    .fmt = "'_BitInt' vector element width must be a power of 2",
-    .kind = .@"error",
-};
-
-pub const vec_size_not_multiple: Diagnostic = .{
-    .fmt = "vector size not an integral multiple of component size",
-    .kind = .@"error",
 };
 
 pub const invalid_neon_vec_size: Diagnostic = .{
@@ -2290,11 +2233,6 @@ pub const atomic_address_type: Diagnostic = .{
 
 pub const argument_types_differ: Diagnostic = .{
     .fmt = "arguments are of different types ({qt} vs {qt})",
-    .kind = .@"error",
-};
-
-pub const attribute_requires_string: Diagnostic = .{
-    .fmt = "attribute '{s}' requires an ordinary string",
     .kind = .@"error",
 };
 
