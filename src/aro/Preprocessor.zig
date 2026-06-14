@@ -1275,7 +1275,7 @@ fn expr(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!bool {
         .param_buf = undefined,
         .enum_buf = undefined,
         .record_buf = undefined,
-        .attr_buf = undefined,
+        .wip_attrs = undefined,
         .string_ids = undefined,
     };
     defer parser.strings.deinit(gpa);

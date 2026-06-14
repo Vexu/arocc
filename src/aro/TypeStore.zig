@@ -1,6 +1,7 @@
 pub const std = @import("std");
 
-const Attribute = @import("Attribute.zig");
+const attributes = @import("attributes.zig");
+const Attribute = attributes.Attribute;
 const Compilation = @import("Compilation.zig");
 const LangOpts = @import("LangOpts.zig");
 const record_layout = @import("record_layout.zig");
@@ -331,7 +332,7 @@ pub const QualType = packed struct(u32) {
             .@"struct", .@"union" => {
                 const layout_size = 5;
                 comptime std.debug.assert(@sizeOf(Type.Record.Layout) == @sizeOf(u32) * layout_size);
-                const field_size = 10;
+                const field_size = 9;
                 comptime std.debug.assert(@sizeOf(Type.Record.Field) == @sizeOf(u32) * field_size);
 
                 const extra = comp.type_store.extra.items;
@@ -417,12 +418,12 @@ pub const QualType = packed struct(u32) {
                 const extra = comp.type_store.extra.items;
                 return .{ .attributed = .{
                     .base = @bitCast(repr.data[0]),
-                    .attributes = comp.type_store.attributes.items[extra[repr.data[1]]..][0..extra[repr.data[1] + 1]],
+                    .attributes = @ptrCast(extra[repr.data[1] .. repr.data[1] + 1]),
                 } };
             },
             .attributed_one => .{ .attributed = .{
                 .base = @bitCast(repr.data[0]),
-                .attributes = comp.type_store.attributes.items[repr.data[1]..][0..1],
+                .attributes = @ptrCast(&repr.data[1]),
             } },
         };
     }
@@ -562,16 +563,18 @@ pub const QualType = packed struct(u32) {
     }
 
     fn attributedPointerBitSize(qt: QualType, comp: *const Compilation) ?u32 {
-        var it = Attribute.Iterator.initType(qt, comp);
-        while (it.next()) |item| {
-            const attribute, _ = item;
-            if (attribute.tag != .msvc_ptr) continue;
-            switch (attribute.args.msvc_ptr.kind) {
-                .ptr32 => return 32,
-                .ptr64 => return 64,
-                .sptr, .uptr => {},
-            }
-        }
+        _ = qt; // autofix
+        _ = comp; // autofix
+        // var it = Attribute.Iterator.initType(qt, comp);
+        // while (it.next()) |item| {
+        //     const attribute, _ = item;
+        //     if (attribute.tag != .msvc_ptr) continue;
+        //     switch (attribute.args.msvc_ptr.kind) {
+        //         .ptr32 => return 32,
+        //         .ptr64 => return 64,
+        //         .sptr, .uptr => {},
+        //     }
+        // }
         return null;
     }
 
@@ -1187,8 +1190,10 @@ pub const QualType = packed struct(u32) {
         }
     }
 
-    pub fn getAttribute(qt: QualType, comp: *const Compilation, comptime tag: Attribute.Tag) ?Attribute.ArgumentsForTag(tag) {
+    pub fn getAttribute(qt: QualType, comp: *const Compilation, comptime tag: Attribute.Tag) ?Attribute {
+        if (true) return null; // TODO
         if (tag == .aligned) @compileError("use requestedAlignment");
+
         var it = Attribute.Iterator.initType(qt, comp);
         while (it.next()) |item| {
             const attribute, _ = item;
@@ -1198,6 +1203,8 @@ pub const QualType = packed struct(u32) {
     }
 
     pub fn hasAttribute(qt: QualType, comp: *const Compilation, tag: Attribute.Tag) bool {
+        if (true) return false; // TODO
+
         var it = Attribute.Iterator.initType(qt, comp);
         while (it.next()) |item| {
             const attr, _ = item;
@@ -1216,6 +1223,7 @@ pub const QualType = packed struct(u32) {
     }
 
     pub fn requestedAlignment(qt: QualType, comp: *const Compilation) ?u32 {
+        if (true) return null; // TODO
         return annotationAlignment(comp, Attribute.Iterator.initType(qt, comp));
     }
 
@@ -1244,11 +1252,6 @@ pub const QualType = packed struct(u32) {
         if (qt.hasAttribute(comp, .weak)) return .weak;
         if (qt.hasAttribute(comp, .selectany)) return .link_once;
         return .strong;
-    }
-
-    pub fn enumIsPacked(qt: QualType, comp: *const Compilation) bool {
-        std.debug.assert(qt.is(comp, .@"enum"));
-        return comp.langopts.short_enums or comp.target.packAllEnums() or qt.hasAttribute(comp, .@"packed");
     }
 
     pub fn shouldDesugar(qt: QualType, comp: *const Compilation) bool {
@@ -1529,6 +1532,11 @@ pub const QualType = packed struct(u32) {
                     try decayed.dump(comp, w);
                 } else {
                     try w.writeAll("*");
+                    switch (pointer.bounds) {
+                        .single => try w.writeAll("single "),
+                        .unsafe_indexable => try w.writeAll("unsafe_indexable "),
+                        .c => {},
+                    }
                     try pointer.child.dump(comp, w);
                 }
             },
@@ -1846,12 +1854,7 @@ pub const Type = union(enum) {
                 .offset_bits = 0,
                 .size_bits = 0,
             },
-            _attr_index: u32 = 0,
-            _attr_len: u32 = 0,
-
-            pub fn attributes(field: Field, comp: *const Compilation) []const Attribute {
-                return comp.type_store.attributes.items[field._attr_index..][0..field._attr_len];
-            }
+            field_decl: Node.Index = undefined,
 
             pub const Layout = extern struct {
                 /// `offset_bits` and `size_bits` should both be INVALID if and only if the field
@@ -1945,16 +1948,12 @@ pub const Type = union(enum) {
 
     pub const Attributed = struct {
         base: QualType,
-        attributes: []const Attribute,
+        attributes: []const attributes.Ref,
     };
 };
 
 types: std.MultiArrayList(Repr) = .empty,
 extra: std.ArrayList(u32) = .empty,
-attributes: std.ArrayList(Attribute) = .empty,
-/// contains the numeric arguments to __attribute__((nonnull(X,Y,...))); the arguments are indices of the arguments
-/// of the attributed function which are declared nonnull
-nonnull_args: std.ArrayList(u32) = .empty,
 anon_name_arena: std.heap.ArenaAllocator.State = .{},
 
 wchar: QualType = .invalid,
@@ -1978,8 +1977,6 @@ int64: QualType = .invalid,
 pub fn deinit(ts: *TypeStore, gpa: std.mem.Allocator) void {
     ts.types.deinit(gpa);
     ts.extra.deinit(gpa);
-    ts.attributes.deinit(gpa);
-    ts.nonnull_args.deinit(gpa);
     ts.anon_name_arena.promote(gpa).deinit();
     ts.* = undefined;
 }
@@ -2169,7 +2166,7 @@ pub fn set(ts: *TypeStore, gpa: std.mem.Allocator, ty: Type, index: usize) !void
 
             const layout_size = 5;
             comptime std.debug.assert(@sizeOf(Type.Record.Layout) == @sizeOf(u32) * layout_size);
-            const field_size = 10;
+            const field_size = 9;
             comptime std.debug.assert(@sizeOf(Type.Record.Field) == @sizeOf(u32) * field_size);
             try ts.extra.ensureUnusedCapacity(gpa, record.fields.len * field_size + layout_size + 2);
 
@@ -2241,18 +2238,18 @@ pub fn set(ts: *TypeStore, gpa: std.mem.Allocator, ty: Type, index: usize) !void
         .attributed => |attributed| {
             repr.data[0] = @bitCast(attributed.base);
 
-            const attr_index: u32 = @intCast(ts.attributes.items.len);
-            const attr_count: u32 = @intCast(attributed.attributes.len);
-            try ts.attributes.appendSlice(gpa, attributed.attributes);
-            if (attr_count > 1) {
-                repr.tag = .attributed;
-                const extra_index: u32 = @intCast(ts.extra.items.len);
-                repr.data[1] = extra_index;
-                try ts.extra.appendSlice(gpa, &.{ attr_index, attr_count });
-            } else {
-                repr.tag = .attributed_one;
-                repr.data[1] = attr_index;
-            }
+            // const attr_index: u32 = @intCast(ts.attributes.items.len);
+            // const attr_count: u32 = @intCast(attributed.attributes.len);
+            // try ts.attributes.appendSlice(gpa, attributed.attributes);
+            // if (attr_count > 1) {
+            //     repr.tag = .attributed;
+            //     const extra_index: u32 = @intCast(ts.extra.items.len);
+            //     repr.data[1] = extra_index;
+            //     try ts.extra.appendSlice(gpa, &.{ attr_index, attr_count });
+            // } else {
+            //     repr.tag = .attributed_one;
+            //     repr.data[1] = attr_index;
+            // }
         },
     }
     ts.types.set(index, repr);
@@ -2345,7 +2342,6 @@ fn generateNsConstantStringType(ts: *TypeStore, comp: *Compilation) !QualType {
         .decl_node = undefined, // TODO
         .fields = &.{},
     };
-    const qt = try ts.put(comp.gpa, .{ .@"struct" = record });
 
     var fields: [4]Type.Record.Field = .{
         .{ .name = try comp.internString("isa"), .qt = const_int_ptr },
@@ -2354,10 +2350,9 @@ fn generateNsConstantStringType(ts: *TypeStore, comp: *Compilation) !QualType {
         .{ .name = try comp.internString("length"), .qt = .long },
     };
     record.fields = &fields;
-    record.layout = record_layout.compute(&fields, qt, comp, null) catch unreachable;
-    try ts.set(comp.gpa, .{ .@"struct" = record }, @intFromEnum(qt._index));
+    record.layout = record_layout.compute(&fields, undefined, comp, null) catch unreachable;
 
-    return qt;
+    return try ts.put(comp.gpa, .{ .@"struct" = record });
 }
 
 fn generateVaListType(ts: *TypeStore, comp: *Compilation) !QualType {
@@ -2432,7 +2427,6 @@ fn generateVaListType(ts: *TypeStore, comp: *Compilation) !QualType {
                 .layout = null,
                 .fields = &.{},
             };
-            const qt = try ts.put(comp.gpa, .{ .@"struct" = record });
 
             var fields: [5]Type.Record.Field = .{
                 .{ .name = try comp.internString("__stack"), .qt = .void_pointer },
@@ -2442,10 +2436,9 @@ fn generateVaListType(ts: *TypeStore, comp: *Compilation) !QualType {
                 .{ .name = try comp.internString("__vr_offs"), .qt = .int },
             };
             record.fields = &fields;
-            record.layout = record_layout.compute(&fields, qt, comp, null) catch unreachable;
-            try ts.set(comp.gpa, .{ .@"struct" = record }, @intFromEnum(qt._index));
+            record.layout = record_layout.compute(&fields, undefined, comp, null) catch unreachable;
 
-            return qt;
+            return ts.put(comp.gpa, .{ .@"struct" = record });
         },
         .arm_va_list => {
             var record: Type.Record = .{
@@ -2454,16 +2447,14 @@ fn generateVaListType(ts: *TypeStore, comp: *Compilation) !QualType {
                 .layout = null,
                 .fields = &.{},
             };
-            const qt = try ts.put(comp.gpa, .{ .@"struct" = record });
 
             var fields: [1]Type.Record.Field = .{
                 .{ .name = try comp.internString("__ap"), .qt = .void_pointer },
             };
             record.fields = &fields;
-            record.layout = record_layout.compute(&fields, qt, comp, null) catch unreachable;
-            try ts.set(comp.gpa, .{ .@"struct" = record }, @intFromEnum(qt._index));
+            record.layout = record_layout.compute(&fields, undefined, comp, null) catch unreachable;
 
-            return qt;
+            return ts.put(comp.gpa, .{ .@"struct" = record });
         },
         .hexagon_va_list => blk: {
             var record: Type.Record = .{
@@ -2472,7 +2463,6 @@ fn generateVaListType(ts: *TypeStore, comp: *Compilation) !QualType {
                 .layout = null,
                 .fields = &.{},
             };
-            const qt = try ts.put(comp.gpa, .{ .@"struct" = record });
 
             var fields: [4]Type.Record.Field = .{
                 .{ .name = try comp.internString("__gpr"), .qt = .long },
@@ -2481,10 +2471,9 @@ fn generateVaListType(ts: *TypeStore, comp: *Compilation) !QualType {
                 .{ .name = try comp.internString("__reg_save_area"), .qt = .void_pointer },
             };
             record.fields = &fields;
-            record.layout = record_layout.compute(&fields, qt, comp, null) catch unreachable;
-            try ts.set(comp.gpa, .{ .@"struct" = record }, @intFromEnum(qt._index));
+            record.layout = record_layout.compute(&fields, undefined, comp, null) catch unreachable;
 
-            break :blk qt;
+            break :blk try ts.put(comp.gpa, .{ .@"struct" = record });
         },
         .powerpc_va_list => blk: {
             var record: Type.Record = .{
@@ -2493,7 +2482,6 @@ fn generateVaListType(ts: *TypeStore, comp: *Compilation) !QualType {
                 .layout = null,
                 .fields = &.{},
             };
-            const qt = try ts.put(comp.gpa, .{ .@"struct" = record });
 
             var fields: [5]Type.Record.Field = .{
                 .{ .name = try comp.internString("gpr"), .qt = .uchar },
@@ -2503,10 +2491,9 @@ fn generateVaListType(ts: *TypeStore, comp: *Compilation) !QualType {
                 .{ .name = try comp.internString("reg_save_area"), .qt = .void_pointer },
             };
             record.fields = &fields;
-            record.layout = record_layout.compute(&fields, qt, comp, null) catch unreachable;
-            try ts.set(comp.gpa, .{ .@"struct" = record }, @intFromEnum(qt._index));
+            record.layout = record_layout.compute(&fields, undefined, comp, null) catch unreachable;
 
-            break :blk qt;
+            break :blk try ts.put(comp.gpa, .{ .@"struct" = record });
         },
         .s390x_va_list => blk: {
             var record: Type.Record = .{
@@ -2515,7 +2502,6 @@ fn generateVaListType(ts: *TypeStore, comp: *Compilation) !QualType {
                 .layout = null,
                 .fields = &.{},
             };
-            const qt = try ts.put(comp.gpa, .{ .@"struct" = record });
 
             var fields: [3]Type.Record.Field = .{
                 .{ .name = try comp.internString("__current_saved_reg_area_pointer"), .qt = .void_pointer },
@@ -2523,10 +2509,9 @@ fn generateVaListType(ts: *TypeStore, comp: *Compilation) !QualType {
                 .{ .name = try comp.internString("__overflow_area_pointer"), .qt = .void_pointer },
             };
             record.fields = &fields;
-            record.layout = record_layout.compute(&fields, qt, comp, null) catch unreachable;
-            try ts.set(comp.gpa, .{ .@"struct" = record }, @intFromEnum(qt._index));
+            record.layout = record_layout.compute(&fields, undefined, comp, null) catch unreachable;
 
-            break :blk qt;
+            break :blk try ts.put(comp.gpa, .{ .@"struct" = record });
         },
         .x86_64_va_list => blk: {
             var record: Type.Record = .{
@@ -2535,7 +2520,6 @@ fn generateVaListType(ts: *TypeStore, comp: *Compilation) !QualType {
                 .layout = null,
                 .fields = &.{},
             };
-            const qt = try ts.put(comp.gpa, .{ .@"struct" = record });
 
             var fields: [4]Type.Record.Field = .{
                 .{ .name = try comp.internString("gp_offset"), .qt = .uint },
@@ -2544,10 +2528,9 @@ fn generateVaListType(ts: *TypeStore, comp: *Compilation) !QualType {
                 .{ .name = try comp.internString("reg_save_area"), .qt = .void_pointer },
             };
             record.fields = &fields;
-            record.layout = record_layout.compute(&fields, qt, comp, null) catch unreachable;
-            try ts.set(comp.gpa, .{ .@"struct" = record }, @intFromEnum(qt._index));
+            record.layout = record_layout.compute(&fields, undefined, comp, null) catch unreachable;
 
-            break :blk qt;
+            break :blk try ts.put(comp.gpa, .{ .@"struct" = record });
         },
         .xtensa_va_list => {
             var record: Type.Record = .{
@@ -2556,7 +2539,6 @@ fn generateVaListType(ts: *TypeStore, comp: *Compilation) !QualType {
                 .layout = null,
                 .fields = &.{},
             };
-            const qt = try ts.put(comp.gpa, .{ .@"struct" = record });
 
             var fields: [3]Type.Record.Field = .{
                 .{ .name = try comp.internString("__va_stk"), .qt = .int_pointer },
@@ -2564,10 +2546,9 @@ fn generateVaListType(ts: *TypeStore, comp: *Compilation) !QualType {
                 .{ .name = try comp.internString("__va_ndx"), .qt = .int },
             };
             record.fields = &fields;
-            record.layout = record_layout.compute(&fields, qt, comp, null) catch unreachable;
-            try ts.set(comp.gpa, .{ .@"struct" = record }, @intFromEnum(qt._index));
+            record.layout = record_layout.compute(&fields, undefined, comp, null) catch unreachable;
 
-            return qt;
+            return try ts.put(comp.gpa, .{ .@"struct" = record });
         },
     };
 
@@ -3013,7 +2994,8 @@ pub const Builder = struct {
         if (b.unaligned != null and !is_pointer) {
             result_qt = (try b.parser.comp.type_store.put(gpa, .{ .attributed = .{
                 .base = result_qt,
-                .attributes = &.{.{ .tag = .unaligned, .args = .{ .unaligned = .{} }, .syntax = .keyword }},
+                // .attributes = &.{.{ .tag = .unaligned, .args = .{ .unaligned = .{} }, .syntax = .keyword }},
+                .attributes = undefined,
             } })).withQualifiers(result_qt);
         }
         switch (b.nullability) {

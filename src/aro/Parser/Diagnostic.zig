@@ -1211,6 +1211,12 @@ pub const unknown_attribute: Diagnostic = .{
     .opt = .@"unknown-attributes",
 };
 
+pub const unknown_namespaced_attribute: Diagnostic = .{
+    .fmt = "unknown attribute '{s}::{s}' ignored",
+    .kind = .warning,
+    .opt = .@"unknown-attributes",
+};
+
 pub const ignored_attribute: Diagnostic = .{
     .fmt = "attribute '{s}' ignored on {s}",
     .kind = .warning,
@@ -1924,14 +1930,8 @@ pub const invalid_noreturn: Diagnostic = .{
     .opt = .@"invalid-noreturn",
 };
 
-pub const nodiscard_unused: Diagnostic = .{
-    .fmt = "ignoring return value of '{s}', declared with 'nodiscard' attribute",
-    .kind = .warning,
-    .opt = .@"unused-result",
-};
-
 pub const warn_unused_result: Diagnostic = .{
-    .fmt = "ignoring return value of '{s}', declared with 'warn_unused_result' attribute",
+    .fmt = "ignoring return value of '{s}', declared with '{at}' attribute",
     .kind = .warning,
     .opt = .@"unused-result",
 };
