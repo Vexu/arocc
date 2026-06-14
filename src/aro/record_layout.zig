@@ -5,6 +5,7 @@ const std = @import("std");
 
 const Attribute = @import("Attribute.zig");
 const Compilation = @import("Compilation.zig");
+const Node = @import("Tree.zig").Node;
 const Parser = @import("Parser.zig");
 const Target = @import("Target.zig");
 const TypeStore = @import("TypeStore.zig");
@@ -567,7 +568,10 @@ const MsvcContext = struct {
     }
 };
 
-pub fn compute(fields: []Type.Record.Field, qt: QualType, comp: *const Compilation, pragma_pack: ?u8) Error!Type.Record.Layout {
+pub fn compute(fields: []Type.Record.Field, decl_node: Node.Index, comp: *const Compilation, pragma_pack: ?u8) Error!Type.Record.Layout {
+    _ = decl_node; // autofix
+    if (true) return undefined;
+    const qt = undefined;
     switch (comp.langopts.emulate) {
         .no, .gcc, .clang => {
             var context = SysVContext.init(qt, comp, pragma_pack);
