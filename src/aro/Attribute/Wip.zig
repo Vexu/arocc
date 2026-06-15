@@ -272,8 +272,7 @@ fn add(wip: *Wip, args: Attribute.Args) !void {
 
 pub fn applyDeclAttrs(wip: *Wip, p: *Parser, decl: Tree.Node.Index, prev_decl: Tree.Node.OptIndex) !void {
     wip.applied.items.len = 0;
-    _ = prev_decl; // autofix
-    // if (prev_decl.unpack()) |prev| try wip.inherit(prev);
+    if (prev_decl.unpack()) |prev| try wip.inherit(p, prev);
 
     for (wip.attrs.items[wip.top..]) |*attr| {
         if (attr.used_as_type_attr) continue;
@@ -313,6 +312,21 @@ pub fn applyDeclAttrs(wip: *Wip, p: *Parser, decl: Tree.Node.Index, prev_decl: T
         tree.extra.appendAssumeCapacity(@intFromEnum(ref));
     }
     try tree.decl_attrs.put(gpa, decl, .{ @intCast(start_index), @intCast(wip.applied.items.len) });
+}
+
+fn inherit(wip: *Wip, p: *Parser, decl: Tree.Node.Index) !void {
+    const gpa = p.comp.gpa;
+    const tree = &p.tree;
+    for (tree.attrs(decl)) |ref| {
+        const attr = tree.attr_map.get(ref);
+
+        switch (attr.args) {
+            .@"packed" => {},
+            else => continue,
+        }
+
+        try wip.applied.append(gpa, attr);
+    }
 }
 
 pub fn applyTypeAttrs(wip: *Wip, p: *Parser, qt: QualType) !QualType {

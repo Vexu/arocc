@@ -2544,6 +2544,8 @@ fn recordSpec(p: *Parser) Error!QualType {
     const reserved_index = try p.tree.nodes.addOne(gpa);
 
     const maybe_ident = try p.eatIdentifier();
+    try p.attributeSpecifier();
+
     const l_brace = p.eatToken(.l_brace) orelse {
         const ident = maybe_ident orelse {
             try p.err(p.tok_i, .ident_or_l_brace, .{});
@@ -2977,6 +2979,8 @@ fn enumSpec(p: *Parser) Error!QualType {
     try p.attributeSpecifier();
 
     const maybe_ident = try p.eatIdentifier();
+    try p.attributeSpecifier();
+
     const fixed_qt: ?QualType = if (p.eatToken(.colon)) |colon| fixed: {
         const ty_start = p.tok_i;
 
