@@ -45,9 +45,7 @@ pub const Args = union(enum) {
     alias: struct {
         alias: Value,
     },
-    alignment: struct {
-        alignment: ?Alignment = null,
-    },
+    alignment: ?u32,
     alloc_align: struct {
         position: u32,
     },
@@ -559,7 +557,8 @@ pub const Namespaced = union(enum) {
         vls_cc,
     };
     pub const Keyword = enum {
-        aligned,
+        _Alignas,
+        alignas,
         noreturn,
         asm_label,
         nonnull,
@@ -617,7 +616,8 @@ pub const Namespaced = union(enum) {
 
     pub fn fromKeyword(id: Tree.Token.Id) Namespaced {
         return .{ .keyword = switch (id) {
-            .keyword_alignas, .keyword_c23_alignas => .aligned,
+            .keyword_alignas => ._Alignas,
+            .keyword_c23_alignas => .alignas,
             .keyword_noreturn => .noreturn,
             .keyword_asm, .keyword_asm1, .keyword_asm2 => .asm_label,
             .keyword_nonnull => .nonnull,

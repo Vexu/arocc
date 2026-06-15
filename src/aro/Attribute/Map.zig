@@ -16,6 +16,8 @@ const Repr = struct {
         hot,
         cold,
         @"const",
+        alignment,
+        alignment_null,
     };
 };
 
@@ -43,6 +45,13 @@ pub fn put(map: *Map, gpa: std.mem.Allocator, attribute: Attribute) !Ref {
         .hot => repr.tag = .hot,
         .cold => repr.tag = .cold,
         .@"const" => repr.tag = .@"const",
+        .alignment => |opt_value| if (opt_value) |value| {
+            repr.tag = .alignment;
+            repr.data = @intCast(map.extra.items.len);
+            try map.extra.appendSlice(gpa, &.{ attribute.tok, value });
+        } else {
+            repr.tag = .alignment_null;
+        },
         else => @panic("TODO"),
     }
 
@@ -59,11 +68,16 @@ pub fn get(map: *const Map, ref: Ref) Attribute {
         .tok = repr.data,
         .args = undefined,
     };
-    res.args = switch (repr.tag) {
-        .@"packed" => .@"packed",
-        .hot => .hot,
-        .cold => .cold,
-        .@"const" => .@"const",
-    };
+    switch (repr.tag) {
+        .@"packed" => res.args = .@"packed",
+        .hot => res.args = .hot,
+        .cold => res.args = .cold,
+        .@"const" => res.args = .@"const",
+        .alignment_null => res.args = .{ .alignment = null },
+        .alignment => {
+            res.tok = map.extra.items[repr.data];
+            res.args = .{ .alignment = map.extra.items[repr.data + 1] };
+        },
+    }
     return res;
 }

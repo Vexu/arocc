@@ -86,3 +86,39 @@ pub const vec_size_not_multiple: Diagnostic = .{
     .fmt = "vector size not an integral multiple of component size",
     .kind = .@"error",
 };
+
+// alignment
+pub const alignas_on_func: Diagnostic = .{
+    .fmt = "{at} attribute only applies to variables and fields",
+    .kind = .@"error",
+};
+
+pub const alignas_on_param: Diagnostic = .{
+    .fmt = "{at} attribute cannot be applied to a function parameter",
+    .kind = .@"error",
+};
+
+pub const alignas_bitfield: Diagnostic = .{
+    .fmt = "{at} attribute cannot be applied to a bit-field",
+    .kind = .@"error",
+};
+
+pub const minimum_alignment: Diagnostic = .{
+    .fmt = "requested alignment is less than minimum alignment of {d}",
+    .kind = .@"error",
+};
+
+pub const maximum_alignment: Diagnostic = .{
+    .fmt = "requested alignment of {d} is too large",
+    .kind = .@"error",
+};
+
+pub const negative_alignment: Diagnostic = .{
+    .fmt = "requested negative alignment of {d} is invalid",
+    .kind = .@"error",
+};
+
+pub const non_pow2_align: Diagnostic = .{
+    .fmt = "requested alignment is not a power of 2",
+    .kind = .@"error",
+};

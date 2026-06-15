@@ -897,46 +897,6 @@ pub const deref_incomplete_ty_ptr: Diagnostic = .{
     .kind = .@"error",
 };
 
-pub const alignas_on_func: Diagnostic = .{
-    .fmt = "'_Alignas' attribute only applies to variables and fields",
-    .kind = .@"error",
-};
-
-pub const alignas_on_param: Diagnostic = .{
-    .fmt = "'_Alignas' attribute cannot be applied to a function parameter",
-    .kind = .@"error",
-};
-
-pub const minimum_alignment: Diagnostic = .{
-    .fmt = "requested alignment is less than minimum alignment of {d}",
-    .kind = .@"error",
-};
-
-pub const maximum_alignment: Diagnostic = .{
-    .fmt = "requested alignment of {value} is too large",
-    .kind = .@"error",
-};
-
-pub const negative_alignment: Diagnostic = .{
-    .fmt = "requested negative alignment of {value} is invalid",
-    .kind = .@"error",
-};
-
-pub const align_ignored: Diagnostic = .{
-    .fmt = "'_Alignas' attribute is ignored here",
-    .kind = .warning,
-};
-
-// pub const zero_align_ignored: Diagnostic = .{
-//     .fmt = "requested alignment of zero is ignored",
-//     .kind = .warning,
-// };
-
-pub const non_pow2_align: Diagnostic = .{
-    .fmt = "requested alignment is not a power of 2",
-    .kind = .@"error",
-};
-
 pub const pointer_mismatch: Diagnostic = .{
     .fmt = "pointer type mismatch ({qt} and {qt})",
     .opt = .@"pointer-type-mismatch",
@@ -1117,11 +1077,6 @@ pub const shufflevector_negative_index: Diagnostic = .{
 
 pub const shufflevector_index_too_big: Diagnostic = .{
     .fmt = "index for __builtin_shufflevector must be less than the total number of vector elements",
-    .kind = .@"error",
-};
-
-pub const alignas_unavailable: Diagnostic = .{
-    .fmt = "'_Alignas' attribute requires integer constant expression",
     .kind = .@"error",
 };
 

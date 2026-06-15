@@ -3122,36 +3122,14 @@ fn dumpAttribute(tree: *const Tree, ref: Attribute.Map.Ref, w: *std.Io.Writer) !
     }
 
     switch (attr.args) {
-        inline else => |args| {
-            if (@typeInfo(@TypeOf(args)) != .@"struct") {
-                try w.writeByte('\n');
-                return;
-            }
-            const info = @typeInfo(@TypeOf(args)).@"struct";
-            if (info.field_names.len == 0) {
-                try w.writeByte('\n');
-                return;
-            }
-            try w.writeByte(' ');
-            inline for (info.field_names, info.field_types, 0..) |f_name, f_type, i| {
-                if (i != 0) {
-                    try w.writeAll(", ");
-                }
-                try w.writeAll(f_name);
-                try w.writeAll(": ");
-                switch (f_type) {
-                    Interner.Ref => try w.print("\"{s}\"", .{tree.interner.get(@field(args, f_name)).bytes}),
-                    ?Interner.Ref => try w.print("\"{?s}\"", .{if (@field(args, f_name)) |str| tree.interner.get(str).bytes else null}),
-                    else => switch (@typeInfo(f_type)) {
-                        .@"enum" => try w.writeAll(@tagName(@field(args, f_name))),
-                        else => try w.print("{any}", .{@field(args, f_name)}),
-                    },
-                }
-            }
-            try w.writeByte('\n');
-            return;
+        inline else => |args| switch (@TypeOf(args)) {
+            void => {},
+            ?u32 => try w.print(": {?d}", .{args}),
+            else => {},
         },
     }
+    try w.writeByte('\n');
+    return;
 }
 
 fn dumpNode(

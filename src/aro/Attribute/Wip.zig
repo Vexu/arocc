@@ -23,6 +23,14 @@ current: struct {
     args: []const Parser.Result,
     parser: *Parser,
     arg_i: u32 = 0,
+
+    fn node(c: *const @This()) Tree.Node {
+        return c.target.?.get(&c.parser.tree);
+    }
+
+    fn qt(c: *const @This()) QualType {
+        return c.target.?.qt(&c.parser.tree);
+    }
 } = undefined,
 
 pub const Parsed = struct {
@@ -114,7 +122,11 @@ fn argCount(wip: *Wip, count: u32) !bool {
     return true;
 }
 
-fn arg(wip: *Wip, comptime Wanted: type) !?Wanted {
+fn arg(wip: *Wip, comptime WantedBase: type) !?WantedBase {
+    const Wanted = if (@typeInfo(WantedBase) == .optional) blk: {
+        if (wip.current.arg_i >= wip.current.args.len) return @as(WantedBase, null);
+        break :blk @typeInfo(WantedBase).optional.child;
+    } else WantedBase;
     const arg_res = wip.current.args[wip.current.arg_i];
     wip.current.arg_i += 1;
 
@@ -141,7 +153,7 @@ fn arg(wip: *Wip, comptime Wanted: type) !?Wanted {
             return node.decl_ref_expr;
         }
 
-        try wip.err(.arg_type, .{ expected, expression });
+        try wip.err(.arg_type, .{ expected, wip.current.attr, expression });
         return null;
     }
     const key = comp.interner.get(arg_res.val.ref());
@@ -203,6 +215,7 @@ const Target = enum {
     param,
     tag,
     field,
+    typedef,
 
     pub fn str(t: Target) []const u8 {
         return switch (t) {
@@ -213,12 +226,13 @@ const Target = enum {
             .param => "parameters",
             .tag => "tag types",
             .field => "fields",
+            .typedef => "typedefs",
         };
     }
 };
 
 fn checkTarget(wip: *Wip, list: []const Target) !bool {
-    const node = wip.current.target.?.get(&wip.current.parser.tree);
+    const node = wip.current.node();
     for (list) |target| switch (target) {
         .function => switch (node) {
             .function => return false,
@@ -252,6 +266,10 @@ fn checkTarget(wip: *Wip, list: []const Target) !bool {
         },
         .field => switch (node) {
             .enum_field, .record_field => return false,
+            else => {},
+        },
+        .typedef => switch (node) {
+            .typedef => return false,
             else => {},
         },
     };
@@ -324,14 +342,21 @@ pub fn applyDeclAttrs(wip: *Wip, p: *Parser, decl: Tree.Node.Index, prev_decl: T
                     if (try wip.argCount(0)) continue;
                     try wip.add(.@"const");
                 },
+                .aligned => try wip.applyAlignment(),
                 else => {},
             },
             .clang => {},
             .aro => {},
-            .declspec => {},
+            .declspec => |declspec_attr| switch (declspec_attr) {
+                .@"align" => try wip.applyAlignment(),
+                else => {},
+            },
             .msvc => {},
             .riscv => {},
-            .keyword => {},
+            .keyword => |keyword_attr| switch (keyword_attr) {
+                ._Alignas, .alignas => try wip.applyAlignment(),
+                else => {},
+            },
         }
     }
 
@@ -357,13 +382,64 @@ fn inherit(wip: *Wip, p: *Parser, decl: Tree.Node.Index) !void {
             .@"packed",
             .hot,
             .cold,
-            .@"const"
+            .@"const",
+            .alignment,
             => {},
             else => continue,
         }
 
         try wip.applied.append(gpa, attr);
     }
+}
+
+fn applyAlignment(wip: *Wip) !void {
+    const qt = wip.current.qt();
+    if (qt.isInvalid()) return;
+    if (wip.current.attr.syntax == .keyword) {
+        switch (wip.current.node()) {
+            .variable,
+            .struct_decl,
+            .union_decl,
+            .enum_decl,
+            .struct_forward_decl,
+            .union_forward_decl,
+            .enum_forward_decl,
+            => {},
+            .record_field => |field| if (field.bit_width != null) {
+                try wip.err(.alignas_bitfield, .{wip.current.attr});
+                return;
+            },
+            .param => {
+                try wip.err(.alignas_on_param, .{wip.current.attr});
+                return;
+            },
+            else => {
+                try wip.err(.alignas_on_func, .{wip.current.attr});
+                return;
+            },
+        }
+    } else if (try wip.checkTarget(&.{ .function, .variable, .typedef, .tag, .param, .field })) return;
+    if (try wip.argCountMinMax(0, 1)) return;
+
+    const maybe_requested = (try wip.arg(?i64)) orelse return;
+    var casted: ?u32 = null;
+
+    if (maybe_requested) |requested| {
+        if (requested < 0) {
+            try wip.err(.negative_alignment, .{requested});
+            return;
+        }
+        if (requested > std.math.maxInt(u32)) {
+            try wip.err(.maximum_alignment, .{requested});
+            return;
+        }
+        if (!std.mem.isValidAlign(@intCast(requested))) {
+            try wip.err(.non_pow2_align, .{});
+            return;
+        }
+        casted = @intCast(requested);
+    }
+    try wip.add(.{ .alignment = casted });
 }
 
 pub fn applyTypeAttrs(wip: *Wip, p: *Parser, qt: QualType) !QualType {
