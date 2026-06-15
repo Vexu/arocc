@@ -1222,15 +1222,8 @@ pub const QualType = packed struct(u32) {
         }
     }
 
-    pub fn hasAttribute(qt: QualType, comp: *const Compilation, tag: Attribute.Tag) bool {
-        if (true) return false; // TODO
-
-        var it = Attribute.Iterator.initType(qt, comp);
-        while (it.next()) |item| {
-            const attr, _ = item;
-            if (attr.tag == tag) return true;
-        }
-        return false;
+    pub fn hasAttribute(qt: QualType, tree: *const Tree, tag: Attribute.Tag) bool {
+        return qt.getAttribute(tree, tag) != null;
     }
 
     pub fn alignable(qt: QualType, comp: *const Compilation) bool {

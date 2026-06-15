@@ -1770,29 +1770,6 @@ pub const enum_invalid_underlying_type: Diagnostic = .{
     .kind = .@"error",
 };
 
-pub const transparent_union_wrong_type: Diagnostic = .{
-    .fmt = "'transparent_union' attribute only applies to unions",
-    .opt = .@"ignored-attributes",
-    .kind = .warning,
-};
-
-pub const transparent_union_one_field: Diagnostic = .{
-    .fmt = "transparent union definition must contain at least one field; transparent_union attribute ignored",
-    .opt = .@"ignored-attributes",
-    .kind = .warning,
-};
-
-pub const transparent_union_size: Diagnostic = .{
-    .fmt = "size of field '{s}' ({d} bits) does not match the size of the first field in transparent union; transparent_union attribute ignored",
-    .kind = .warning,
-    .opt = .@"ignored-attributes",
-};
-
-pub const transparent_union_size_note: Diagnostic = .{
-    .fmt = "size of first field is {d}",
-    .kind = .note,
-};
-
 pub const designated_init_invalid: Diagnostic = .{
     .fmt = "'designated_init' attribute is only valid on 'struct' type'",
     .kind = .@"error",

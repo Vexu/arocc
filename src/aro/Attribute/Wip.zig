@@ -387,6 +387,7 @@ pub fn applyDeclAttrs(wip: *Wip, p: *Parser, decl: Tree.Node.Index, prev_decl: T
                 },
                 .warn_unused_result => try wip.applyWarnUnusedResult(),
                 .nonnull => try wip.applyNonnull(),
+                .transparent_union => try wip.applyTransparentUnion(),
                 else => {},
             },
             .clang => |clang_attr| switch (clang_attr) {
@@ -573,6 +574,44 @@ fn applyNonnull(wip: *Wip) !void {
         parser.list_buf.appendAssumeCapacity(@enumFromInt(position));
     }
     try wip.add(.{ .nonnull = @ptrCast(parser.list_buf.items[list_buf_top..]) });
+}
+
+fn applyTransparentUnion(wip: *Wip) !void {
+    const qt = wip.current.qt();
+    if (qt.isInvalid()) return;
+    const fields = switch (wip.current.node()) {
+        .union_decl => |decl| decl.fields,
+        .union_forward_decl => {
+            try wip.err(.transparent_union_forward_decl, .{wip.current.attr});
+            return;
+        },
+        else => {
+            try wip.err(.transparent_union_wrong_type, .{wip.current.attr});
+            return;
+        },
+    };
+    if (try wip.argCount(0)) return;
+
+    const parser = wip.current.parser;
+    const comp = parser.comp;
+    const tree = &parser.tree;
+
+    if (fields.len == 0) {
+        try wip.err(.transparent_union_one_field, .{wip.current.attr});
+        return;
+    }
+    const first_field_size = fields[0].qt(tree).bitSizeof(comp);
+    for (fields[1..]) |field| {
+        const field_size = field.qt(tree).bitSizeof(comp);
+        if (field_size == first_field_size) continue;
+
+        const field_tok = field.tok(tree);
+        try wip.errTok(field_tok, .transparent_union_size, .{ parser.tokSlice(field_tok), field_size, wip.current.attr });
+        try wip.errTok(fields[0].tok(tree), .transparent_union_size_note, .{first_field_size});
+        return;
+    }
+
+    try wip.add(.transparent_union);
 }
 
 pub fn applyTypeAttrs(wip: *Wip, p: *Parser, qt: QualType) !QualType {

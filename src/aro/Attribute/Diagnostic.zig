@@ -153,3 +153,33 @@ pub const invalid_neon_vec_size: Diagnostic = .{
     .fmt = "Neon vector size must be 64 or 128 bits",
     .kind = .@"error",
 };
+
+// transparent_union
+pub const transparent_union_forward_decl: Diagnostic = .{
+    .fmt = "{at} attribute can only be applied to a union definition; attribute ignored",
+    .kind = .warning,
+    .opt = .@"ignored-attributes",
+};
+
+pub const transparent_union_wrong_type: Diagnostic = .{
+    .fmt = "{at} attribute only applies to unions",
+    .kind = .warning,
+    .opt = .@"ignored-attributes",
+};
+
+pub const transparent_union_one_field: Diagnostic = .{
+    .fmt = "transparent union definition must contain at least one field; {at} attribute ignored",
+    .opt = .@"ignored-attributes",
+    .kind = .warning,
+};
+
+pub const transparent_union_size: Diagnostic = .{
+    .fmt = "size of field '{s}' ({d} bits) does not match the size of the first field in transparent union; {at} attribute ignored",
+    .kind = .warning,
+    .opt = .@"ignored-attributes",
+};
+
+pub const transparent_union_size_note: Diagnostic = .{
+    .fmt = "size of first field is {d}",
+    .kind = .note,
+};

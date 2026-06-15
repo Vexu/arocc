@@ -3141,7 +3141,7 @@ fn enumSpec(p: *Parser) Error!QualType {
 
     if (fixed_qt == null) {
         // Set tag type.
-        const enum_is_packed = p.comp.langopts.short_enums or p.comp.target.packAllEnums() or qt.hasAttribute(p.comp, .@"packed");
+        const enum_is_packed = p.comp.langopts.short_enums or p.comp.target.packAllEnums() or qt.hasAttribute(&p.tree, .@"packed");
         const tag_qt = try e.getTypeSpecifier(p, enum_is_packed, maybe_ident orelse enum_tok);
         enum_ty.tag = tag_qt;
 
@@ -4146,7 +4146,7 @@ fn initializerItem(p: *Parser, il: *InitList, init_qt: QualType, l_brace: TokenI
         errdefer p.skipTo(.r_brace);
 
         const designated = try p.designation(il, init_qt, &index_list);
-        if (!designated and init_qt.hasAttribute(p.comp, .designated_init)) {
+        if (!designated and init_qt.hasAttribute(&p.tree, .designated_init)) {
             try p.err(p.tok_i, .designated_init_needed, .{});
         }
 
@@ -5813,7 +5813,7 @@ fn returnStmt(p: *Parser) Error!?Node.Index {
     const ret_qt: QualType = if (func_qt.get(p.comp, .func)) |func_ty| func_ty.return_type else .invalid;
     const ret_void = !ret_qt.isInvalid() and ret_qt.is(p.comp, .void);
 
-    if (func_qt.hasAttribute(p.comp, .noreturn)) {
+    if (func_qt.hasAttribute(&p.tree, .noreturn)) {
         try p.err(e_tok, .invalid_noreturn, .{p.tokSlice(p.func.name)});
     }
 
@@ -7640,7 +7640,7 @@ pub const Result = struct {
             }
 
             if (c == .arg) if (dest_unqual.get(p.comp, .@"union")) |union_ty| {
-                if (dest_unqual.hasAttribute(p.comp, .transparent_union)) transparent_union: {
+                if (dest_unqual.hasAttribute(&p.tree, .transparent_union)) transparent_union: {
                     res.coerceExtra(p, union_ty.fields[0].qt, tok, .test_coerce) catch |er| switch (er) {
                         error.CoercionFailed => break :transparent_union,
                         else => |e| return e,
@@ -8878,7 +8878,7 @@ fn unExpr(p: *Parser) Error!?Result {
             {
                 if (access.isBitFieldWidth(&p.tree) != null) try p.err(tok, .addr_of_bitfield, .{});
                 const lhs_qt = access.base.qt(&p.tree);
-                if (lhs_qt.hasAttribute(p.comp, .@"packed")) {
+                if (lhs_qt.hasAttribute(&p.tree, .@"packed")) {
                     const record_ty = lhs_qt.getRecord(p.comp).?;
                     try p.err(orig_tok_i, .packed_member_address, .{
                         record_ty.fields[access.member_index].name.lookup(p.comp),
