@@ -129,3 +129,21 @@ pub const warn_unused_result_void: Diagnostic = .{
     .kind = .warning,
     .opt = .@"ignored-attributes",
 };
+
+// nonnull
+pub const nonnull_param_args: Diagnostic = .{
+    .fmt = "{at} attribute when used on parameters takes no arguments",
+    .kind = .warning,
+    .opt = .@"ignored-attributes",
+};
+
+pub const param_out_of_bounds: Diagnostic = .{
+    .fmt = "{at} attribute parameter {d} is out of bounds",
+    .kind = .@"error",
+};
+
+pub const nonnull_pointer_only: Diagnostic = .{
+    .fmt = "{at} attribute only applies to pointer arguments",
+    .kind = .warning,
+    .opt = .@"ignored-attributes",
+};

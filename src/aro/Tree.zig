@@ -2994,21 +2994,21 @@ pub fn bitfieldWidth(tree: *const Tree, node: Node.Index, inspect_lval: bool) ?u
     }
 }
 
-const CallableResultUsage = struct {
+const CalledFunctionAttr = struct {
     /// name token of the thing being called, for diagnostics
     tok: TokenIndex,
     /// true if `warn_unused_result` attribute present
-    warn_unused_result: ?Attribute,
+    attr: ?Attribute,
 };
 
-pub fn callableResultUsage(tree: *const Tree, node: Node.Index) ?CallableResultUsage {
+pub fn calledFunctionAttr(tree: *const Tree, node: Node.Index, tag: Attribute.Tag) ?CalledFunctionAttr {
     loop: switch (node.get(tree)) {
         .decl_ref_expr => |decl_ref| return .{
             .tok = decl_ref.name_tok,
-            .warn_unused_result = tree.getAttribute(decl_ref.decl, .warn_unused_result) orelse blk: {
+            .attr = tree.getAttribute(decl_ref.decl, tag) orelse blk: {
                 const base_qt = if (decl_ref.qt.get(tree.comp, .pointer)) |pointer| pointer.child else decl_ref.qt;
                 const func = base_qt.get(tree.comp, .func) orelse break :blk null;
-                break :blk func.return_type.getAttribute(tree, .warn_unused_result);
+                break :blk func.return_type.getAttribute(tree, tag);
             },
         },
 
@@ -3027,7 +3027,11 @@ pub fn callableResultUsage(tree: *const Tree, node: Node.Index) ?CallableResultU
             const field = record_ty.fields[access.member_index];
             return .{
                 .tok = field.name_tok,
-                .warn_unused_result = null,
+                .attr = tree.getAttribute(field.field_decl, tag) orelse blk: {
+                    const base_qt = if (field.qt.get(tree.comp, .pointer)) |pointer| pointer.child else field.qt;
+                    const func = base_qt.get(tree.comp, .func) orelse break :blk null;
+                    break :blk func.return_type.getAttribute(tree, tag);
+                },
             };
         },
         else => return null,
@@ -3115,6 +3119,14 @@ pub fn getAttribute(tree: *const Tree, node: Node.Index, tag: Attribute.Tag) ?At
         if (attr.args == tag) return attr;
     }
     return null;
+}
+
+pub fn hasAttribute(tree: *const Tree, node: Node.Index, tag: Attribute.Tag) bool {
+    for (tree.attrs(node)) |ref| {
+        const attr = tree.attr_map.get(ref);
+        if (attr.args == tag) return true;
+    }
+    return false;
 }
 
 pub fn dump(tree: *const Tree, term: std.Io.Terminal) std.Io.Terminal.SetColorError!void {

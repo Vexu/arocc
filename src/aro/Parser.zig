@@ -6411,8 +6411,8 @@ pub const Result = struct {
             .post_dec_expr,
             => {},
             .call_expr => |call| {
-                const call_info = p.tree.callableResultUsage(call.callee) orelse return;
-                if (call_info.warn_unused_result) |attr| {
+                const call_info = p.tree.calledFunctionAttr(call.callee, .warn_unused_result) orelse return;
+                if (call_info.attr) |attr| {
                     const msg = attr.args.warn_unused_result;
                     const colon_str: []const u8 = if (msg != null) ": " else "";
                     try p.err(expr_start, .warn_unused_result, .{ p.tokSlice(call_info.tok), attr, colon_str, Escaped.init(msg orelse "") });
@@ -9864,7 +9864,7 @@ fn callExpr(p: *Parser, lhs: Result) Error!Result {
 
     // We cannot refer to the function type here because the pointer to
     // type_store.extra might get invalidated while parsing args.
-    const func_qt, const typed_params_len, const func_kind_base, const maybe_nonnull = blk: {
+    const func_qt, const typed_params_len, const func_kind_base, const maybe_nonnull: ?Attribute = blk: {
         var base_qt = lhs.qt;
         if (base_qt.get(p.comp, .pointer)) |pointer_ty| base_qt = pointer_ty.child else if (base_qt.get(p.comp, .block)) |block_ty| base_qt = block_ty.func;
         if (base_qt.isInvalid()) break :blk .{ base_qt, std.math.maxInt(usize), undefined, null };
@@ -9874,7 +9874,12 @@ fn callExpr(p: *Parser, lhs: Result) Error!Result {
             try p.err(l_paren, .not_callable, .{lhs.qt});
             return error.ParsingFailed;
         }
-        break :blk .{ func_type_qt.qt, func_type_qt.type.func.params.len, func_type_qt.type.func.kind, base_qt.getAttribute(&p.tree, .nonnull) }; // TODO nonnull is a decl attr
+        break :blk .{
+            func_type_qt.qt,
+            func_type_qt.type.func.params.len,
+            func_type_qt.type.func.kind,
+            if (p.tree.calledFunctionAttr(lhs.node, .nonnull)) |info| info.attr else null,
+        };
     };
 
     var func = lhs;
@@ -9952,7 +9957,7 @@ fn callExpr(p: *Parser, lhs: Result) Error!Result {
         }
 
         if (func_qt.get(p.comp, .func)) |func_ty| {
-            const param = func_ty.params[arg_count];
+            const param: Type.Func.Param = func_ty.params[arg_count];
 
             if (param.qt.get(p.comp, .pointer)) |pointer_ty| static_check: {
                 const decayed_child_qt = pointer_ty.decayed orelse break :static_check;
@@ -9971,17 +9976,17 @@ fn callExpr(p: *Parser, lhs: Result) Error!Result {
                 }
             }
 
-            if (maybe_nonnull) |nonnull| {
-                _ = nonnull; // autofix
-                // const indices = p.comp.type_store.nonnull_args.items[nonnull.indices_start..][0..nonnull.indices_len];
-                // const needs_nonnull = if (nonnull.indices_len == 0)
-                //     param.qt.isPointer(p.comp)
-                // else
-                //     std.mem.indexOfScalar(u32, indices, @intCast(arg_count + 1)) != null;
-
-                // if (needs_nonnull and arg.val.isZero(p.comp)) {
-                //     try p.err(param_tok, .non_null_argument, .{});
-                // }
+            const needs_nonnull = if (maybe_nonnull) |attr|
+                if (attr.args.nonnull.len == 0)
+                    param.qt.isPointer(p.comp)
+                else
+                    mem.findScalar(u32, attr.args.nonnull, @intCast(arg_count + 1)) != null
+            else if (param.node.unpack()) |some|
+                p.tree.hasAttribute(some, .nonnull)
+            else
+                false;
+            if (needs_nonnull and arg.val.isZero(p.comp)) {
+                try p.err(param_tok, .non_null_argument, .{});
             }
 
             if (call_expr.shouldCoerceArg(arg_count)) {

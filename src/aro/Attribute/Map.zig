@@ -28,6 +28,9 @@ const Repr = struct {
         @"error",
         warn_unused_result_msg,
         warn_unused_result,
+        nonnull_zero,
+        nonnull_one,
+        nonnull,
     };
 };
 
@@ -104,6 +107,20 @@ pub fn put(map: *Map, gpa: mem.Allocator, attribute: Attribute) !Ref {
         } else {
             repr.tag = .warn_unused_result;
         },
+        .nonnull => |positions| if (positions.len == 0) {
+            repr.tag = .nonnull_zero;
+        } else if (positions.len == 1) {
+            repr.tag = .nonnull_one;
+            repr.data = @intCast(map.extra.items.len);
+            try map.extra.appendSlice(gpa, &.{ attribute.tok, positions[0] });
+        } else {
+            repr.tag = .nonnull;
+            repr.data = @intCast(map.extra.items.len);
+            try map.extra.ensureUnusedCapacity(gpa, 2 + positions.len);
+            map.extra.appendAssumeCapacity(attribute.tok);
+            map.extra.appendAssumeCapacity(@intCast(positions.len));
+            map.extra.appendSliceAssumeCapacity(positions);
+        },
         else => @panic("TODO"),
     }
 
@@ -167,6 +184,16 @@ pub fn get(map: *const Map, ref: Ref) Attribute {
             res.args = .{ .warn_unused_result = msg };
         },
         .warn_unused_result => res.args = .{ .warn_unused_result = null },
+        .nonnull => {
+            res.tok = map.extra.items[repr.data];
+            const positions_len = map.extra.items[repr.data + 1];
+            res.args = .{ .nonnull = map.extra.items[repr.data + 2 ..][0..positions_len] };
+        },
+        .nonnull_one => {
+            res.tok = map.extra.items[repr.data];
+            res.args = .{ .nonnull = map.extra.items[repr.data + 1 ..][0..1] };
+        },
+        .nonnull_zero => res.args = .{ .nonnull = &.{} },
     }
     return res;
 }

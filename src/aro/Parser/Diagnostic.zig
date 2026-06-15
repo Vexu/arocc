@@ -2328,11 +2328,6 @@ pub const packed_member_address: Diagnostic = .{
     .opt = .@"address-of-packed-member",
 };
 
-pub const attribute_param_out_of_bounds: Diagnostic = .{
-    .fmt = "'{s}' attribute parameter {d} is out of bounds",
-    .kind = .@"error",
-};
-
 pub const alloc_align_requires_ptr_return: Diagnostic = .{
     .fmt = "'alloc_align' attribute only applies to return values that are pointers",
     .opt = .@"ignored-attributes",
@@ -2423,11 +2418,6 @@ pub const mixing_decimal_floats: Diagnostic = .{
 
 pub const invalid_attribute_location: Diagnostic = .{
     .fmt = "{s} cannot appear here",
-    .kind = .@"error",
-};
-
-pub const attribute_requires_pointer: Diagnostic = .{
-    .fmt = "'{s}' attribute only applies to pointer arguments",
     .kind = .@"error",
 };
 

@@ -437,6 +437,12 @@ pub const QualType = packed struct(u32) {
         };
     }
 
+    /// Function or function pointer
+    pub fn getFunc(qt: QualType, comp: *const Compilation) ?Type.Func {
+        const base_qt = if (qt.get(comp, .pointer)) |pointer| pointer.child else qt;
+        return base_qt.get(comp, .func);
+    }
+
     pub fn getRecord(qt: QualType, comp: *const Compilation) ?Type.Record {
         return switch (qt.base(comp).type) {
             .@"struct", .@"union" => |record| record,

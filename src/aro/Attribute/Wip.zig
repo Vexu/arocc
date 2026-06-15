@@ -14,7 +14,7 @@ const Wip = @This();
 
 attrs: std.ArrayList(Parsed) = .empty,
 args: std.ArrayList(Parser.Result) = .empty,
-applied: std.ArrayList(Attribute) = .empty,
+applied: std.ArrayList(Attribute.Map.Ref) = .empty,
 top: u32 = 0,
 
 current: struct {
@@ -30,6 +30,10 @@ current: struct {
 
     fn qt(c: *const @This()) QualType {
         return c.target.?.qt(&c.parser.tree);
+    }
+
+    fn tok(c: *const @This()) TokenIndex {
+        return c.args[c.arg_i - 1].node.tok(&c.parser.tree);
     }
 } = undefined,
 
@@ -90,7 +94,11 @@ pub fn addKeyword(wip: *Wip, p: *const Parser, keyword: TokenIndex, args: []cons
 }
 
 fn err(wip: *Wip, diagnostic: Diagnostic, args: anytype) !void {
-    try wip.current.parser.err(wip.current.attr.tok, .{
+    try wip.errTok(wip.current.attr.tok, diagnostic, args);
+}
+
+fn errTok(wip: *Wip, tok: TokenIndex, diagnostic: Diagnostic, args: anytype) !void {
+    try wip.current.parser.err(tok, .{
         .fmt = diagnostic.fmt,
         .kind = diagnostic.kind,
         .opt = diagnostic.opt,
@@ -131,6 +139,7 @@ fn arg(wip: *Wip, comptime WantedBase: type) !?WantedBase {
     wip.current.arg_i += 1;
 
     const comp = wip.current.parser.comp;
+    const tok = wip.current.tok();
 
     const string = "a string";
     const identifier = "an identifier";
@@ -153,7 +162,7 @@ fn arg(wip: *Wip, comptime WantedBase: type) !?WantedBase {
             return node.decl_ref_expr;
         }
 
-        try wip.err(.arg_type, .{ expected, wip.current.attr, expression });
+        try wip.errTok(tok, .arg_type, .{ expected, wip.current.attr, expression });
         return null;
     }
     const key = comp.interner.get(arg_res.val.ref());
@@ -161,7 +170,7 @@ fn arg(wip: *Wip, comptime WantedBase: type) !?WantedBase {
         .int => {
             if (@typeInfo(Wanted) == .int) {
                 if (arg_res.val.toInt(Wanted, comp)) |some| return some;
-                try wip.err(.arg_int_out_of_range, .{ wip.current.attr, arg_res });
+                try wip.errTok(tok, .arg_int_out_of_range, .{ wip.current.attr, arg_res });
                 return null;
             }
         },
@@ -178,21 +187,21 @@ fn arg(wip: *Wip, comptime WantedBase: type) !?WantedBase {
                     return str;
                 }
 
-                try wip.err(.arg_requires_string, .{wip.current.attr});
+                try wip.errTok(tok, .arg_requires_string, .{wip.current.attr});
                 return null;
             } else if (@typeInfo(Wanted) == .@"enum" and @hasDecl(Wanted, "opts") and Wanted.opts.enum_kind == .string) {
                 if (std.meta.stringToEnum(Wanted, str)) |enum_val| {
                     return enum_val;
                 }
 
-                try wip.err(.unknown_enum, .{ wip.current.attr, Parser.Choices(Wanted).init(std.enums.values(Wanted), '"') });
+                try wip.errTok(tok, .unknown_enum, .{ wip.current.attr, Parser.Choices(Wanted).init(std.enums.values(Wanted), '"') });
                 return true;
             }
         },
         else => {},
     }
 
-    try wip.err(.arg_type, .{
+    try wip.errTok(tok, .arg_type, .{
         expected,
         wip.current.attr,
         switch (key) {
@@ -288,9 +297,10 @@ fn checkTarget(wip: *Wip, list: []const Target) !bool {
 }
 
 fn incompatible(wip: *Wip, attr: Attribute.Tag) !void {
+    const am = &wip.current.parser.tree.attr_map;
     var i: usize = 0;
     while (i < wip.applied.items.len) {
-        const prev_attr = wip.applied.items[i];
+        const prev_attr = am.get(wip.applied.items[i]);
         if (prev_attr.args == attr) {
             try wip.err(.incompatible_attr, .{ wip.current.attr, prev_attr });
             try wip.current.parser.err(prev_attr.tok, .{
@@ -305,13 +315,16 @@ fn incompatible(wip: *Wip, attr: Attribute.Tag) !void {
 }
 
 fn add(wip: *Wip, args: Attribute.Args) !void {
+    const parser = wip.current.parser;
+    const gpa = parser.comp.gpa;
     const current = wip.current.attr;
-    try wip.applied.append(wip.current.parser.comp.gpa, .{
+    const ref = try parser.tree.attr_map.put(gpa, .{
         .args = args,
         .name = current.name,
         .syntax = current.syntax,
         .tok = current.tok,
     });
+    try wip.applied.append(gpa, ref);
 }
 
 pub fn applyDeclAttrs(wip: *Wip, p: *Parser, decl: Tree.Node.Index, prev_decl: Tree.Node.OptIndex) !void {
@@ -372,6 +385,7 @@ pub fn applyDeclAttrs(wip: *Wip, p: *Parser, decl: Tree.Node.Index, prev_decl: T
                     try wip.add(.{ .@"error" = msg });
                 },
                 .warn_unused_result => try wip.applyWarnUnusedResult(),
+                .nonnull => try wip.applyNonnull(),
                 else => {},
             },
             .clang => |clang_attr| switch (clang_attr) {
@@ -402,11 +416,7 @@ pub fn applyDeclAttrs(wip: *Wip, p: *Parser, decl: Tree.Node.Index, prev_decl: T
     const tree = &p.tree;
     const start_index = tree.extra.items.len;
 
-    try tree.extra.ensureUnusedCapacity(gpa, wip.applied.items.len);
-    for (wip.applied.items) |applied| {
-        const ref = try tree.attr_map.put(gpa, applied);
-        tree.extra.appendAssumeCapacity(@intFromEnum(ref));
-    }
+    try tree.extra.appendSlice(gpa, @ptrCast(wip.applied.items));
     try tree.decl_attrs.put(gpa, decl, .{ @intCast(start_index), @intCast(wip.applied.items.len) });
 }
 
@@ -430,7 +440,7 @@ fn inherit(wip: *Wip, p: *Parser, decl: Tree.Node.Index) !void {
             else => continue,
         }
 
-        try wip.applied.append(gpa, attr);
+        try wip.applied.append(gpa, ref);
     }
 }
 
@@ -509,9 +519,7 @@ fn applyWarnUnusedResult(wip: *Wip) !void {
     const maybe_msg = (try wip.arg(?[]const u8)) orelse return;
 
     const comp = wip.current.parser.comp;
-    const qt = wip.current.qt();
-    const base_qt = if (qt.get(comp, .pointer)) |pointer| pointer.child else qt;
-    if (base_qt.get(comp, .func)) |func| {
+    if (wip.current.qt().getFunc(comp)) |func| {
         if (func.return_type.is(comp, .void)) {
             try wip.err(.warn_unused_result_void, .{wip.current.attr});
             return;
@@ -519,6 +527,51 @@ fn applyWarnUnusedResult(wip: *Wip) !void {
     }
 
     try wip.add(.{ .warn_unused_result = maybe_msg });
+}
+
+fn applyNonnull(wip: *Wip) !void {
+    const parser = wip.current.parser;
+    const comp = parser.comp;
+    const qt = wip.current.qt();
+    if (qt.isInvalid()) return;
+    if (try wip.checkTarget(&.{ .function, .function_pointer, .param })) return;
+    if (wip.current.node() == .param) {
+        if (wip.current.args.len != 0) {
+            try wip.err(.nonnull_param_args, .{wip.current.attr});
+            return;
+        }
+        if (!qt.isPointer(comp)) {
+            try wip.err(.nonnull_pointer_only, .{wip.current.attr});
+            return;
+        }
+        // TODO these should also be inherited
+        try wip.add(.{ .nonnull = &.{} });
+        return;
+    }
+
+    const list_buf_top = parser.list_buf.items.len;
+    defer parser.list_buf.items.len = list_buf_top;
+    try parser.list_buf.ensureUnusedCapacity(comp.gpa, wip.current.args.len);
+
+    const func_ty = qt.getFunc(comp).?;
+    for (0..wip.current.args.len) |i| {
+        const position = (try wip.arg(u32)) orelse return;
+        const tok = wip.current.tok();
+
+        if (position == 0 or position > func_ty.params.len) {
+            try wip.errTok(tok, .param_out_of_bounds, .{ wip.current.attr, i + 1 });
+            return;
+        }
+
+        const arg_qt = func_ty.params[position - 1].qt;
+        if (arg_qt.isInvalid()) continue;
+        if (!arg_qt.isPointer(comp)) {
+            try wip.errTok(tok, .nonnull_pointer_only, .{wip.current.attr});
+            continue;
+        }
+        parser.list_buf.appendAssumeCapacity(@enumFromInt(position));
+    }
+    try wip.add(.{ .nonnull = @ptrCast(parser.list_buf.items[list_buf_top..]) });
 }
 
 pub fn applyTypeAttrs(wip: *Wip, p: *Parser, qt: QualType) !QualType {
