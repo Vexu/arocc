@@ -147,3 +147,9 @@ pub const nonnull_pointer_only: Diagnostic = .{
     .kind = .warning,
     .opt = .@"ignored-attributes",
 };
+
+// neon_vector_type, neon_polyvector_type
+pub const invalid_neon_vec_size: Diagnostic = .{
+    .fmt = "Neon vector size must be 64 or 128 bits",
+    .kind = .@"error",
+};

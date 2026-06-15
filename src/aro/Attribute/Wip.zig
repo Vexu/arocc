@@ -9,6 +9,7 @@ const Tree = @import("../Tree.zig");
 const TokenIndex = Tree.TokenIndex;
 const TypeStore = @import("../TypeStore.zig");
 const QualType = TypeStore.QualType;
+const Type = TypeStore.Type;
 
 const Wip = @This();
 
@@ -594,7 +595,17 @@ pub fn applyTypeAttrs(wip: *Wip, p: *Parser, qt: QualType) !QualType {
                 },
                 else => {},
             },
-            .clang => {},
+            .clang => |clang_attr| switch (clang_attr) {
+                .neon_vector_type => {
+                    try wip.applyNeonVector(&res_qt, .neon);
+                    attr.used_as_type_attr = true;
+                },
+                .neon_polyvector_type => {
+                    try wip.applyNeonVector(&res_qt, .neon_poly);
+                    attr.used_as_type_attr = true;
+                },
+                else => {},
+            },
             .aro => {},
             .declspec => {},
             .msvc => {},
@@ -640,6 +651,65 @@ fn applyVectorSize(wip: *Wip, qt: *QualType) !void {
     qt.* = try comp.type_store.put(comp.gpa, .{ .vector = .{
         .elem = qt.*,
         .len = @intCast(vec_bytes / elem_size),
+    } });
+}
+
+fn applyNeonVector(wip: *Wip, qt: *QualType, kind: Type.Vector.Kind) !void {
+    if (qt.isInvalid()) return;
+    if (try wip.argCount(1)) return;
+
+    const comp = wip.current.parser.comp;
+
+    const valid_elem_ty = blk: {
+        if (kind == .neon_poly) {
+            const int_ty = qt.get(comp, .int) orelse break :blk false;
+            const poly_unsigned = comp.target.cpu.arch.isAARCH64();
+            break :blk if (poly_unsigned)
+                switch (int_ty) {
+                    .uchar, .ushort, .ulong, .ulong_long => true,
+                    else => false,
+                }
+            else switch (int_ty) {
+                .schar, .short, .long_long => true,
+                else => false,
+            };
+        }
+
+        const base_ty = qt.base(comp).type;
+        break :blk switch (base_ty) {
+            .int => |int| switch (int) {
+                .schar, .uchar, .short, .ushort, .int, .uint, .long, .ulong, .long_long, .ulong_long => true,
+                else => false,
+            },
+            .float => |float| switch (float) {
+                .float, .fp16, .bf16 => true,
+                .double => comp.target.cpu.arch.isAARCH64(),
+                else => false,
+            },
+            .storage_float => |storage_float| switch (storage_float) {
+                .mfp8 => true,
+            },
+            else => false,
+        };
+    };
+    if (!valid_elem_ty) {
+        try wip.err(.invalid_vec_elem_ty, .{qt.*});
+        return;
+    }
+
+    // Neon vector size must be 64 or 128 bits
+    const elem_size = qt.bitSizeof(comp);
+    const vec_len = (try wip.arg(u32)) orelse return;
+    const vec_size = elem_size * vec_len;
+    if (vec_size != 64 and vec_size != 128) {
+        try wip.err(.invalid_neon_vec_size, .{});
+        return;
+    }
+
+    qt.* = try comp.type_store.put(comp.gpa, .{ .vector = .{
+        .elem = qt.*,
+        .len = vec_len,
+        .kind = kind,
     } });
 }
 

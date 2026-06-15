@@ -503,6 +503,8 @@ pub const Namespaced = union(enum) {
         always_inline,
         availability,
         internal_linkage,
+        neon_polyvector_type,
+        neon_vector_type,
         no_sanitize_address,
         no_sanitize_memory,
         no_sanitize,
