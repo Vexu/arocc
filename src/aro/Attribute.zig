@@ -161,9 +161,7 @@ pub const Args = union(enum) {
     @"noalias",
     noclone,
     nocommon,
-    warn_unused_result: struct {
-        reason: ?[]const u8,
-    },
+    warn_unused_result: ?[]const u8,
     noinit,
     @"noinline",
     noipa,
@@ -241,9 +239,7 @@ pub const Args = union(enum) {
         },
     },
     transparent_union,
-    unavailable: struct {
-        msg: ?[]const u8 = null,
-    },
+    unavailable: ?[]const u8,
     unsafe_indexable,
     unsequenced,
     unused,

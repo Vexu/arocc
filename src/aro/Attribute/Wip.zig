@@ -209,6 +209,7 @@ fn arg(wip: *Wip, comptime WantedBase: type) !?WantedBase {
 
 const Target = enum {
     function,
+    function_pointer,
     variable,
     local_variable,
     label,
@@ -220,6 +221,7 @@ const Target = enum {
     pub fn str(t: Target) []const u8 {
         return switch (t) {
             .function => "functions",
+            .function_pointer => "function pointers",
             .variable => "variables",
             .local_variable => "local variables",
             .label => "labels",
@@ -237,6 +239,13 @@ fn checkTarget(wip: *Wip, list: []const Target) !bool {
         .function => switch (node) {
             .function => return false,
             else => {},
+        },
+        .function_pointer => {
+            const comp = wip.current.parser.comp;
+            const qt = wip.current.qt();
+
+            const ptr: TypeStore.Type.Pointer = qt.get(comp, .pointer) orelse continue;
+            if (ptr.child.is(comp, .func)) return false;
         },
         .variable => switch (node) {
             .variable => return false,
@@ -321,6 +330,7 @@ pub fn applyDeclAttrs(wip: *Wip, p: *Parser, decl: Tree.Node.Index, prev_decl: T
         switch (attr.name) {
             .standard => |standard_attr| switch (standard_attr) {
                 .deprecated => try wip.applyDeprecated(),
+                .nodiscard => try wip.applyWarnUnusedResult(),
                 else => {},
             },
             .gnu => |gnu_attr| switch (gnu_attr) {
@@ -361,6 +371,7 @@ pub fn applyDeclAttrs(wip: *Wip, p: *Parser, decl: Tree.Node.Index, prev_decl: T
                     const msg = (try wip.arg([]const u8)) orelse continue;
                     try wip.add(.{ .@"error" = msg });
                 },
+                .warn_unused_result => try wip.applyWarnUnusedResult(),
                 else => {},
             },
             .clang => |clang_attr| switch (clang_attr) {
@@ -368,7 +379,7 @@ pub fn applyDeclAttrs(wip: *Wip, p: *Parser, decl: Tree.Node.Index, prev_decl: T
                     if (try wip.argCountMinMax(0, 1)) continue;
 
                     const maybe_msg = (try wip.arg(?[]const u8)) orelse continue;
-                    try wip.add(.{ .unavailable = .{ .msg = maybe_msg } });
+                    try wip.add(.{ .unavailable = maybe_msg });
                 },
                 else => {},
             },
@@ -484,6 +495,30 @@ fn applyDeprecated(wip: *Wip) !void {
         .msg = maybe_msg,
         .replacement = maybe_replacement,
     } });
+}
+
+fn applyWarnUnusedResult(wip: *Wip) !void {
+    if (try wip.checkTarget(if (wip.current.attr.syntax == .standard)
+        &.{ .function, .tag }
+    else
+        &.{ .function, .tag, .function_pointer, .typedef })) return;
+
+    const max_args: u8 = if (wip.current.attr.syntax == .standard) 1 else 0;
+    if (try wip.argCountMinMax(0, max_args)) return;
+
+    const maybe_msg = (try wip.arg(?[]const u8)) orelse return;
+
+    const comp = wip.current.parser.comp;
+    const qt = wip.current.qt();
+    const base_qt = if (qt.get(comp, .pointer)) |pointer| pointer.child else qt;
+    if (base_qt.get(comp, .func)) |func| {
+        if (func.return_type.is(comp, .void)) {
+            try wip.err(.warn_unused_result_void, .{wip.current.attr});
+            return;
+        }
+    }
+
+    try wip.add(.{ .warn_unused_result = maybe_msg });
 }
 
 pub fn applyTypeAttrs(wip: *Wip, p: *Parser, qt: QualType) !QualType {

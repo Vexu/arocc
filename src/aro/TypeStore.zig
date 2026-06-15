@@ -1189,16 +1189,31 @@ pub const QualType = packed struct(u32) {
         }
     }
 
-    pub fn getAttribute(qt: QualType, comp: *const Compilation, comptime tag: Attribute.Tag) ?Attribute {
-        if (true) return null; // TODO
-        if (tag == .aligned) @compileError("use requestedAlignment");
-
-        var it = Attribute.Iterator.initType(qt, comp);
-        while (it.next()) |item| {
-            const attribute, _ = item;
-            if (attribute.tag == tag) return @field(attribute.args, @tagName(tag));
+    pub fn getAttribute(qt: QualType, tree: *const Tree, tag: Attribute.Tag) ?Attribute {
+        const comp = tree.comp;
+        loop: switch (qt.type(comp)) {
+            .@"struct", .@"union" => |record| {
+                return tree.getAttribute(record.decl_node, tag);
+            },
+            .@"enum" => |@"enum"| {
+                return tree.getAttribute(@"enum".decl_node, tag);
+            },
+            .typeof => |typeof| continue :loop typeof.base.type(comp),
+            .typedef => |typedef| {
+                if (tree.getAttribute(typedef.decl_node, tag)) |attr| return attr;
+                continue :loop typedef.base.type(comp);
+            },
+            .attributed => |attributed| {
+                var i: usize = attributed.attributes.len;
+                while (i > 0) {
+                    i -= 1;
+                    const attr = tree.attr_map.get(attributed.attributes[i]);
+                    if (attr.args == tag) return attr;
+                }
+                continue :loop attributed.base.type(comp);
+            },
+            else => return null,
         }
-        return null;
     }
 
     pub fn hasAttribute(qt: QualType, comp: *const Compilation, tag: Attribute.Tag) bool {

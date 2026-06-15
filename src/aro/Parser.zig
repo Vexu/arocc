@@ -534,7 +534,7 @@ fn formatAttributeName(w: *std.Io.Writer, fmt: []const u8, attr: anytype) !usize
     const i = Diagnostics.templateIndex(w, fmt, "{at}");
 
     try w.writeByte('\'');
-    if (attr.syntax == .standard) {
+    if (attr.syntax == .standard and attr.name != .standard) {
         try w.writeAll(@tagName(attr.name));
         try w.writeAll("::");
     }
@@ -669,28 +669,28 @@ pub fn errValueChanged(p: *Parser, tok_i: TokenIndex, diagnostic: Diagnostic, re
     try p.err(tok_i, diagnostic, .{ res.qt, int_qt, zero_str, old_res, new_res });
 }
 
-fn checkDeprecatedUnavailable(p: *Parser, ty: QualType, usage_tok: TokenIndex, decl_tok: TokenIndex) !void {
-    if (true) return;
-    if (ty.getAttribute(p.comp, .@"error")) |@"error"| {
-        const msg_str = p.comp.interner.get(@"error".msg.ref()).bytes;
-        try p.codegenDiagnostic(usage_tok, .error_attribute, .{ p.tokSlice(@"error".__name_tok), Escaped.init(msg_str) });
+fn checkDeprecatedUnavailable(p: *Parser, node: Node.Index, usage_tok: TokenIndex) !void {
+    if (p.tree.getAttribute(node, .@"error")) |attr| {
+        try p.codegenDiagnostic(usage_tok, .error_attribute, .{ p.tokSlice(node.tok(&p.tree)), Escaped.init(attr.args.@"error") });
     }
-    if (ty.getAttribute(p.comp, .warning)) |warning| {
-        const msg_str = p.comp.interner.get(warning.msg.ref()).bytes;
-        try p.codegenDiagnostic(usage_tok, .warning_attribute, .{ p.tokSlice(warning.__name_tok), Escaped.init(msg_str) });
+    if (p.tree.getAttribute(node, .warning)) |attr| {
+        try p.codegenDiagnostic(usage_tok, .warning_attribute, .{ p.tokSlice(node.tok(&p.tree)), Escaped.init(attr.args.warning) });
     }
-    if (ty.getAttribute(p.comp, .unavailable)) |unavailable| {
-        try p.errDeprecated(usage_tok, .unavailable, unavailable.msg);
-        try p.err(unavailable.__name_tok, .unavailable_note, .{p.tokSlice(decl_tok)});
+    if (p.tree.getAttribute(node, .unavailable)) |attr| {
+        try p.errDeprecated(usage_tok, .unavailable, attr.args.unavailable);
+
+        const decl_tok = node.tok(&p.tree);
+        try p.err(decl_tok, .unavailable_note, .{p.tokSlice(decl_tok)});
         return error.ParsingFailed;
     }
-    if (ty.getAttribute(p.comp, .deprecated)) |deprecated| {
+    if (p.tree.getAttribute(node, .deprecated)) |attr| {
+        const deprecated = attr.args.deprecated;
         try p.errDeprecated(usage_tok, .deprecated_declarations, deprecated.msg);
-        if (deprecated.alternative) |alternative| {
-            const alt_str = p.comp.interner.get(alternative.ref()).bytes;
-            try p.err(usage_tok, .deprecated_alternative, .{alt_str});
+        if (deprecated.replacement) |replacement| {
+            try p.err(usage_tok, .deprecated_alternative, .{replacement});
         }
-        try p.err(deprecated.__name_tok, .deprecated_note, .{p.tokSlice(decl_tok)});
+        const decl_tok = node.tok(&p.tree);
+        try p.err(decl_tok, .deprecated_note, .{p.tokSlice(decl_tok)});
     }
 }
 
@@ -721,10 +721,9 @@ fn codegenDiagnostic(p: *Parser, usage_tok: TokenIndex, diagnostic: Diagnostic, 
     try p.decl_buf.append(p.comp.gpa, node);
 }
 
-fn errDeprecated(p: *Parser, tok_i: TokenIndex, diagnostic: Diagnostic, msg: ?Value) Compilation.Error!void {
+fn errDeprecated(p: *Parser, tok_i: TokenIndex, diagnostic: Diagnostic, msg: ?[]const u8) Compilation.Error!void {
     const colon_str: []const u8 = if (msg != null) ": " else "";
-    const msg_str: []const u8 = if (msg) |m| p.comp.interner.get(m.ref()).bytes else "";
-    return p.err(tok_i, diagnostic, .{ p.tokSlice(tok_i), colon_str, Escaped.init(msg_str) });
+    return p.err(tok_i, diagnostic, .{ p.tokSlice(tok_i), colon_str, Escaped.init(msg orelse "") });
 }
 
 fn addNode(p: *Parser, node: Tree.Node) Allocator.Error!Node.Index {
@@ -6413,7 +6412,11 @@ pub const Result = struct {
             => {},
             .call_expr => |call| {
                 const call_info = p.tree.callableResultUsage(call.callee) orelse return;
-                if (call_info.warn_unused_result) |attr| try p.err(expr_start, .warn_unused_result, .{ p.tokSlice(call_info.tok), attr });
+                if (call_info.warn_unused_result) |attr| {
+                    const msg = attr.args.warn_unused_result;
+                    const colon_str: []const u8 = if (msg != null) ": " else "";
+                    try p.err(expr_start, .warn_unused_result, .{ p.tokSlice(call_info.tok), attr, colon_str, Escaped.init(msg orelse "") });
+                }
             },
             .builtin_call_expr => |call| {
                 const expanded = p.comp.builtins.lookup(p.tokSlice(call.builtin_tok));
@@ -9545,7 +9548,7 @@ fn fieldAccessExtra(
             return .{ ret, offset_bits + field.layout.offset_bits };
         };
         if (ctx.target_name == field.name) {
-            if (ctx.check_deprecated) try p.checkDeprecatedUnavailable(field.qt, ctx.name_tok, field.name_tok);
+            if (ctx.check_deprecated) try p.checkDeprecatedUnavailable(field.field_decl, ctx.name_tok);
 
             const access: Node.MemberAccess = .{
                 .access_tok = ctx.access_tok,
@@ -9871,7 +9874,7 @@ fn callExpr(p: *Parser, lhs: Result) Error!Result {
             try p.err(l_paren, .not_callable, .{lhs.qt});
             return error.ParsingFailed;
         }
-        break :blk .{ func_type_qt.qt, func_type_qt.type.func.params.len, func_type_qt.type.func.kind, base_qt.getAttribute(p.comp, .nonnull) };
+        break :blk .{ func_type_qt.qt, func_type_qt.type.func.params.len, func_type_qt.type.func.kind, base_qt.getAttribute(&p.tree, .nonnull) }; // TODO nonnull is a decl attr
     };
 
     var func = lhs;
@@ -10157,7 +10160,10 @@ fn primaryExpr(p: *Parser) Error!?Result {
                     try p.err(name_tok, .out_of_scope_use, .{name});
                     try p.err(sym.tok, .previous_definition, .{});
                 }
-                try p.checkDeprecatedUnavailable(sym.qt, name_tok, sym.tok);
+
+                const decl_node = sym.node.unpack().?;
+                try p.checkDeprecatedUnavailable(decl_node, name_tok);
+
                 if (sym.kind == .constexpr) {
                     return .{
                         .val = sym.val,
@@ -10166,7 +10172,7 @@ fn primaryExpr(p: *Parser) Error!?Result {
                             .decl_ref_expr = .{
                                 .name_tok = name_tok,
                                 .qt = sym.qt,
-                                .decl = sym.node.unpack().?,
+                                .decl = decl_node,
                             },
                         }),
                     };
@@ -10183,13 +10189,13 @@ fn primaryExpr(p: *Parser) Error!?Result {
                     .{ .enumeration_ref = .{
                         .name_tok = name_tok,
                         .qt = sym.qt,
-                        .decl = sym.node.unpack().?,
+                        .decl = decl_node,
                     } }
                 else
                     .{ .decl_ref_expr = .{
                         .name_tok = name_tok,
                         .qt = sym.qt,
-                        .decl = sym.node.unpack().?,
+                        .decl = decl_node,
                     } });
 
                 const res: Result = .{

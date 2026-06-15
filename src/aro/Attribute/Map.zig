@@ -26,6 +26,8 @@ const Repr = struct {
         unavailable,
         warning,
         @"error",
+        warn_unused_result_msg,
+        warn_unused_result,
     };
 };
 
@@ -74,7 +76,7 @@ pub fn put(map: *Map, gpa: mem.Allocator, attribute: Attribute) !Ref {
         } else {
             repr.tag = .deprecated;
         },
-        .unavailable => |unavailable| if (unavailable.msg) |msg| {
+        .unavailable => |opt_msg| if (opt_msg) |msg| {
             repr.tag = .unavailable_reason;
             repr.data = @intCast(map.extra.items.len);
             try map.extra.append(gpa, attribute.tok);
@@ -93,6 +95,14 @@ pub fn put(map: *Map, gpa: mem.Allocator, attribute: Attribute) !Ref {
             repr.data = @intCast(map.extra.items.len);
             try map.extra.append(gpa, attribute.tok);
             try map.putString(gpa, msg);
+        },
+        .warn_unused_result => |opt_msg| if (opt_msg) |msg| {
+            repr.tag = .warn_unused_result_msg;
+            repr.data = @intCast(map.extra.items.len);
+            try map.extra.append(gpa, attribute.tok);
+            try map.putString(gpa, msg);
+        } else {
+            repr.tag = .warn_unused_result;
         },
         else => @panic("TODO"),
     }
@@ -138,9 +148,9 @@ pub fn get(map: *const Map, ref: Ref) Attribute {
         .unavailable_reason => {
             res.tok = map.extra.items[repr.data];
             const msg, _ = map.getString(repr.data + 1);
-            res.args = .{ .unavailable = .{ .msg = msg } };
+            res.args = .{ .unavailable = msg };
         },
-        .unavailable => res.args = .{ .unavailable = .{} },
+        .unavailable => res.args = .{ .unavailable = null },
         .warning => {
             res.tok = map.extra.items[repr.data];
             const msg, _ = map.getString(repr.data + 1);
@@ -151,6 +161,12 @@ pub fn get(map: *const Map, ref: Ref) Attribute {
             const msg, _ = map.getString(repr.data + 1);
             res.args = .{ .@"error" = msg };
         },
+        .warn_unused_result_msg => {
+            res.tok = map.extra.items[repr.data];
+            const msg, _ = map.getString(repr.data + 1);
+            res.args = .{ .warn_unused_result = msg };
+        },
+        .warn_unused_result => res.args = .{ .warn_unused_result = null },
     }
     return res;
 }

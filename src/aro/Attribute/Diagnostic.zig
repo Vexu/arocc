@@ -122,3 +122,10 @@ pub const non_pow2_align: Diagnostic = .{
     .fmt = "requested alignment is not a power of 2",
     .kind = .@"error",
 };
+
+// warn_unused_result
+pub const warn_unused_result_void: Diagnostic = .{
+    .fmt = "attribute {at} cannot be applied to functions without return value",
+    .kind = .warning,
+    .opt = .@"ignored-attributes",
+};

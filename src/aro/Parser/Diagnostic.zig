@@ -1847,7 +1847,7 @@ pub const invalid_noreturn: Diagnostic = .{
 };
 
 pub const warn_unused_result: Diagnostic = .{
-    .fmt = "ignoring return value of '{s}', declared with '{at}' attribute",
+    .fmt = "ignoring return value of '{s}', declared with {at} attribute{s}{s}",
     .kind = .warning,
     .opt = .@"unused-result",
 };
