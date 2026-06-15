@@ -1993,8 +1993,11 @@ fn attribute(p: *Parser, syntax: Attribute.Syntax) Error!void {
     const gpa = p.comp.gpa;
     const arg_top = p.wip_attrs.args.items.len;
 
-    if (p.eatToken(.l_paren)) |_| args: {
-        if (p.eatToken(.r_paren)) |_| break :args;
+    if (p.eatToken(.l_paren)) |l_paren| args: {
+        if (p.eatToken(.r_paren)) |_| {
+            if (syntax == .declspec) try p.err(l_paren, .declspec_empty_args, .{@tagName(namespaced.declspec)});
+            break :args;
+        }
 
         while (true) {
             const arg = try p.expect(assignExpr);
@@ -2121,11 +2124,11 @@ fn attributeSpecifierExtra(p: *Parser, declarator_name: ?TokenIndex) Error!void 
         if (try p.c23Attribute()) continue;
 
         const discarded_attr_state = p.wip_attrs.state(false);
-        defer p.wip_attrs.restore(discarded_attr_state);
 
         const maybe_declspec_tok = p.tok_i;
         if (try p.declspecAttribute()) {
             if (declarator_name) |name_tok| {
+                defer p.wip_attrs.restore(discarded_attr_state);
                 try p.err(maybe_declspec_tok, .declspec_not_allowed_after_declarator, .{});
                 try p.err(name_tok, .declarator_name_tok, .{});
             }

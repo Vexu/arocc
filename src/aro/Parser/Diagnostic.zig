@@ -1177,6 +1177,11 @@ pub const unknown_namespaced_attribute: Diagnostic = .{
     .opt = .@"unknown-attributes",
 };
 
+pub const declspec_empty_args: Diagnostic = .{
+    .fmt = "parentheses must be omitted if '{s}' attribute's argument list is empty",
+    .kind = .@"error",
+};
+
 pub const invalid_fallthrough: Diagnostic = .{
     .fmt = "fallthrough annotation does not directly precede switch label",
     .kind = .@"error",

@@ -3124,8 +3124,29 @@ fn dumpAttribute(tree: *const Tree, ref: Attribute.Map.Ref, w: *std.Io.Writer) !
     switch (attr.args) {
         inline else => |args| switch (@TypeOf(args)) {
             void => {},
-            ?u32 => try w.print(": {?d}", .{args}),
-            else => {},
+            []const u8 => try w.print(": {s}", .{args}),
+            ?[]const u8 => try w.print(": {?s}", .{args}),
+            else => switch (@typeInfo(@TypeOf(args))) {
+                .@"struct" => |info| {
+                    try w.writeAll(": { ");
+                    inline for (info.field_names, info.field_types, 0..) |f_name, f_type, i| {
+                        if (i != 0) {
+                            try w.writeAll(", ");
+                        }
+                        try w.writeAll(f_name);
+                        try w.writeAll(": ");
+                        switch (f_type) {
+                            []const u8 => try w.print("{s}", .{@field(args, f_name)}),
+                            ?[]const u8 => try w.print("{?s}", .{@field(args, f_name)}),
+                            else => switch (@typeInfo(f_type)) {
+                                else => try w.print("{any}", .{@field(args, f_name)}),
+                            },
+                        }
+                    }
+                    try w.writeAll(" }");
+                },
+                else => try w.print(": {any}", .{args}),
+            },
         },
     }
     try w.writeByte('\n');

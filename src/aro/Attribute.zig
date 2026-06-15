@@ -77,8 +77,8 @@ pub const Args = union(enum) {
         function: Identifier,
     },
     deprecated: struct {
-        msg: ?Value = null,
-        alternative: ?Value = null, // C23 deprecated attribute only takes 1 argument
+        msg: ?[]const u8 = null,
+        replacement: ?[]const u8 = null,
     },
     designated_init,
     destructor: struct {
@@ -86,9 +86,7 @@ pub const Args = union(enum) {
     },
     dllexport,
     dllimport,
-    @"error": struct {
-        msg: Value,
-    },
+    @"error": []const u8,
     externally_visible,
     fallthrough,
     flatten,
@@ -244,7 +242,7 @@ pub const Args = union(enum) {
     },
     transparent_union,
     unavailable: struct {
-        msg: ?Value = null,
+        msg: ?[]const u8 = null,
     },
     unsafe_indexable,
     unsequenced,
@@ -268,9 +266,7 @@ pub const Args = union(enum) {
     warn_if_not_aligned: struct {
         alignment: Alignment,
     },
-    warning: struct {
-        msg: Value,
-    },
+    warning: []const u8,
     weak,
     weakref: struct {
         target: ?Value = null,

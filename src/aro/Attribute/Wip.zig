@@ -166,6 +166,7 @@ fn arg(wip: *Wip, comptime WantedBase: type) !?WantedBase {
             }
         },
         .bytes => |bytes| {
+            const str = bytes[0 .. bytes.len - 1];
             if (Wanted == []const u8) {
                 validate: {
                     const node = arg_res.node.get(&wip.current.parser.tree);
@@ -174,13 +175,12 @@ fn arg(wip: *Wip, comptime WantedBase: type) !?WantedBase {
                         .char, .uchar, .schar => {},
                         else => break :validate,
                     }
-                    return try wip.current.parser.removeNull(arg_res.val);
+                    return str;
                 }
 
                 try wip.err(.arg_requires_string, .{wip.current.attr});
                 return null;
             } else if (@typeInfo(Wanted) == .@"enum" and @hasDecl(Wanted, "opts") and Wanted.opts.enum_kind == .string) {
-                const str = bytes[0 .. bytes.len - 1];
                 if (std.meta.stringToEnum(Wanted, str)) |enum_val| {
                     return enum_val;
                 }
@@ -319,7 +319,10 @@ pub fn applyDeclAttrs(wip: *Wip, p: *Parser, decl: Tree.Node.Index, prev_decl: T
         };
 
         switch (attr.name) {
-            .standard => {},
+            .standard => |standard_attr| switch (standard_attr) {
+                .deprecated => try wip.applyDeprecated(),
+                else => {},
+            },
             .gnu => |gnu_attr| switch (gnu_attr) {
                 .@"packed" => {
                     if (try wip.checkTarget(&.{ .tag, .field })) continue;
@@ -343,12 +346,36 @@ pub fn applyDeclAttrs(wip: *Wip, p: *Parser, decl: Tree.Node.Index, prev_decl: T
                     try wip.add(.@"const");
                 },
                 .aligned => try wip.applyAlignment(),
+                .deprecated => try wip.applyDeprecated(),
+                .warning => {
+                    if (try wip.checkTarget(&.{.function})) continue;
+                    if (try wip.argCount(1)) continue;
+
+                    const msg = (try wip.arg([]const u8)) orelse continue;
+                    try wip.add(.{ .warning = msg });
+                },
+                .@"error" => {
+                    if (try wip.checkTarget(&.{.function})) continue;
+                    if (try wip.argCount(1)) continue;
+
+                    const msg = (try wip.arg([]const u8)) orelse continue;
+                    try wip.add(.{ .@"error" = msg });
+                },
                 else => {},
             },
-            .clang => {},
+            .clang => |clang_attr| switch (clang_attr) {
+                .unavailable => {
+                    if (try wip.argCountMinMax(0, 1)) continue;
+
+                    const maybe_msg = (try wip.arg(?[]const u8)) orelse continue;
+                    try wip.add(.{ .unavailable = .{ .msg = maybe_msg } });
+                },
+                else => {},
+            },
             .aro => {},
             .declspec => |declspec_attr| switch (declspec_attr) {
                 .@"align" => try wip.applyAlignment(),
+                .deprecated => try wip.applyDeprecated(),
                 else => {},
             },
             .msvc => {},
@@ -384,6 +411,10 @@ fn inherit(wip: *Wip, p: *Parser, decl: Tree.Node.Index) !void {
             .cold,
             .@"const",
             .alignment,
+            .deprecated,
+            .unavailable,
+            .@"error",
+            .warning,
             => {},
             else => continue,
         }
@@ -395,6 +426,7 @@ fn inherit(wip: *Wip, p: *Parser, decl: Tree.Node.Index) !void {
 fn applyAlignment(wip: *Wip) !void {
     const qt = wip.current.qt();
     if (qt.isInvalid()) return;
+    if (try wip.argCountMinMax(0, 1)) return;
     if (wip.current.attr.syntax == .keyword) {
         switch (wip.current.node()) {
             .variable,
@@ -419,7 +451,6 @@ fn applyAlignment(wip: *Wip) !void {
             },
         }
     } else if (try wip.checkTarget(&.{ .function, .variable, .typedef, .tag, .param, .field })) return;
-    if (try wip.argCountMinMax(0, 1)) return;
 
     const maybe_requested = (try wip.arg(?i64)) orelse return;
     var casted: ?u32 = null;
@@ -440,6 +471,19 @@ fn applyAlignment(wip: *Wip) !void {
         casted = @intCast(requested);
     }
     try wip.add(.{ .alignment = casted });
+}
+
+fn applyDeprecated(wip: *Wip) !void {
+    const max_args: u8 = if (wip.current.attr.syntax == .gnu) 2 else 1;
+    if (try wip.argCountMinMax(0, max_args)) return;
+
+    const maybe_msg = (try wip.arg(?[]const u8)) orelse return;
+    const maybe_replacement = (try wip.arg(?[]const u8)) orelse return;
+
+    try wip.add(.{ .deprecated = .{
+        .msg = maybe_msg,
+        .replacement = maybe_replacement,
+    } });
 }
 
 pub fn applyTypeAttrs(wip: *Wip, p: *Parser, qt: QualType) !QualType {
