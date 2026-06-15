@@ -61,6 +61,11 @@ pub const invalid_target: Diagnostic = .{
     .opt = .@"ignored-attributes",
 };
 
+pub const incompatible_attr: Diagnostic = .{
+    .fmt = "{at} and {at} attributes are not compatible",
+    .kind = .@"error",
+};
+
 // vector_size
 pub const invalid_vec_elem_ty: Diagnostic = .{
     .fmt = "invalid vector element type {qt}",

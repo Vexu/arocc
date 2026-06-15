@@ -1868,18 +1868,6 @@ pub const local_variable_attribute: Diagnostic = .{
     .kind = .warning,
 };
 
-pub const ignore_cold: Diagnostic = .{
-    .fmt = "ignoring attribute 'cold' because it conflicts with attribute 'hot'",
-    .opt = .@"ignored-attributes",
-    .kind = .warning,
-};
-
-pub const ignore_hot: Diagnostic = .{
-    .fmt = "ignoring attribute 'hot' because it conflicts with attribute 'cold'",
-    .opt = .@"ignored-attributes",
-    .kind = .warning,
-};
-
 pub const ignore_noinline: Diagnostic = .{
     .fmt = "ignoring attribute 'noinline' because it conflicts with attribute 'always_inline'",
     .opt = .@"ignored-attributes",

@@ -13,6 +13,9 @@ const Repr = struct {
 
     pub const Tag = enum(u8) {
         @"packed",
+        hot,
+        cold,
+        @"const",
     };
 };
 
@@ -37,6 +40,9 @@ pub fn put(map: *Map, gpa: std.mem.Allocator, attribute: Attribute) !Ref {
     _ = &repr;
     switch (attribute.args) {
         .@"packed" => repr.tag = .@"packed",
+        .hot => repr.tag = .hot,
+        .cold => repr.tag = .cold,
+        .@"const" => repr.tag = .@"const",
         else => @panic("TODO"),
     }
 
@@ -47,12 +53,17 @@ pub fn put(map: *Map, gpa: std.mem.Allocator, attribute: Attribute) !Ref {
 
 pub fn get(map: *const Map, ref: Ref) Attribute {
     const repr = map.attributes.get(@intFromEnum(ref));
-    return .{
-        .args = switch (repr.tag) {
-            .@"packed" => .@"packed",
-        },
+    var res: Attribute = .{
         .name = repr.name,
         .syntax = repr.syntax,
-        .tok = undefined,
+        .tok = repr.data,
+        .args = undefined,
     };
+    res.args = switch (repr.tag) {
+        .@"packed" => .@"packed",
+        .hot => .hot,
+        .cold => .cold,
+        .@"const" => .@"const",
+    };
+    return res;
 }

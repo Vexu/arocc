@@ -260,6 +260,23 @@ fn checkTarget(wip: *Wip, list: []const Target) !bool {
     return true;
 }
 
+fn incompatible(wip: *Wip, attr: Attribute.Tag) !void {
+    var i: usize = 0;
+    while (i < wip.applied.items.len) {
+        const prev_attr = wip.applied.items[i];
+        if (prev_attr.args == attr) {
+            try wip.err(.incompatible_attr, .{ wip.current.attr, prev_attr });
+            try wip.current.parser.err(prev_attr.tok, .{
+                .fmt = "conflicting attribute is here",
+                .kind = .note,
+            }, .{});
+            _ = wip.applied.orderedRemove(i);
+            continue;
+        }
+        i += 1;
+    }
+}
+
 fn add(wip: *Wip, args: Attribute.Args) !void {
     const current = wip.current.attr;
     try wip.applied.append(wip.current.parser.comp.gpa, .{
@@ -291,6 +308,22 @@ pub fn applyDeclAttrs(wip: *Wip, p: *Parser, decl: Tree.Node.Index, prev_decl: T
                     if (try wip.argCount(0)) continue;
                     try wip.add(.@"packed");
                 },
+                .cold => {
+                    if (try wip.checkTarget(&.{.function})) continue;
+                    if (try wip.argCount(0)) continue;
+                    try wip.incompatible(.hot);
+                    try wip.add(.cold);
+                },
+                .hot => {
+                    if (try wip.checkTarget(&.{.function})) continue;
+                    if (try wip.argCount(0)) continue;
+                    try wip.incompatible(.cold);
+                    try wip.add(.hot);
+                },
+                .@"const", .__const => {
+                    if (try wip.argCount(0)) continue;
+                    try wip.add(.@"const");
+                },
                 else => {},
             },
             .clang => {},
@@ -321,7 +354,11 @@ fn inherit(wip: *Wip, p: *Parser, decl: Tree.Node.Index) !void {
         const attr = tree.attr_map.get(ref);
 
         switch (attr.args) {
-            .@"packed" => {},
+            .@"packed",
+            .hot,
+            .cold,
+            .@"const"
+            => {},
             else => continue,
         }
 
