@@ -112,7 +112,8 @@ pub const macro_name_missing: Diagnostic = .{
 
 pub const extra_tokens_directive_end: Diagnostic = .{
     .fmt = "extra tokens at end of macro directive",
-    .kind = .@"error",
+    .kind = .warning,
+    .opt = .@"extra-tokens",
 };
 
 pub const expected_value_in_expr: Diagnostic = .{
