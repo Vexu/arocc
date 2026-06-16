@@ -32,6 +32,7 @@ const Repr = struct {
         nonnull_one,
         nonnull,
         transparent_union,
+        designated_init,
     };
 };
 
@@ -60,6 +61,7 @@ pub fn put(map: *Map, gpa: mem.Allocator, attribute: Attribute) !Ref {
         .cold => repr.tag = .cold,
         .@"const" => repr.tag = .@"const",
         .transparent_union => repr.tag = .transparent_union,
+        .designated_init => repr.tag = .designated_init,
         .alignment => |opt_value| if (opt_value) |value| {
             repr.tag = .alignment;
             repr.data = @intCast(map.extra.items.len);
@@ -145,6 +147,7 @@ pub fn get(map: *const Map, ref: Ref) Attribute {
         .cold => res.args = .cold,
         .@"const" => res.args = .@"const",
         .transparent_union => res.args = .transparent_union,
+        .designated_init => res.args = .designated_init,
         .alignment_null => res.args = .{ .alignment = null },
         .alignment => {
             res.tok = map.extra.items[repr.data];

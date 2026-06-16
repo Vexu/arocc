@@ -1770,11 +1770,6 @@ pub const enum_invalid_underlying_type: Diagnostic = .{
     .kind = .@"error",
 };
 
-pub const designated_init_invalid: Diagnostic = .{
-    .fmt = "'designated_init' attribute is only valid on 'struct' type'",
-    .kind = .@"error",
-};
-
 pub const designated_init_needed: Diagnostic = .{
     .fmt = "positional initialization of field in 'struct' declared with 'designated_init' attribute",
     .opt = .@"designated-init",

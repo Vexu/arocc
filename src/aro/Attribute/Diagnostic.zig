@@ -183,3 +183,9 @@ pub const transparent_union_size_note: Diagnostic = .{
     .fmt = "size of first field is {d}",
     .kind = .note,
 };
+
+// designated_init
+pub const designated_init_invalid: Diagnostic = .{
+    .fmt = "{at} attribute is only valid on 'struct' type'",
+    .kind = .@"error",
+};

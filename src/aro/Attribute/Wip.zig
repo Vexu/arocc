@@ -388,6 +388,14 @@ pub fn applyDeclAttrs(wip: *Wip, p: *Parser, decl: Tree.Node.Index, prev_decl: T
                 .warn_unused_result => try wip.applyWarnUnusedResult(),
                 .nonnull => try wip.applyNonnull(),
                 .transparent_union => try wip.applyTransparentUnion(),
+                .designated_init => {
+                    if (wip.current.node() != .struct_decl) {
+                        try wip.err(.designated_init_invalid, .{wip.current.attr});
+                        continue;
+                    }
+                    if (try wip.argCount(0)) return;
+                    try wip.add(.designated_init);
+                },
                 else => {},
             },
             .clang => |clang_attr| switch (clang_attr) {
