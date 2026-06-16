@@ -262,7 +262,10 @@ fn checkTarget(wip: *Wip, list: []const Target) !bool {
             else => {},
         },
         .local_variable => switch (node) {
-            .variable => if (wip.current.parser.func.qt != null) return false,
+            .variable => |variable| switch (variable.storage_class) {
+                .auto, .register => if (wip.current.parser.func.qt != null) return false,
+                .@"extern", .static => {},
+            },
             else => {},
         },
         .label => switch (node) {
@@ -458,7 +461,8 @@ fn applyAlignment(wip: *Wip) !void {
     const qt = wip.current.qt();
     if (qt.isInvalid()) return;
     if (try wip.argCountMinMax(0, 1)) return;
-    if (wip.current.attr.syntax == .keyword) {
+    const is_alignas = wip.current.attr.syntax == .keyword;
+    if (is_alignas) {
         switch (wip.current.node()) {
             .variable,
             .struct_decl,
@@ -498,6 +502,12 @@ fn applyAlignment(wip: *Wip) !void {
         if (!std.mem.isValidAlign(@intCast(requested))) {
             try wip.err(.non_pow2_align, .{});
             return;
+        }
+        if (is_alignas) {
+            const default_align = qt.alignof(wip.current.parser.comp);
+            if (is_alignas and requested < default_align) {
+                try wip.err(.minimum_alignment, .{default_align});
+            }
         }
         casted = @intCast(requested);
     }
@@ -667,6 +677,11 @@ fn applyVectorSize(wip: *Wip, qt: *QualType) !void {
     if (qt.isInvalid()) return;
     if (try wip.argCount(1)) return;
 
+    if (qt.isAutoType() or qt.isC23Auto()) {
+        try wip.err(.invalid_vec_elem_ty, .{qt.*});
+        return error.ParsingFailed;
+    }
+
     const comp = wip.current.parser.comp;
 
     const scalar_kind = qt.scalarKind(comp);
@@ -704,6 +719,11 @@ fn applyVectorSize(wip: *Wip, qt: *QualType) !void {
 fn applyNeonVector(wip: *Wip, qt: *QualType, kind: Type.Vector.Kind) !void {
     if (qt.isInvalid()) return;
     if (try wip.argCount(1)) return;
+
+    if (qt.isAutoType() or qt.isC23Auto()) {
+        try wip.err(.invalid_vec_elem_ty, .{qt.*});
+        return error.ParsingFailed;
+    }
 
     const comp = wip.current.parser.comp;
 

@@ -501,7 +501,7 @@ fn formatQualType(p: *Parser, w: *std.Io.Writer, fmt: []const u8, qt: QualType) 
     try qt.print(p.comp, w);
     try w.writeByte('\'');
 
-    if (qt.isC23Auto()) return i;
+    if (qt.isC23Auto() or qt.isAutoType()) return i;
     if (qt.get(p.comp, .vector)) |vector_ty| {
         try w.print(" (vector of {d} '", .{vector_ty.len});
         try vector_ty.elem.printDesugared(p.comp, w);

@@ -1293,6 +1293,10 @@ pub const QualType = packed struct(u32) {
             try w.writeAll("auto");
             return;
         }
+        if (qt.isAutoType()) {
+            try w.writeAll("__auto_type");
+            return;
+        }
         _ = try qt.printPrologue(comp, false, w);
         try qt.printEpilogue(comp, false, w);
     }
@@ -1300,6 +1304,10 @@ pub const QualType = packed struct(u32) {
     pub fn printNamed(qt: QualType, name: []const u8, comp: *const Compilation, w: *std.Io.Writer) std.Io.Writer.Error!void {
         if (qt.isC23Auto()) {
             try w.print("auto {s}", .{name});
+            return;
+        }
+        if (qt.isAutoType()) {
+            try w.print("__auto_type {s}", .{name});
             return;
         }
         const simple = try qt.printPrologue(comp, false, w);
