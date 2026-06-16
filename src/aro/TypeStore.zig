@@ -2830,24 +2830,22 @@ pub const Builder = struct {
                 break :blk try base_qt.toComplex(b.parser.comp);
             },
 
-            .bit_int, .sbit_int, .ubit_int, .complex_bit_int, .complex_ubit_int, .complex_sbit_int => |bits| blk: {
-                const unsigned = b.type == .ubit_int or b.type == .complex_ubit_int;
-                const complex = b.type == .complex_bit_int or b.type == .complex_ubit_int or b.type == .complex_sbit_int;
-                const complex_str = if (complex) "_Complex " else "";
+            .bit_int, .sbit_int, .ubit_int => |bits| blk: {
+                const unsigned = b.type == .ubit_int;
 
                 if (unsigned) {
                     if (bits < 1) {
-                        try b.parser.err(b.bit_int_tok.?, .unsigned_bit_int_too_small, .{complex_str});
+                        try b.parser.err(b.bit_int_tok.?, .unsigned_bit_int_too_small, .{});
                         return .invalid;
                     }
                 } else {
                     if (bits < 2) {
-                        try b.parser.err(b.bit_int_tok.?, .signed_bit_int_too_small, .{complex_str});
+                        try b.parser.err(b.bit_int_tok.?, .signed_bit_int_too_small, .{});
                         return .invalid;
                     }
                 }
                 if (bits > Compilation.bit_int_max_bits) {
-                    try b.parser.err(b.bit_int_tok.?, if (unsigned) .unsigned_bit_int_too_big else .signed_bit_int_too_big, .{complex_str});
+                    try b.parser.err(b.bit_int_tok.?, if (unsigned) .unsigned_bit_int_too_big else .signed_bit_int_too_big, .{});
                     return .invalid;
                 }
                 if (b.complex_tok) |tok| try b.parser.err(tok, .complex_int, .{});
@@ -2856,7 +2854,11 @@ pub const Builder = struct {
                     .signedness = if (unsigned) .unsigned else .signed,
                     .bits = @intCast(bits),
                 } });
-                break :blk if (complex) try qt.toComplex(b.parser.comp) else qt;
+                break :blk qt;
+            },
+            .complex_bit_int, .complex_ubit_int, .complex_sbit_int => {
+                try b.parser.err(b.complex_tok.?, .complex_bit_int, .{});
+                return .invalid;
             },
 
             .bf16 => .bf16,
@@ -2941,6 +2943,10 @@ pub const Builder = struct {
                 },
                 .complex => {
                     try b.parser.err(atomic_tok, .atomic_complex, .{qt});
+                    return .invalid;
+                },
+                .bit_int => {
+                    try b.parser.err(atomic_tok, .atomic_bit_int, .{qt});
                     return .invalid;
                 },
                 else => {

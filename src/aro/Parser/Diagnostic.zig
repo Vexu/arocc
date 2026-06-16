@@ -866,6 +866,11 @@ pub const atomic_auto: Diagnostic = .{
     .kind = .@"error",
 };
 
+pub const atomic_bit_int: Diagnostic = .{
+    .fmt = "_Atomic cannot be applied to integer type {qt}",
+    .kind = .@"error",
+};
+
 // pub const atomic_access: Diagnostic = .{
 //     .fmt = "accessing a member of an atomic structure or union is undefined behavior",
 //     .opt = .@"atomic-access",
@@ -1925,12 +1930,12 @@ pub const bit_int: Diagnostic = .{
 };
 
 pub const unsigned_bit_int_too_small: Diagnostic = .{
-    .fmt = "{s}unsigned _BitInt must have a bit size of at least 1",
+    .fmt = "unsigned _BitInt must have a bit size of at least 1",
     .kind = .@"error",
 };
 
 pub const signed_bit_int_too_small: Diagnostic = .{
-    .fmt = "{s}signed _BitInt must have a bit size of at least 2",
+    .fmt = "signed _BitInt must have a bit size of at least 2",
     .kind = .@"error",
 };
 
@@ -1940,7 +1945,12 @@ pub const unsigned_bit_int_too_big: Diagnostic = .{
 };
 
 pub const signed_bit_int_too_big: Diagnostic = .{
-    .fmt = "{s}signed _BitInt of bit sizes greater than " ++ std.fmt.comptimePrint("{d}", .{Compilation.bit_int_max_bits}) ++ " not supported",
+    .fmt = "signed _BitInt of bit sizes greater than " ++ std.fmt.comptimePrint("{d}", .{Compilation.bit_int_max_bits}) ++ " not supported",
+    .kind = .@"error",
+};
+
+pub const complex_bit_int: Diagnostic = .{
+    .fmt = "'_Complex _BitInt' is invalid",
     .kind = .@"error",
 };
 
