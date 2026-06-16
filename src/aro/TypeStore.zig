@@ -2465,7 +2465,7 @@ fn generateVaListType(ts: *TypeStore, comp: *Compilation) !QualType {
 
             return qt;
         },
-        .hexagon_va_list => blk: {
+        .s390x_va_list => blk: {
             var record: Type.Record = .{
                 .name = try comp.internString("__va_list_tag"),
                 .decl_node = undefined, // TODO
@@ -2508,7 +2508,7 @@ fn generateVaListType(ts: *TypeStore, comp: *Compilation) !QualType {
 
             break :blk qt;
         },
-        .s390x_va_list => blk: {
+        .hexagon_va_list => blk: {
             var record: Type.Record = .{
                 .name = try comp.internString("__va_list_tag"),
                 .decl_node = undefined, // TODO
