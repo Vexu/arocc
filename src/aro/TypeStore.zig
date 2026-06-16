@@ -51,8 +51,6 @@ const Repr = struct {
         typeof,
         typeof_expr,
         typedef,
-        attributed,
-        attributed_one,
     };
 };
 
@@ -413,17 +411,6 @@ pub const QualType = packed struct(u32) {
                 .name = @enumFromInt(comp.type_store.extra.items[repr.data[1]]),
                 .decl_node = @enumFromInt(comp.type_store.extra.items[repr.data[1] + 1]),
             } },
-            .attributed => {
-                const extra = comp.type_store.extra.items;
-                return .{ .attributed = .{
-                    .base = @bitCast(repr.data[0]),
-                    .attributes = @ptrCast(extra[repr.data[1] .. repr.data[1] + 1]),
-                } };
-            },
-            .attributed_one => .{ .attributed = .{
-                .base = @bitCast(repr.data[0]),
-                .attributes = @ptrCast(&repr.data[1]),
-            } },
         };
     }
 
@@ -432,7 +419,6 @@ pub const QualType = packed struct(u32) {
         while (true) switch (cur.type(comp)) {
             .typeof => |typeof| cur = typeof.base,
             .typedef => |typedef| cur = typedef.base,
-            .attributed => |attributed| cur = attributed.base,
             else => |ty| return .{ .type = ty, .qt = cur },
         };
     }
@@ -451,7 +437,7 @@ pub const QualType = packed struct(u32) {
     }
 
     pub fn get(qt: QualType, comp: *const Compilation, comptime tag: std.meta.Tag(Type)) ?@FieldType(Type, @tagName(tag)) {
-        comptime std.debug.assert(tag != .typeof and tag != .attributed and tag != .typedef);
+        comptime std.debug.assert(tag != .typeof and tag != .typedef);
         switch (qt._index) {
             .invalid, .auto_type, .c23_auto => return null,
             else => {},
@@ -563,7 +549,6 @@ pub const QualType = packed struct(u32) {
             },
             .typeof => unreachable,
             .typedef => unreachable,
-            .attributed => unreachable,
         };
     }
 
@@ -727,7 +712,6 @@ pub const QualType = packed struct(u32) {
             },
             .typeof => unreachable,
             .typedef => unreachable,
-            .attributed => unreachable,
         };
     }
 
@@ -1191,7 +1175,6 @@ pub const QualType = packed struct(u32) {
 
             .typeof => unreachable, // Never returned from base()
             .typedef => unreachable, // Never returned from base()
-            .attributed => unreachable, // Never returned from base()
         }
     }
 
@@ -1208,15 +1191,6 @@ pub const QualType = packed struct(u32) {
             .typedef => |typedef| {
                 if (tree.getAttribute(typedef.decl_node, tag)) |attr| return attr;
                 continue :loop typedef.base.type(comp);
-            },
-            .attributed => |attributed| {
-                var i: usize = attributed.attributes.len;
-                while (i > 0) {
-                    i -= 1;
-                    const attr = tree.attr_map.get(attributed.attributes[i]);
-                    if (attr.args == tag) return attr;
-                }
-                continue :loop attributed.base.type(comp);
             },
             else => return null,
         }
@@ -1269,7 +1243,6 @@ pub const QualType = packed struct(u32) {
 
     pub fn shouldDesugar(qt: QualType, comp: *const Compilation) bool {
         loop: switch (qt.type(comp)) {
-            .attributed => |attributed| continue :loop attributed.base.type(comp),
             .pointer => |pointer| continue :loop pointer.child.type(comp),
             .func => |func| {
                 for (func.params) |param| {
@@ -1400,7 +1373,6 @@ pub const QualType = packed struct(u32) {
                 try w.writeAll(typedef.name.lookup(comp));
                 return true;
             },
-            .attributed => |attributed| continue :loop attributed.base.type(comp),
             else => {},
         }
         if (qt.@"const") try w.writeAll("const ");
@@ -1412,7 +1384,6 @@ pub const QualType = packed struct(u32) {
             .array => unreachable,
             .typeof => unreachable,
             .typedef => unreachable,
-            .attributed => unreachable,
             .block => unreachable,
 
             .void => try w.writeAll("void"),
@@ -1536,7 +1507,6 @@ pub const QualType = packed struct(u32) {
             },
             .typeof => |typeof| if (desugar) continue :loop typeof.base.type(comp),
             .typedef => |typedef| if (desugar) continue :loop typedef.base.type(comp),
-            .attributed => |attributed| continue :loop attributed.base.type(comp),
             else => {},
         }
     }
@@ -1620,11 +1590,6 @@ pub const QualType = packed struct(u32) {
                 try typeof.base.dump(comp, w);
                 try w.writeAll(")");
             },
-            .attributed => |attributed| {
-                try w.writeAll("attributed(");
-                try attributed.base.dump(comp, w);
-                try w.writeAll(")");
-            },
             .typedef => |typedef| {
                 try w.writeAll(typedef.name.lookup(comp));
                 try w.writeAll(": ");
@@ -1668,7 +1633,6 @@ pub const Type = union(enum) {
 
     typeof: TypeOf,
     typedef: TypeDef,
-    attributed: Attributed,
 
     pub const Int = enum {
         char,
@@ -1966,11 +1930,6 @@ pub const Type = union(enum) {
         name: StringId,
         decl_node: Node.Index,
     };
-
-    pub const Attributed = struct {
-        base: QualType,
-        attributes: []const Attribute.Map.Ref,
-    };
 };
 
 types: std.MultiArrayList(Repr) = .empty,
@@ -2255,22 +2214,6 @@ pub fn set(ts: *TypeStore, gpa: std.mem.Allocator, ty: Type, index: usize) !void
                 @intFromEnum(typedef.name),
                 @intFromEnum(typedef.decl_node),
             });
-        },
-        .attributed => |attributed| {
-            repr.data[0] = @bitCast(attributed.base);
-
-            // const attr_index: u32 = @intCast(ts.attributes.items.len);
-            // const attr_count: u32 = @intCast(attributed.attributes.len);
-            // try ts.attributes.appendSlice(gpa, attributed.attributes);
-            // if (attr_count > 1) {
-            //     repr.tag = .attributed;
-            //     const extra_index: u32 = @intCast(ts.extra.items.len);
-            //     repr.data[1] = extra_index;
-            //     try ts.extra.appendSlice(gpa, &.{ attr_index, attr_count });
-            // } else {
-            //     repr.tag = .attributed_one;
-            //     repr.data[1] = attr_index;
-            // }
         },
     }
     ts.types.set(index, repr);
@@ -3014,10 +2957,10 @@ pub const Builder = struct {
 
         if (b.unaligned != null and !is_pointer) {
             // TODO should be a qualifier?
-            result_qt = (try b.parser.comp.type_store.put(gpa, .{ .attributed = .{
-                .base = result_qt,
-                .attributes = undefined,
-            } })).withQualifiers(result_qt);
+            // result_qt = (try b.parser.comp.type_store.put(gpa, .{ .attributed = .{
+            //     .base = result_qt,
+            //     .attributes = undefined,
+            // } })).withQualifiers(result_qt);
         }
         switch (b.nullability) {
             .none => {},

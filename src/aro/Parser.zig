@@ -2839,7 +2839,6 @@ fn recordDecl(p: *Parser) Error!bool {
         if (name_tok == 0 and bits == null) unnamed: {
             var is_typedef = false;
             if (!qt.isInvalid()) loop: switch (qt.type(p.comp)) {
-                .attributed => |attributed_ty| continue :loop attributed_ty.base.type(p.comp),
                 .typedef => |typedef_ty| {
                     is_typedef = true;
                     continue :loop typedef_ty.base.type(p.comp);
@@ -3747,7 +3746,6 @@ fn declarator(
             switch (cur.type(p.comp)) {
                 .typeof => |typeof_ty| cur = typeof_ty.base,
                 .typedef => |typedef_ty| cur = typedef_ty.base,
-                .attributed => |attributed_ty| cur = attributed_ty.base,
                 else => |ty| switch (ty) {
                     .@"enum", .@"struct", .@"union" => break,
                     else => {
