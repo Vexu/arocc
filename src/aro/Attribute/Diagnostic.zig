@@ -65,6 +65,11 @@ pub const incompatible_attr: Diagnostic = .{
     .kind = .@"error",
 };
 
+pub const invalid_stmt_attr: Diagnostic = .{
+    .fmt = "{at} attribute cannot be applied to a statement",
+    .kind = .@"error",
+};
+
 // vector_size
 pub const invalid_vec_elem_ty: Diagnostic = .{
     .fmt = "invalid vector element type {qt}",
@@ -186,5 +191,21 @@ pub const transparent_union_size_note: Diagnostic = .{
 // designated_init
 pub const designated_init_invalid: Diagnostic = .{
     .fmt = "{at} attribute is only valid on 'struct' type'",
+    .kind = .@"error",
+};
+
+// fallthrough
+pub const fallthrough_non_empty: Diagnostic = .{
+    .fmt = "{at} attribute is only allowed on empty statements",
+    .kind = .@"error",
+};
+
+pub const fallthrough_outside_switch: Diagnostic = .{
+    .fmt = "{at} attribute outside a switch statement",
+    .kind = .@"error",
+};
+
+pub const fallthrough_not_before_case: Diagnostic = .{
+    .fmt = "{at} attribute not preceding a switch label",
     .kind = .@"error",
 };

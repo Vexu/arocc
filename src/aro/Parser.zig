@@ -476,7 +476,7 @@ fn formatArgs(p: *Parser, w: *std.Io.Writer, fmt: []const u8, args: anytype) !vo
                 .val = arg.val,
                 .qt = arg.qt,
             }),
-            *const Attribute.Wip.Parsed => try formatAttributeName(w, fmt[i..], arg),
+            *const Attribute.Wip.Parsed, *Attribute.Wip.Parsed => try formatAttributeName(w, fmt[i..], arg),
             Attribute => try formatAttributeName(w, fmt[i..], arg),
             else => switch (@typeInfo(@TypeOf(arg))) {
                 .int, .comptime_int => try Diagnostics.formatInt(w, fmt[i..], arg),
@@ -1760,7 +1760,6 @@ pub const DeclSpec = struct {
 
     fn validateDecl(d: DeclSpec, p: *Parser, asm_label: ?Node.Index) Error!void {
         if (d.@"inline") |tok_i| try p.err(tok_i, .func_spec_non_func, .{"inline"});
-        // TODO move to attribute validation
         if (d.noreturn) |tok_i| try p.err(tok_i, .func_spec_non_func, .{"_Noreturn"});
         switch (d.storage_class) {
             .auto => {
@@ -5715,6 +5714,7 @@ fn nodeIsNoreturn(p: *Parser, node: Node.Index) NoreturnKind {
             return p.nodeIsNoreturn(default.body);
         },
         .while_stmt, .do_while_stmt, .for_stmt, .switch_stmt => return .complex,
+        .goto_stmt, .computed_goto_stmt => return .yes,
         else => return .no,
     }
 }

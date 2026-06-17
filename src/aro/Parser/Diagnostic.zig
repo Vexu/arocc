@@ -82,6 +82,7 @@ pub const missing_type_specifier: Diagnostic = .{
     .fmt = "type specifier missing, defaults to 'int'; ISO C99 and later do not support implicit int",
     .opt = .@"implicit-int",
     .kind = .@"error",
+    .suppress_unless_version = .c99,
 };
 
 pub const missing_type_specifier_c23: Diagnostic = .{
@@ -94,6 +95,7 @@ pub const param_not_declared: Diagnostic = .{
     .opt = .@"implicit-int",
     .kind = .@"error",
     .extension = true,
+    .suppress_unless_version = .c99,
 };
 
 pub const multiple_storage_class: Diagnostic = .{
@@ -271,6 +273,7 @@ pub const implicit_func_decl: Diagnostic = .{
     .fmt = "call to undeclared function '{s}'; ISO C99 and later do not support implicit function declarations",
     .opt = .@"implicit-function-declaration",
     .kind = .@"error",
+    .suppress_unless_version = .c99,
 };
 
 pub const unknown_builtin: Diagnostic = .{
@@ -1184,16 +1187,6 @@ pub const unknown_namespaced_attribute: Diagnostic = .{
 
 pub const declspec_empty_args: Diagnostic = .{
     .fmt = "parentheses must be omitted if '{s}' attribute's argument list is empty",
-    .kind = .@"error",
-};
-
-pub const invalid_fallthrough: Diagnostic = .{
-    .fmt = "fallthrough annotation does not directly precede switch label",
-    .kind = .@"error",
-};
-
-pub const cannot_apply_attribute_to_statement: Diagnostic = .{
-    .fmt = "'{s}' attribute cannot be applied to a statement",
     .kind = .@"error",
 };
 

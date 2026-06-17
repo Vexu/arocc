@@ -432,12 +432,7 @@ pub fn applyDeclAttrsExtra(
         }
     }
 
-    const gpa = p.comp.gpa;
-    const am = &p.tree.attr_map;
-    const start_index = am.extra.items.len;
-
-    try am.extra.appendSlice(gpa, @ptrCast(wip.applied.items));
-    try am.decl_attrs.put(gpa, decl, .{ @intCast(start_index), @intCast(wip.applied.items.len) });
+    try wip.addAppliedAttrs();
 }
 
 fn inherit(wip: *Wip, p: *Parser, decl: Tree.Node.Index) !void {
@@ -526,8 +521,8 @@ fn applyAlignment(wip: *Wip) !void {
 }
 
 fn addAlignmentToTypeMap(wip: *Wip, opt_alignment: ?u32) !void {
-    const alignment = opt_alignment orelse return;
     const comp = wip.current.parser.comp;
+    const alignment = opt_alignment orelse comp.target.defaultAlignment();
     const qt = wip.current.qt;
     switch (qt.type(comp)) {
         .typedef, .@"enum" => {
@@ -540,6 +535,15 @@ fn addAlignmentToTypeMap(wip: *Wip, opt_alignment: ?u32) !void {
         },
         else => {},
     }
+}
+
+fn addAppliedAttrs(wip: *Wip) !void {
+    const gpa = wip.current.parser.comp.gpa;
+    const am = &wip.current.parser.tree.attr_map;
+    const start_index = am.extra.items.len;
+
+    try am.extra.appendSlice(gpa, @ptrCast(wip.applied.items));
+    try am.decl_attrs.put(gpa, wip.current.target.?, .{ @intCast(start_index), @intCast(wip.applied.items.len) });
 }
 
 fn applyDeprecated(wip: *Wip) !void {
@@ -817,7 +821,71 @@ fn applyNeonVector(wip: *Wip, kind: Type.Vector.Kind) !void {
 }
 
 pub fn applyStmtAttrs(wip: *Wip, p: *Parser, stmt: Tree.Node.Index) !void {
-    _ = stmt; // autofix
-    _ = wip; // autofix
-    _ = p; // autofix
+    wip.applied.items.len = 0;
+    wip.current = .{
+        .attr = undefined,
+        .qt = .invalid,
+        .target = stmt,
+        .parser = p,
+    };
+
+    for (wip.attrs.items[wip.top..]) |*attr| {
+        wip.current.attr = attr;
+        wip.current.arg_i = 0;
+
+        switch (attr.name) {
+            .standard => |standard_attr| switch (standard_attr) {
+                .fallthrough => {
+                    try wip.applyFalltrhough();
+                    continue;
+                },
+                else => {},
+            },
+            .gnu => |gnu_attr| switch (gnu_attr) {
+                .fallthrough => {
+                    try wip.applyFalltrhough();
+                    continue;
+                },
+                .always_inline => {}, // invalid, use clang::always_inline
+                else => {},
+            },
+            .clang => |clang_attr| switch (clang_attr) {
+                .always_inline => {},
+                else => {},
+            },
+            .aro => {},
+            .declspec => {},
+            .msvc => {},
+            .riscv => {},
+            .keyword => {},
+        }
+
+        try wip.err(.invalid_stmt_attr, .{attr});
+    }
+
+    try wip.addAppliedAttrs();
+}
+
+fn applyFalltrhough(wip: *Wip) !void {
+    if (try wip.argCount(0)) return;
+    if (wip.current.node() != .null_stmt) {
+        try wip.err(.fallthrough_non_empty, .{wip.current.attr});
+        return;
+    }
+    if (wip.current.parser.@"switch" == null) {
+        try wip.err(.fallthrough_outside_switch, .{wip.current.attr});
+        return;
+    }
+    for (wip.current.parser.tok_ids[wip.current.parser.tok_i..]) |tok_id| {
+        switch (tok_id) {
+            .keyword_case, .keyword_default, .eof => break,
+            .r_brace, .semicolon => {},
+            else => {
+                try wip.err(.fallthrough_not_before_case, .{wip.current.attr});
+                break;
+            },
+        }
+    }
+
+    try wip.add(.fallthrough);
 }
