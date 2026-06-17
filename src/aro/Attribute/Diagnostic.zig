@@ -8,6 +8,12 @@ fmt: []const u8,
 kind: Diagnostics.Message.Kind,
 opt: ?Diagnostics.Option = null,
 
+// TODO get rid of this
+pub const unimplemented: Diagnostic = .{
+    .fmt = "TODO: implement {at} attribute",
+    .kind = .warning,
+};
+
 pub const arg_count_zero: Diagnostic = .{
     .fmt = "{at} attribute takes no arguments",
     .kind = .@"error",

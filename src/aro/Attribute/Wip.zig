@@ -355,7 +355,9 @@ pub fn applyDeclAttrsExtra(
             .standard => |standard_attr| switch (standard_attr) {
                 .deprecated => try wip.applyDeprecated(),
                 .nodiscard => try wip.applyWarnUnusedResult(),
-                else => {},
+                else => {
+                    try wip.err(.unimplemented, .{attr});
+                },
             },
             .gnu => |gnu_attr| switch (gnu_attr) {
                 .@"packed" => {
@@ -406,7 +408,9 @@ pub fn applyDeclAttrsExtra(
                     if (try wip.argCount(0)) return;
                     try wip.add(.designated_init);
                 },
-                else => {},
+                else => {
+                    try wip.err(.unimplemented, .{attr});
+                },
             },
             .clang => |clang_attr| switch (clang_attr) {
                 .unavailable => {
@@ -415,19 +419,31 @@ pub fn applyDeclAttrsExtra(
                     const maybe_msg = (try wip.arg(?[]const u8)) orelse continue;
                     try wip.add(.{ .unavailable = maybe_msg });
                 },
-                else => {},
+                else => {
+                    try wip.err(.unimplemented, .{attr});
+                },
             },
-            .aro => {},
+            .aro => {
+                try wip.err(.unimplemented, .{attr});
+            },
             .declspec => |declspec_attr| switch (declspec_attr) {
                 .@"align" => try wip.applyAlignment(),
                 .deprecated => try wip.applyDeprecated(),
-                else => {},
+                else => {
+                    try wip.err(.unimplemented, .{attr});
+                },
             },
-            .msvc => {},
-            .riscv => {},
+            .msvc => {
+                try wip.err(.unimplemented, .{attr});
+            },
+            .riscv => {
+                try wip.err(.unimplemented, .{attr});
+            },
             .keyword => |keyword_attr| switch (keyword_attr) {
                 ._Alignas, .alignas => try wip.applyAlignment(),
-                else => {},
+                else => {
+                    try wip.err(.unimplemented, .{attr});
+                },
             },
         }
     }
@@ -682,10 +698,23 @@ pub fn applyTypeAttrs(wip: *Wip, p: *Parser, qt: QualType) !QualType {
         wip.current.arg_i = 0;
 
         switch (attr.name) {
-            .standard => {},
             .gnu => |gnu_attr| switch (gnu_attr) {
                 .vector_size => {
                     try wip.applyVectorSize();
+                    attr.used_as_type_attr = true;
+                },
+                .cdecl,
+                .fastcall,
+                .ms_abi,
+                .pcs,
+                .regcall,
+                .regparm,
+                .riscv_rvv_vector_bits,
+                .stdcall,
+                .sysv_abi,
+                .thiscall,
+                => {
+                    try wip.err(.unimplemented, .{attr});
                     attr.used_as_type_attr = true;
                 },
                 else => {},
@@ -699,13 +728,52 @@ pub fn applyTypeAttrs(wip: *Wip, p: *Parser, qt: QualType) !QualType {
                     try wip.applyNeonVector(.neon_poly);
                     attr.used_as_type_attr = true;
                 },
+                .aarch64_sve_pcs,
+                .aarch64_vector_pcs,
+                .address_space,
+                .arm_sve_vector_bits,
+                .ext_vector_type,
+                .matrix_type,
+                .noderef,
+                .riscv_vector_cc,
+                .riscv_vls_cc,
+                .vectorcall,
+                => {
+                    try wip.err(.unimplemented, .{attr});
+                    attr.used_as_type_attr = true;
+                },
                 else => {},
             },
-            .aro => {},
-            .declspec => {},
-            .msvc => {},
-            .riscv => {},
-            .keyword => {},
+            .riscv => |riscv_attr| switch (riscv_attr) {
+                .vector_cc,
+                .vls_cc,
+                => {
+                    try wip.err(.unimplemented, .{attr});
+                    attr.used_as_type_attr = true;
+                },
+            },
+            .keyword => |keyword_attr| switch (keyword_attr) {
+                .nonnull,
+                .null_unspecified,
+                .nullable_result,
+                .nullable,
+                .ptr32,
+                .ptr64,
+                .sptr,
+                .uptr,
+                .cdecl,
+                .fastcall,
+                .regcall,
+                .stdcall,
+                .thiscall,
+                .vectorcall,
+                => {
+                    try wip.err(.unimplemented, .{attr});
+                    attr.used_as_type_attr = true;
+                },
+                else => {},
+            },
+            else => {},
         }
     }
     return wip.current.qt;

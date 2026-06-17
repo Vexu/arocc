@@ -470,9 +470,12 @@ pub const Namespaced = union(enum) {
         pcs,
         persistent, // Not supported by Clang
         pure,
+        regcall,
+        regparm,
         retain,
         returns_nonnull, // Not supported by Clang
         returns_twice, // Not supported by Clang
+        riscv_rvv_vector_bits,
         scalar_storage_order, // Not supported by Clang
         section,
         selectany,
@@ -502,15 +505,20 @@ pub const Namespaced = union(enum) {
     pub const Clang = enum {
         aarch64_sve_pcs,
         aarch64_vector_pcs,
+        address_space,
         always_inline,
+        arm_sve_vector_bits,
         availability,
+        ext_vector_type,
         internal_linkage,
+        matrix_type,
         neon_polyvector_type,
         neon_vector_type,
         no_sanitize_address,
         no_sanitize_memory,
         no_sanitize,
         no_stack_protector,
+        noderef,
         @"noinline",
         riscv_vector_cc,
         riscv_vls_cc,

@@ -1780,42 +1780,6 @@ pub const designated_init_needed: Diagnostic = .{
     .kind = .warning,
 };
 
-pub const ignore_common: Diagnostic = .{
-    .fmt = "ignoring attribute 'common' because it conflicts with attribute 'nocommon'",
-    .opt = .@"ignored-attributes",
-    .kind = .warning,
-};
-
-pub const ignore_nocommon: Diagnostic = .{
-    .fmt = "ignoring attribute 'nocommon' because it conflicts with attribute 'common'",
-    .opt = .@"ignored-attributes",
-    .kind = .warning,
-};
-
-pub const non_string_ignored: Diagnostic = .{
-    .fmt = "'nonstring' attribute ignored on objects of type {qt}",
-    .opt = .@"ignored-attributes",
-    .kind = .warning,
-};
-
-pub const local_variable_attribute: Diagnostic = .{
-    .fmt = "'{s}' attribute only applies to local variables",
-    .opt = .@"ignored-attributes",
-    .kind = .warning,
-};
-
-pub const ignore_noinline: Diagnostic = .{
-    .fmt = "ignoring attribute 'noinline' because it conflicts with attribute 'always_inline'",
-    .opt = .@"ignored-attributes",
-    .kind = .warning,
-};
-
-pub const ignore_always_inline: Diagnostic = .{
-    .fmt = "ignoring attribute 'always_inline' because it conflicts with attribute 'noinline'",
-    .opt = .@"ignored-attributes",
-    .kind = .warning,
-};
-
 pub const invalid_noreturn: Diagnostic = .{
     .fmt = "function '{s}' declared 'noreturn' should not return",
     .kind = .warning,
@@ -1956,18 +1920,6 @@ pub const complex_bit_int: Diagnostic = .{
 pub const ptr_arithmetic_incomplete: Diagnostic = .{
     .fmt = "arithmetic on a pointer to an incomplete type {qt}",
     .kind = .@"error",
-};
-
-pub const callconv_not_supported: Diagnostic = .{
-    .fmt = "'{s}' calling convention is not supported for this target",
-    .kind = .warning,
-    .opt = .@"ignored-attributes",
-};
-
-pub const callconv_non_func: Diagnostic = .{
-    .fmt = "'{s}' only applies to function types; type here is {qt}",
-    .kind = .warning,
-    .opt = .@"ignored-attributes",
 };
 
 pub const pointer_arith_void: Diagnostic = .{
@@ -2272,11 +2224,6 @@ pub const overflow_result_requires_ptr: Diagnostic = .{
     .kind = .@"error",
 };
 
-pub const attribute_todo: Diagnostic = .{
-    .fmt = "TODO: implement '{s}' attribute for {s}",
-    .kind = .warning,
-};
-
 pub const auto_type_self_initialized: Diagnostic = .{
     .fmt = "variable '{s}' declared with deduced type '__auto_type' cannot appear in its own initializer",
     .kind = .@"error",
@@ -2302,17 +2249,6 @@ pub const packed_member_address: Diagnostic = .{
     .fmt = "taking address of packed member '{s}' of class or structure '{s}' may result in an unaligned pointer value",
     .kind = .warning,
     .opt = .@"address-of-packed-member",
-};
-
-pub const alloc_align_requires_ptr_return: Diagnostic = .{
-    .fmt = "'alloc_align' attribute only applies to return values that are pointers",
-    .opt = .@"ignored-attributes",
-    .kind = .warning,
-};
-
-pub const alloc_align_required_int_param: Diagnostic = .{
-    .fmt = "'alloc_align' attribute argument may only refer to a function parameter of integer type",
-    .kind = .@"error",
 };
 
 pub const gnu_missing_eq_designator: Diagnostic = .{
@@ -2404,28 +2340,6 @@ pub const single_requires_zero_index: Diagnostic = .{
 
 pub const pointer_arith_single: Diagnostic = .{
     .fmt = "pointer arithmetic on single pointer is out of bounds; consider adding '__counted_by'",
-    .kind = .@"error",
-};
-
-pub const redundant_bounds_annotation: Diagnostic = .{
-    .fmt = "pointer annotated with {s} multiple times. Annotate only once to remove this warning",
-    .kind = .warning,
-    .opt = .@"bounds-attributes-redundant",
-};
-
-pub const multiple_bounds_annotations: Diagnostic = .{
-    .fmt = "pointer cannot have more than one bound attribute",
-    .kind = .@"error",
-};
-
-pub const attribute_already_applied: Diagnostic = .{
-    .fmt = "attribute '{s}' is already applied",
-    .kind = .warning,
-    .opt = .@"ignored-attributes",
-};
-
-pub const msvc_ptr_not_compatible: Diagnostic = .{
-    .fmt = "'__{s}' and '__{s}' attributes are not compatible",
     .kind = .@"error",
 };
 
