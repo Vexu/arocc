@@ -669,21 +669,23 @@ pub fn errValueChanged(p: *Parser, tok_i: TokenIndex, diagnostic: Diagnostic, re
     try p.err(tok_i, diagnostic, .{ res.qt, int_qt, zero_str, old_res, new_res });
 }
 
-fn checkDeprecatedUnavailable(p: *Parser, node: Node.Index, usage_tok: TokenIndex) !void {
-    if (p.tree.getAttribute(node, .@"error")) |attr| {
+fn checkDeprecatedUnavailable(p: *Parser, opt_node: anytype, usage_tok: TokenIndex) !void {
+    const node: Node.Index = opt_node.unpack() orelse return;
+    const am = &p.tree.attr_map;
+    if (am.getAttribute(node, .@"error")) |attr| {
         try p.codegenDiagnostic(usage_tok, .error_attribute, .{ p.tokSlice(node.tok(&p.tree)), Escaped.init(attr.args.@"error") });
     }
-    if (p.tree.getAttribute(node, .warning)) |attr| {
+    if (am.getAttribute(node, .warning)) |attr| {
         try p.codegenDiagnostic(usage_tok, .warning_attribute, .{ p.tokSlice(node.tok(&p.tree)), Escaped.init(attr.args.warning) });
     }
-    if (p.tree.getAttribute(node, .unavailable)) |attr| {
+    if (am.getAttribute(node, .unavailable)) |attr| {
         try p.errDeprecated(usage_tok, .unavailable, attr.args.unavailable);
 
         const decl_tok = node.tok(&p.tree);
         try p.err(decl_tok, .unavailable_note, .{p.tokSlice(decl_tok)});
         return error.ParsingFailed;
     }
-    if (p.tree.getAttribute(node, .deprecated)) |attr| {
+    if (am.getAttribute(node, .deprecated)) |attr| {
         const deprecated = attr.args.deprecated;
         try p.errDeprecated(usage_tok, .deprecated_declarations, deprecated.msg);
         if (deprecated.replacement) |replacement| {
@@ -1544,7 +1546,6 @@ fn decl(p: *Parser) Error!bool {
         }
         try p.decl_buf.append(gpa, decl_node);
 
-        var previous_decl: Node.OptIndex = .null;
         const interned_name = try p.comp.internString(p.tokSlice(init_d.d.name));
         const completes_tentative_array = p.completesTentativeArray(interned_name, init_d.d.qt);
         if (decl_spec.storage_class == .typedef) {
@@ -1556,11 +1557,12 @@ fn decl(p: *Parser) Error!bool {
                     .name = interned_name,
                     .decl_node = decl_node,
                 } })).withQualifiers(init_d.d.qt);
-            _ = try p.syms.defineTypedef(p, interned_name, typedef_qt, init_d.d.name, decl_node);
+            const previous_decl = try p.syms.defineTypedef(p, interned_name, typedef_qt, init_d.d.name, decl_node);
             p.typedefDefined(interned_name, typedef_qt);
+            try p.wip_attrs.applyDeclAttrsExtra(p, decl_node, typedef_qt, previous_decl);
         } else if (init_d.initializer) |init| {
             // TODO validate global variable/constexpr initializer comptime known
-            previous_decl = try p.syms.defineSymbol(
+            const previous_decl = try p.syms.defineSymbol(
                 p,
                 interned_name,
                 init_d.d.qt,
@@ -1569,15 +1571,18 @@ fn decl(p: *Parser) Error!bool {
                 if (init_d.d.qt.@"const" or decl_spec.constexpr != null) init.val else .{},
                 decl_spec.constexpr != null,
             );
+            try p.wip_attrs.applyDeclAttrs(p, decl_node, previous_decl);
         } else if (init_d.d.qt.is(p.comp, .func)) {
-            previous_decl = try p.syms.declareSymbol(p, interned_name, init_d.d.qt, init_d.d.name, decl_node);
+            const previous_decl = try p.syms.declareSymbol(p, interned_name, init_d.d.qt, init_d.d.name, decl_node);
+            try p.wip_attrs.applyDeclAttrs(p, decl_node, previous_decl);
         } else if (p.func.qt != null and decl_spec.storage_class != .@"extern") {
-            previous_decl = try p.syms.defineSymbol(p, interned_name, init_d.d.qt, init_d.d.name, decl_node, .{}, false);
+            const previous_decl = try p.syms.defineSymbol(p, interned_name, init_d.d.qt, init_d.d.name, decl_node, .{}, false);
+            try p.wip_attrs.applyDeclAttrs(p, decl_node, previous_decl);
         } else {
-            previous_decl = try p.syms.declareSymbol(p, interned_name, init_d.d.qt, init_d.d.name, decl_node);
+            const previous_decl = try p.syms.declareSymbol(p, interned_name, init_d.d.qt, init_d.d.name, decl_node);
+            try p.wip_attrs.applyDeclAttrs(p, decl_node, previous_decl);
         }
         if (completes_tentative_array) _ = p.tentative_defs.orderedRemove(.tentativeArray(interned_name));
-        try p.wip_attrs.applyDeclAttrs(p, decl_node, previous_decl);
 
         if (p.eatToken(.comma) == null) break;
 
@@ -2608,7 +2613,7 @@ fn recordSpec(p: *Parser) Error!QualType {
                     try p.err(ident, .redefinition, .{ident_str});
                     try p.err(prev.tok, .previous_definition, .{});
                 } else {
-                    break :blk .{ record_ty, prev.qt, .pack(record_ty.decl_node) };
+                    break :blk .{ record_ty, prev.qt, record_ty.decl_node };
                 }
             }
             break :interned interned_name;
@@ -2702,7 +2707,7 @@ fn recordSpec(p: *Parser) Error!QualType {
         // TODO: msvc considers `#pragma pack` on a per-field basis
         .msvc => p.pragma_pack,
     };
-    if (record_layout.compute(fields, record_decl, p.comp, pragma_pack_value)) |layout| {
+    if (record_layout.compute(fields, .pack(record_decl), !is_struct, p.comp, &p.tree.attr_map, pragma_pack_value)) |layout| {
         record_ty.fields = fields;
         record_ty.layout = layout;
     } else |er| switch (er) {
@@ -2819,8 +2824,7 @@ fn recordDecl(p: *Parser) Error!bool {
                 break :bits;
             }
 
-            // incomplete size error is reported later
-            const bit_size = qt.bitSizeofOrNull(p.comp) orelse break :bits;
+            const bit_size = qt.bitSizeof(p.comp);
             const bits_unchecked = res.val.toInt(u32, p.comp) orelse std.math.maxInt(u32);
             if (bits_unchecked > bit_size) {
                 try p.err(name_tok, .bitfield_too_big, .{});
@@ -2864,7 +2868,7 @@ fn recordDecl(p: *Parser) Error!bool {
                     try p.record_buf.append(gpa, .{
                         .name = try p.getAnonymousName(first_tok),
                         .qt = qt,
-                        .field_decl = node,
+                        .field_decl = .pack(node),
                     });
 
                     try p.decl_buf.append(gpa, node);
@@ -2896,7 +2900,7 @@ fn recordDecl(p: *Parser) Error!bool {
                 .qt = qt,
                 .name_tok = name_tok,
                 .bit_width = if (bits) |some| @enumFromInt(some) else .null,
-                .field_decl = node,
+                .field_decl = .pack(node),
             });
             if (name_tok != 0) try p.record.addField(p, interned_name, name_tok);
             try p.decl_buf.append(gpa, node);
@@ -9980,7 +9984,7 @@ fn callExpr(p: *Parser, lhs: Result) Error!Result {
                 else
                     mem.findScalar(u32, attr.args.nonnull, @intCast(arg_count + 1)) != null
             else if (param.node.unpack()) |some|
-                p.tree.hasAttribute(some, .nonnull)
+                p.tree.attr_map.hasAttribute(some, .nonnull)
             else
                 false;
             if (needs_nonnull and arg.val.isZero(p.comp)) {

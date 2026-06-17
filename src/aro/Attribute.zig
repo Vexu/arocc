@@ -422,6 +422,8 @@ pub const Namespaced = union(enum) {
         deprecated,
         designated_init, // Not supported by Clang
         destructor,
+        dllexport,
+        dllimport,
         @"error",
         externally_visible, // Not supported by Clang
         fallthrough,

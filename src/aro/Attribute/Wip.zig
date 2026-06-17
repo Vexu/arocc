@@ -21,20 +21,12 @@ top: u32 = 0,
 current: struct {
     attr: *const Parsed,
     target: ?Tree.Node.Index = null,
-    args: []const Parser.Result,
+    qt: QualType,
     parser: *Parser,
     arg_i: u32 = 0,
 
     fn node(c: *const @This()) Tree.Node {
         return c.target.?.get(&c.parser.tree);
-    }
-
-    fn qt(c: *const @This()) QualType {
-        return c.target.?.qt(&c.parser.tree);
-    }
-
-    fn tok(c: *const @This()) TokenIndex {
-        return c.args[c.arg_i - 1].node.tok(&c.parser.tree);
     }
 } = undefined,
 
@@ -107,7 +99,7 @@ fn errTok(wip: *Wip, tok: TokenIndex, diagnostic: Diagnostic, args: anytype) !vo
 }
 
 fn argCountMinMax(wip: *Wip, min: u32, max: u32) !bool {
-    const actual_count = wip.current.args.len;
+    const actual_count = wip.current.attr.args_len;
 
     if (actual_count < min) {
         try wip.err(.not_enough_args, .{ wip.current.attr, min });
@@ -120,7 +112,7 @@ fn argCountMinMax(wip: *Wip, min: u32, max: u32) !bool {
 }
 
 fn argCount(wip: *Wip, count: u32) !bool {
-    const actual_count = wip.current.args.len;
+    const actual_count = wip.current.attr.args_len;
     if (actual_count == count) return false;
 
     switch (count) {
@@ -132,15 +124,17 @@ fn argCount(wip: *Wip, count: u32) !bool {
 }
 
 fn arg(wip: *Wip, comptime WantedBase: type) !?WantedBase {
+    const args = wip.current.attr.args(wip);
     const Wanted = if (@typeInfo(WantedBase) == .optional) blk: {
-        if (wip.current.arg_i >= wip.current.args.len) return @as(WantedBase, null);
+        if (wip.current.arg_i >= args.len) return @as(WantedBase, null);
         break :blk @typeInfo(WantedBase).optional.child;
     } else WantedBase;
-    const arg_res = wip.current.args[wip.current.arg_i];
+    const arg_res = args[wip.current.arg_i];
     wip.current.arg_i += 1;
 
     const comp = wip.current.parser.comp;
-    const tok = wip.current.tok();
+    const tree = &wip.current.parser.tree;
+    const tok = arg_res.node.tok(tree);
 
     const string = "a string";
     const identifier = "an identifier";
@@ -158,7 +152,7 @@ fn arg(wip: *Wip, comptime WantedBase: type) !?WantedBase {
     };
 
     if (arg_res.val.opt_ref == .none) {
-        const node = arg_res.node.get(&wip.current.parser.tree);
+        const node = arg_res.node.get(tree);
         if (Wanted == Tree.Node.DeclRef and node == .decl_ref_expr) {
             return node.decl_ref_expr;
         }
@@ -179,7 +173,7 @@ fn arg(wip: *Wip, comptime WantedBase: type) !?WantedBase {
             const str = bytes[0 .. bytes.len - 1];
             if (Wanted == []const u8) {
                 validate: {
-                    const node = arg_res.node.get(&wip.current.parser.tree);
+                    const node = arg_res.node.get(tree);
                     if (node != .string_literal_expr) break :validate;
                     switch (node.string_literal_expr.qt.childType(comp).get(comp, .int).?) {
                         .char, .uchar, .schar => {},
@@ -252,7 +246,7 @@ fn checkTarget(wip: *Wip, list: []const Target) !bool {
         },
         .function_pointer => {
             const comp = wip.current.parser.comp;
-            const qt = wip.current.qt();
+            const qt = wip.current.qt;
 
             const ptr: TypeStore.Type.Pointer = qt.get(comp, .pointer) orelse continue;
             if (ptr.child.is(comp, .func)) return false;
@@ -332,17 +326,30 @@ fn add(wip: *Wip, args: Attribute.Args) !void {
 }
 
 pub fn applyDeclAttrs(wip: *Wip, p: *Parser, decl: Tree.Node.Index, prev_decl: Tree.Node.OptIndex) !void {
+    return wip.applyDeclAttrsExtra(p, decl, decl.qt(&p.tree), prev_decl);
+}
+
+pub fn applyDeclAttrsExtra(
+    wip: *Wip,
+    p: *Parser,
+    decl: Tree.Node.Index,
+    qt: QualType,
+    prev_decl: Tree.Node.OptIndex,
+) !void {
     wip.applied.items.len = 0;
+    wip.current = .{
+        .attr = undefined,
+        .target = decl,
+        .qt = qt,
+        .parser = p,
+    };
+
     if (prev_decl.unpack()) |prev| try wip.inherit(p, prev);
 
     for (wip.attrs.items[wip.top..]) |*attr| {
         if (attr.used_as_type_attr) continue;
-        wip.current = .{
-            .args = attr.args(wip),
-            .attr = attr,
-            .target = decl,
-            .parser = p,
-        };
+        wip.current.attr = attr;
+        wip.current.arg_i = 0;
 
         switch (attr.name) {
             .standard => |standard_attr| switch (standard_attr) {
@@ -426,30 +433,32 @@ pub fn applyDeclAttrs(wip: *Wip, p: *Parser, decl: Tree.Node.Index, prev_decl: T
     }
 
     const gpa = p.comp.gpa;
-    const tree = &p.tree;
-    const start_index = tree.extra.items.len;
+    const am = &p.tree.attr_map;
+    const start_index = am.extra.items.len;
 
-    try tree.extra.appendSlice(gpa, @ptrCast(wip.applied.items));
-    try tree.decl_attrs.put(gpa, decl, .{ @intCast(start_index), @intCast(wip.applied.items.len) });
+    try am.extra.appendSlice(gpa, @ptrCast(wip.applied.items));
+    try am.decl_attrs.put(gpa, decl, .{ @intCast(start_index), @intCast(wip.applied.items.len) });
 }
 
 fn inherit(wip: *Wip, p: *Parser, decl: Tree.Node.Index) !void {
     const gpa = p.comp.gpa;
-    const tree = &p.tree;
-    for (tree.attrs(decl)) |ref| {
-        const attr = tree.attr_map.get(ref);
+    const am = &p.tree.attr_map;
+    for (am.attrs(decl)) |ref| {
+        const attr = am.get(ref);
 
         switch (attr.args) {
             .@"packed",
             .hot,
             .cold,
             .@"const",
-            .alignment,
             .deprecated,
             .unavailable,
             .@"error",
             .warning,
             => {},
+            .alignment => {
+                try wip.addAlignmentToTypeMap(attr.args.alignment);
+            },
             else => continue,
         }
 
@@ -458,7 +467,7 @@ fn inherit(wip: *Wip, p: *Parser, decl: Tree.Node.Index) !void {
 }
 
 fn applyAlignment(wip: *Wip) !void {
-    const qt = wip.current.qt();
+    const qt = wip.current.qt;
     if (qt.isInvalid()) return;
     if (try wip.argCountMinMax(0, 1)) return;
     const is_alignas = wip.current.attr.syntax == .keyword;
@@ -487,6 +496,7 @@ fn applyAlignment(wip: *Wip) !void {
         }
     } else if (try wip.checkTarget(&.{ .function, .variable, .typedef, .tag, .param, .field })) return;
 
+    const comp = wip.current.parser.comp;
     const maybe_requested = (try wip.arg(?i64)) orelse return;
     var casted: ?u32 = null;
 
@@ -504,14 +514,32 @@ fn applyAlignment(wip: *Wip) !void {
             return;
         }
         if (is_alignas) {
-            const default_align = qt.alignof(wip.current.parser.comp);
+            const default_align = qt.alignof(comp);
             if (is_alignas and requested < default_align) {
                 try wip.err(.minimum_alignment, .{default_align});
             }
         }
         casted = @intCast(requested);
     }
+    try wip.addAlignmentToTypeMap(casted);
     try wip.add(.{ .alignment = casted });
+}
+
+fn addAlignmentToTypeMap(wip: *Wip, opt_alignment: ?u32) !void {
+    const alignment = opt_alignment orelse return;
+    const comp = wip.current.parser.comp;
+    const qt = wip.current.qt;
+    switch (qt.type(comp)) {
+        .typedef, .@"enum" => {
+            const gop = try comp.type_store.requested_aligns.getOrPut(comp.gpa, qt);
+            if (gop.found_existing) {
+                gop.value_ptr.* = @max(gop.value_ptr.*, alignment);
+            } else {
+                gop.value_ptr.* = alignment;
+            }
+        },
+        else => {},
+    }
 }
 
 fn applyDeprecated(wip: *Wip) !void {
@@ -539,7 +567,7 @@ fn applyWarnUnusedResult(wip: *Wip) !void {
     const maybe_msg = (try wip.arg(?[]const u8)) orelse return;
 
     const comp = wip.current.parser.comp;
-    if (wip.current.qt().getFunc(comp)) |func| {
+    if (wip.current.qt.getFunc(comp)) |func| {
         if (func.return_type.is(comp, .void)) {
             try wip.err(.warn_unused_result_void, .{wip.current.attr});
             return;
@@ -552,11 +580,11 @@ fn applyWarnUnusedResult(wip: *Wip) !void {
 fn applyNonnull(wip: *Wip) !void {
     const parser = wip.current.parser;
     const comp = parser.comp;
-    const qt = wip.current.qt();
+    const qt = wip.current.qt;
     if (qt.isInvalid()) return;
     if (try wip.checkTarget(&.{ .function, .function_pointer, .param })) return;
     if (wip.current.node() == .param) {
-        if (wip.current.args.len != 0) {
+        if (wip.current.attr.args_len != 0) {
             try wip.err(.nonnull_param_args, .{wip.current.attr});
             return;
         }
@@ -571,12 +599,12 @@ fn applyNonnull(wip: *Wip) !void {
 
     const list_buf_top = parser.list_buf.items.len;
     defer parser.list_buf.items.len = list_buf_top;
-    try parser.list_buf.ensureUnusedCapacity(comp.gpa, wip.current.args.len);
+    try parser.list_buf.ensureUnusedCapacity(comp.gpa, wip.current.attr.args_len);
 
     const func_ty = qt.getFunc(comp).?;
-    for (0..wip.current.args.len) |i| {
+    for (wip.current.attr.args(wip), 0..) |arg_res, i| {
         const position = (try wip.arg(u32)) orelse return;
-        const tok = wip.current.tok();
+        const tok = arg_res.node.tok(&parser.tree);
 
         if (position == 0 or position > func_ty.params.len) {
             try wip.errTok(tok, .param_out_of_bounds, .{ wip.current.attr, i + 1 });
@@ -595,7 +623,7 @@ fn applyNonnull(wip: *Wip) !void {
 }
 
 fn applyTransparentUnion(wip: *Wip) !void {
-    const qt = wip.current.qt();
+    const qt = wip.current.qt;
     if (qt.isInvalid()) return;
     const fields = switch (wip.current.node()) {
         .union_decl => |decl| decl.fields,
@@ -614,13 +642,18 @@ fn applyTransparentUnion(wip: *Wip) !void {
     const comp = parser.comp;
     const tree = &parser.tree;
 
+    if (qt.hasIncompleteSize(comp)) return;
     if (fields.len == 0) {
         try wip.err(.transparent_union_one_field, .{wip.current.attr});
         return;
     }
-    const first_field_size = fields[0].qt(tree).bitSizeof(comp);
-    for (fields[1..]) |field| {
-        const field_size = field.qt(tree).bitSizeof(comp);
+    var opt_first_field_size: ?u64 = null;
+    for (fields) |field| {
+        const field_size = (field.qt(tree).sizeofOrNull(comp) orelse continue) * 8;
+        const first_field_size = opt_first_field_size orelse {
+            opt_first_field_size = field_size;
+            continue;
+        };
         if (field_size == first_field_size) continue;
 
         const field_tok = field.tok(tree);
@@ -633,32 +666,33 @@ fn applyTransparentUnion(wip: *Wip) !void {
 }
 
 pub fn applyTypeAttrs(wip: *Wip, p: *Parser, qt: QualType) !QualType {
-    var res_qt = qt;
+    wip.current = .{
+        .attr = undefined,
+        .qt = qt,
+        .parser = p,
+    };
 
     for (wip.attrs.items[wip.top..]) |*attr| {
         if (attr.used_as_type_attr) continue;
-        wip.current = .{
-            .args = attr.args(wip),
-            .attr = attr,
-            .parser = p,
-        };
+        wip.current.attr = attr;
+        wip.current.arg_i = 0;
 
         switch (attr.name) {
             .standard => {},
             .gnu => |gnu_attr| switch (gnu_attr) {
                 .vector_size => {
-                    try wip.applyVectorSize(&res_qt);
+                    try wip.applyVectorSize();
                     attr.used_as_type_attr = true;
                 },
                 else => {},
             },
             .clang => |clang_attr| switch (clang_attr) {
                 .neon_vector_type => {
-                    try wip.applyNeonVector(&res_qt, .neon);
+                    try wip.applyNeonVector(.neon);
                     attr.used_as_type_attr = true;
                 },
                 .neon_polyvector_type => {
-                    try wip.applyNeonVector(&res_qt, .neon_poly);
+                    try wip.applyNeonVector(.neon_poly);
                     attr.used_as_type_attr = true;
                 },
                 else => {},
@@ -670,15 +704,16 @@ pub fn applyTypeAttrs(wip: *Wip, p: *Parser, qt: QualType) !QualType {
             .keyword => {},
         }
     }
-    return res_qt;
+    return wip.current.qt;
 }
 
-fn applyVectorSize(wip: *Wip, qt: *QualType) !void {
+fn applyVectorSize(wip: *Wip) !void {
+    const qt = wip.current.qt;
     if (qt.isInvalid()) return;
     if (try wip.argCount(1)) return;
 
     if (qt.isAutoType() or qt.isC23Auto()) {
-        try wip.err(.invalid_vec_elem_ty, .{qt.*});
+        try wip.err(.invalid_vec_elem_ty, .{qt});
         return error.ParsingFailed;
     }
 
@@ -691,7 +726,7 @@ fn applyVectorSize(wip: *Wip, qt: *QualType) !void {
                 return; // Clang silently ignores vector_size on incomplete enums.
             }
         }
-        try wip.err(.invalid_vec_elem_ty, .{qt.*});
+        try wip.err(.invalid_vec_elem_ty, .{qt});
         return error.ParsingFailed;
     }
     if (qt.get(comp, .bit_int)) |bit_int| {
@@ -710,18 +745,19 @@ fn applyVectorSize(wip: *Wip, qt: *QualType) !void {
         return wip.err(.vec_size_not_multiple, .{});
     }
 
-    qt.* = try comp.type_store.put(comp.gpa, .{ .vector = .{
-        .elem = qt.*,
+    wip.current.qt = try comp.type_store.put(comp.gpa, .{ .vector = .{
+        .elem = qt,
         .len = @intCast(vec_bytes / elem_size),
     } });
 }
 
-fn applyNeonVector(wip: *Wip, qt: *QualType, kind: Type.Vector.Kind) !void {
+fn applyNeonVector(wip: *Wip, kind: Type.Vector.Kind) !void {
+    const qt = wip.current.qt;
     if (qt.isInvalid()) return;
     if (try wip.argCount(1)) return;
 
     if (qt.isAutoType() or qt.isC23Auto()) {
-        try wip.err(.invalid_vec_elem_ty, .{qt.*});
+        try wip.err(.invalid_vec_elem_ty, .{qt});
         return error.ParsingFailed;
     }
 
@@ -760,7 +796,7 @@ fn applyNeonVector(wip: *Wip, qt: *QualType, kind: Type.Vector.Kind) !void {
         };
     };
     if (!valid_elem_ty) {
-        try wip.err(.invalid_vec_elem_ty, .{qt.*});
+        try wip.err(.invalid_vec_elem_ty, .{qt});
         return;
     }
 
@@ -773,8 +809,8 @@ fn applyNeonVector(wip: *Wip, qt: *QualType, kind: Type.Vector.Kind) !void {
         return;
     }
 
-    qt.* = try comp.type_store.put(comp.gpa, .{ .vector = .{
-        .elem = qt.*,
+    wip.current.qt = try comp.type_store.put(comp.gpa, .{ .vector = .{
+        .elem = qt,
         .len = vec_len,
         .kind = kind,
     } });

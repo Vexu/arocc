@@ -1,6 +1,7 @@
 const std = @import("std");
 const mem = std.mem;
 const Attribute = @import("../Attribute.zig");
+const Compilation = @import("../Compilation.zig");
 const Tree = @import("../Tree.zig");
 const TokenIndex = Tree.TokenIndex;
 
@@ -38,12 +39,14 @@ const Repr = struct {
 
 attributes: std.MultiArrayList(Repr) = .empty,
 extra: std.ArrayList(u32) = .empty,
+decl_attrs: std.AutoHashMapUnmanaged(Tree.Node.Index, struct { u32, u32 }) = .empty,
 
 pub const Ref = enum(u32) { _ };
 
 pub fn deinit(map: *Map, gpa: mem.Allocator) void {
     map.attributes.deinit(gpa);
     map.extra.deinit(gpa);
+    map.decl_attrs.deinit(gpa);
     map.* = undefined;
 }
 
@@ -220,4 +223,47 @@ fn getString(map: *const Map, index: u32) struct { []const u8, u32 } {
         @as([]const u8, @ptrCast(map.extra.items[index + 1 ..]))[0..str_len],
         index + 1 + aligned_len,
     };
+}
+
+pub fn attrs(map: *const Map, opt_node: anytype) []const Attribute.Map.Ref {
+    const node: Tree.Node.Index = opt_node.unpack() orelse return &.{};
+    const index, const len = map.decl_attrs.get(node) orelse return &.{};
+    return @ptrCast(map.extra.items[index..][0..len]);
+}
+
+pub fn getAttribute(map: *const Map, opt_node: anytype, tag: Attribute.Tag) ?Attribute {
+    const node: Tree.Node.Index = opt_node.unpack() orelse return null;
+    const node_attrs = map.attrs(node);
+
+    var i: usize = node_attrs.len;
+    while (i > 0) {
+        i -= 1;
+        const attr = map.get(node_attrs[i]);
+        if (attr.args == tag) return attr;
+    }
+    return null;
+}
+
+pub fn requestedAlignment(map: *const Map, opt_node: anytype, comp: *const Compilation) ?u32 {
+    const node: Tree.Node.Index = opt_node.unpack() orelse return null;
+    var max_requested: ?u32 = null;
+    for (map.attrs(node)) |ref| {
+        const attr = map.get(ref);
+        if (attr.args != .alignment) continue;
+
+        const requested = if (attr.args.alignment) |alignment| alignment else comp.target.defaultAlignment();
+        if (max_requested == null or max_requested.? < requested) {
+            max_requested = requested;
+        }
+    }
+    return max_requested;
+}
+
+pub fn hasAttribute(map: *const Map, opt_node: anytype, tag: Attribute.Tag) bool {
+    const node: Tree.Node.Index = opt_node.unpack() orelse return false;
+    for (map.attrs(node)) |ref| {
+        const attr = map.get(ref);
+        if (attr.args == tag) return true;
+    }
+    return false;
 }

@@ -7,7 +7,6 @@ const Diagnostic = @This();
 fmt: []const u8,
 kind: Diagnostics.Message.Kind,
 opt: ?Diagnostics.Option = null,
-// extension: bool = false,
 
 pub const arg_count_zero: Diagnostic = .{
     .fmt = "{at} attribute takes no arguments",

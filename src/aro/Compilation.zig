@@ -1431,20 +1431,25 @@ fn generateFastAndLeastWidthTypes(comp: *Compilation, w: *Io.Writer) !void {
 
 fn generateExactWidthTypes(comp: *Compilation, w: *Io.Writer) !void {
     try comp.generateExactWidthType(w, .schar);
+    const char_bits = Type.Int.char.bits(comp);
+    const short_bits = Type.Int.short.bits(comp);
+    const int_bits = Type.Int.int.bits(comp);
+    const long_bits = Type.Int.long.bits(comp);
+    const long_long_bits = Type.Int.long_long.bits(comp);
 
-    if (QualType.short.sizeof(comp) > QualType.char.sizeof(comp)) {
+    if (short_bits > char_bits) {
         try comp.generateExactWidthType(w, .short);
     }
 
-    if (QualType.int.sizeof(comp) > QualType.short.sizeof(comp)) {
+    if (int_bits > short_bits) {
         try comp.generateExactWidthType(w, .int);
     }
 
-    if (QualType.long.sizeof(comp) > QualType.int.sizeof(comp)) {
+    if (long_bits > int_bits) {
         try comp.generateExactWidthType(w, .long);
     }
 
-    if (QualType.long_long.sizeof(comp) > QualType.long.sizeof(comp)) {
+    if (long_long_bits > long_bits) {
         try comp.generateExactWidthType(w, .long_long);
     }
 
@@ -1452,25 +1457,25 @@ fn generateExactWidthTypes(comp: *Compilation, w: *Io.Writer) !void {
     try comp.generateExactWidthIntMax(w, .uchar);
     try comp.generateExactWidthIntMax(w, .schar);
 
-    if (QualType.short.sizeof(comp) > QualType.char.sizeof(comp)) {
+    if (short_bits > char_bits) {
         try comp.generateExactWidthType(w, .ushort);
         try comp.generateExactWidthIntMax(w, .ushort);
         try comp.generateExactWidthIntMax(w, .short);
     }
 
-    if (QualType.int.sizeof(comp) > QualType.short.sizeof(comp)) {
+    if (int_bits > short_bits) {
         try comp.generateExactWidthType(w, .uint);
         try comp.generateExactWidthIntMax(w, .uint);
         try comp.generateExactWidthIntMax(w, .int);
     }
 
-    if (QualType.long.sizeof(comp) > QualType.int.sizeof(comp)) {
+    if (long_bits > int_bits) {
         try comp.generateExactWidthType(w, .ulong);
         try comp.generateExactWidthIntMax(w, .ulong);
         try comp.generateExactWidthIntMax(w, .long);
     }
 
-    if (QualType.long_long.sizeof(comp) > QualType.long.sizeof(comp)) {
+    if (long_long_bits > long_bits) {
         try comp.generateExactWidthType(w, .ulong_long);
         try comp.generateExactWidthIntMax(w, .ulong_long);
         try comp.generateExactWidthIntMax(w, .long_long);

@@ -504,7 +504,18 @@ pub const QualType = packed struct(u32) {
             .void => 1,
             .bool => 1,
             .func => 1,
-            .nullptr_t, .pointer, .block => if (qt.bitSizeofOrNull(comp)) |sz| sz / 8 else null,
+            .nullptr_t, .block => comp.target.ptrBitWidth() / 8,
+            .pointer => |pointer| {
+                _ = pointer;
+                // switch (pointer.size) {
+                //     .ptr32 => return 32,
+                //     .ptr64 => return 64,
+                //     .default => {},
+                // }
+                // switch (pointer.address_space) {
+                // }
+                return comp.target.ptrBitWidth() / 8;
+            },
             .storage_float => |storage_float| storage_float.bits() / 8,
             .int => |int_ty| int_ty.bits(comp) / 8,
             .float => |float_ty| float_ty.bits(comp) / 8,
@@ -552,44 +563,15 @@ pub const QualType = packed struct(u32) {
         };
     }
 
-    fn attributedPointerBitSize(qt: QualType, comp: *const Compilation) ?u32 {
-        _ = qt; // autofix
-        _ = comp; // autofix
-        // var it = Attribute.Iterator.initType(qt, comp);
-        // while (it.next()) |item| {
-        //     const attribute, _ = item;
-        //     if (attribute.tag != .msvc_ptr) continue;
-        //     switch (attribute.args.msvc_ptr.kind) {
-        //         .ptr32 => return 32,
-        //         .ptr64 => return 64,
-        //         .sptr, .uptr => {},
-        //     }
-        // }
-        return null;
-    }
-
     /// Size of type in bits as it would have in a bitfield.
     pub fn bitSizeof(qt: QualType, comp: *const Compilation) u64 {
-        return qt.bitSizeofOrNull(comp).?;
-    }
-
-    /// Size of type in bits as it would have in a bitfield.
-    /// Returns null for incomplete types.
-    pub fn bitSizeofOrNull(qt: QualType, comp: *const Compilation) ?u64 {
-        if (qt.isInvalid()) return null;
-        return loop: switch (qt.base(comp).type) {
+        return switch (qt.base(comp).type) {
             .bool => if (comp.langopts.emulate == .msvc) 8 else 1,
             .bit_int => |bit_int| bit_int.bits,
             .storage_float => |storage_float| storage_float.bits(),
             .float => |float_ty| float_ty.bits(comp),
             .int => |int_ty| int_ty.bits(comp),
-            .nullptr_t, .pointer, .block => qt.attributedPointerBitSize(comp) orelse comp.target.ptrBitWidth(),
-            .atomic => |atomic| continue :loop atomic.base(comp).type,
-            .complex => |complex| {
-                const child_size = complex.bitSizeofOrNull(comp) orelse return null;
-                return child_size * 2;
-            },
-            else => 8 * (qt.sizeofOrNull(comp) orelse return null),
+            else => 8 * qt.sizeof(comp),
         };
     }
 
@@ -624,7 +606,7 @@ pub const QualType = packed struct(u32) {
 
     /// Size of a type as reported by the alignof operator.
     pub fn alignof(qt: QualType, comp: *const Compilation) u32 {
-        if (qt.requestedAlignment(comp)) |requested| request: {
+        if (comp.type_store.requested_aligns.get(qt)) |requested| request: {
             if (qt.is(comp, .@"enum")) {
                 if (comp.langopts.emulate == .gcc) {
                     // gcc does not respect alignment on enums
@@ -644,7 +626,7 @@ pub const QualType = packed struct(u32) {
             return requested;
         }
 
-        return loop: switch (qt.base(comp).type) {
+        return loop: switch (qt.type(comp)) {
             .void => 1,
             .bool => 1,
             .storage_float => |storage_float| storage_float.alignment(),
@@ -694,7 +676,7 @@ pub const QualType = packed struct(u32) {
 
             .pointer, .nullptr_t, .block => switch (comp.target.cpu.arch) {
                 .avr => 1,
-                else => (qt.attributedPointerBitSize(comp) orelse comp.target.ptrBitWidth()) / 8,
+                else => @intCast(qt.bitSizeof(comp) / 8),
             },
 
             .func => comp.target.defaultFunctionAlignment(),
@@ -710,8 +692,8 @@ pub const QualType = packed struct(u32) {
                 const tag = enum_ty.tag orelse return 0;
                 continue :loop tag.base(comp).type;
             },
-            .typeof => unreachable,
-            .typedef => unreachable,
+            .typeof => |typeof| return typeof.base.alignof(comp),
+            .typedef => |typedef| continue :loop typedef.base.base(comp).type,
         };
     }
 
@@ -724,7 +706,7 @@ pub const QualType = packed struct(u32) {
             .schar, .uchar, .char => {
                 // Only 8-bit char supported currently;
                 // TODO: handle platforms with 16-bit int + 16-bit char
-                std.debug.assert(qt.sizeof(comp) == 1);
+                std.debug.assert(qt.bitSizeof(comp) == 8);
                 return "";
             },
             .ushort => {
@@ -1180,16 +1162,17 @@ pub const QualType = packed struct(u32) {
 
     pub fn getAttribute(qt: QualType, tree: *const Tree, tag: Attribute.Tag) ?Attribute {
         const comp = tree.comp;
+        const am = &tree.attr_map;
         loop: switch (qt.type(comp)) {
             .@"struct", .@"union" => |record| {
-                return tree.getAttribute(record.decl_node, tag);
+                return am.getAttribute(record.decl_node, tag);
             },
             .@"enum" => |@"enum"| {
-                return tree.getAttribute(@"enum".decl_node, tag);
+                return am.getAttribute(@"enum".decl_node, tag);
             },
             .typeof => |typeof| continue :loop typeof.base.type(comp),
             .typedef => |typedef| {
-                if (tree.getAttribute(typedef.decl_node, tag)) |attr| return attr;
+                if (am.getAttribute(typedef.decl_node, tag)) |attr| return attr;
                 continue :loop typedef.base.type(comp);
             },
             else => return null,
@@ -1207,31 +1190,6 @@ pub const QualType = packed struct(u32) {
             .array, .void => false,
             else => !base_type.qt.hasIncompleteSize(comp),
         };
-    }
-
-    pub fn requestedAlignment(qt: QualType, comp: *const Compilation) ?u32 {
-        if (true) return null; // TODO
-        return annotationAlignment(comp, Attribute.Iterator.initType(qt, comp));
-    }
-
-    pub fn annotationAlignment(comp: *const Compilation, attrs: Attribute.Iterator) ?u32 {
-        var it = attrs;
-        var max_requested: ?u32 = null;
-        var last_aligned_index: ?usize = null;
-        while (it.next()) |item| {
-            const attribute, const index = item;
-            if (attribute.tag != .aligned) continue;
-            if (last_aligned_index) |aligned_index| {
-                // once we recurse into a new type, after an `aligned` attribute was found, we're done
-                if (index <= aligned_index) break;
-            }
-            last_aligned_index = index;
-            const requested = if (attribute.args.aligned.alignment) |alignment| alignment.requested else comp.target.defaultAlignment();
-            if (max_requested == null or max_requested.? < requested) {
-                max_requested = requested;
-            }
-        }
-        return max_requested;
     }
 
     pub fn linkage(qt: QualType, comp: *const Compilation) std.builtin.GlobalLinkage {
@@ -1817,7 +1775,7 @@ pub const Type = union(enum) {
 
     pub const Record = struct {
         name: StringId,
-        decl_node: Node.Index,
+        decl_node: Node.OptIndex = .null,
         layout: ?Layout = null,
         fields: []const Field,
 
@@ -1839,7 +1797,7 @@ pub const Type = union(enum) {
                 .offset_bits = 0,
                 .size_bits = 0,
             },
-            field_decl: Node.Index = undefined,
+            field_decl: Node.OptIndex = .null,
 
             pub const Layout = extern struct {
                 /// `offset_bits` and `size_bits` should both be INVALID if and only if the field
@@ -1935,6 +1893,9 @@ pub const Type = union(enum) {
 types: std.MultiArrayList(Repr) = .empty,
 extra: std.ArrayList(u32) = .empty,
 anon_name_arena: std.heap.ArenaAllocator.State = .{},
+/// Alignment is a decl attribute in C but since it matters for sizeof calculations
+/// it is additionally stored here.
+requested_aligns: std.AutoHashMapUnmanaged(QualType, u32) = .empty,
 
 wchar: QualType = .invalid,
 wint: QualType = .invalid,
@@ -1958,6 +1919,7 @@ pub fn deinit(ts: *TypeStore, gpa: std.mem.Allocator) void {
     ts.types.deinit(gpa);
     ts.extra.deinit(gpa);
     ts.anon_name_arena.promote(gpa).deinit();
+    ts.requested_aligns.deinit(gpa);
     ts.* = undefined;
 }
 
@@ -2303,7 +2265,6 @@ fn generateNsConstantStringType(ts: *TypeStore, comp: *Compilation) !QualType {
     var record: Type.Record = .{
         .name = try comp.internString("__NSConstantString_tag"),
         .layout = null,
-        .decl_node = undefined, // TODO
         .fields = &.{},
     };
 
@@ -2314,7 +2275,7 @@ fn generateNsConstantStringType(ts: *TypeStore, comp: *Compilation) !QualType {
         .{ .name = try comp.internString("length"), .qt = .long },
     };
     record.fields = &fields;
-    record.layout = record_layout.compute(&fields, undefined, comp, null) catch unreachable;
+    record.layout = record_layout.compute(&fields, .null, false, comp, &.{}, null) catch unreachable;
 
     return try ts.put(comp.gpa, .{ .@"struct" = record });
 }
@@ -2387,7 +2348,6 @@ fn generateVaListType(ts: *TypeStore, comp: *Compilation) !QualType {
         .aarch64_va_list => {
             var record: Type.Record = .{
                 .name = try comp.internString("__va_list"),
-                .decl_node = undefined, // TODO
                 .layout = null,
                 .fields = &.{},
             };
@@ -2400,14 +2360,13 @@ fn generateVaListType(ts: *TypeStore, comp: *Compilation) !QualType {
                 .{ .name = try comp.internString("__vr_offs"), .qt = .int },
             };
             record.fields = &fields;
-            record.layout = record_layout.compute(&fields, undefined, comp, null) catch unreachable;
+            record.layout = record_layout.compute(&fields, .null, false, comp, &.{}, null) catch unreachable;
 
             return ts.put(comp.gpa, .{ .@"struct" = record });
         },
         .arm_va_list => {
             var record: Type.Record = .{
                 .name = try comp.internString("__va_list"),
-                .decl_node = undefined, // TODO
                 .layout = null,
                 .fields = &.{},
             };
@@ -2416,14 +2375,13 @@ fn generateVaListType(ts: *TypeStore, comp: *Compilation) !QualType {
                 .{ .name = try comp.internString("__ap"), .qt = .void_pointer },
             };
             record.fields = &fields;
-            record.layout = record_layout.compute(&fields, undefined, comp, null) catch unreachable;
+            record.layout = record_layout.compute(&fields, .null, false, comp, &.{}, null) catch unreachable;
 
             return ts.put(comp.gpa, .{ .@"struct" = record });
         },
         .s390x_va_list => blk: {
             var record: Type.Record = .{
                 .name = try comp.internString("__va_list_tag"),
-                .decl_node = undefined, // TODO
                 .layout = null,
                 .fields = &.{},
             };
@@ -2435,14 +2393,13 @@ fn generateVaListType(ts: *TypeStore, comp: *Compilation) !QualType {
                 .{ .name = try comp.internString("__reg_save_area"), .qt = .void_pointer },
             };
             record.fields = &fields;
-            record.layout = record_layout.compute(&fields, undefined, comp, null) catch unreachable;
+            record.layout = record_layout.compute(&fields, .null, false, comp, &.{}, null) catch unreachable;
 
             break :blk try ts.put(comp.gpa, .{ .@"struct" = record });
         },
         .powerpc_va_list => blk: {
             var record: Type.Record = .{
                 .name = try comp.internString("__va_list_tag"),
-                .decl_node = undefined, // TODO
                 .layout = null,
                 .fields = &.{},
             };
@@ -2455,14 +2412,13 @@ fn generateVaListType(ts: *TypeStore, comp: *Compilation) !QualType {
                 .{ .name = try comp.internString("reg_save_area"), .qt = .void_pointer },
             };
             record.fields = &fields;
-            record.layout = record_layout.compute(&fields, undefined, comp, null) catch unreachable;
+            record.layout = record_layout.compute(&fields, .null, false, comp, &.{}, null) catch unreachable;
 
             break :blk try ts.put(comp.gpa, .{ .@"struct" = record });
         },
         .hexagon_va_list => blk: {
             var record: Type.Record = .{
                 .name = try comp.internString("__va_list_tag"),
-                .decl_node = undefined, // TODO
                 .layout = null,
                 .fields = &.{},
             };
@@ -2473,14 +2429,13 @@ fn generateVaListType(ts: *TypeStore, comp: *Compilation) !QualType {
                 .{ .name = try comp.internString("__overflow_area_pointer"), .qt = .void_pointer },
             };
             record.fields = &fields;
-            record.layout = record_layout.compute(&fields, undefined, comp, null) catch unreachable;
+            record.layout = record_layout.compute(&fields, .null, false, comp, &.{}, null) catch unreachable;
 
             break :blk try ts.put(comp.gpa, .{ .@"struct" = record });
         },
         .x86_64_va_list => blk: {
             var record: Type.Record = .{
                 .name = try comp.internString("__va_list_tag"),
-                .decl_node = undefined, // TODO
                 .layout = null,
                 .fields = &.{},
             };
@@ -2492,14 +2447,13 @@ fn generateVaListType(ts: *TypeStore, comp: *Compilation) !QualType {
                 .{ .name = try comp.internString("reg_save_area"), .qt = .void_pointer },
             };
             record.fields = &fields;
-            record.layout = record_layout.compute(&fields, undefined, comp, null) catch unreachable;
+            record.layout = record_layout.compute(&fields, .null, false, comp, &.{}, null) catch unreachable;
 
             break :blk try ts.put(comp.gpa, .{ .@"struct" = record });
         },
         .xtensa_va_list => {
             var record: Type.Record = .{
                 .name = try comp.internString("__va_list_tag"),
-                .decl_node = undefined, // TODO
                 .layout = null,
                 .fields = &.{},
             };
@@ -2510,7 +2464,7 @@ fn generateVaListType(ts: *TypeStore, comp: *Compilation) !QualType {
                 .{ .name = try comp.internString("__va_ndx"), .qt = .int },
             };
             record.fields = &fields;
-            record.layout = record_layout.compute(&fields, undefined, comp, null) catch unreachable;
+            record.layout = record_layout.compute(&fields, .null, false, comp, &.{}, null) catch unreachable;
 
             return try ts.put(comp.gpa, .{ .@"struct" = record });
         },

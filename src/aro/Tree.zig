@@ -139,7 +139,6 @@ root_decls: std.ArrayList(Node.Index) = .empty,
 value_map: ValueMap = .empty,
 
 attr_map: Attribute.Map = .{},
-decl_attrs: std.AutoHashMapUnmanaged(Node.Index, struct { u32, u32 }) = .empty,
 
 pub const genIr = CodeGen.genIr;
 
@@ -150,7 +149,6 @@ pub fn deinit(tree: *Tree) void {
     tree.root_decls.deinit(gpa);
     tree.value_map.deinit(gpa);
     tree.attr_map.deinit(gpa);
-    tree.decl_attrs.deinit(gpa);
     tree.* = undefined;
 }
 
@@ -1868,6 +1866,12 @@ pub const Node = union(enum) {
                 },
             };
         }
+
+        /// No-op equivalent to OptIndex.unpack to make it easy for functions
+        /// to accept both.
+        pub inline fn unpack(node: Index) ?Index {
+            return node;
+        }
     };
 
     pub const OptIndex = enum(u32) {
@@ -3002,12 +3006,14 @@ const CalledFunctionAttr = struct {
 };
 
 pub fn calledFunctionAttr(tree: *const Tree, node: Node.Index, tag: Attribute.Tag) ?CalledFunctionAttr {
+    const comp = tree.comp;
+    const am = &tree.attr_map;
     loop: switch (node.get(tree)) {
         .decl_ref_expr => |decl_ref| return .{
             .tok = decl_ref.name_tok,
-            .attr = tree.getAttribute(decl_ref.decl, tag) orelse blk: {
-                const base_qt = if (decl_ref.qt.get(tree.comp, .pointer)) |pointer| pointer.child else decl_ref.qt;
-                const func = base_qt.get(tree.comp, .func) orelse break :blk null;
+            .attr = am.getAttribute(decl_ref.decl, tag) orelse blk: {
+                const base_qt = if (decl_ref.qt.get(comp, .pointer)) |pointer| pointer.child else decl_ref.qt;
+                const func = base_qt.get(comp, .func) orelse break :blk null;
                 break :blk func.return_type.getAttribute(tree, tag);
             },
         },
@@ -3018,8 +3024,8 @@ pub fn calledFunctionAttr(tree: *const Tree, node: Node.Index, tag: Attribute.Ta
         .call_expr => |call| continue :loop call.callee.get(tree),
         .member_access_expr, .member_access_ptr_expr => |access| {
             var qt = access.base.qt(tree);
-            if (qt.get(tree.comp, .pointer)) |pointer| qt = pointer.child;
-            const record_ty = switch (qt.base(tree.comp).type) {
+            if (qt.get(comp, .pointer)) |pointer| qt = pointer.child;
+            const record_ty = switch (qt.base(comp).type) {
                 .@"struct", .@"union" => |record| record,
                 else => return null,
             };
@@ -3027,9 +3033,9 @@ pub fn calledFunctionAttr(tree: *const Tree, node: Node.Index, tag: Attribute.Ta
             const field = record_ty.fields[access.member_index];
             return .{
                 .tok = field.name_tok,
-                .attr = tree.getAttribute(field.field_decl, tag) orelse blk: {
-                    const base_qt = if (field.qt.get(tree.comp, .pointer)) |pointer| pointer.child else field.qt;
-                    const func = base_qt.get(tree.comp, .func) orelse break :blk null;
+                .attr = am.getAttribute(field.field_decl, tag) orelse blk: {
+                    const base_qt = if (field.qt.get(comp, .pointer)) |pointer| pointer.child else field.qt;
+                    const func = base_qt.get(comp, .func) orelse break :blk null;
                     break :blk func.return_type.getAttribute(tree, tag);
                 },
             };
@@ -3102,31 +3108,6 @@ pub fn tokSlice(tree: *const Tree, tok_i: TokenIndex) []const u8 {
     if (tree.tokens.items(.id)[tok_i].lexeme()) |some| return some;
     const loc = tree.tokens.items(.loc)[tok_i];
     return tree.comp.locSlice(loc);
-}
-
-pub fn attrs(tree: *const Tree, node: Node.Index) []const Attribute.Map.Ref {
-    const index, const len = tree.decl_attrs.get(node) orelse return &.{};
-    return @ptrCast(tree.extra.items[index..][0..len]);
-}
-
-pub fn getAttribute(tree: *const Tree, node: Node.Index, tag: Attribute.Tag) ?Attribute {
-    const node_attrs = tree.attrs(node);
-
-    var i: usize = node_attrs.len;
-    while (i > 0) {
-        i -= 1;
-        const attr = tree.attr_map.get(node_attrs[i]);
-        if (attr.args == tag) return attr;
-    }
-    return null;
-}
-
-pub fn hasAttribute(tree: *const Tree, node: Node.Index, tag: Attribute.Tag) bool {
-    for (tree.attrs(node)) |ref| {
-        const attr = tree.attr_map.get(ref);
-        if (attr.args == tag) return true;
-    }
-    return false;
 }
 
 pub fn dump(tree: *const Tree, term: std.Io.Terminal) std.Io.Terminal.SetColorError!void {
@@ -3267,7 +3248,7 @@ fn dumpNode(
 
     try w.writeAll("\n");
 
-    const node_attrs = tree.attrs(node_index);
+    const node_attrs = tree.attr_map.attrs(node_index);
     if (node_attrs.len > 0) {
         try term.setColor(ATTRIBUTE);
         for (node_attrs) |attr| {
