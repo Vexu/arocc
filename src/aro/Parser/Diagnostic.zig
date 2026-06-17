@@ -1185,6 +1185,12 @@ pub const unknown_namespaced_attribute: Diagnostic = .{
     .opt = .@"unknown-attributes",
 };
 
+pub const ignored_on_types: Diagnostic = .{
+    .fmt = "{at} attribute ignored when parsing type",
+    .kind = .warning,
+    .opt = .@"ignored-attributes",
+};
+
 pub const declspec_empty_args: Diagnostic = .{
     .fmt = "parentheses must be omitted if '{s}' attribute's argument list is empty",
     .kind = .@"error",

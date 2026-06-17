@@ -922,6 +922,13 @@ fn diagnoseTentativeArrays(p: *Parser) !void {
     }
 }
 
+fn checkIgnoredAttrs(p: *Parser) !void {
+    for (p.wip_attrs.attrs.items[p.wip_attrs.top..]) |*attr| {
+        if (attr.used_as_type_attr) continue;
+        try p.err(attr.tok, .ignored_on_types, .{attr});
+    }
+}
+
 /// root : (decl | assembly ';' | staticAssert)*
 pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
     const gpa = pp.comp.gpa;
@@ -2145,7 +2152,7 @@ fn attributeSpecifierExtra(p: *Parser, declarator_name: ?TokenIndex) Error!void 
 fn initDeclarator(p: *Parser, decl_spec: *DeclSpec, decl_node: Node.Index) Error!?InitDeclarator {
     const gpa = p.comp.gpa;
 
-    decl_spec.qt = try p.wip_attrs.applyTypeAttrs(p, decl_spec.qt);
+    decl_spec.qt = try p.wip_attrs.applyTypeAttrs(p, decl_spec.qt); // TODO should only be applied if there is a declarator
 
     var init_d: InitDeclarator = .{
         .d = (try p.declarator(decl_spec.qt, .normal)) orelse return null,
@@ -3002,6 +3009,7 @@ fn enumSpec(p: *Parser) Error!QualType {
         };
 
         var final = try p.wip_attrs.applyTypeAttrs(p, fixed);
+        try p.checkIgnoredAttrs();
         while (true) {
             switch (final.base(p.comp).type) {
                 .int => {
@@ -4074,13 +4082,14 @@ fn typeName(p: *Parser) Error!?QualType {
     const attr_state = p.wip_attrs.state(true);
     defer p.wip_attrs.restore(attr_state);
 
-    const qt = (try p.specQual()) orelse return null;
-    const attr_qt = try p.wip_attrs.applyTypeAttrs(p, qt);
-    if (try p.declarator(attr_qt, .abstract)) |abstract_d| {
+    var qt = (try p.specQual()) orelse return null;
+    qt = try p.wip_attrs.applyTypeAttrs(p, qt);
+    if (try p.declarator(qt, .abstract)) |abstract_d| {
         if (abstract_d.old_style_func) |tok_i| try p.err(tok_i, .invalid_old_style_params, .{});
-        return try p.wip_attrs.applyTypeAttrs(p, abstract_d.qt);
+        qt = try p.wip_attrs.applyTypeAttrs(p, abstract_d.qt);
     }
-    return try p.wip_attrs.applyTypeAttrs(p, attr_qt);
+    try p.checkIgnoredAttrs();
+    return qt;
 }
 
 /// initializer
