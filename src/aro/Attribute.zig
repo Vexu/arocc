@@ -3,7 +3,6 @@ const mem = std.mem;
 const Allocator = mem.Allocator;
 const assert = std.debug.assert;
 
-const CallingConvention = @import("backend").CallingConvention;
 const Tree = @import("Tree.zig");
 const TokenIndex = Tree.TokenIndex;
 const Value = @import("Value.zig");
@@ -18,14 +17,6 @@ tok: TokenIndex,
 pub const Tag = std.meta.Tag(Args);
 pub const Wip = @import("Attribute/Wip.zig");
 pub const Map = @import("Attribute/Map.zig");
-
-pub const Alignment = struct {
-    node: Tree.Node.OptIndex = .null,
-    requested: u32,
-};
-pub const Identifier = struct {
-    tok: TokenIndex = 0,
-};
 
 pub const Args = union(enum) {
     access: struct {
@@ -58,11 +49,11 @@ pub const Args = union(enum) {
     appdomain,
     artificial,
     assume_aligned: struct {
-        alignment: Alignment,
+        alignment: ?u32,
         offset: ?u32 = null,
     },
     cleanup: struct {
-        function: Identifier,
+        function: Tree.Node.Index,
     },
     code_seg: struct {
         segname: Value,
@@ -74,7 +65,7 @@ pub const Args = union(enum) {
         priority: u16 = 65535,
     },
     copy: struct {
-        function: Identifier,
+        function: Tree.Node.Index,
     },
     deprecated: struct {
         msg: ?[]const u8 = null,
@@ -260,7 +251,7 @@ pub const Args = union(enum) {
         },
     },
     warn_if_not_aligned: struct {
-        alignment: Alignment,
+        alignment: ?u32,
     },
     warning: []const u8,
     weak,
@@ -287,48 +278,7 @@ pub const Args = union(enum) {
     asm_label: struct {
         name: Value,
     },
-    calling_convention: struct {
-        cc: CallingConvention,
-    },
-    nullability: struct {
-        kind: enum {
-            nonnull,
-            nullable,
-            nullable_result,
-            unspecified,
-
-            const opts = struct {
-                const enum_kind = .identifier;
-            };
-        },
-    },
     unaligned,
-    sysv_abi,
-    ms_abi,
-    msvc_ptr: struct {
-        const UsageTracker = std.enums.EnumSet(PtrKind);
-        const PtrKind = enum {
-            ptr64,
-            ptr32,
-            sptr,
-            uptr,
-
-            const opts = struct {
-                const enum_kind = .identifier;
-            };
-
-            /// Returns the attribute that cannot be combined with the given one
-            fn incompatible(self: PtrKind) PtrKind {
-                return switch (self) {
-                    .ptr64 => .ptr32,
-                    .ptr32 => .ptr64,
-                    .sptr => .uptr,
-                    .uptr => .sptr,
-                };
-            }
-        };
-        kind: PtrKind,
-    },
     // TODO cannot be combined with weak or selectany
     internal_linkage,
     availability: struct {
@@ -569,13 +519,19 @@ pub const Namespaced = union(enum) {
         null_unspecified,
         nullable_result,
         nullable,
-        forceinline,
-        stdcall,
-        thiscall,
-        vectorcall,
-        fastcall,
-        regcall,
-        cdecl,
+        __forceinline,
+        _forceinline,
+        __stdcall,
+        _stdcall,
+        __thiscall,
+        _thiscall,
+        __vectorcall,
+        _vectorcall,
+        __fastcall,
+        _fastcall,
+        _regcall,
+        __cdecl,
+        _cdecl,
         ptr64,
         ptr32,
         sptr,
@@ -628,13 +584,19 @@ pub const Namespaced = union(enum) {
             .keyword_null_unspecified => .null_unspecified,
             .keyword_nullable_result => .nullable_result,
             .keyword_nullable => .nullable,
-            .keyword_forceinline, .keyword_forceinline2 => .forceinline,
-            .keyword_stdcall, .keyword_stdcall2 => .stdcall,
-            .keyword_thiscall, .keyword_thiscall2 => .thiscall,
-            .keyword_vectorcall, .keyword_vectorcall2 => .vectorcall,
-            .keyword_fastcall, .keyword_fastcall2 => .fastcall,
-            .keyword_regcall => .regcall,
-            .keyword_cdecl, .keyword_cdecl2 => .cdecl,
+            .keyword_forceinline => .__forceinline,
+            .keyword_forceinline2 => ._forceinline,
+            .keyword_stdcall => .__stdcall,
+            .keyword_stdcall2 => ._stdcall,
+            .keyword_thiscall => .__thiscall,
+            .keyword_thiscall2 => ._thiscall,
+            .keyword_vectorcall => .__vectorcall,
+            .keyword_vectorcall2 => ._vectorcall,
+            .keyword_fastcall => .__fastcall,
+            .keyword_fastcall2 => ._fastcall,
+            .keyword_regcall => ._regcall,
+            .keyword_cdecl => .__cdecl,
+            .keyword_cdecl2 => ._cdecl,
             .keyword_ptr64 => .ptr64,
             .keyword_ptr32 => .ptr32,
             .keyword_sptr => .sptr,

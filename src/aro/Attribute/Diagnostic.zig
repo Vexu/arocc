@@ -215,3 +215,22 @@ pub const fallthrough_not_before_case: Diagnostic = .{
     .fmt = "{at} attribute not preceding a switch label",
     .kind = .@"error",
 };
+
+// callconvs
+pub const callconv_non_func: Diagnostic = .{
+    .fmt = "{at} only applies to function types; type here is {qt}",
+    .kind = .warning,
+    .opt = .@"ignored-attributes",
+};
+
+pub const callconv_not_supported: Diagnostic = .{
+    .fmt = "{at} calling convention is not supported for this target",
+    .kind = .warning,
+    .opt = .@"ignored-attributes",
+};
+
+pub const callconv_incompatible: Diagnostic = .{
+    .fmt = "{s} and {s} attributes are not compatible",
+    .kind = .warning,
+    .opt = .@"ignored-attributes",
+};

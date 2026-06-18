@@ -24,12 +24,15 @@ const Repr = struct {
         func,
         func_variadic,
         func_old_style,
+        func_attributed,
         func_zero,
         func_variadic_zero,
         func_old_style_zero,
+        func_attributed_zero,
         func_one,
         func_variadic_one,
         func_old_style_one,
+        func_attributed_one,
         pointer,
         pointer_decayed,
         array_incomplete,
@@ -51,6 +54,12 @@ const Repr = struct {
         typeof,
         typeof_expr,
         typedef,
+    };
+
+    const FuncAttrs = packed struct(u32) {
+        kind: Type.Func.Kind,
+        cc: Type.Func.CallingConvention,
+        _: u26 = 0,
     };
 };
 
@@ -254,23 +263,47 @@ pub const QualType = packed struct(u32) {
                 .kind = .old_style,
                 .params = &.{},
             } },
+            .func_attributed_zero => {
+                const attr: Repr.FuncAttrs = @bitCast(repr.data[1]);
+                return .{ .func = .{
+                    .return_type = @bitCast(repr.data[0]),
+                    .kind = attr.kind,
+                    .params = &.{},
+                    .cc = attr.cc,
+                } };
+            },
             .func_one,
             .func_variadic_one,
             .func_old_style_one,
             .func,
             .func_variadic,
             .func_old_style,
+            .func_attributed,
+            .func_attributed_one,
             => {
                 const param_size = 4;
                 comptime std.debug.assert(@sizeOf(Type.Func.Param) == @sizeOf(u32) * param_size);
 
                 const extra = comp.type_store.extra.items;
                 const params_len = switch (repr.tag) {
-                    .func_one, .func_variadic_one, .func_old_style_one => 1,
-                    .func, .func_variadic, .func_old_style => extra[repr.data[1]],
+                    .func_one, .func_variadic_one, .func_old_style_one, .func_attributed_one => 1,
+                    .func, .func_variadic, .func_old_style, .func_attributed => extra[repr.data[1]],
                     else => unreachable,
                 };
-                const extra_params = extra[repr.data[1] + @intFromBool(params_len > 1) ..][0 .. params_len * param_size];
+                const param_index = repr.data[1] + @intFromBool(params_len > 1);
+                const param_u32_len = params_len * param_size;
+                const extra_params = extra[param_index..][0..param_u32_len];
+
+                if (repr.tag == .func_attributed or repr.tag == .func_attributed_one or repr.tag == .func_attributed_zero) {
+                    const attr_index = param_index + param_u32_len;
+                    const attr: Repr.FuncAttrs = @bitCast(extra[attr_index]);
+                    return .{ .func = .{
+                        .return_type = @bitCast(repr.data[0]),
+                        .kind = attr.kind,
+                        .params = std.mem.bytesAsSlice(Type.Func.Param, std.mem.sliceAsBytes(extra_params)),
+                        .cc = attr.cc,
+                    } };
+                }
 
                 return .{ .func = .{
                     .return_type = @bitCast(repr.data[0]),
@@ -1026,15 +1059,6 @@ pub const QualType = packed struct(u32) {
         return qt.scalarKind(comp).isPointer();
     }
 
-    /// Function or function pointer
-    pub fn isCallable(qt: QualType, comp: *const Compilation) bool {
-        return switch (qt.base(comp).type) {
-            .func => true,
-            .pointer => |ptr| ptr.child.is(comp, .func),
-            else => false,
-        };
-    }
-
     pub fn eqlQualified(a_qt: QualType, b_qt: QualType, comp: *const Compilation) bool {
         if (a_qt.@"const" != b_qt.@"const") return false;
         if (a_qt.@"volatile" != b_qt.@"volatile") return false;
@@ -1453,6 +1477,9 @@ pub const QualType = packed struct(u32) {
                     try w.writeAll("void");
                 }
                 try w.writeByte(')');
+                if (func.cc != .default) {
+                    try w.print(" __attribute__(({t}))", .{func.cc});
+                }
                 continue :loop func.return_type.type(comp);
             },
             .array => |array| {
@@ -1516,6 +1543,9 @@ pub const QualType = packed struct(u32) {
                     try w.writeAll("...");
                 }
                 try w.writeAll(") ");
+                if (func.cc != .default) {
+                    try w.print("cc({t}) ", .{func.cc});
+                }
                 try func.return_type.dump(comp, w);
             },
             .block => |block| {
@@ -1531,6 +1561,9 @@ pub const QualType = packed struct(u32) {
                     try w.writeAll("...");
                 }
                 try w.writeAll(") ");
+                if (func.cc != .default) {
+                    try w.print("cc({t}) ", .{func.cc});
+                }
                 try func.return_type.dump(comp, w);
             },
             .array => |array| {
@@ -1712,7 +1745,11 @@ pub const Type = union(enum) {
 
     pub const Func = struct {
         return_type: QualType,
-        kind: enum {
+        kind: Kind,
+        params: []const Param,
+        cc: CallingConvention = .default,
+
+        pub const Kind = enum(u2) {
             /// int foo(int bar, char baz) and int (void)
             normal,
             /// int foo(int bar, char baz, ...)
@@ -1720,8 +1757,7 @@ pub const Type = union(enum) {
             /// int foo(bar, baz) and int foo()
             /// is also var args, but we can give warnings about incorrect amounts of parameters
             old_style,
-        },
-        params: []const Param,
+        };
 
         pub const Param = extern struct {
             qt: QualType,
@@ -1729,12 +1765,34 @@ pub const Type = union(enum) {
             name_tok: TokenIndex,
             node: Node.OptIndex,
         };
+
+        pub const CallingConvention = enum(u4) {
+            default,
+            cdecl,
+            aarch64_sve_pcs,
+            aarch64_vector_pcs,
+            arm_aapcs_vfp,
+            arm_aapcs,
+            fastcall,
+            ms_abi,
+            regcall,
+            riscv_vector_cc,
+            riscv_vls_cc,
+            stdcall,
+            sysv_abi,
+            thiscall,
+            vectorcall,
+        };
     };
 
     pub const Pointer = struct {
         child: QualType,
         decayed: ?QualType = null,
         bounds: Bounds = .c,
+        // nullability: Nullability = .default,
+        // size: Size = .default,
+        // extend: Extend = .default,
+        // address_space: AddressSpace = .default,
 
         pub const Bounds = enum {
             /// C pointer with no bounds attribute
@@ -1751,6 +1809,30 @@ pub const Type = union(enum) {
                     else => unreachable,
                 };
             }
+        };
+
+        pub const Nullability = enum {
+            default,
+            nonnull,
+            nullable,
+            nullable_result,
+            unspecified,
+        };
+
+        pub const Size = enum {
+            default,
+            ptr64,
+            ptr32,
+        };
+
+        pub const Extend = enum {
+            default,
+            sign,
+            zero,
+        };
+
+        pub const AddressSpace = enum {
+            default,
         };
     };
 
@@ -2048,6 +2130,23 @@ pub fn set(ts: *TypeStore, gpa: std.mem.Allocator, ty: Type, index: usize) !void
                     else => .func_old_style,
                 },
             };
+
+            if (func.cc != .default) {
+                const attr: Repr.FuncAttrs = .{
+                    .kind = func.kind,
+                    .cc = func.cc,
+                };
+                if (func.params.len == 0) {
+                    repr.data[1] = @bitCast(attr);
+                } else {
+                    try ts.extra.append(gpa, @bitCast(attr));
+                }
+                repr.tag = switch (func.params.len) {
+                    0 => .func_attributed_zero,
+                    1 => .func_attributed_one,
+                    else => .func_attributed,
+                };
+            }
         },
         .pointer => |pointer| {
             repr.data[0] = @bitCast(pointer.child);

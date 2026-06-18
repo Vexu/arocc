@@ -19,7 +19,7 @@ applied: std.ArrayList(Attribute.Map.Ref) = .empty,
 top: u32 = 0,
 
 current: struct {
-    attr: *const Parsed,
+    attr: *Parsed,
     target: ?Tree.Node.Index = null,
     qt: QualType,
     parser: *Parser,
@@ -189,7 +189,7 @@ fn arg(wip: *Wip, comptime WantedBase: type) !?WantedBase {
                 }
 
                 try wip.errTok(tok, .unknown_enum, .{ wip.current.attr, Parser.Choices(Wanted).init(std.enums.values(Wanted), '"') });
-                return true;
+                return null;
             }
         },
         else => {},
@@ -407,6 +407,15 @@ pub fn applyDeclAttrsExtra(
                     if (try wip.argCount(0)) return;
                     try wip.add(.designated_init);
                 },
+                .cdecl,
+                .fastcall,
+                .ms_abi,
+                .pcs,
+                .regcall,
+                .stdcall,
+                .sysv_abi,
+                .thiscall,
+                => try wip.applyCallingConvention(),
                 else => {
                     try wip.err(.unimplemented, .{attr});
                 },
@@ -418,6 +427,12 @@ pub fn applyDeclAttrsExtra(
                     const maybe_msg = (try wip.arg(?[]const u8)) orelse continue;
                     try wip.add(.{ .unavailable = maybe_msg });
                 },
+                .aarch64_sve_pcs,
+                .aarch64_vector_pcs,
+                .riscv_vector_cc,
+                .riscv_vls_cc,
+                .vectorcall,
+                => try wip.applyCallingConvention(),
                 else => {
                     try wip.err(.unimplemented, .{attr});
                 },
@@ -435,11 +450,25 @@ pub fn applyDeclAttrsExtra(
             .msvc => {
                 try wip.err(.unimplemented, .{attr});
             },
-            .riscv => {
-                try wip.err(.unimplemented, .{attr});
+            .riscv => |riscv_attr| switch (riscv_attr) {
+                .vector_cc,
+                .vls_cc,
+                => try wip.applyCallingConvention(),
             },
             .keyword => |keyword_attr| switch (keyword_attr) {
                 ._Alignas, .alignas => try wip.applyAlignment(),
+                ._cdecl,
+                .__cdecl,
+                ._fastcall,
+                .__fastcall,
+                ._regcall,
+                ._stdcall,
+                .__stdcall,
+                ._thiscall,
+                .__thiscall,
+                ._vectorcall,
+                .__vectorcall,
+                => try wip.applyCallingConvention(),
                 else => {
                     try wip.err(.unimplemented, .{attr});
                 },
@@ -714,11 +743,12 @@ pub fn applyTypeAttrs(wip: *Wip, p: *Parser, qt: QualType) !QualType {
                 .ms_abi,
                 .pcs,
                 .regcall,
-                .regparm,
-                .riscv_rvv_vector_bits,
                 .stdcall,
                 .sysv_abi,
                 .thiscall,
+                => try wip.applyCallingConvention(),
+                .regparm,
+                .riscv_rvv_vector_bits,
                 => {
                     try wip.err(.unimplemented, .{attr});
                     attr.used_as_type_attr = true;
@@ -736,14 +766,15 @@ pub fn applyTypeAttrs(wip: *Wip, p: *Parser, qt: QualType) !QualType {
                 },
                 .aarch64_sve_pcs,
                 .aarch64_vector_pcs,
+                .riscv_vector_cc,
+                .riscv_vls_cc,
+                .vectorcall,
+                => try wip.applyCallingConvention(),
                 .address_space,
                 .arm_sve_vector_bits,
                 .ext_vector_type,
                 .matrix_type,
                 .noderef,
-                .riscv_vector_cc,
-                .riscv_vls_cc,
-                .vectorcall,
                 => {
                     try wip.err(.unimplemented, .{attr});
                     attr.used_as_type_attr = true;
@@ -753,12 +784,21 @@ pub fn applyTypeAttrs(wip: *Wip, p: *Parser, qt: QualType) !QualType {
             .riscv => |riscv_attr| switch (riscv_attr) {
                 .vector_cc,
                 .vls_cc,
-                => {
-                    try wip.err(.unimplemented, .{attr});
-                    attr.used_as_type_attr = true;
-                },
+                => try wip.applyCallingConvention(),
             },
             .keyword => |keyword_attr| switch (keyword_attr) {
+                ._cdecl,
+                .__cdecl,
+                ._fastcall,
+                .__fastcall,
+                ._regcall,
+                ._stdcall,
+                .__stdcall,
+                ._thiscall,
+                .__thiscall,
+                ._vectorcall,
+                .__vectorcall,
+                => try wip.applyCallingConvention(),
                 .nonnull,
                 .null_unspecified,
                 .nullable_result,
@@ -767,12 +807,6 @@ pub fn applyTypeAttrs(wip: *Wip, p: *Parser, qt: QualType) !QualType {
                 .ptr64,
                 .sptr,
                 .uptr,
-                .cdecl,
-                .fastcall,
-                .regcall,
-                .stdcall,
-                .thiscall,
-                .vectorcall,
                 => {
                     try wip.err(.unimplemented, .{attr});
                     attr.used_as_type_attr = true;
@@ -892,6 +926,114 @@ fn applyNeonVector(wip: *Wip, kind: Type.Vector.Kind) !void {
         .len = vec_len,
         .kind = kind,
     } });
+}
+
+fn applyCallingConvention(wip: *Wip) !void {
+    const attr = wip.current.attr;
+    attr.used_as_type_attr = true;
+    const qt = wip.current.qt;
+    if (qt.isInvalid()) return;
+
+    const arg_count: u8 = if (attr.name == .gnu and attr.name.gnu == .pcs) 1 else 0;
+    if (try wip.argCount(arg_count)) return;
+
+    const comp = wip.current.parser.comp;
+    const base_qt, var func: Type.Func = blk: {
+        var base = qt.base(comp);
+        while (true) switch (base.type) {
+            .func => |func| break :blk .{ base.qt, func },
+            .pointer => |pointer| {
+                if (pointer.child.isInvalid()) return;
+                if (pointer.child._index == .declarator_combine) {
+                    // Incomplete declarator, try again later.
+                    attr.used_as_type_attr = false;
+                    return;
+                }
+                base = pointer.child.base(comp);
+            },
+            else => {
+                if (attr.syntax != .standard and wip.current.target == null) {
+                    // __attribute__ or keyword used in wrong place, try again later.
+                    attr.used_as_type_attr = false;
+                    return;
+                }
+                try wip.err(.callconv_non_func, .{ attr, qt });
+                return;
+            },
+        };
+    };
+
+    const cc: Type.Func.CallingConvention = switch (attr.name) {
+        .gnu => |gnu_attr| switch (gnu_attr) {
+            .cdecl => .cdecl,
+            .fastcall => .fastcall,
+            .ms_abi => .ms_abi,
+            .regcall => .regcall,
+            .stdcall => .stdcall,
+            .sysv_abi => .sysv_abi,
+            .thiscall => .thiscall,
+            .pcs => pcs: {
+                const PcsKind = enum {
+                    aapcs,
+                    @"aapcs-vfp",
+
+                    const opts = struct {
+                        const enum_kind = .string;
+                    };
+                };
+                break :pcs switch ((try wip.arg(PcsKind)) orelse return) {
+                    .aapcs => .arm_aapcs,
+                    .@"aapcs-vfp" => .arm_aapcs_vfp,
+                };
+            },
+            else => unreachable,
+        },
+        .clang => |clang_attr| switch (clang_attr) {
+            .aarch64_sve_pcs => .aarch64_sve_pcs,
+            .aarch64_vector_pcs => .aarch64_vector_pcs,
+            .riscv_vector_cc => .riscv_vector_cc,
+            .riscv_vls_cc => .riscv_vls_cc,
+            .vectorcall => .vectorcall,
+            else => unreachable,
+        },
+        .riscv => |riscv_attr| switch (riscv_attr) {
+            .vector_cc => .riscv_vector_cc,
+            .vls_cc => .riscv_vls_cc,
+        },
+        .keyword => |keyword_attr| switch (keyword_attr) {
+            .__cdecl, ._cdecl => .cdecl,
+            .__fastcall, ._fastcall => .fastcall,
+            ._regcall => .regcall,
+            .__stdcall, ._stdcall => .stdcall,
+            .__thiscall, ._thiscall => .thiscall,
+            .__vectorcall, ._vectorcall => .vectorcall,
+            else => unreachable,
+        },
+        else => unreachable,
+    };
+
+    const supported = switch (cc) {
+        .default => unreachable,
+        .cdecl => true,
+        .aarch64_sve_pcs, .aarch64_vector_pcs => comp.target.cpu.arch.isAARCH64(),
+        .arm_aapcs_vfp, .arm_aapcs => comp.target.cpu.arch.isArm(),
+        .riscv_vector_cc, .riscv_vls_cc => comp.target.cpu.arch.isRISCV(),
+        .ms_abi, .sysv_abi => comp.target.cpu.arch == .x86_64,
+        .fastcall, .regcall, .stdcall, .thiscall => comp.target.cpu.arch == .x86,
+        .vectorcall => comp.target.cpu.arch == .x86 or comp.target.cpu.arch.isAARCH64(),
+    };
+    if (!supported) {
+        try wip.err(.callconv_not_supported, .{attr});
+        return;
+    }
+
+    if (func.cc != cc and func.cc != .default) {
+        try wip.err(.callconv_incompatible, .{ @tagName(cc), @tagName(func.cc) });
+        return;
+    }
+    func.cc = cc;
+
+    try comp.type_store.set(comp.gpa, .{ .func = func }, @intFromEnum(base_qt._index));
 }
 
 pub fn applyStmtAttrs(wip: *Wip, p: *Parser, stmt: Tree.Node.Index) !void {

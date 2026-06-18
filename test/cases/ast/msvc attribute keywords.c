@@ -17,25 +17,23 @@ variable: '*int'
  name: a
 
 variable: 'int'
- attr: unaligned
  name: b
 
-function: 'kr (...) int'
+function: 'kr (...) cc(cdecl) int'
  name: foo
 
-function: 'kr (...) *int'
- attr: calling_convention cc: stdcall
+function: 'kr (...) cc(stdcall) *int'
  name: bar
 
-function: 'fn (decayed *[]int), decayed *[]int int'
+function: 'fn (decayed *[]int, decayed *[]int) int'
  name: baz
 
-function: 'fn (fn_ptr: *fn () void) void'
+function: 'fn (fn_ptr: *fn () cc(cdecl) void) void'
  name: quux
 
 variable: 'unsigned long long'
  name: l
- definition: 0xE
+ definition: 0x11
 
 variable: 'unsigned long long'
  name: l
