@@ -619,13 +619,6 @@ pub const QualType = packed struct(u32) {
                     // gcc does not respect alignment on enums
                     break :request;
                 }
-            } else if (qt.getRecord(comp)) |record_ty| {
-                const layout = record_ty.layout orelse return 0;
-
-                // don't return the attribute for records
-                // layout has already accounted for requested alignment
-                const computed = @divExact(layout.field_alignment_bits, 8);
-                return @max(requested, computed);
             } else if (comp.langopts.emulate == .msvc) {
                 const type_align = qt.base(comp).qt.alignof(comp);
                 return @max(requested, type_align);
