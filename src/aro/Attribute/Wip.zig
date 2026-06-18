@@ -824,7 +824,7 @@ fn applyVectorSize(wip: *Wip) !void {
     if (qt.isInvalid()) return;
     if (try wip.argCount(1)) return;
 
-    if (qt.isAutoType() or qt.isC23Auto()) {
+    if (qt.isAuto()) {
         try wip.err(.invalid_vec_elem_ty, .{qt});
         return error.ParsingFailed;
     }
@@ -868,7 +868,7 @@ fn applyNeonVector(wip: *Wip, kind: Type.Vector.Kind) !void {
     if (qt.isInvalid()) return;
     if (try wip.argCount(1)) return;
 
-    if (qt.isAutoType() or qt.isC23Auto()) {
+    if (qt.isAuto()) {
         try wip.err(.invalid_vec_elem_ty, .{qt});
         return error.ParsingFailed;
     }
@@ -939,28 +939,42 @@ fn applyCallingConvention(wip: *Wip) !void {
 
     const comp = wip.current.parser.comp;
     const base_qt, var func: Type.Func = blk: {
-        var base = qt.base(comp);
-        while (true) switch (base.type) {
-            .func => |func| break :blk .{ base.qt, func },
-            .pointer => |pointer| {
-                if (pointer.child.isInvalid()) return;
-                if (pointer.child._index == .declarator_combine) {
-                    // Incomplete declarator, try again later.
-                    attr.used_as_type_attr = false;
-                    return;
-                }
-                base = pointer.child.base(comp);
-            },
-            else => {
-                if (attr.syntax != .standard and wip.current.target == null) {
-                    // __attribute__ or keyword used in wrong place, try again later.
+        const can_delay = attr.syntax != .standard and wip.current.target == null;
+
+        var base_qt = qt;
+        while (true) {
+            if (base_qt.isInvalid()) return;
+            if (base_qt.isAuto()) {
+                if (can_delay) {
                     attr.used_as_type_attr = false;
                     return;
                 }
                 try wip.err(.callconv_non_func, .{ attr, qt });
                 return;
-            },
-        };
+            }
+
+            const base = qt.base(comp);
+            switch (base.type) {
+                .func => |func| break :blk .{ base.qt, func },
+                .pointer => |pointer| {
+                    if (pointer.child._index == .declarator_combine) {
+                        // Incomplete declarator, try again later.
+                        attr.used_as_type_attr = false;
+                        return;
+                    }
+                    base_qt = pointer.child;
+                },
+                else => {
+                    if (can_delay) {
+                        // __attribute__ or keyword used in wrong place, try again later.
+                        attr.used_as_type_attr = false;
+                        return;
+                    }
+                    try wip.err(.callconv_non_func, .{ attr, qt });
+                    return;
+                },
+            }
+        }
     };
 
     const cc: Type.Func.CallingConvention = switch (attr.name) {

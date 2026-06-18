@@ -176,6 +176,10 @@ pub const QualType = packed struct(u32) {
         return qt._index == .c23_auto;
     }
 
+    pub fn isAuto(qt: QualType) bool {
+        return qt._index == .auto_type or qt._index == .c23_auto;
+    }
+
     pub fn isQualified(qt: QualType) bool {
         return qt.@"const" or qt.@"volatile" or qt.restrict;
     }
@@ -3020,7 +3024,7 @@ pub const Builder = struct {
         }
 
         // We can't use `qt.isPointer()` because `qt` might contain a `.declarator_combine`.
-        const is_pointer = qt.isAutoType() or qt.isC23Auto() or switch (qt.base(b.parser.comp).type) {
+        const is_pointer = qt.isAuto() or switch (qt.base(b.parser.comp).type) {
             .array, .pointer => true,
             else => false,
         };

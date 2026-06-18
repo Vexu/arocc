@@ -501,7 +501,7 @@ fn formatQualType(p: *Parser, w: *std.Io.Writer, fmt: []const u8, qt: QualType) 
     try qt.print(p.comp, w);
     try w.writeByte('\'');
 
-    if (qt.isC23Auto() or qt.isAutoType()) return i;
+    if (qt.isAuto()) return i;
     if (qt.get(p.comp, .vector)) |vector_ty| {
         try w.print(" (vector of {d} '", .{vector_ty.len});
         try vector_ty.elem.printDesugared(p.comp, w);
@@ -2218,8 +2218,7 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec, decl_node: Node.Index) Error
 
         incomplete: {
             if (init_d.d.qt.isInvalid()) break :incomplete;
-            if (init_d.d.qt.isC23Auto()) break :incomplete;
-            if (init_d.d.qt.isAutoType()) break :incomplete;
+            if (init_d.d.qt.isAuto()) break :incomplete;
             if (!init_d.d.qt.hasIncompleteSize(p.comp)) break :incomplete;
             if (init_d.d.qt.get(p.comp, .array)) |array_ty| {
                 if (array_ty.len == .incomplete) break :incomplete;
@@ -2235,7 +2234,7 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec, decl_node: Node.Index) Error
         _ = try p.syms.declareSymbol(p, interned_name, init_d.d.qt, init_d.d.name, decl_node);
 
         // TODO this should be a stack of auto type names because of statement expressions.
-        if (init_d.d.qt.isAutoType() or init_d.d.qt.isC23Auto()) {
+        if (init_d.d.qt.isAuto()) {
             p.auto_type_decl_name = interned_name;
         }
         defer p.auto_type_decl_name = .empty;
@@ -2263,7 +2262,7 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec, decl_node: Node.Index) Error
     }
 
     const name = init_d.d.name;
-    if (init_d.d.qt.isAutoType() or init_d.d.qt.isC23Auto()) {
+    if (init_d.d.qt.isAuto()) {
         if (init_d.initializer) |some| {
             init_d.d.qt = some.qt.withQualifiers(init_d.d.qt);
         } else {
@@ -3555,7 +3554,7 @@ const Declarator = struct {
             .nested_invalid => if (d.declarator_type == .func) return,
             .nested_auto => {
                 if (d.declarator_type == .func) return;
-                if (d.qt.isAutoType() or d.qt.isC23Auto()) return;
+                if (d.qt.isAuto()) return;
             },
             .declarator_combine => return,
         }
@@ -3571,8 +3570,7 @@ const Declarator = struct {
 
     fn validateExtra(p: *Parser, cur: QualType, source_tok: TokenIndex) Parser.Error!ValidationResult {
         if (cur.isInvalid()) return .nested_invalid;
-        if (cur.isAutoType()) return .nested_auto;
-        if (cur.isC23Auto()) return .nested_auto;
+        if (cur.isAuto()) return .nested_auto;
         if (cur._index == .declarator_combine) return .declarator_combine;
 
         switch (cur.type(p.comp)) {
@@ -3807,7 +3805,7 @@ fn directDeclarator(
         // Check for C23 attribute
         if (p.tok_ids[p.tok_i] == .l_bracket) {
             switch (kind) {
-                .normal, .record => if (p.comp.langopts.standard.atLeast(.c23)) {
+                .normal, .record => {
                     p.tok_i -= 1;
                     return base_declarator.qt;
                 },
@@ -4663,7 +4661,7 @@ fn coerceInit(p: *Parser, item: *Result, tok: TokenIndex, target: QualType) !voi
     if (target.isInvalid()) return;
 
     const node = item.node;
-    if (target.isAutoType() or target.isC23Auto()) {
+    if (target.isAuto()) {
         if (p.getNode(node, .member_access_expr) orelse p.getNode(node, .member_access_ptr_expr)) |access| {
             if (access.isBitFieldWidth(&p.tree) != null) try p.err(tok, .auto_type_from_bitfield, .{});
         }
