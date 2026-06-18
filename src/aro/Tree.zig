@@ -304,6 +304,9 @@ pub const Node = union(enum) {
 
     codegen_diagnostic: CodegenDiagnostic,
 
+    /// _Alignas(<type>) used as argument of an alignas attribute.
+    alignas_type: AlignasType,
+
     pub const EmptyDecl = struct {
         semicolon: TokenIndex,
     };
@@ -752,6 +755,11 @@ pub const Node = union(enum) {
         kind: Diagnostics.Message.Kind,
         opt: ?Diagnostics.Option,
         text: []const u32,
+    };
+
+    pub const AlignasType = struct {
+        alignas_tok: TokenIndex,
+        qt: QualType,
     };
 
     pub const Index = enum(u32) {
@@ -1812,6 +1820,12 @@ pub const Node = union(enum) {
                         },
                     };
                 },
+                .alignas_type => .{
+                    .alignas_type = .{
+                        .alignas_tok = node_tok,
+                        .qt = @bitCast(node_data[0]),
+                    },
+                },
             };
         }
 
@@ -2053,6 +2067,7 @@ pub const Node = union(enum) {
             default_init_expr,
             compound_literal_expr,
             codegen_diagnostic,
+            alignas_type,
         };
     };
 
@@ -2945,6 +2960,11 @@ pub fn setNode(tree: *Tree, node: Node, index: usize) !void {
             });
             repr.data[1], repr.data[2] = try tree.addExtra(@ptrCast(diagnostic.text));
             repr.tok = diagnostic.tok;
+        },
+        .alignas_type => |alignas| {
+            repr.tag = .alignas_type;
+            repr.data[0] = @bitCast(alignas.qt);
+            repr.tok = alignas.alignas_tok;
         },
     }
     tree.nodes.set(index, repr);
@@ -3879,5 +3899,6 @@ fn dumpNode(
                 try w.print(" [-W{t}]", .{opt});
             }
         },
+        .alignas_type => unreachable,
     }
 }

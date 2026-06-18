@@ -16,4 +16,6 @@ _Static_assert(_Alignof(__typeof__(ARRAY)) == _Alignof(int *), "");
 
 /** manifest:
 syntax
+
+nested attributes.c:14:37: warning: 'aligned' attribute ignored when parsing type [-Wignored-attributes]
 */

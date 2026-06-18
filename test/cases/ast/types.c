@@ -16,10 +16,10 @@ implicit typedef: 'struct __NSConstantString_tag'
 implicit typedef: 'long double'
  name: __float80
 
-variable: 'attributed(int)'
- attr: aligned alignment: .{ .node = .null, .requested = 4 }
- attr: aligned alignment: .{ .node = .null, .requested = 4 }
- attr: aligned alignment: .{ .node = @enumFromInt(6), .requested = 16 }
+variable: 'int'
+ alignment: 4
+ alignment: 4
+ alignment: 16
  name: a
 
 variable: 'const volatile int'
@@ -40,8 +40,8 @@ function: 'fn (n: int, bar: decayed *[<expr>]int) int'
 typedef: 'void'
  name: baz
 
-function: 'attributed(fn () void)'
- attr: noreturn
+function: 'fn () void'
+ noreturn
  name: abort
 
 typedef: 'int'

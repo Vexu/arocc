@@ -62,7 +62,7 @@ const decl folding.c:13:11: error: enum value must be an integer constant expres
 const decl folding.c:17:21: warning: expression is not an integer constant expression; folding it to a constant is a GNU extension [-Wgnu-folding-constant]
 const decl folding.c:18:22: error: expression is not an integer constant expression
 const decl folding.c:22:16: warning: expression is not an integer constant expression; folding it to a constant is a GNU extension [-Wgnu-folding-constant]
-const decl folding.c:23:14: error: '_Alignas' attribute requires integer constant expression
+const decl folding.c:23:14: error: expected an integer constant as argmuent of '_Alignas' attribute but got an expression
 const decl folding.c:27:14: warning: expression is not an integer constant expression; folding it to a constant is a GNU extension [-Wgnu-folding-constant]
 const decl folding.c:28:14: error: duplicate case value '1'
 const decl folding.c:27:14: note: previous case defined here

@@ -22,7 +22,7 @@ function: 'fn () int'
   compound_stmt
     for_stmt
      body:
-      null_stmt: 'void'
+      null_stmt
 
     implicit return_stmt: 'int'
 

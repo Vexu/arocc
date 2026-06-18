@@ -143,11 +143,10 @@ fn arg(wip: *Wip, comptime WantedBase: type) !?WantedBase {
     const expected: []const u8 = switch (Wanted) {
         []const u8 => string,
         Tree.Node.DeclRef => identifier,
-        // Alignment => alignment,
         else => switch (@typeInfo(Wanted)) {
             .int => int,
             .@"enum" => if (Wanted.opts.enum_kind == .string) string else identifier,
-            else => unreachable,
+            else => comptime unreachable,
         },
     };
 
@@ -508,7 +507,15 @@ fn applyAlignment(wip: *Wip) !void {
     } else if (try wip.checkTarget(&.{ .function, .variable, .typedef, .tag, .param, .field })) return;
 
     const comp = wip.current.parser.comp;
-    const maybe_requested = (try wip.arg(?i64)) orelse return;
+
+    const alignas_requested = if (is_alignas) blk: {
+        const args = wip.current.attr.args(wip);
+        const arg_res = args[wip.current.arg_i];
+        const node = arg_res.node.get(&wip.current.parser.tree);
+        if (node != .alignas_type) break :blk null;
+        break :blk node.alignas_type.qt.alignof(comp);
+    } else null;
+    const maybe_requested = alignas_requested orelse (try wip.arg(?i64)) orelse return;
     var casted: ?u32 = null;
 
     if (maybe_requested) |requested| {
@@ -538,18 +545,18 @@ fn applyAlignment(wip: *Wip) !void {
 
 fn addAlignmentToTypeMap(wip: *Wip, opt_alignment: ?u32) !void {
     const comp = wip.current.parser.comp;
-    const alignment = opt_alignment orelse comp.target.defaultAlignment();
     const qt = wip.current.qt;
-    switch (qt.type(comp)) {
-        .typedef, .@"enum" => {
-            const gop = try comp.type_store.requested_aligns.getOrPut(comp.gpa, qt);
-            if (gop.found_existing) {
-                gop.value_ptr.* = @max(gop.value_ptr.*, alignment);
-            } else {
-                gop.value_ptr.* = alignment;
-            }
-        },
-        else => {},
+    switch (wip.current.node()) {
+        .typedef => assert(qt.type(comp) == .typedef),
+        .enum_forward_decl, .enum_decl => assert(qt.type(comp) == .@"enum"),
+        else => return,
+    }
+    const alignment = opt_alignment orelse comp.target.defaultAlignment();
+    const gop = try comp.type_store.requested_aligns.getOrPut(comp.gpa, qt);
+    if (gop.found_existing) {
+        gop.value_ptr.* = @max(gop.value_ptr.*, alignment);
+    } else {
+        gop.value_ptr.* = alignment;
     }
 }
 
@@ -662,7 +669,6 @@ fn applyTransparentUnion(wip: *Wip) !void {
     const comp = parser.comp;
     const tree = &parser.tree;
 
-    if (qt.hasIncompleteSize(comp)) return;
     if (fields.len == 0) {
         try wip.err(.transparent_union_one_field, .{wip.current.attr});
         return;

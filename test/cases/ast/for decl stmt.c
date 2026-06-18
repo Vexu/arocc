@@ -38,7 +38,7 @@ function: 'fn () int'
         decl_ref_expr: 'int' lvalue
          name: x
      body:
-      null_stmt: 'void'
+      null_stmt
 
     implicit return_stmt: 'int'
 

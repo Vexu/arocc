@@ -681,8 +681,8 @@ fn checkDeprecatedUnavailable(p: *Parser, opt_node: anytype, usage_tok: TokenInd
     if (am.getAttribute(node, .unavailable)) |attr| {
         try p.errDeprecated(usage_tok, .unavailable, attr.args.unavailable);
 
-        const decl_tok = node.tok(&p.tree);
-        try p.err(decl_tok, .unavailable_note, .{p.tokSlice(decl_tok)});
+        const decl_name_tok = node.tok(&p.tree);
+        try p.err(attr.tok, .unavailable_note, .{p.tokSlice(decl_name_tok)});
         return error.ParsingFailed;
     }
     if (am.getAttribute(node, .deprecated)) |attr| {
@@ -691,8 +691,8 @@ fn checkDeprecatedUnavailable(p: *Parser, opt_node: anytype, usage_tok: TokenInd
         if (deprecated.replacement) |replacement| {
             try p.err(usage_tok, .deprecated_alternative, .{replacement});
         }
-        const decl_tok = node.tok(&p.tree);
-        try p.err(decl_tok, .deprecated_note, .{p.tokSlice(decl_tok)});
+        const decl_name_tok = node.tok(&p.tree);
+        try p.err(attr.tok, .deprecated_note, .{p.tokSlice(decl_name_tok)});
     }
 }
 
@@ -2152,8 +2152,6 @@ fn attributeSpecifierExtra(p: *Parser, declarator_name: ?TokenIndex) Error!void 
 fn initDeclarator(p: *Parser, decl_spec: *DeclSpec, decl_node: Node.Index) Error!?InitDeclarator {
     const gpa = p.comp.gpa;
 
-    decl_spec.qt = try p.wip_attrs.applyTypeAttrs(p, decl_spec.qt); // TODO should only be applied if there is a declarator
-
     var init_d: InitDeclarator = .{
         .d = (try p.declarator(decl_spec.qt, .normal)) orelse return null,
     };
@@ -2161,6 +2159,8 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec, decl_node: Node.Index) Error
     try p.attributeSpecifierExtra(init_d.d.name);
     init_d.asm_label = try p.assembly(.decl_label);
     try p.attributeSpecifierExtra(init_d.d.name);
+
+    init_d.d.qt = try p.wip_attrs.applyTypeAttrs(p, init_d.d.qt);
 
     switch (init_d.d.declarator_type) {
         inline .func, .block => |tag| {
@@ -2450,7 +2450,10 @@ fn typeSpec(p: *Parser, builder: *TypeStore.Builder) Error!bool {
                         try p.err(typename_start, .invalid_alignof, .{inner_qt});
                     }
                     try p.wip_attrs.addKeyword(p, align_tok, &.{.{
-                        .node = undefined, // TODO
+                        .node = try p.addNode(.{ .alignas_type = .{
+                            .alignas_tok = align_tok,
+                            .qt = inner_qt,
+                        } }),
                         .qt = inner_qt,
                     }});
                 } else {
@@ -2599,6 +2602,7 @@ fn recordSpec(p: *Parser) Error!QualType {
             else
                 .{ .union_forward_decl = fw }, reserved_index);
             try p.decl_buf.append(gpa, @enumFromInt(reserved_index));
+            assert(try p.wip_attrs.applyTypeAttrs(p, record_qt) == record_qt);
             try p.wip_attrs.applyDeclAttrs(p, @enumFromInt(reserved_index), .null);
             return record_qt;
         }
@@ -2704,7 +2708,12 @@ fn recordSpec(p: *Parser) Error!QualType {
         _ = p.tentative_defs.orderedRemove(.incompleteType(record_ty.name));
     }
     const record_decl: Node.Index = @enumFromInt(reserved_index);
+    assert(try p.wip_attrs.applyTypeAttrs(p, qt) == qt);
     try p.wip_attrs.applyDeclAttrs(p, record_decl, prev_decl);
+
+    for (fields) |field| {
+        if (field.qt.hasIncompleteSize(p.comp) and !field.qt.is(p.comp, .array)) return qt;
+    }
 
     // Calculate record layout.
     const pragma_pack_value = switch (p.comp.langopts.emulate) {
@@ -2830,7 +2839,8 @@ fn recordDecl(p: *Parser) Error!bool {
                 break :bits;
             }
 
-            const bit_size = qt.bitSizeof(p.comp);
+            // Enums are allowed as bitfield types but may have incomplete size.
+            const bit_size = qt.bitSizeofOrNull(p.comp) orelse break :bits;
             const bits_unchecked = res.val.toInt(u32, p.comp) orelse std.math.maxInt(u32);
             if (bits_unchecked > bit_size) {
                 try p.err(name_tok, .bitfield_too_big, .{});
@@ -3069,6 +3079,7 @@ fn enumSpec(p: *Parser) Error!QualType {
                 .definition = null,
             } });
             try p.decl_buf.append(gpa, decl_node);
+            assert(try p.wip_attrs.applyTypeAttrs(p, enum_qt) == enum_qt);
             try p.wip_attrs.applyDeclAttrs(p, decl_node, .null);
 
             return enum_qt;
@@ -3144,6 +3155,7 @@ fn enumSpec(p: *Parser) Error!QualType {
         .container_qt = qt,
         .fields = &.{},
     } }, reserved_index);
+    assert(try p.wip_attrs.applyTypeAttrs(p, qt) == qt);
     try p.wip_attrs.applyDeclAttrs(p, @enumFromInt(reserved_index), prev_decl);
 
     const enum_fields = p.enum_buf.items[enum_buf_top..];
@@ -5723,7 +5735,7 @@ fn nodeIsNoreturn(p: *Parser, node: Node.Index) NoreturnKind {
             return p.nodeIsNoreturn(default.body);
         },
         .while_stmt, .do_while_stmt, .for_stmt, .switch_stmt => return .complex,
-        .goto_stmt, .computed_goto_stmt => return .yes,
+        .goto_stmt, .computed_goto_stmt => return .complex,
         else => return .no,
     }
 }
@@ -8509,10 +8521,10 @@ fn typesCompatible(p: *Parser, builtin_tok: TokenIndex) Error!Result {
 
     try p.expectClosing(l_paren, .r_paren);
 
-    const compatible = lhs.eql(rhs, p.comp);
+    const any_invalid = lhs.isInvalid() or rhs.isInvalid();
     const res: Result = .{
-        .val = Value.fromBool(compatible),
-        .qt = .int,
+        .val = if (any_invalid) .{} else Value.fromBool(lhs.eql(rhs, p.comp)),
+        .qt = if (any_invalid) .invalid else .int,
         .node = try p.addNode(.{
             .builtin_types_compatible_p = .{
                 .builtin_tok = builtin_tok,
@@ -9190,7 +9202,11 @@ fn unExpr(p: *Parser) Error!?Result {
             }
 
             if (res.qt.sizeofOrNull(p.comp) != null) {
-                res.val = try Value.int(res.qt.alignof(p.comp), p.comp);
+                var requested_align: ?u32 = null;
+                if (has_expr) if (p.getNode(res.node, .decl_ref_expr)) |decl_ref| {
+                    requested_align = p.tree.attr_map.requestedAlignment(decl_ref.decl, p.comp);
+                };
+                res.val = try Value.int(requested_align orelse res.qt.alignof(p.comp), p.comp);
                 res.qt = p.comp.type_store.size;
             } else if (!res.qt.isInvalid()) {
                 try p.err(expected_paren, .invalid_alignof, .{res.qt});
@@ -10822,12 +10838,12 @@ fn parseFloat(p: *Parser, buf: []const u8, suffix: NumberSuffix, tok_i: TokenInd
         try p.err(p.tok_i, .gnu_imaginary_constant, .{});
         res.qt = try qt.toComplex(p.comp);
 
-        res.val = try Value.intern(p.comp, switch (res.qt.bitSizeof(p.comp)) {
-            32 => .{ .complex = .{ .cf16 = .{ 0.0, val.toFloat(f16, p.comp) } } },
-            64 => .{ .complex = .{ .cf32 = .{ 0.0, val.toFloat(f32, p.comp) } } },
-            128 => .{ .complex = .{ .cf64 = .{ 0.0, val.toFloat(f64, p.comp) } } },
-            160 => .{ .complex = .{ .cf80 = .{ 0.0, val.toFloat(f80, p.comp) } } },
-            256 => .{ .complex = .{ .cf128 = .{ 0.0, val.toFloat(f128, p.comp) } } },
+        res.val = try Value.intern(p.comp, switch (qt.bitSizeof(p.comp)) {
+            16 => .{ .complex = .{ .cf16 = .{ 0.0, val.toFloat(f16, p.comp) } } },
+            32 => .{ .complex = .{ .cf32 = .{ 0.0, val.toFloat(f32, p.comp) } } },
+            64 => .{ .complex = .{ .cf64 = .{ 0.0, val.toFloat(f64, p.comp) } } },
+            80 => .{ .complex = .{ .cf80 = .{ 0.0, val.toFloat(f80, p.comp) } } },
+            128 => .{ .complex = .{ .cf128 = .{ 0.0, val.toFloat(f128, p.comp) } } },
             else => unreachable,
         });
         try res.un(p, .imaginary_literal, tok_i);

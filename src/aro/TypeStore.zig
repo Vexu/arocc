@@ -565,13 +565,20 @@ pub const QualType = packed struct(u32) {
 
     /// Size of type in bits as it would have in a bitfield.
     pub fn bitSizeof(qt: QualType, comp: *const Compilation) u64 {
+        return qt.bitSizeofOrNull(comp).?;
+    }
+
+    /// Size of type in bits as it would have in a bitfield.
+    /// Returns null for incomplete types.
+    pub fn bitSizeofOrNull(qt: QualType, comp: *const Compilation) ?u64 {
+        if (qt.isInvalid()) return null;
         return switch (qt.base(comp).type) {
             .bool => if (comp.langopts.emulate == .msvc) 8 else 1,
             .bit_int => |bit_int| bit_int.bits,
             .storage_float => |storage_float| storage_float.bits(),
             .float => |float_ty| float_ty.bits(comp),
             .int => |int_ty| int_ty.bits(comp),
-            else => 8 * qt.sizeof(comp),
+            else => 8 * (qt.sizeofOrNull(comp) orelse return null),
         };
     }
 
@@ -606,7 +613,7 @@ pub const QualType = packed struct(u32) {
 
     /// Size of a type as reported by the alignof operator.
     pub fn alignof(qt: QualType, comp: *const Compilation) u32 {
-        if (comp.type_store.requested_aligns.get(qt)) |requested| request: {
+        if (qt.requestedAlignment(comp)) |requested| request: {
             if (qt.is(comp, .@"enum")) {
                 if (comp.langopts.emulate == .gcc) {
                     // gcc does not respect alignment on enums
@@ -1161,6 +1168,7 @@ pub const QualType = packed struct(u32) {
     }
 
     pub fn getAttribute(qt: QualType, tree: *const Tree, tag: Attribute.Tag) ?Attribute {
+        if (qt.isInvalid()) return null;
         const comp = tree.comp;
         const am = &tree.attr_map;
         loop: switch (qt.type(comp)) {
@@ -1190,6 +1198,16 @@ pub const QualType = packed struct(u32) {
             .array, .void => false,
             else => !base_type.qt.hasIncompleteSize(comp),
         };
+    }
+
+    pub fn requestedAlignment(qt: QualType, comp: *const Compilation) ?u32 {
+        if (qt.isInvalid()) return null;
+        if (comp.type_store.requested_aligns.get(qt)) |alignment| return alignment;
+        loop: switch (qt.type(comp)) {
+            .typeof => |typeof| continue :loop typeof.base.type(comp),
+            .typedef => |typedef| return typedef.base.requestedAlignment(comp),
+            else => return null,
+        }
     }
 
     pub fn linkage(qt: QualType, comp: *const Compilation) std.builtin.GlobalLinkage {
