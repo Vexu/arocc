@@ -11,7 +11,6 @@ const std = @import("std");
 const mem = std.mem;
 const Allocator = mem.Allocator;
 
-const Compilation = @import("Compilation.zig");
 const Source = @import("Source.zig");
 
 pub const Hideset = @This();
@@ -47,8 +46,6 @@ map: std.AutoHashMapUnmanaged(Identifier, Index) = .{},
 tmp_map: std.AutoHashMapUnmanaged(Identifier, void) = .{},
 linked_list: Item.List = .{},
 gpa: Allocator,
-
-const Temp = struct { identifier: Identifier, str: []const u8 };
 
 /// Invalidated if the underlying MultiArrayList slice is reallocated due to resize
 const Iterator = struct {
