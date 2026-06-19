@@ -11,6 +11,7 @@ const std = @import("std");
 const mem = std.mem;
 const Allocator = mem.Allocator;
 
+const Compilation = @import("Compilation.zig");
 const Source = @import("Source.zig");
 
 pub const Hideset = @This();
@@ -29,7 +30,7 @@ const Identifier = struct {
 
 const Item = struct {
     identifier: Identifier = .{},
-    str: []const u8,
+    len: u32 = 0,
     next: Index = .none,
 
     const List = std.MultiArrayList(Item);
@@ -45,7 +46,7 @@ map: std.AutoHashMapUnmanaged(Identifier, Index) = .{},
 /// until hideset is deinit'ed
 tmp_map: std.AutoHashMapUnmanaged(Identifier, void) = .{},
 linked_list: Item.List = .{},
-gpa: Allocator,
+comp: *const Compilation,
 
 /// Invalidated if the underlying MultiArrayList slice is reallocated due to resize
 const Iterator = struct {
@@ -56,19 +57,19 @@ const Iterator = struct {
         if (self.i == .none) return null;
         defer self.i = self.slice.items(.next)[@intFromEnum(self.i)];
         const identifier = self.slice.items(.identifier)[@intFromEnum(self.i)];
-        const str = self.slice.items(.str)[@intFromEnum(self.i)];
+        const length = self.slice.items(.len)[@intFromEnum(self.i)];
 
         return .{
             .identifier = identifier,
-            .str = str,
+            .len = length,
         };
     }
 };
 
 pub fn deinit(self: *Hideset) void {
-    self.map.deinit(self.gpa);
-    self.tmp_map.deinit(self.gpa);
-    self.linked_list.deinit(self.gpa);
+    self.map.deinit(self.comp.gpa);
+    self.tmp_map.deinit(self.comp.gpa);
+    self.linked_list.deinit(self.comp.gpa);
 }
 
 pub fn clearRetainingCapacity(self: *Hideset) void {
@@ -77,9 +78,9 @@ pub fn clearRetainingCapacity(self: *Hideset) void {
 }
 
 pub fn clearAndFree(self: *Hideset) void {
-    self.map.clearAndFree(self.gpa);
-    self.tmp_map.clearAndFree(self.gpa);
-    self.linked_list.shrinkAndFree(self.gpa, 0);
+    self.map.clearAndFree(self.comp.gpa);
+    self.tmp_map.clearAndFree(self.comp.gpa);
+    self.linked_list.shrinkAndFree(self.comp.gpa, 0);
 }
 
 /// Iterator is invalidated if the underlying MultiArrayList slice is reallocated due to resize
@@ -95,29 +96,29 @@ pub fn get(self: *const Hideset, loc: Source.Location) Index {
 }
 
 pub fn put(self: *Hideset, loc: Source.Location, value: Index) !void {
-    try self.map.put(self.gpa, Identifier.fromLocation(loc), value);
+    try self.map.put(self.comp.gpa, Identifier.fromLocation(loc), value);
 }
 
 fn ensureUnusedCapacity(self: *Hideset, new_size: usize) !void {
-    try self.linked_list.ensureUnusedCapacity(self.gpa, new_size);
+    try self.linked_list.ensureUnusedCapacity(self.comp.gpa, new_size);
 }
 
 /// Creates a one-item list with contents `identifier`
-fn createNodeAssumeCapacity(self: *Hideset, identifier: Identifier, str: []const u8) Index {
-    return self.createNodeAssumeCapacityExtra(identifier, .none, str);
+fn createNodeAssumeCapacity(self: *Hideset, identifier: Identifier, length: u32) Index {
+    return self.createNodeAssumeCapacityExtra(identifier, .none, length);
 }
 
 /// Creates a one-item list with contents `identifier`
-fn createNodeAssumeCapacityExtra(self: *Hideset, identifier: Identifier, next: Index, str: []const u8) Index {
+fn createNodeAssumeCapacityExtra(self: *Hideset, identifier: Identifier, next: Index, length: u32) Index {
     const next_idx = self.linked_list.len;
-    self.linked_list.appendAssumeCapacity(.{ .identifier = identifier, .next = next, .str = str });
+    self.linked_list.appendAssumeCapacity(.{ .identifier = identifier, .next = next, .len = length });
     return @enumFromInt(next_idx);
 }
 
 /// Create a new list with `identifier` at the front followed by `tail`
-pub fn prepend(self: *Hideset, loc: Source.Location, str: []const u8, tail: Index) !Index {
+pub fn prepend(self: *Hideset, loc: Source.Location, length: u32, tail: Index) !Index {
     const new_idx = self.linked_list.len;
-    try self.linked_list.append(self.gpa, .{ .identifier = Identifier.fromLocation(loc), .next = tail, .str = str });
+    try self.linked_list.append(self.comp.gpa, .{ .identifier = Identifier.fromLocation(loc), .next = tail, .len = length });
     return @enumFromInt(new_idx);
 }
 
@@ -129,7 +130,7 @@ pub fn @"union"(self: *Hideset, a: Index, b: Index) !Index {
 
     var it = self.iterator(b);
     while (it.next()) |item| {
-        try self.tmp_map.put(self.gpa, item.identifier, {});
+        try self.tmp_map.put(self.comp.gpa, item.identifier, {});
     }
 
     var head: Index = b;
@@ -137,7 +138,7 @@ pub fn @"union"(self: *Hideset, a: Index, b: Index) !Index {
     it = self.iterator(a);
     while (it.next()) |item| {
         if (!self.tmp_map.contains(item.identifier)) {
-            head = self.createNodeAssumeCapacityExtra(item.identifier, head, item.str);
+            head = self.createNodeAssumeCapacityExtra(item.identifier, head, item.len);
         }
     }
     return head;
@@ -146,7 +147,11 @@ pub fn @"union"(self: *Hideset, a: Index, b: Index) !Index {
 pub fn contains(self: *const Hideset, list: Index, str: []const u8) bool {
     var it = self.iterator(list);
     while (it.next()) |item| {
-        if (mem.eql(u8, str, item.str)) return true;
+        const start = item.identifier.byte_offset;
+        const end = start + item.len;
+        const slice = self.comp.getSource(item.identifier.id).buf[start..end];
+
+        if (mem.eql(u8, str, slice)) return true;
     }
     return false;
 }
@@ -170,14 +175,14 @@ pub fn intersection(self: *Hideset, a: Index, b: Index) !Index {
     var it = self.iterator(a);
     var a_len: usize = 0;
     while (it.next()) |item| : (a_len += 1) {
-        try self.tmp_map.put(self.gpa, item.identifier, {});
+        try self.tmp_map.put(self.comp.gpa, item.identifier, {});
     }
     try self.ensureUnusedCapacity(@min(a_len, self.len(b)));
 
     it = self.iterator(b);
     while (it.next()) |item| {
         if (self.tmp_map.contains(item.identifier)) {
-            const new_idx = self.createNodeAssumeCapacity(item.identifier, item.str);
+            const new_idx = self.createNodeAssumeCapacity(item.identifier, item.len);
             if (head == .none) {
                 head = new_idx;
             }

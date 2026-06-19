@@ -322,7 +322,7 @@ pub fn init(comp: *Compilation, options: InitOptions) !Preprocessor {
         .comp = comp,
         .diagnostics = comp.diagnostics,
         .arena = .init(comp.gpa),
-        .hideset = .{ .gpa = comp.gpa },
+        .hideset = .{ .comp = comp },
         .source_epoch = source_epoch,
         .base_file = options.base_file,
         .path_replacements = options.path_replacements,
@@ -2705,7 +2705,7 @@ fn expandMacroExhaustive(
                         .none
                     else
                         try pp.hideset.intersection(macro_hidelist, r_paren_hidelist);
-                    hs = try pp.hideset.prepend(macro_tok.loc, expanded, hs);
+                    hs = try pp.hideset.prepend(macro_tok.loc, @intCast(expanded.len), hs);
 
                     var args_count: u32 = @intCast(args.items.len);
                     // if the macro has zero arguments g() args_count is still 1
@@ -2769,7 +2769,7 @@ fn expandMacroExhaustive(
                     var res = try pp.expandObjMacro(macro);
                     defer res.deinit(gpa);
 
-                    const hs = try pp.hideset.prepend(macro_tok.loc, expanded, macro_hidelist);
+                    const hs = try pp.hideset.prepend(macro_tok.loc, @intCast(expanded.len), macro_hidelist);
 
                     const macro_expansion_locs = macro_tok.expansionSlice();
                     var increment_idx_by = res.items.len;
