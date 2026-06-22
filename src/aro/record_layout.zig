@@ -50,7 +50,7 @@ const SysVContext = struct {
     fn layoutFields(self: *SysVContext, fields: []Type.Record.Field) !void {
         for (fields) |*field| {
             if (field.qt.isInvalid()) continue;
-            const type_layout = computeLayout(field.qt, self.comp, self.am);
+            const type_layout = computeLayout(field.qt, self.comp);
 
             if (self.comp.target.isMinGW()) {
                 field.layout = try self.layoutMinGWField(field, type_layout);
@@ -433,7 +433,7 @@ const MsvcContext = struct {
     }
 
     fn layoutField(self: *MsvcContext, fld: *const Field) !FieldLayout {
-        const type_layout = computeLayout(fld.qt, self.comp, self.am);
+        const type_layout = computeLayout(fld.qt, self.comp);
 
         // The required alignment of the field is the maximum of the required alignment of the
         // underlying type and the __declspec(align) annotation on the field itself.
@@ -457,7 +457,9 @@ const MsvcContext = struct {
             fld_align_bits = @min(fld_align_bits, max_align);
         }
         // check the requested alignment of the field type.
-        fld_align_bits = @max(fld_align_bits, fld.qt.alignof(self.comp) * 8);
+        if (fld.qt.requestedAlignment(self.comp)) |type_req_align| {
+            fld_align_bits = @max(fld_align_bits, type_req_align * 8);
+        }
 
         if (self.am.hasAttribute(fld.field_decl, .@"packed")) {
             // __attribute__((packed)) on a field is a clang extension. It behaves as if #pragma
@@ -621,10 +623,10 @@ pub fn compute(
     }
 }
 
-fn computeLayout(qt: QualType, comp: *const Compilation, am: *const Attribute.Map) RecordLayout {
+fn computeLayout(qt: QualType, comp: *const Compilation) RecordLayout {
     switch (qt.base(comp).type) {
         .@"struct", .@"union" => |record| {
-            const requested = BITS_PER_BYTE * (am.requestedAlignment(record.decl_node, comp) orelse 0);
+            const requested = BITS_PER_BYTE * (qt.requestedAlignment(comp) orelse 0);
             return .{
                 .size_bits = record.layout.?.size_bits,
                 .pointer_alignment_bits = @max(requested, record.layout.?.pointer_alignment_bits),
