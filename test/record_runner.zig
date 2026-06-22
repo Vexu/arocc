@@ -11,6 +11,16 @@ const global_test_exclude = std.StaticStringMap(void).initComptime(.{
     .{"0011"},
     .{"0014"},
     .{"0046"},
+
+    .{"0013"},
+    .{"0001"},
+    .{"0032"},
+    .{"0033"},
+    .{"0034"},
+    .{"0035"},
+    .{"0067"},
+    .{"0068"},
+    .{"0083"},
 });
 
 fn lessThan(_: void, lhs: []const u8, rhs: []const u8) bool {

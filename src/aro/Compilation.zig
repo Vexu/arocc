@@ -405,7 +405,9 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
         .serenity => try define(w, "__serenity__"),
         .@"3ds" => try define(w, "__3DS__"),
         .psp => try define(w, "__PSP__"),
+        .psx => try define(w, "__psx__"),
         .vita => try define(w, "__vita__"),
+        .wiiu => try define(w, "__WIIU__"),
         else => {},
     }
 

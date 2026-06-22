@@ -1274,11 +1274,13 @@ pub fn toLLVMTriple(target: *const Target, buf: []u8) []const u8 {
         .windows => "windows",
 
         .@"3ds",
+        .wiiu,
         .opencl,
         .opengl,
         .other,
         .plan9,
         .psp,
+        .psx,
         .tios,
         .vita,
         => "unknown",
@@ -1297,7 +1299,10 @@ pub fn toLLVMTriple(target: *const Target, buf: []u8) []const u8 {
 
     const llvm_abi = switch (target.abi) {
         .none => if (target.os.tag == .maccatalyst) "macabi" else "unknown",
-        .ilp32 => "unknown",
+        .abin32,
+        .ilp32,
+        .x32,
+        => "unknown",
 
         .android => "android",
         .androideabi => "androideabi",
