@@ -1187,13 +1187,17 @@ fn applyCallingConvention(wip: *Wip) !void {
         else => unreachable,
     };
 
-    const supported = switch (cc) {
+    const ms_abi = comp.target.os.tag == .windows or comp.target.os.tag == .uefi;
+    const supported = check: switch (cc) {
         .default => unreachable,
-        .cdecl => true,
+        .cdecl => !(comp.target.cpu.arch.isArm() and comp.target.os.tag != .windows) and
+            !comp.target.cpu.arch.isPowerPC64() and
+            !comp.target.cpu.arch.isSpirV(),
         .aarch64_sve_pcs, .aarch64_vector_pcs => comp.target.cpu.arch.isAARCH64(),
         .arm_aapcs_vfp, .arm_aapcs => comp.target.cpu.arch.isArm(),
         .riscv_vector_cc, .riscv_vls_cc => comp.target.cpu.arch.isRISCV(),
-        .ms_abi, .sysv_abi => comp.target.cpu.arch == .x86_64,
+        .ms_abi => if (ms_abi) continue :check .cdecl else (comp.target.cpu.arch == .x86_64 or comp.target.cpu.arch.isAARCH64()),
+        .sysv_abi => if (ms_abi) comp.target.cpu.arch == .x86_64 else continue :check .cdecl,
         .fastcall, .regcall, .stdcall, .thiscall => comp.target.cpu.arch == .x86,
         .vectorcall => comp.target.cpu.arch == .x86 or comp.target.cpu.arch.isAARCH64(),
     };
