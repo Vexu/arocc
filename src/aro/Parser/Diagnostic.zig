@@ -2284,12 +2284,7 @@ pub const duplicate_nullability: Diagnostic = .{
 };
 
 pub const conflicting_nullability: Diagnostic = .{
-    .fmt = "nullaibility specifier '{tok_id}' conflicts with existing specifier '{tok_id}'",
-    .kind = .@"error",
-};
-
-pub const invalid_nullability: Diagnostic = .{
-    .fmt = "nullability specifier cannot be applied to non-pointer type {qt}",
+    .fmt = "nullability specifier '{tok_id}' conflicts with existing specifier '{tok_id}'",
     .kind = .@"error",
 };
 

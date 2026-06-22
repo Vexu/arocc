@@ -16,34 +16,28 @@ implicit typedef: 'struct __NSConstantString_tag'
 implicit typedef: 'long double'
  name: __float80
 
-variable: '*int'
- attr: nullability kind: nonnull
+variable: '_Nonnull *int'
  name: a
 
 variable: '*int'
- attr: nullability kind: nonnull
  name: b
 
 variable: 'int'
- attr: nullability kind: nonnull
  name: c
 
 function: 'fn () int'
- attr: nullability kind: nullable
  name: d
 
-function: 'fn () *int'
- attr: nullability kind: unspecified
+function: 'fn () _Null_unspecified *int'
  name: e
 
 struct_decl: 'struct __sFILE'
-  record_field: '*fn (*void) int'
-   attr: nullability kind: nullable
+  record_field: '_Nullable *fn (*void) int'
    name: _close
 
 typedef: 'struct __sFILE'
  name: FILE
 
-function: 'fn (decayed *[2]int) void'
+function: 'fn (_Nullable decayed *[2]int) void'
  name: f
 

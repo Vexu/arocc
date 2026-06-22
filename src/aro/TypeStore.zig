@@ -35,6 +35,7 @@ const Repr = struct {
         func_attributed_one,
         pointer,
         pointer_decayed,
+        pointer_decayed_attributed,
         array_incomplete,
         array_fixed,
         array_static,
@@ -60,6 +61,12 @@ const Repr = struct {
         kind: Type.Func.Kind,
         cc: Type.Func.CallingConvention,
         _: u26 = 0,
+    };
+
+    const PointerAttrs = packed struct(u32) {
+        bounds: Type.Pointer.Bounds,
+        nullability: Type.Pointer.Nullability,
+        _: u27 = 0,
     };
 };
 
@@ -320,14 +327,28 @@ pub const QualType = packed struct(u32) {
                     .params = std.mem.bytesAsSlice(Type.Func.Param, std.mem.sliceAsBytes(extra_params)),
                 } };
             },
-            .pointer => .{ .pointer = .{
-                .child = @bitCast(repr.data[0]),
-                .bounds = @enumFromInt(repr.data[1]),
-            } },
+            .pointer => {
+                const attr: Repr.PointerAttrs = @bitCast(repr.data[1]);
+                return .{ .pointer = .{
+                    .child = @bitCast(repr.data[0]),
+                    .bounds = attr.bounds,
+                    .nullability = attr.nullability,
+                } };
+            },
             .pointer_decayed => .{ .pointer = .{
                 .child = @bitCast(repr.data[0]),
                 .decayed = @bitCast(repr.data[1]),
             } },
+            .pointer_decayed_attributed => {
+                const extra = comp.type_store.extra.items;
+                const attr: Repr.PointerAttrs = @bitCast(extra[repr.data[1] + 1]);
+                return .{ .pointer = .{
+                    .child = @bitCast(repr.data[0]),
+                    .decayed = @bitCast(extra[repr.data[1]]),
+                    .bounds = attr.bounds,
+                    .nullability = attr.nullability,
+                } };
+            },
             .array_incomplete => .{ .array = .{
                 .elem = @bitCast(repr.data[0]),
                 .len = .incomplete,
@@ -1310,6 +1331,10 @@ pub const QualType = packed struct(u32) {
                     if (qt.@"const" or qt.@"volatile") try w.writeByte(' ');
                     try w.writeAll("restrict");
                 }
+                if (pointer.nullability != .default) {
+                    try w.writeByte(' ');
+                    try w.writeAll(pointer.nullability.str());
+                }
                 return false;
             },
             .func => |func| {
@@ -1518,6 +1543,10 @@ pub const QualType = packed struct(u32) {
         if (qt.isInvalid()) return w.writeAll("invalid");
         switch (qt.type(comp)) {
             .pointer => |pointer| {
+                if (pointer.nullability != .default) {
+                    try w.writeAll(pointer.nullability.str());
+                    try w.writeByte(' ');
+                }
                 if (pointer.decayed) |decayed| {
                     try w.writeAll("decayed *");
                     try decayed.dump(comp, w);
@@ -1793,34 +1822,36 @@ pub const Type = union(enum) {
         child: QualType,
         decayed: ?QualType = null,
         bounds: Bounds = .c,
-        // nullability: Nullability = .default,
+        nullability: Nullability = .default,
         // size: Size = .default,
         // extend: Extend = .default,
         // address_space: AddressSpace = .default,
 
-        pub const Bounds = enum {
+        pub const Bounds = enum(u2) {
             /// C pointer with no bounds attribute
             c,
             /// No pointer arithmetic or non-zero indexing
             single,
             /// Explicitly specified as a traditional C pointer
             unsafe_indexable,
-
-            pub fn fromTag(tag: Attribute.Tag) Bounds {
-                return switch (tag) {
-                    .single => .single,
-                    .unsafe_indexable => .unsafe_indexable,
-                    else => unreachable,
-                };
-            }
         };
 
-        pub const Nullability = enum {
+        pub const Nullability = enum(u3) {
             default,
             nonnull,
             nullable,
             nullable_result,
             unspecified,
+
+            pub fn str(n: Nullability) []const u8 {
+                return switch (n) {
+                    .default => unreachable,
+                    .nonnull => "_Nonnull",
+                    .nullable => "_Nullable",
+                    .nullable_result => "_Nullable_result",
+                    .unspecified => "_Null_unspecified",
+                };
+            }
         };
 
         pub const Size = enum {
@@ -1838,6 +1869,10 @@ pub const Type = union(enum) {
         pub const AddressSpace = enum {
             default,
         };
+
+        pub fn anyAttrs(p: Pointer) bool {
+            return p.bounds != .c or p.nullability != .default;
+        }
     };
 
     pub const Array = struct {
@@ -2154,13 +2189,23 @@ pub fn set(ts: *TypeStore, gpa: std.mem.Allocator, ty: Type, index: usize) !void
         },
         .pointer => |pointer| {
             repr.data[0] = @bitCast(pointer.child);
+            const attr: Repr.PointerAttrs = .{
+                .bounds = pointer.bounds,
+                .nullability = pointer.nullability,
+            };
             if (pointer.decayed) |array| {
-                std.debug.assert(pointer.bounds == .c);
-                repr.tag = .pointer_decayed;
-                repr.data[1] = @bitCast(array);
+                if (pointer.anyAttrs()) {
+                    repr.tag = .pointer_decayed_attributed;
+                    repr.data[1] = @intCast(ts.extra.items.len);
+                    try ts.extra.append(gpa, @bitCast(array));
+                    try ts.extra.append(gpa, @bitCast(attr));
+                } else {
+                    repr.tag = .pointer_decayed;
+                    repr.data[1] = @bitCast(array);
+                }
             } else {
                 repr.tag = .pointer;
-                repr.data[1] = @intFromEnum(pointer.bounds);
+                repr.data[1] = @bitCast(attr);
             }
         },
         .array => |array| {
@@ -3035,17 +3080,6 @@ pub const Builder = struct {
             //     .base = result_qt,
             //     .attributes = undefined,
             // } })).withQualifiers(result_qt);
-        }
-        switch (b.nullability) {
-            .none => {},
-            .nonnull,
-            .nullable,
-            .nullable_result,
-            .null_unspecified,
-            => |tok| if (!is_pointer) {
-                // TODO this should be checked later so that auto types can be properly validated.
-                try b.parser.err(tok, .invalid_nullability, .{qt});
-            },
         }
 
         if (b.@"const" != null) result_qt.@"const" = true;

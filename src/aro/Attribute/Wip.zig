@@ -841,6 +841,7 @@ pub fn applyTypeAttrs(wip: *Wip, p: *Parser, qt: QualType) !QualType {
                 .null_unspecified,
                 .nullable_result,
                 .nullable,
+                => try wip.applyNullability(),
                 .ptr32,
                 .ptr64,
                 .sptr,
@@ -991,15 +992,15 @@ fn applyCallingConvention(wip: *Wip) !void {
                 return;
             }
 
-            const base = qt.base(comp);
+            if (base_qt._index == .declarator_combine) {
+                // Incomplete declarator, try again later.
+                attr.used_as_type_attr = false;
+                return;
+            }
+            const base = base_qt.base(comp);
             switch (base.type) {
                 .func => |func| break :blk .{ base.qt, func },
                 .pointer => |pointer| {
-                    if (pointer.child._index == .declarator_combine) {
-                        // Incomplete declarator, try again later.
-                        attr.used_as_type_attr = false;
-                        return;
-                    }
                     base_qt = pointer.child;
                 },
                 else => {
@@ -1090,7 +1091,43 @@ fn applyCallingConvention(wip: *Wip) !void {
     }
     func.cc = cc;
 
+    if (wip.current.target == null) {
+        wip.current.qt = try comp.type_store.put(comp.gpa, .{ .func = func });
+        return;
+    }
+
+    // TODO this can overwrite a typedef
+    // typedef void (*fn_ptr)(void);
+    // __cdecl fn_ptr a;
     try comp.type_store.set(comp.gpa, .{ .func = func }, @intFromEnum(base_qt._index));
+}
+
+fn applyNullability(wip: *Wip) !void {
+    const attr = wip.current.attr;
+    attr.used_as_type_attr = true;
+    const qt = wip.current.qt;
+    if (qt.isInvalid()) return;
+
+    const comp = wip.current.parser.comp;
+    var pointer: Type.Pointer = qt.get(comp, .pointer) orelse {
+        try wip.err(.invalid_nullability, .{qt});
+        return;
+    };
+
+    const new_nullability: Type.Pointer.Nullability = switch (attr.name.keyword) {
+        .nonnull => .nonnull,
+        .null_unspecified => .unspecified,
+        .nullable_result => .nullable_result,
+        .nullable => .nullable,
+        else => unreachable,
+    };
+    if (pointer.nullability != .default and pointer.nullability != new_nullability) {
+        try wip.err(.conflicting_nullability, .{ new_nullability.str(), pointer.nullability.str() });
+        return;
+    }
+
+    pointer.nullability = new_nullability;
+    wip.current.qt = try comp.type_store.put(comp.gpa, .{ .pointer = pointer });
 }
 
 pub fn applyStmtAttrs(wip: *Wip, p: *Parser, stmt: Tree.Node.Index) !void {

@@ -1398,6 +1398,8 @@ fn decl(p: *Parser) Error!bool {
                     } else {
                         // Decay params declared as functions or arrays to pointer.
                         param_d.qt = try param_d.qt.decay(p.comp);
+                        // Apply potential nullability attributes.
+                        param_d.qt = try p.wip_attrs.applyTypeAttrs(p, param_d.qt);
                     }
 
                     try param_decl_spec.validateParam(p);
@@ -3690,6 +3692,7 @@ fn declarator(
     var d = Declarator{ .name = 0, .qt = base_qt };
 
     if (p.eatToken(.caret)) |caret| {
+        d.qt = try p.wip_attrs.applyTypeAttrs(p, d.qt);
         if (!p.comp.langopts.blocks) try p.err(caret, .blocks_not_enabled, .{});
         try p.err(caret, .blocks_are_clang_extension, .{});
 
@@ -3701,11 +3704,11 @@ fn declarator(
             .func = d.qt,
         } });
         d.qt = try builder.finishQuals(block_qt);
-        d.qt = try p.wip_attrs.applyTypeAttrs(p, d.qt);
     }
 
     // Parse potential pointer declarators first.
     while (p.eatToken(.asterisk)) |_| {
+        d.qt = try p.wip_attrs.applyTypeAttrs(p, d.qt);
         d.declarator_type = .pointer;
         var builder: TypeStore.Builder = .{ .parser = p };
         _ = try p.typeQual(&builder, true);
@@ -3714,13 +3717,13 @@ fn declarator(
             .child = d.qt,
         } });
         d.qt = try builder.finishQuals(pointer_qt);
-        d.qt = try p.wip_attrs.applyTypeAttrs(p, d.qt);
     }
 
     const maybe_ident = p.tok_i;
     if (kind != .abstract and (try p.eatIdentifier()) != null) {
         d.name = maybe_ident;
         const combine_tok = p.tok_i;
+        d.qt = try p.wip_attrs.applyTypeAttrs(p, d.qt);
         d.qt = try p.directDeclarator(&d, kind);
         try d.validate(p, combine_tok);
         return d;
@@ -3731,6 +3734,7 @@ fn declarator(
         // Parse Microsoft keyword type attributes.
         _ = try p.msTypeAttribute();
 
+        d.qt = try p.wip_attrs.applyTypeAttrs(p, d.qt);
         const special_marker: QualType = .{ ._index = .declarator_combine };
         var res = (try p.declarator(special_marker, kind)) orelse {
             p.tok_i = l_paren;
@@ -4076,6 +4080,8 @@ fn paramDecls(p: *Parser) Error!?[]Type.Func.Param {
         } else {
             // Decay params declared as functions or arrays to pointer.
             param_qt = try param_qt.decay(p.comp);
+            // Apply potential nullability attributes.
+            param_qt = try p.wip_attrs.applyTypeAttrs(p, param_qt);
         }
         try param_decl_spec.validateParam(p);
 

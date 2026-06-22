@@ -251,3 +251,14 @@ pub const incompatible_visibility: Diagnostic = .{
     .fmt = "visibility does not match previous declaration",
     .kind = .@"error",
 };
+
+// nullability
+pub const conflicting_nullability: Diagnostic = .{
+    .fmt = "nullability specifier '{s}' conflicts with existing specifier '{s}'",
+    .kind = .@"error",
+};
+
+pub const invalid_nullability: Diagnostic = .{
+    .fmt = "nullability specifier cannot be applied to non-pointer type {qt}",
+    .kind = .@"error",
+};
