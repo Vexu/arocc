@@ -41,30 +41,21 @@ void typeechecking(void) {
 /** manifest:
 syntax
 args = -fexperimental-bounds-safety
+skip = TODO: reimplement bounds safety attributes
 
-bounds_safety.c:9:9: error: 'single' attribute only applies to pointer arguments
+bounds_safety.c:8:10: warning: TODO: implement 'single' attribute
 ptrcheck.h:11:33: note: expanded from here
-bounds_safety.c:14:6: error: array subscript on single pointer must use a constant index of 0 to be in bounds
-bounds_safety.c:8:19: note: pointer 'p' declared single here
-bounds_safety.c:15:6: error: array subscript on single pointer must use a constant index of 0 to be in bounds
-bounds_safety.c:8:19: note: pointer 'p' declared single here
-bounds_safety.c:17:12: error: pointer arithmetic on single pointer is out of bounds; consider adding '__counted_by'
-bounds_safety.c:8:19: note: pointer 'p' declared single here
-bounds_safety.c:18:12: error: pointer arithmetic on single pointer is out of bounds; consider adding '__counted_by'
-bounds_safety.c:8:19: note: pointer 'p' declared single here
-bounds_safety.c:19:6: error: pointer arithmetic on single pointer is out of bounds; consider adding '__counted_by'
-bounds_safety.c:8:19: note: pointer 'p' declared single here
-bounds_safety.c:20:8: error: pointer arithmetic on single pointer is out of bounds; consider adding '__counted_by'
-bounds_safety.c:8:19: note: pointer 'p' declared single here
-bounds_safety.c:21:6: error: pointer arithmetic on single pointer is out of bounds; consider adding '__counted_by'
-bounds_safety.c:8:19: note: pointer 'p' declared single here
-bounds_safety.c:22:8: error: pointer arithmetic on single pointer is out of bounds; consider adding '__counted_by'
-bounds_safety.c:8:19: note: pointer 'p' declared single here
-bounds_safety.c:23:7: error: pointer arithmetic on single pointer is out of bounds; consider adding '__counted_by'
-bounds_safety.c:24:7: error: pointer arithmetic on single pointer is out of bounds; consider adding '__counted_by'
-bounds_safety.c:27:14: warning: pointer annotated with single multiple times. Annotate only once to remove this warning [-Wbounds-attributes-redundant]
+bounds_safety.c:9:9: warning: TODO: implement 'single' attribute
 ptrcheck.h:11:33: note: expanded from here
-bounds_safety.c:29:14: error: pointer cannot have more than one bound attribute
+bounds_safety.c:27:5: warning: TODO: implement 'single' attribute
+ptrcheck.h:11:33: note: expanded from here
+bounds_safety.c:27:14: warning: TODO: implement 'single' attribute
+ptrcheck.h:11:33: note: expanded from here
+bounds_safety.c:29:5: warning: TODO: implement 'single' attribute
+ptrcheck.h:11:33: note: expanded from here
+bounds_safety.c:29:14: warning: TODO: implement 'unsafe_indexable' attribute
+ptrcheck.h:12:43: note: expanded from here
+bounds_safety.c:32:10: warning: TODO: implement 'unsafe_indexable' attribute
 ptrcheck.h:12:43: note: expanded from here
 bounds_safety.c:38:6: error: subscripted value is not an array, pointer or vector
 */

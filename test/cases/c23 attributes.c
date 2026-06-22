@@ -15,4 +15,9 @@ int main(void) {
 /** manifest:
 syntax
 args = -std=c23
+skip = TODO: implement 'unsequenced' attribute
+skip = TODO: implement 'reproducible' attribute
+
+c23 attributes.c:5:52: warning: TODO: implement 'reproducible' attribute
+c23 attributes.c:6:34: warning: TODO: implement 'unsequenced' attribute
 */

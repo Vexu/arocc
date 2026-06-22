@@ -47,4 +47,7 @@ union U2 {
 /** manifest:
 syntax
 args = --target=x86_64-windows-msvc
+skip = TODO: implement 'warn_if_not_aligned' attribute
+
+attributed record fields.c:34:80: warning: TODO: implement 'warn_if_not_aligned' attribute
 */

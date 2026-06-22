@@ -67,7 +67,7 @@ struct_decl: 'struct S8'
 struct_decl: 'struct S9'
   record_field: 'int'
    packed
-   alignment: null
+   aligned: null
    name: x
 
   record_field: 'float'
@@ -75,8 +75,7 @@ struct_decl: 'struct S9'
 
   record_field: 'long'
    packed
-   alignment: null
-   warn_if_not_aligned: 16
+   aligned: 16
    name: l
 
 union_decl: 'union U1'
@@ -84,7 +83,7 @@ union_decl: 'union U1'
    name: x
 
   record_field: 'int'
-   alignment: 32
+   aligned: 32
    name: y
 
   record_field: 'unsigned int'
@@ -104,6 +103,6 @@ union_decl: 'union U2'
    name: z
 
   record_field: 'int'
-   alignment: null
+   aligned: null
    name: w
 

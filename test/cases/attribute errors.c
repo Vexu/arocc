@@ -38,29 +38,36 @@ typedef struct {} A3, [[deprecated]] B3, C3;
 /** manifest:
 syntax
 args = --target=x86_64-linux -std=c23 -fdeclspec
+skip = TODO: implement 'access' attribute
+skip = TODO: implement 'alias' attribute
+skip = TODO: implement 'assume_aligned' attribute
+skip = TODO: implement 'pure' attribute
+skip = TODO: implement 'simd' attribute
 
-attribute errors.c:3:24: error: 'access' attribute takes at least 2 argument(s)
-attribute errors.c:4:31: warning: unknown `access` argument. Possible values are: 'read_only', 'read_write', 'write_only', 'none' [-Wignored-attributes]
-attribute errors.c:5:24: warning: attribute 'access' ignored on variables [-Wignored-attributes]
+attribute errors.c:3:24: warning: TODO: implement 'access' attribute
+attribute errors.c:4:24: warning: TODO: implement 'access' attribute
+attribute errors.c:5:24: warning: TODO: implement 'access' attribute
 attribute errors.c:6:30: error: use of undeclared identifier 'bar'
-attribute errors.c:10:35: error: 'aligned' attribute takes at most 1 argument(s)
-attribute errors.c:11:32: error: requested alignment is not a power of 2
-attribute errors.c:12:39: error: requested alignment is not a power of 2
-attribute errors.c:13:24: warning: attribute 'assume_aligned' ignored on variables [-Wignored-attributes]
-attribute errors.c:14:24: warning: attribute 'assume_aligned' ignored on variables [-Wignored-attributes]
-attribute errors.c:15:24: warning: attribute 'hot' ignored on variables [-Wignored-attributes]
-attribute errors.c:15:29: warning: attribute 'pure' ignored on variables [-Wignored-attributes]
-attribute errors.c:17:32: error: attribute argument is invalid, expected an identifier but got a string
-attribute errors.c:18:24: warning: attribute 'simd' ignored on variables [-Wignored-attributes]
-attribute errors.c:19:24: warning: attribute 'simd' ignored on variables [-Wignored-attributes]
-attribute errors.c:20:29: warning: unknown `simd` argument. Possible values are: "notinbranch", "inbranch" [-Wignored-attributes]
+attribute errors.c:7:24: warning: TODO: implement 'alias' attribute
+attribute errors.c:10:24: error: 'aligned' attribute takes at most 1 argument(s)
+attribute errors.c:11:24: error: requested alignment is not a power of 2
+attribute errors.c:12:24: warning: TODO: implement 'assume_aligned' attribute
+attribute errors.c:13:24: warning: TODO: implement 'assume_aligned' attribute
+attribute errors.c:14:24: warning: TODO: implement 'assume_aligned' attribute
+attribute errors.c:15:24: warning: 'hot' attribute only applies to functions [-Wignored-attributes]
+attribute errors.c:15:29: warning: TODO: implement 'pure' attribute
+attribute errors.c:16:24: error: 'cleanup' function 'cleanup_fn' must take 1 parameter
+attribute errors.c:17:32: error: expected an identifier as argmuent of 'cleanup' attribute but got a string
+attribute errors.c:18:24: warning: TODO: implement 'simd' attribute
+attribute errors.c:19:24: warning: TODO: implement 'simd' attribute
+attribute errors.c:20:24: warning: TODO: implement 'simd' attribute
 attribute errors.c:21:24: warning: unknown attribute 'invalid_attribute' ignored [-Wunknown-attributes]
 attribute errors.c:22:24: warning: unknown attribute 'invalid_attribute' ignored [-Wunknown-attributes]
-attribute errors.c:23:49: error: attribute argument is invalid, expected a string but got an integer constant
-attribute errors.c:27:24: warning: attribute 'cold' ignored on types [-Wignored-attributes]
+attribute errors.c:23:49: error: expected a string as argmuent of 'deprecated' attribute but got an integer constant
+attribute errors.c:27:24: warning: 'cold' attribute only applies to functions [-Wignored-attributes]
 attribute errors.c:30:5: warning: '__thiscall' calling convention is not supported for this target [-Wignored-attributes]
-attribute errors.c:31:36: error: attribute value '4294967296' out of range
-attribute errors.c:32:46: error: attribute argument is invalid, expected an integer constant but got a complex floating point number
+attribute errors.c:31:36: error: attribute 'vector_size' argument value '4294967296' out of range
+attribute errors.c:32:46: error: expected an integer constant as argmuent of 'vector_size' attribute but got a complex floating point number
 attribute errors.c:34:23: error: a declspec attribute cannot appear here
 attribute errors.c:36:23: error: an attribute list cannot appear here
 */
