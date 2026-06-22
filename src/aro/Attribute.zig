@@ -238,18 +238,7 @@ pub const Args = union(enum) {
     uuid: struct {
         uuid: Value,
     },
-    visibility: struct {
-        visibility_type: enum {
-            default,
-            hidden,
-            internal,
-            protected,
-
-            const opts = struct {
-                const enum_kind = .string;
-            };
-        },
-    },
+    visibility: Visibility,
     warn_if_not_aligned: struct {
         alignment: ?u32,
     },
@@ -315,6 +304,22 @@ pub const Args = union(enum) {
         replacement: ?Value = null,
         priority: u32 = 0,
     },
+
+    pub const Visibility = enum {
+        default,
+        hidden,
+        protected,
+
+        pub const opts = struct {
+            pub const enum_kind = .string;
+            pub const map = std.StaticStringMap(Visibility).initComptime(.{
+                .{ "default", .default },
+                .{ "hidden", .hidden },
+                .{ "internal", .hidden },
+                .{ "protected", .protected },
+            });
+        };
+    };
 };
 
 pub const Syntax = enum {
@@ -340,7 +345,8 @@ pub const Namespaced = union(enum) {
         maybe_unused,
         nodiscard,
         noreturn,
-        _Noreturn, // Deprecated
+        /// Deprecated in C23
+        _Noreturn,
         reproducible,
         unsequenced,
 
@@ -611,16 +617,4 @@ pub fn normalize(name: []const u8) []const u8 {
         return name[2 .. name.len - 2];
     }
     return name;
-}
-
-pub fn visibilityFromString(s: []const u8) ?std.builtin.SymbolVisibility {
-    if (mem.eql(u8, s, "internal")) {
-        return .hidden;
-    }
-    const visibility = std.meta.stringToEnum(std.builtin.SymbolVisibility, s) orelse return null;
-    // compiler will notify us if .internal is added as a visibility type
-    switch (visibility) {
-        .default, .hidden, .protected => {},
-    }
-    return visibility;
 }

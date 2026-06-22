@@ -605,6 +605,12 @@ pub fn hasAArch64ACLETypes(target: *const Target) bool {
     return target.cpu.arch.isAARCH64();
 }
 
+pub fn hasProtectedVisibility(target: *const Target) bool {
+    if (target.cpu.arch.isWasm()) return false;
+    if (target.ofmt == .macho) return false;
+    return true;
+}
+
 pub const FPSemantics = enum {
     None,
     IEEEHalf,

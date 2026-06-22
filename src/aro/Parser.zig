@@ -627,17 +627,46 @@ pub fn Choices(comptime E: type) type {
                     if (choice_i == ctx.choices.len - 1) try w.writeAll("and ");
                 }
 
+                if (ctx.quote) |q| try w.writeByte(q);
                 if (@hasDecl(E, "str")) {
                     try w.writeAll(choice.str());
                 } else {
                     try w.writeAll(@tagName(choice));
                 }
+                if (ctx.quote) |q| try w.writeByte(q);
             }
 
             return i;
         }
     };
 }
+
+pub const ChoicesStr = struct {
+    choices: []const []const u8,
+    quote: ?u8,
+
+    pub fn init(choices: []const []const u8, quote: ?u8) @This() {
+        return .{ .choices = choices, .quote = quote };
+    }
+
+    pub fn format(ctx: @This(), w: *std.Io.Writer, fmt: []const u8) !usize {
+        const i = Diagnostics.templateIndex(w, fmt, "{choices}");
+
+        for (ctx.choices, 0..) |choice, choice_i| {
+            if (choice_i != 0) {
+                if (ctx.choices.len > 2) try w.writeByte(',');
+                try w.writeByte(' ');
+                if (choice_i == ctx.choices.len - 1) try w.writeAll("and ");
+            }
+
+            if (ctx.quote) |q| try w.writeByte(q);
+            try w.writeAll(choice);
+            if (ctx.quote) |q| try w.writeByte(q);
+        }
+
+        return i;
+    }
+};
 
 pub fn todo(p: *Parser, msg: []const u8) Error {
     try p.err(p.tok_i, .todo, .{msg});

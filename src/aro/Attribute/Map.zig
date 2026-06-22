@@ -5,8 +5,6 @@ const Compilation = @import("../Compilation.zig");
 const Tree = @import("../Tree.zig");
 const TokenIndex = Tree.TokenIndex;
 
-const Map = @This();
-
 const Repr = struct {
     tag: Tag,
     data: u32,
@@ -35,8 +33,13 @@ const Repr = struct {
         transparent_union,
         designated_init,
         fallthrough,
+        visibility_default,
+        visibility_hidden,
+        visibility_protected,
     };
 };
+
+const Map = @This();
 
 attributes: std.MultiArrayList(Repr) = .empty,
 extra: std.ArrayList(u32) = .empty,
@@ -58,7 +61,6 @@ pub fn put(map: *Map, gpa: mem.Allocator, attribute: Attribute) !Ref {
         .name = attribute.name,
         .syntax = attribute.syntax,
     };
-    _ = &repr;
     switch (attribute.args) {
         .@"packed" => repr.tag = .@"packed",
         .hot => repr.tag = .hot,
@@ -129,6 +131,13 @@ pub fn put(map: *Map, gpa: mem.Allocator, attribute: Attribute) !Ref {
             map.extra.appendAssumeCapacity(attribute.tok);
             map.extra.appendAssumeCapacity(@intCast(positions.len));
             map.extra.appendSliceAssumeCapacity(positions);
+        },
+        .visibility => |kind| {
+            repr.tag = switch (kind) {
+                .default => .visibility_default,
+                .hidden => .visibility_hidden,
+                .protected => .visibility_protected,
+            };
         },
         else => @panic("TODO"),
     }
@@ -206,6 +215,9 @@ pub fn get(map: *const Map, ref: Ref) Attribute {
             res.args = .{ .nonnull = map.extra.items[repr.data + 1 ..][0..1] };
         },
         .nonnull_zero => res.args = .{ .nonnull = &.{} },
+        .visibility_default => res.args = .{ .visibility = .default },
+        .visibility_hidden => res.args = .{ .visibility = .hidden },
+        .visibility_protected => res.args = .{ .visibility = .protected },
     }
     return res;
 }

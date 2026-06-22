@@ -184,11 +184,9 @@ fn arg(wip: *Wip, comptime WantedBase: type) !?WantedBase {
                 try wip.errTok(tok, .arg_requires_string, .{wip.current.attr});
                 return null;
             } else if (@typeInfo(Wanted) == .@"enum" and @hasDecl(Wanted, "opts") and Wanted.opts.enum_kind == .string) {
-                if (std.meta.stringToEnum(Wanted, str)) |enum_val| {
-                    return enum_val;
-                }
+                if (Wanted.opts.map.get(str)) |enum_val| return enum_val;
 
-                try wip.errTok(tok, .unknown_enum, .{ wip.current.attr, Parser.Choices(Wanted).init(std.enums.values(Wanted), '"') });
+                try wip.errTok(tok, .unknown_enum, .{ wip.current.attr, Parser.ChoicesStr.init(Wanted.opts.map.keys(), '"') });
                 return null;
             }
         },
@@ -215,6 +213,7 @@ const Target = enum {
     function_pointer,
     variable,
     local_variable,
+    global_variable,
     label,
     param,
     tag,
@@ -227,6 +226,7 @@ const Target = enum {
             .function_pointer => "function pointers",
             .variable => "variables",
             .local_variable => "local variables",
+            .global_variable => "global variables",
             .label => "labels",
             .param => "parameters",
             .tag => "tag types",
@@ -258,6 +258,14 @@ fn checkTarget(wip: *Wip, list: []const Target) !bool {
             .variable => |variable| switch (variable.storage_class) {
                 .auto, .register => if (wip.current.parser.func.qt != null) return false,
                 .@"extern", .static => {},
+            },
+            else => {},
+        },
+        .global_variable => switch (node) {
+            .variable => |variable| switch (variable.storage_class) {
+                .static => {},
+                .auto, .register => if (wip.current.parser.func.qt == null) return false,
+                .@"extern" => return false,
             },
             else => {},
         },
@@ -416,6 +424,7 @@ pub fn applyDeclAttrsExtra(
                 .sysv_abi,
                 .thiscall,
                 => try wip.applyCallingConvention(),
+                .visibility => try wip.applyVisibility(),
                 else => {
                     try wip.err(.unimplemented, .{attr});
                 },
@@ -494,6 +503,7 @@ fn inherit(wip: *Wip, p: *Parser, decl: Tree.Node.Index) !void {
             .unavailable,
             .@"error",
             .warning,
+            .visibility,
             => {},
             .alignment => {
                 try wip.addAlignmentToTypeMap(attr.args.alignment);
@@ -718,6 +728,34 @@ fn applyTransparentUnion(wip: *Wip) !void {
     }
 
     try wip.add(.transparent_union);
+}
+
+fn applyVisibility(wip: *Wip) !void {
+    if (try wip.checkTarget(&.{ .function, .global_variable })) return;
+    if (try wip.argCount(1)) return;
+
+    var kind = (try wip.arg(Attribute.Args.Visibility)) orelse return;
+    if (kind == .protected and !wip.current.parser.comp.target.hasProtectedVisibility()) {
+        try wip.err(.visibility_protected_invalid, .{});
+        kind = .default;
+    }
+
+    const am = &wip.current.parser.tree.attr_map;
+    for (wip.applied.items, 0..) |ref, i| {
+        const prev_attr = am.get(ref);
+        if (prev_attr.args == .visibility) {
+            if (prev_attr.args.visibility == kind) {
+                _ = wip.applied.orderedRemove(i);
+                break;
+            }
+
+            try wip.err(.incompatible_visibility, .{});
+            try wip.errTok(prev_attr.tok, .previous_attribute, .{});
+            return;
+        }
+    }
+
+    try wip.add(.{ .visibility = kind });
 }
 
 pub fn applyTypeAttrs(wip: *Wip, p: *Parser, qt: QualType) !QualType {
@@ -989,15 +1027,20 @@ fn applyCallingConvention(wip: *Wip) !void {
             .pcs => pcs: {
                 const PcsKind = enum {
                     aapcs,
-                    @"aapcs-vfp",
+                    aapcs_vfp,
 
+                    const PcsKind = @This();
                     const opts = struct {
                         const enum_kind = .string;
+                        const map = std.StaticStringMap(PcsKind).initComptime(.{
+                            .{ "aapcs", .aapcs },
+                            .{ "aapcs-vfp", .aapcs_vfp },
+                        });
                     };
                 };
                 break :pcs switch ((try wip.arg(PcsKind)) orelse return) {
                     .aapcs => .arm_aapcs,
-                    .@"aapcs-vfp" => .arm_aapcs_vfp,
+                    .aapcs_vfp => .arm_aapcs_vfp,
                 };
             },
             else => unreachable,

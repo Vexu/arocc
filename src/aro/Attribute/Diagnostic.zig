@@ -55,7 +55,7 @@ pub const arg_requires_string: Diagnostic = .{
 };
 
 pub const unknown_enum: Diagnostic = .{
-    .fmt = "unknown `{s}` argument. Possible values are: {choices}",
+    .fmt = "unknown {at} argument. Possible values are: {choices}",
     .kind = .warning,
     .opt = .@"ignored-attributes",
 };
@@ -74,6 +74,11 @@ pub const incompatible_attr: Diagnostic = .{
 pub const invalid_stmt_attr: Diagnostic = .{
     .fmt = "{at} attribute cannot be applied to a statement",
     .kind = .@"error",
+};
+
+pub const previous_attribute: Diagnostic = .{
+    .fmt = "previous attribute is here",
+    .kind = .note,
 };
 
 // vector_size
@@ -233,4 +238,16 @@ pub const callconv_incompatible: Diagnostic = .{
     .fmt = "{s} and {s} attributes are not compatible",
     .kind = .warning,
     .opt = .@"ignored-attributes",
+};
+
+// visibility
+pub const visibility_protected_invalid: Diagnostic = .{
+    .fmt = "target does not support 'protected' visibility; using 'default'",
+    .kind = .warning,
+    .opt = .@"unsupported-visibility",
+};
+
+pub const incompatible_visibility: Diagnostic = .{
+    .fmt = "visibility does not match previous declaration",
+    .kind = .@"error",
 };

@@ -385,7 +385,7 @@ pub fn parseArgs(
             } else if (mem.eql(u8, arg, "-fapple-kext")) {
                 d.apple_kext = true;
             } else if (option(arg, "-fvisibility=")) |visibility| {
-                d.comp.langopts.default_symbol_visibility = Attribute.visibilityFromString(visibility) orelse
+                d.comp.langopts.default_symbol_visibility = Attribute.Args.Visibility.opts.map.get(visibility) orelse
                     return d.fatal("unsupported value '{s}'' in '{s}'", .{ visibility, arg });
             } else if (option(arg, "-frandom-seed=")) |_| {
                 // Ignore
