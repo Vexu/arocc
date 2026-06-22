@@ -81,6 +81,17 @@ pub const previous_attribute: Diagnostic = .{
     .kind = .note,
 };
 
+pub const ignored_attribute: Diagnostic = .{
+    .fmt = "{at} attribute ignored",
+    .kind = .warning,
+    .opt = .@"ignored-attributes",
+};
+
+pub const conflicting_attribute: Diagnostic = .{
+    .fmt = "conflicting attribute is here",
+    .kind = .note,
+};
+
 // vector_size
 pub const invalid_vec_elem_ty: Diagnostic = .{
     .fmt = "invalid vector element type {qt}",
@@ -261,4 +272,41 @@ pub const conflicting_nullability: Diagnostic = .{
 pub const invalid_nullability: Diagnostic = .{
     .fmt = "nullability specifier cannot be applied to non-pointer type {qt}",
     .kind = .@"error",
+};
+
+// [[_Noreturn]]
+pub const deprecated_noreturn: Diagnostic = .{
+    .fmt = "the '[[_Noreturn]]' attribute spelling is deprecated in C23; use '[[noreturn]]' instead",
+    .kind = .warning,
+    .opt = .@"deprecated-attributes",
+};
+
+// cleanup
+pub const cleanup_non_function: Diagnostic = .{
+    .fmt = "{at} argument '{s}' is not a function",
+    .kind = .@"error",
+};
+
+pub const cleanup_one_arg: Diagnostic = .{
+    .fmt = "{at} function '{s}' must take 1 parameter",
+    .kind = .@"error",
+};
+
+pub const cleanup_arg_ty: Diagnostic = .{
+    .fmt = "{at} function '{s}' parameter {qt} is incompatible with {qt}",
+    .kind = .@"error",
+};
+
+// gnu_inline
+pub const gnu_inline_non_inline: Diagnostic = .{
+    .fmt = "{at} attribute requires function to be marked 'inline', attribute ignored",
+    .kind = .warning,
+    .opt = .@"ignored-attributes",
+};
+
+// section
+pub const conflicting_section_name: Diagnostic = .{
+    .fmt = "{at} does not match previous declaration",
+    .kind = .warning,
+    .opt = .section,
 };

@@ -17,9 +17,9 @@ implicit typedef: 'long double'
  name: __float80
 
 variable: 'int'
- alignment: 4
- alignment: 4
- alignment: 16
+ _Alignas: 4
+ _Alignas: 4
+ _Alignas: 16
  name: a
 
 variable: 'const volatile int'

@@ -165,6 +165,7 @@ func: struct {
     name: TokenIndex = 0,
     ident: ?Result = null,
     pretty_ident: ?Result = null,
+    decl: Node.OptIndex = .null,
 } = .{},
 
 /// Various variables that are different for each record.
@@ -1340,6 +1341,7 @@ fn decl(p: *Parser) Error!bool {
         p.func = .{
             .qt = init_d.d.qt,
             .name = init_d.d.name,
+            .decl = .pack(decl_node),
         };
         defer p.func = func;
 
@@ -1491,22 +1493,25 @@ fn decl(p: *Parser) Error!bool {
             }
         }
 
-        const body = (try p.compoundStmt(true, null)) orelse {
-            assert(init_d.d.old_style_func != null);
-            try p.err(p.tok_i, .expected_fn_body, .{});
-            return true;
-        };
-
-        try decl_spec.validateFnDef(p);
-        try p.tree.setNode(.{ .function = .{
+        var function: Tree.Node.Function = .{
             .name_tok = init_d.d.name,
             .@"inline" = decl_spec.@"inline" != null,
             .static = decl_spec.storage_class == .static,
             .qt = p.func.qt.?,
-            .body = body,
+            .body = null,
             .definition = null,
-        } }, @intFromEnum(decl_node));
+        };
+
+        try decl_spec.validateFnDef(p);
+        try p.tree.setNode(.{ .function = function }, @intFromEnum(decl_node));
         try p.wip_attrs.applyDeclAttrs(p, decl_node, previous_decl);
+
+        function.body = (try p.compoundStmt(true, null)) orelse {
+            assert(init_d.d.old_style_func != null);
+            try p.err(p.tok_i, .expected_fn_body, .{});
+            return true;
+        };
+        try p.tree.setNode(.{ .function = function }, @intFromEnum(decl_node));
 
         try p.decl_buf.append(gpa, decl_node);
 
@@ -2041,6 +2046,23 @@ fn attribute(p: *Parser, syntax: Attribute.Syntax) Error!void {
         }
 
         while (true) {
+            switch (p.tok_ids[p.tok_i]) {
+                .identifier, .extended_identifier => {
+                    if (p.list_buf.items.len == list_buf_top and namespaced.hasIdentifierArg()) {
+                        try p.wip_attrs.args.append(gpa, .{
+                            .node = try p.addNode(.{
+                                .identifier_arg = .{ .identifier_tok = p.tok_i },
+                            }),
+                        });
+                        p.tok_i += 1;
+
+                        if (p.eatToken(.r_paren)) |_| break;
+                        _ = try p.expectToken(.comma);
+                    }
+                },
+                else => {},
+            }
+
             const arg = try p.expect(assignExpr);
             try p.wip_attrs.args.append(gpa, arg);
 
@@ -5243,6 +5265,9 @@ fn asmStr(p: *Parser) Error!Result {
 ///  | assembly ';'
 ///  | expr? ';'
 fn stmt(p: *Parser) Error!Node.Index {
+    const attr_state = p.wip_attrs.state(false);
+    defer p.wip_attrs.restore(attr_state);
+
     try p.attributeSpecifier();
 
     const bare_stmt = try p.attributedStmt();
@@ -8690,17 +8715,19 @@ fn builtinVaArgPackLen(p: *Parser, builtin_tok: TokenIndex) Error!Result {
 }
 
 fn checkVaPackFunc(p: *Parser, builtin_tok: TokenIndex, va_func_name: []const u8) !bool {
-    const func_qt, _ = (try p.checkVaFunc(builtin_tok, va_func_name)) orelse return false;
-    _ = func_qt; // autofix
+    _ = (try p.checkVaFunc(builtin_tok, va_func_name)) orelse return false;
 
-    // var it = Attribute.Iterator.initType(func_qt, p.comp);
-    // while (it.next()) |item| switch (item[0].tag) {
-    //     .always_inline, .gnu_inline => break,
-    //     else => {},
-    // } else {
-    //     try p.err(builtin_tok, .va_func_not_always_inline, .{va_func_name});
-    //     return false;
-    // }
+    const am = &p.tree.attr_map;
+    for (am.attrs(p.func.decl)) |ref| {
+        const attr = am.get(ref);
+        switch (attr.args) {
+            .always_inline, .gnu_inline => break,
+            else => {},
+        }
+    } else {
+        try p.err(builtin_tok, .va_func_not_always_inline, .{va_func_name});
+        return false;
+    }
     return true;
 }
 

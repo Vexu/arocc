@@ -306,6 +306,8 @@ pub const Node = union(enum) {
 
     /// _Alignas(<type>) used as argument of an alignas attribute.
     alignas_type: AlignasType,
+    /// Plain identifier argument of an attribute.
+    identifier_arg: IdentifierArg,
 
     pub const EmptyDecl = struct {
         semicolon: TokenIndex,
@@ -760,6 +762,10 @@ pub const Node = union(enum) {
     pub const AlignasType = struct {
         alignas_tok: TokenIndex,
         qt: QualType,
+    };
+
+    pub const IdentifierArg = struct {
+        identifier_tok: TokenIndex,
     };
 
     pub const Index = enum(u32) {
@@ -1826,6 +1832,11 @@ pub const Node = union(enum) {
                         .qt = @bitCast(node_data[0]),
                     },
                 },
+                .identifier_arg => .{
+                    .identifier_arg = .{
+                        .identifier_tok = node_tok,
+                    },
+                },
             };
         }
 
@@ -2068,6 +2079,7 @@ pub const Node = union(enum) {
             compound_literal_expr,
             codegen_diagnostic,
             alignas_type,
+            identifier_arg,
         };
     };
 
@@ -2965,6 +2977,10 @@ pub fn setNode(tree: *Tree, node: Node, index: usize) !void {
             repr.tag = .alignas_type;
             repr.data[0] = @bitCast(alignas.qt);
             repr.tok = alignas.alignas_tok;
+        },
+        .identifier_arg => |identifier_arg| {
+            repr.tag = .identifier_arg;
+            repr.tok = identifier_arg.identifier_tok;
         },
     }
     tree.nodes.set(index, repr);
@@ -3900,5 +3916,6 @@ fn dumpNode(
             }
         },
         .alignas_type => unreachable,
+        .identifier_arg => unreachable,
     }
 }

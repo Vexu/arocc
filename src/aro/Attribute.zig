@@ -182,9 +182,7 @@ pub const Args = union(enum) {
             const enum_kind = .string;
         };
     },
-    section: struct {
-        name: []const u8,
-    },
+    section: []const u8,
     selectany,
     sentinel: struct {
         position: u32 = 0,
@@ -304,6 +302,7 @@ pub const Args = union(enum) {
         replacement: ?Value = null,
         priority: u32 = 0,
     },
+    optnone,
 
     pub const Visibility = enum {
         default,
@@ -476,6 +475,7 @@ pub const Namespaced = union(enum) {
         no_stack_protector,
         noderef,
         @"noinline",
+        optnone,
         riscv_vector_cc,
         riscv_vls_cc,
         single,
@@ -487,7 +487,7 @@ pub const Namespaced = union(enum) {
     pub const Aro = enum {};
     pub const Declspec = enum {
         @"align",
-        allocate, // section
+        allocate,
         allocator,
         appdomain,
         code_seg,
@@ -609,6 +609,20 @@ pub const Namespaced = union(enum) {
             .keyword_uptr => .uptr,
             else => unreachable,
         } };
+    }
+
+    pub fn hasIdentifierArg(n: Namespaced) bool {
+        return switch (n) {
+            .gnu => |gnu_attr| switch (gnu_attr) {
+                .access, .mode, .format => true,
+                else => false,
+            },
+            .declspec => |declspec_attr| switch (declspec_attr) {
+                .spectre => true,
+                else => false,
+            },
+            else => false,
+        };
     }
 };
 

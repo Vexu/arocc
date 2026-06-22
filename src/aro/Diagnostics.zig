@@ -206,6 +206,8 @@ pub const Option = enum {
     @"blocks-extension",
     @"extra-tokens",
     @"unsupported-visibility",
+    @"deprecated-attributes",
+    section,
 
     /// GNU extensions
     pub const gnu = [_]Option{

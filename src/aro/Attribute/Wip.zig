@@ -155,6 +155,13 @@ fn arg(wip: *Wip, comptime WantedBase: type) !?WantedBase {
         if (Wanted == Tree.Node.DeclRef and node == .decl_ref_expr) {
             return node.decl_ref_expr;
         }
+        if (@typeInfo(@TypeOf(Wanted)) == .@"enum" and Wanted.opts.enum_kind == .identifier and node == .identifier_arg) {
+            const str = tree.tokSlice(node.identifier_arg.identifier_tok);
+            if (Wanted.opts.map.get(str)) |enum_val| return enum_val;
+
+            try wip.errTok(tok, .unknown_enum, .{ wip.current.attr, Parser.ChoicesStr.init(Wanted.opts.map.keys(), null) });
+            return null;
+        }
 
         try wip.errTok(tok, .arg_type, .{ expected, wip.current.attr, expression });
         return null;
@@ -183,7 +190,7 @@ fn arg(wip: *Wip, comptime WantedBase: type) !?WantedBase {
 
                 try wip.errTok(tok, .arg_requires_string, .{wip.current.attr});
                 return null;
-            } else if (@typeInfo(Wanted) == .@"enum" and @hasDecl(Wanted, "opts") and Wanted.opts.enum_kind == .string) {
+            } else if (@typeInfo(Wanted) == .@"enum" and Wanted.opts.enum_kind == .string) {
                 if (Wanted.opts.map.get(str)) |enum_val| return enum_val;
 
                 try wip.errTok(tok, .unknown_enum, .{ wip.current.attr, Parser.ChoicesStr.init(Wanted.opts.map.keys(), '"') });
@@ -308,10 +315,7 @@ fn incompatible(wip: *Wip, attr: Attribute.Tag) !void {
         const prev_attr = am.get(wip.applied.items[i]);
         if (prev_attr.args == attr) {
             try wip.err(.incompatible_attr, .{ wip.current.attr, prev_attr });
-            try wip.current.parser.err(prev_attr.tok, .{
-                .fmt = "conflicting attribute is here",
-                .kind = .note,
-            }, .{});
+            try wip.errTok(prev_attr.tok, .conflicting_attribute, .{});
             _ = wip.applied.orderedRemove(i);
             continue;
         }
@@ -362,6 +366,7 @@ pub fn applyDeclAttrsExtra(
             .standard => |standard_attr| switch (standard_attr) {
                 .deprecated => try wip.applyDeprecated(),
                 .nodiscard => try wip.applyWarnUnusedResult(),
+                .noreturn, ._Noreturn => try wip.applyNoreturn(),
                 else => {
                     try wip.err(.unimplemented, .{attr});
                 },
@@ -425,6 +430,11 @@ pub fn applyDeclAttrsExtra(
                 .thiscall,
                 => try wip.applyCallingConvention(),
                 .visibility => try wip.applyVisibility(),
+                .noreturn => try wip.applyNoreturn(),
+                .cleanup => try wip.applyCleanup(),
+                .always_inline => try wip.applyAlwaysInline(),
+                .gnu_inline => try wip.applyGnuInline(),
+                .section => try wip.applySection(),
                 else => {
                     try wip.err(.unimplemented, .{attr});
                 },
@@ -442,6 +452,7 @@ pub fn applyDeclAttrsExtra(
                 .riscv_vls_cc,
                 .vectorcall,
                 => try wip.applyCallingConvention(),
+                .always_inline => try wip.applyAlwaysInline(),
                 else => {
                     try wip.err(.unimplemented, .{attr});
                 },
@@ -452,6 +463,8 @@ pub fn applyDeclAttrsExtra(
             .declspec => |declspec_attr| switch (declspec_attr) {
                 .@"align" => try wip.applyAlignment(),
                 .deprecated => try wip.applyDeprecated(),
+                .noreturn => try wip.applyNoreturn(),
+                .allocate => try wip.applySection(),
                 else => {
                     try wip.err(.unimplemented, .{attr});
                 },
@@ -478,6 +491,8 @@ pub fn applyDeclAttrsExtra(
                 ._vectorcall,
                 .__vectorcall,
                 => try wip.applyCallingConvention(),
+                .noreturn => try wip.applyNoreturn(),
+                ._forceinline, .__forceinline => try wip.applyAlwaysInline(),
                 else => {
                     try wip.err(.unimplemented, .{attr});
                 },
@@ -504,6 +519,10 @@ fn inherit(wip: *Wip, p: *Parser, decl: Tree.Node.Index) !void {
             .@"error",
             .warning,
             .visibility,
+            .noreturn,
+            .cleanup,
+            .always_inline,
+            .gnu_inline,
             => {},
             .alignment => {
                 try wip.addAlignmentToTypeMap(attr.args.alignment);
@@ -756,6 +775,104 @@ fn applyVisibility(wip: *Wip) !void {
     }
 
     try wip.add(.{ .visibility = kind });
+}
+
+fn applyNoreturn(wip: *Wip) !void {
+    if (try wip.checkTarget(&.{.function})) return;
+    if (try wip.argCount(0)) return;
+
+    const name = wip.current.attr.name;
+    if (name == .standard and name.standard == ._Noreturn) {
+        try wip.err(.deprecated_noreturn, .{});
+    }
+
+    try wip.add(.noreturn);
+}
+
+fn applyCleanup(wip: *Wip) !void {
+    const qt = wip.current.qt;
+    if (qt.isInvalid()) return;
+    if (try wip.checkTarget(&.{.local_variable})) return;
+    if (try wip.argCount(1)) return;
+
+    const decl_ref = (try wip.arg(Tree.Node.DeclRef)) orelse return;
+
+    const decl_node = decl_ref.decl.get(&wip.current.parser.tree);
+    if (decl_node != .function) {
+        try wip.err(.cleanup_non_function, .{ wip.current.attr, wip.current.parser.tokSlice(decl_ref.name_tok) });
+        return;
+    }
+    const comp = wip.current.parser.comp;
+    const func: Type.Func = decl_node.function.qt.get(comp, .func).?;
+
+    if (func.params.len != 1) {
+        try wip.err(.cleanup_one_arg, .{ wip.current.attr, wip.current.parser.tokSlice(decl_ref.name_tok) });
+        return;
+    }
+
+    const expected_qt = try comp.type_store.put(comp.gpa, .{ .pointer = .{
+        .child = qt,
+    } });
+    const actual_qt = func.params[0].qt;
+    if (!actual_qt.eql(expected_qt, comp)) {
+        try wip.err(.cleanup_arg_ty, .{ wip.current.attr, wip.current.parser.tokSlice(decl_ref.name_tok), actual_qt, expected_qt });
+        return;
+    }
+
+    try wip.add(.{ .cleanup = .{ .function = decl_ref.decl } });
+}
+
+fn applyAlwaysInline(wip: *Wip) !void {
+    if (try wip.checkTarget(&.{.function})) return;
+    if (try wip.argCount(0)) return;
+
+    const am = &wip.current.parser.tree.attr_map;
+    for (wip.applied.items) |ref| {
+        const prev_attr = am.get(ref);
+        if (prev_attr.args == .optnone) {
+            try wip.err(.ignored_attribute, .{wip.current.attr});
+            try wip.errTok(prev_attr.tok, .conflicting_attribute, .{});
+            return;
+        }
+        if (prev_attr.args == .always_inline) return;
+    }
+
+    try wip.add(.always_inline);
+}
+
+fn applyGnuInline(wip: *Wip) !void {
+    if (try wip.checkTarget(&.{.function})) return;
+    if (try wip.argCount(0)) return;
+
+    const node = wip.current.node();
+    if (!node.function.@"inline") {
+        try wip.err(.gnu_inline_non_inline, .{wip.current.attr});
+        return;
+    }
+
+    try wip.add(.gnu_inline);
+}
+
+fn applySection(wip: *Wip) !void {
+    if (try wip.checkTarget(&.{ .function, .global_variable })) return;
+    if (try wip.argCount(1)) return;
+
+    const section_name = (try wip.arg([]const u8)) orelse return;
+    // TODO Mach-O section name validation
+
+    const am = &wip.current.parser.tree.attr_map;
+    for (wip.applied.items) |ref| {
+        const prev_attr = am.get(ref);
+        if (prev_attr.args == .section) {
+            if (std.mem.eql(u8, prev_attr.args.section, section_name)) return;
+
+            try wip.err(.conflicting_section_name, .{wip.current.attr});
+            try wip.errTok(prev_attr.tok, .conflicting_attribute, .{});
+            return;
+        }
+    }
+
+    try wip.add(.{ .section = section_name });
 }
 
 pub fn applyTypeAttrs(wip: *Wip, p: *Parser, qt: QualType) !QualType {

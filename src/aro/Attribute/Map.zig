@@ -36,6 +36,11 @@ const Repr = struct {
         visibility_default,
         visibility_hidden,
         visibility_protected,
+        noreturn,
+        cleanup,
+        always_inline,
+        gnu_inline,
+        section,
     };
 };
 
@@ -69,6 +74,9 @@ pub fn put(map: *Map, gpa: mem.Allocator, attribute: Attribute) !Ref {
         .transparent_union => repr.tag = .transparent_union,
         .designated_init => repr.tag = .designated_init,
         .fallthrough => repr.tag = .fallthrough,
+        .noreturn => repr.tag = .noreturn,
+        .always_inline => repr.tag = .always_inline,
+        .gnu_inline => repr.tag = .gnu_inline,
         .alignment => |opt_value| if (opt_value) |value| {
             repr.tag = .alignment;
             repr.data = @intCast(map.extra.items.len);
@@ -139,6 +147,18 @@ pub fn put(map: *Map, gpa: mem.Allocator, attribute: Attribute) !Ref {
                 .protected => .visibility_protected,
             };
         },
+        .cleanup => |cleanup| {
+            repr.tag = .cleanup;
+            repr.data = @intCast(map.extra.items.len);
+            try map.extra.append(gpa, attribute.tok);
+            try map.extra.append(gpa, @intFromEnum(cleanup.function));
+        },
+        .section => |name| {
+            repr.tag = .section;
+            repr.data = @intCast(map.extra.items.len);
+            try map.extra.append(gpa, attribute.tok);
+            try map.putString(gpa, name);
+        },
         else => @panic("TODO"),
     }
 
@@ -163,6 +183,9 @@ pub fn get(map: *const Map, ref: Ref) Attribute {
         .transparent_union => res.args = .transparent_union,
         .designated_init => res.args = .designated_init,
         .fallthrough => res.args = .fallthrough,
+        .noreturn => res.args = .noreturn,
+        .always_inline => res.args = .always_inline,
+        .gnu_inline => res.args = .gnu_inline,
         .alignment_null => res.args = .{ .alignment = null },
         .alignment => {
             res.tok = map.extra.items[repr.data];
@@ -218,6 +241,15 @@ pub fn get(map: *const Map, ref: Ref) Attribute {
         .visibility_default => res.args = .{ .visibility = .default },
         .visibility_hidden => res.args = .{ .visibility = .hidden },
         .visibility_protected => res.args = .{ .visibility = .protected },
+        .cleanup => {
+            res.tok = map.extra.items[repr.data];
+            res.args = .{ .cleanup = .{ .function = @enumFromInt(map.extra.items[repr.data + 1]) } };
+        },
+        .section => {
+            res.tok = map.extra.items[repr.data];
+            const name, _ = map.getString(repr.data + 1);
+            res.args = .{ .section = name };
+        },
     }
     return res;
 }
