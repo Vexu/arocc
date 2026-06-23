@@ -1199,7 +1199,7 @@ fn applyCallingConvention(wip: *Wip) !void {
         .ms_abi => if (ms_abi) continue :check .cdecl else (comp.target.cpu.arch == .x86_64 or comp.target.cpu.arch.isAARCH64()),
         .sysv_abi => if (ms_abi) comp.target.cpu.arch == .x86_64 else continue :check .cdecl,
         .fastcall, .regcall, .stdcall, .thiscall => comp.target.cpu.arch == .x86,
-        .vectorcall => comp.target.cpu.arch == .x86 or comp.target.cpu.arch.isAARCH64(),
+        .vectorcall => comp.target.cpu.arch == .x86 or comp.target.cpu.arch == .x86_64 or comp.target.cpu.arch.isAARCH64(),
     };
     if (!supported) {
         try wip.err(.callconv_not_supported, .{attr});
