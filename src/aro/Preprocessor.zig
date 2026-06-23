@@ -1267,6 +1267,7 @@ fn expr(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!bool {
         .tok_ids = pp.tokens.items(.id),
         .tok_i = @intCast(token_state.tokens_len),
         .in_macro = true,
+        .wip_attrs = .{},
 
         .tree = undefined,
         .labels = undefined,
@@ -1275,7 +1276,6 @@ fn expr(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!bool {
         .param_buf = undefined,
         .enum_buf = undefined,
         .record_buf = undefined,
-        .attr_buf = undefined,
         .string_ids = undefined,
     };
     defer parser.strings.deinit(gpa);
@@ -1887,10 +1887,10 @@ fn handleBuiltinMacro(pp: *Preprocessor, builtin: Macro.Builtin.Func, param_toks
 
             const ident_str = pp.expandedSlice(identifier.?);
             return switch (builtin) {
-                .has_attribute => Attribute.fromString(.gnu, null, ident_str) != null,
+                .has_attribute => Attribute.Namespaced.fromString(.gnu, null, ident_str) != null,
                 .has_declspec_attribute => {
                     return if (pp.comp.langopts.declspec_attrs)
-                        Attribute.fromString(.declspec, null, ident_str) != null
+                        Attribute.Namespaced.fromString(.declspec, null, ident_str) != null
                     else
                         false;
                 },
@@ -2149,14 +2149,13 @@ fn expandFuncMacro(
                         if (vendor_ident) |some| {
                             const vendor_str = pp.expandedSlice(some);
                             const attr_str = pp.expandedSlice(attr_ident.?);
-                            const exists = Attribute.fromString(.gnu, vendor_str, attr_str) != null;
+                            const exists = Attribute.Namespaced.fromString(.standard, vendor_str, attr_str) != null;
 
                             const start = pp.comp.generated_buf.items.len;
                             try pp.comp.generated_buf.appendSlice(gpa, if (exists) "1\n" else "0\n");
                             try buf.append(gpa, try pp.makeGeneratedToken(start, .pp_num, tokFromRaw(raw)));
                             continue;
                         }
-                        if (!pp.comp.langopts.standard.atLeast(.c23)) break :res not_found;
 
                         const attrs = std.StaticStringMap([]const u8).initComptime(.{
                             .{ "deprecated", "201904L\n" },

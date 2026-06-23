@@ -22,8 +22,26 @@ variable: 'neon_vector(2, unsigned long)'
 variable: 'neon_vector(2, double)'
  name: b
 
+variable: '*int'
+ name: c
+
+variable: 'unsigned long'
+ name: d
+
+variable: 'short'
+ name: e
+
+variable: 'long'
+ name: f
+
 variable: 'neon_polyvector(2, unsigned long)'
  name: g
+
+variable: 'unsigned long'
+ name: h
+
+variable: 'unsigned short'
+ name: i
 
 function: 'fn () void'
  name: foo

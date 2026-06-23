@@ -1,7 +1,7 @@
 const std = @import("std");
 
+const Attribute = @import("Attribute.zig");
 const char_info = @import("char_info.zig");
-const DiagnosticTag = @import("Diagnostics.zig").Tag;
 const Target = @import("Target.zig");
 
 pub const Compiler = enum {
@@ -172,7 +172,7 @@ gnuc_version: ?u32 = null,
 
 bounds_safety: BoundsSafety = .none,
 
-default_symbol_visibility: std.builtin.SymbolVisibility = .default,
+default_symbol_visibility: Attribute.Args.Visibility = .default,
 
 blocks: bool = false,
 

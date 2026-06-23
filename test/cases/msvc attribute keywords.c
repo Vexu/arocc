@@ -14,6 +14,7 @@ unsigned long __int64 l;
 /** manifest:
 syntax
 args = --target=x86-windows-msvc
+skip = __unaligned ignored
 
 msvc attribute keywords.c:7:13: warning: '__stdcall' only applies to function types; type here is 'int *' [-Wignored-attributes]
 msvc attribute keywords.c:7:32: error: expected ']', found '__cdecl'

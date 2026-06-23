@@ -6,5 +6,5 @@ enum E {
 syntax
 
 non string attribute.c:2:71: error: array type 'char [16]' is not assignable
-non string attribute.c:2:53: error: attribute 'deprecated' requires an ordinary string
+non string attribute.c:2:71: error: expected string literal as argmuent of 'deprecated' attribute
 */

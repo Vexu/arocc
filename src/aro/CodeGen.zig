@@ -180,7 +180,7 @@ fn genType(c: *CodeGen, qt: QualType) !Interner.Ref {
         .nullptr_t => {
             return c.fail("TODO lower nullptr_t", .{});
         },
-        .attributed, .typeof, .typedef => unreachable,
+        .typeof, .typedef => unreachable,
     };
     return c.builder.interner.put(c.builder.gpa, key);
 }

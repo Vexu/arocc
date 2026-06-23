@@ -24,10 +24,10 @@ __declspec(restrict) int *qux(void); // TODO should be allowed
 /** manifest:
 syntax
 args = -fdeclspec --target=x86_64-linux
-skip = declspec restrict parsed on function return type parsed incorrectly
+skip = TODO: implement 'restrict' attribute
 
 declspec.c:5:12: warning: __declspec attribute 'aligned' is not supported [-Wignored-attributes]
 declspec.c:17:18: error: 'declspec' attribute not allowed after declarator
 declspec.c:17:13: note: this declarator
-declspec.c:22:12: warning: attribute 'restrict' ignored on functions [-Wignored-attributes]
+declspec.c:22:12: warning: TODO: implement 'restrict' attribute
 */

@@ -18,15 +18,15 @@ implicit typedef: 'long double'
 
 function: 'fn (int) int'
  name: foo
- definition: 0x9
+ definition: 0xC
 
 function: 'fn (int) int'
  name: foo
- definition: 0x9
+ definition: 0xC
 
 function: 'fn (int) int'
  name: foo
- definition: 0x9
+ definition: 0xC
 
 function: 'fn (a: int) int'
  name: foo
@@ -40,23 +40,23 @@ function: 'fn (a: int) int'
 
 function: 'fn (int) int'
  name: foo
- definition: 0x9
+ definition: 0xC
 
 function: 'fn (int) int'
  name: foo
- definition: 0x9
+ definition: 0xC
 
 function: 'fn (int) int'
  name: foo
- definition: 0x9
+ definition: 0xC
 
 variable: 'int'
  extern name: a
- definition: 0x14
+ definition: 0x1A
 
 variable: 'int'
  name: a
- definition: 0x14
+ definition: 0x1A
 
 variable: 'int'
  name: a
@@ -65,15 +65,15 @@ variable: 'int'
 
 variable: 'int'
  extern name: a
- definition: 0x14
+ definition: 0x1A
 
 variable: 'int'
  name: a
- definition: 0x14
+ definition: 0x1A
 
 variable: 'int'
  extern name: b
- definition: 0x19
+ definition: 0x1F
 
 variable: 'int'
  name: b
@@ -87,14 +87,14 @@ function: 'fn () int'
 
     function: 'fn () int'
      name: baz
-     definition: 0x1B
+     definition: 0x21
 
     variable: 'int'
      extern name: b
 
     variable: 'int'
      extern name: b
-     definition: 0x1D
+     definition: 0x23
 
     return_stmt: 'int'
      expr:

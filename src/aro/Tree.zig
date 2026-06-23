@@ -138,13 +138,17 @@ extra: std.ArrayList(u32) = .empty,
 root_decls: std.ArrayList(Node.Index) = .empty,
 value_map: ValueMap = .empty,
 
+attr_map: Attribute.Map = .{},
+
 pub const genIr = CodeGen.genIr;
 
 pub fn deinit(tree: *Tree) void {
-    tree.nodes.deinit(tree.comp.gpa);
-    tree.extra.deinit(tree.comp.gpa);
-    tree.root_decls.deinit(tree.comp.gpa);
-    tree.value_map.deinit(tree.comp.gpa);
+    const gpa = tree.comp.gpa;
+    tree.nodes.deinit(gpa);
+    tree.extra.deinit(gpa);
+    tree.root_decls.deinit(gpa);
+    tree.value_map.deinit(gpa);
+    tree.attr_map.deinit(gpa);
     tree.* = undefined;
 }
 
@@ -300,6 +304,11 @@ pub const Node = union(enum) {
 
     codegen_diagnostic: CodegenDiagnostic,
 
+    /// _Alignas(<type>) used as argument of an alignas attribute.
+    alignas_type: AlignasType,
+    /// Plain identifier argument of an attribute.
+    identifier_arg: IdentifierArg,
+
     pub const EmptyDecl = struct {
         semicolon: TokenIndex,
     };
@@ -386,7 +395,6 @@ pub const Node = union(enum) {
     pub const LabeledStmt = struct {
         label_tok: TokenIndex,
         body: Node.Index,
-        qt: QualType,
     };
 
     pub const CompoundStmt = struct {
@@ -461,7 +469,6 @@ pub const Node = union(enum) {
 
     pub const NullStmt = struct {
         semicolon_or_r_brace_tok: TokenIndex,
-        qt: QualType,
     };
 
     pub const ReturnStmt = struct {
@@ -752,6 +759,15 @@ pub const Node = union(enum) {
         text: []const u32,
     };
 
+    pub const AlignasType = struct {
+        alignas_tok: TokenIndex,
+        qt: QualType,
+    };
+
+    pub const IdentifierArg = struct {
+        identifier_tok: TokenIndex,
+    };
+
     pub const Index = enum(u32) {
         _,
 
@@ -945,8 +961,7 @@ pub const Node = union(enum) {
                 .labeled_stmt => .{
                     .labeled_stmt = .{
                         .label_tok = node_tok,
-                        .qt = @bitCast(node_data[0]),
-                        .body = @enumFromInt(node_data[1]),
+                        .body = @enumFromInt(node_data[0]),
                     },
                 },
                 .compound_stmt => .{
@@ -1046,7 +1061,6 @@ pub const Node = union(enum) {
                 .null_stmt => .{
                     .null_stmt = .{
                         .semicolon_or_r_brace_tok = node_tok,
-                        .qt = @bitCast(node_data[0]),
                     },
                 },
                 .return_stmt => .{
@@ -1812,6 +1826,17 @@ pub const Node = union(enum) {
                         },
                     };
                 },
+                .alignas_type => .{
+                    .alignas_type = .{
+                        .alignas_tok = node_tok,
+                        .qt = @bitCast(node_data[0]),
+                    },
+                },
+                .identifier_arg => .{
+                    .identifier_arg = .{
+                        .identifier_tok = node_tok,
+                    },
+                },
             };
         }
 
@@ -1851,6 +1876,8 @@ pub const Node = union(enum) {
                 .asm_stmt_inline,
                 .asm_stmt_inline_volatile,
                 .asm_stmt_simple,
+                .null_stmt,
+                .labeled_stmt,
                 .global_asm,
                 .generic_association_expr,
                 .generic_default_expr,
@@ -1863,6 +1890,12 @@ pub const Node = union(enum) {
                     return @bitCast(tree.nodes.items(.data)[@intFromEnum(index)][0]);
                 },
             };
+        }
+
+        /// No-op equivalent to OptIndex.unpack to make it easy for functions
+        /// to accept both.
+        pub inline fn unpack(node: Index) ?Index {
+            return node;
         }
     };
 
@@ -2045,6 +2078,8 @@ pub const Node = union(enum) {
             default_init_expr,
             compound_literal_expr,
             codegen_diagnostic,
+            alignas_type,
+            identifier_arg,
         };
     };
 
@@ -2204,8 +2239,7 @@ pub fn setNode(tree: *Tree, node: Node, index: usize) !void {
         },
         .labeled_stmt => |labeled| {
             repr.tag = .labeled_stmt;
-            repr.data[0] = @bitCast(labeled.qt);
-            repr.data[1] = @intFromEnum(labeled.body);
+            repr.data[0] = @intFromEnum(labeled.body);
             repr.tok = labeled.label_tok;
         },
         .compound_stmt => |compound| {
@@ -2299,7 +2333,6 @@ pub fn setNode(tree: *Tree, node: Node, index: usize) !void {
         },
         .null_stmt => |@"null"| {
             repr.tag = .null_stmt;
-            repr.data[0] = @bitCast(@"null".qt);
             repr.tok = @"null".semicolon_or_r_brace_tok;
         },
         .return_stmt => |@"return"| {
@@ -2940,6 +2973,15 @@ pub fn setNode(tree: *Tree, node: Node, index: usize) !void {
             repr.data[1], repr.data[2] = try tree.addExtra(@ptrCast(diagnostic.text));
             repr.tok = diagnostic.tok;
         },
+        .alignas_type => |alignas| {
+            repr.tag = .alignas_type;
+            repr.data[0] = @bitCast(alignas.qt);
+            repr.tok = alignas.alignas_tok;
+        },
+        .identifier_arg => |identifier_arg| {
+            repr.tag = .identifier_arg;
+            repr.tok = identifier_arg.identifier_tok;
+        },
     }
     tree.nodes.set(index, repr);
 }
@@ -2992,21 +3034,25 @@ pub fn bitfieldWidth(tree: *const Tree, node: Node.Index, inspect_lval: bool) ?u
     }
 }
 
-const CallableResultUsage = struct {
+const CalledFunctionAttr = struct {
     /// name token of the thing being called, for diagnostics
     tok: TokenIndex,
-    /// true if `nodiscard` attribute present
-    nodiscard: bool,
-    /// true if `warn_unused_result` attribute present
-    warn_unused_result: bool,
+    /// The requested attribute if present.
+    attr: ?Attribute,
 };
 
-pub fn callableResultUsage(tree: *const Tree, node: Node.Index) ?CallableResultUsage {
+/// Check for an attribute on function declaration or its return type.
+pub fn calledFunctionAttr(tree: *const Tree, node: Node.Index, tag: Attribute.Tag) ?CalledFunctionAttr {
+    const comp = tree.comp;
+    const am = &tree.attr_map;
     loop: switch (node.get(tree)) {
         .decl_ref_expr => |decl_ref| return .{
             .tok = decl_ref.name_tok,
-            .nodiscard = decl_ref.qt.hasAttribute(tree.comp, .nodiscard),
-            .warn_unused_result = decl_ref.qt.hasAttribute(tree.comp, .warn_unused_result),
+            .attr = am.getAttribute(decl_ref.decl, tag) orelse blk: {
+                const base_qt = if (decl_ref.qt.get(comp, .pointer)) |pointer| pointer.child else decl_ref.qt;
+                const func = base_qt.get(comp, .func) orelse break :blk null;
+                break :blk func.return_type.getAttribute(tree, tag);
+            },
         },
 
         .paren_expr, .addr_of_expr, .deref_expr => |un| continue :loop un.operand.get(tree),
@@ -3015,17 +3061,17 @@ pub fn callableResultUsage(tree: *const Tree, node: Node.Index) ?CallableResultU
         .call_expr => |call| continue :loop call.callee.get(tree),
         .member_access_expr, .member_access_ptr_expr => |access| {
             var qt = access.base.qt(tree);
-            if (qt.get(tree.comp, .pointer)) |pointer| qt = pointer.child;
-            const record_ty = switch (qt.base(tree.comp).type) {
-                .@"struct", .@"union" => |record| record,
-                else => return null,
-            };
+            if (qt.get(comp, .pointer)) |pointer| qt = pointer.child;
+            const record_ty = qt.getRecord(comp) orelse return null;
 
             const field = record_ty.fields[access.member_index];
             return .{
                 .tok = field.name_tok,
-                .nodiscard = field.qt.hasAttribute(tree.comp, .nodiscard),
-                .warn_unused_result = field.qt.hasAttribute(tree.comp, .warn_unused_result),
+                .attr = am.getAttribute(field.field_decl, tag) orelse blk: {
+                    const base_qt = if (field.qt.get(comp, .pointer)) |pointer| pointer.child else field.qt;
+                    const func = base_qt.get(comp, .func) orelse break :blk null;
+                    break :blk func.return_type.getAttribute(tree, tag);
+                },
             };
         },
         else => return null,
@@ -3106,44 +3152,48 @@ pub fn dump(tree: *const Tree, term: std.Io.Terminal) std.Io.Terminal.SetColorEr
     try term.writer.flush();
 }
 
-fn dumpFieldAttributes(tree: *const Tree, attributes: []const Attribute, level: u32, w: *std.Io.Writer) !void {
-    for (attributes) |attr| {
-        try w.splatByteAll(' ', level);
-        try w.print("field attr: {t}", .{attr.tag});
-        try tree.dumpAttribute(attr, w);
-    }
-}
+fn dumpAttribute(tree: *const Tree, ref: Attribute.Map.Ref, w: *std.Io.Writer) !void {
+    const attr = tree.attr_map.get(ref);
 
-fn dumpAttribute(tree: *const Tree, attr: Attribute, w: *std.Io.Writer) !void {
-    switch (attr.tag) {
-        inline else => |tag| {
-            const args = @field(attr.args, @tagName(tag));
-            const info = @typeInfo(@TypeOf(args)).@"struct";
-            if (info.field_names.len == 0) {
-                try w.writeByte('\n');
-                return;
-            }
-            try w.writeByte(' ');
-            inline for (info.field_names, info.field_types, 0..) |f_name, f_type, i| {
-                if (comptime std.mem.eql(u8, f_name, "__name_tok")) continue;
-                if (i != 0) {
-                    try w.writeAll(", ");
-                }
-                try w.writeAll(f_name);
-                try w.writeAll(": ");
-                switch (f_type) {
-                    Interner.Ref => try w.print("\"{s}\"", .{tree.interner.get(@field(args, f_name)).bytes}),
-                    ?Interner.Ref => try w.print("\"{?s}\"", .{if (@field(args, f_name)) |str| tree.interner.get(str).bytes else null}),
-                    else => switch (@typeInfo(f_type)) {
-                        .@"enum" => try w.writeAll(@tagName(@field(args, f_name))),
-                        else => try w.print("{any}", .{@field(args, f_name)}),
-                    },
-                }
-            }
-            try w.writeByte('\n');
-            return;
+    if (attr.syntax == .standard) {
+        try w.writeAll(@tagName(attr.name));
+        try w.writeAll("::");
+    }
+    switch (attr.name) {
+        .aro => {},
+        inline else => |tag| try w.writeAll(@tagName(tag)),
+    }
+
+    switch (attr.args) {
+        inline else => |args| switch (@TypeOf(args)) {
+            void => {},
+            []const u8 => try w.print(": {s}", .{args}),
+            ?[]const u8 => try w.print(": {?s}", .{args}),
+            else => switch (@typeInfo(@TypeOf(args))) {
+                .@"struct" => |info| {
+                    try w.writeAll(": { ");
+                    inline for (info.field_names, info.field_types, 0..) |f_name, f_type, i| {
+                        if (i != 0) {
+                            try w.writeAll(", ");
+                        }
+                        try w.writeAll(f_name);
+                        try w.writeAll(": ");
+                        switch (f_type) {
+                            []const u8 => try w.print("{s}", .{@field(args, f_name)}),
+                            ?[]const u8 => try w.print("{?s}", .{@field(args, f_name)}),
+                            else => switch (@typeInfo(f_type)) {
+                                else => try w.print("{any}", .{@field(args, f_name)}),
+                            },
+                        }
+                    }
+                    try w.writeAll(" }");
+                },
+                else => try w.print(": {any}", .{args}),
+            },
         },
     }
+    try w.writeByte('\n');
+    return;
 }
 
 fn dumpNode(
@@ -3231,19 +3281,16 @@ fn dumpNode(
     }
 
     try w.writeAll("\n");
-    try term.setColor(.reset);
 
-    if (node_index.qtOrNull(tree)) |qt| {
+    const node_attrs = tree.attr_map.attrs(node_index);
+    if (node_attrs.len > 0) {
         try term.setColor(ATTRIBUTE);
-        var it = Attribute.Iterator.initType(qt, tree.comp);
-        while (it.next()) |item| {
-            const attr, _ = item;
+        for (node_attrs) |attr| {
             try w.splatByteAll(' ', level + half);
-            try w.print("attr: {t}", .{attr.tag});
             try tree.dumpAttribute(attr, w);
         }
-        try term.setColor(.reset);
     }
+    try term.setColor(.reset);
 
     switch (node) {
         .empty_decl => {},
@@ -3382,27 +3429,9 @@ fn dumpNode(
             }
         },
         .struct_decl, .union_decl => |decl| {
-            const fields = switch (node_index.qt(tree).base(tree.comp).type) {
-                .@"struct", .@"union" => |record| record.fields,
-                else => unreachable,
-            };
-
-            var field_i: u32 = 0;
             for (decl.fields, 0..) |field_node, i| {
                 if (i != 0) try w.writeByte('\n');
                 try tree.dumpNode(field_node, level + delta, term);
-
-                if (field_node.get(tree) != .record_field) continue;
-                if (fields.len == 0) continue;
-
-                const field_attributes = fields[field_i].attributes(tree.comp);
-                field_i += 1;
-
-                if (field_attributes.len == 0) continue;
-
-                try term.setColor(ATTRIBUTE);
-                try tree.dumpFieldAttributes(field_attributes, level + delta + half, w);
-                try term.setColor(.reset);
             }
         },
         .array_init_expr, .struct_init_expr => |init| {
@@ -3884,5 +3913,7 @@ fn dumpNode(
                 try w.print(" [-W{t}]", .{opt});
             }
         },
+        .alignas_type => unreachable,
+        .identifier_arg => unreachable,
     }
 }
