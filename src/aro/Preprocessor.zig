@@ -1985,11 +1985,10 @@ fn expandFuncMacro(
     func_macro: *const Macro,
     args: *const MacroArguments,
     expanded_args: *const MacroArguments,
-    hideset_arg: Hideset.Index,
+    hideset: Hideset.Index,
     eval_ctx: EvalContext,
 ) MacroError!ExpandBuf {
     const gpa = pp.comp.gpa;
-    var hideset = hideset_arg;
     var buf: ExpandBuf = .empty;
     errdefer buf.deinit(gpa);
     try buf.ensureTotalCapacity(gpa, func_macro.tokens.len);
@@ -2047,17 +2046,11 @@ fn expandFuncMacro(
                 if (next.len != 0) break;
             },
             .macro_param_no_expand => {
-                if (tok_i + 1 < func_macro.tokens.len and func_macro.tokens[tok_i + 1].id == .hash_hash) {
-                    hideset = .none;
-                }
                 const slice = getPasteArgs(args.items[raw.end]);
                 const raw_loc = Source.Location{ .id = raw.source, .byte_offset = raw.start, .line = raw.line };
                 try bufCopyTokens(gpa, &buf, slice, &.{raw_loc});
             },
             .macro_param => {
-                if (tok_i + 1 < func_macro.tokens.len and func_macro.tokens[tok_i + 1].id == .hash_hash) {
-                    hideset = .none;
-                }
                 const arg = expanded_args.items[raw.end];
                 const raw_loc = Source.Location{ .id = raw.source, .byte_offset = raw.start, .line = raw.line };
                 try bufCopyTokens(gpa, &buf, arg, &.{raw_loc});
