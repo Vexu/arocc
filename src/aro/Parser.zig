@@ -2610,6 +2610,7 @@ fn recordSpec(p: *Parser) Error!QualType {
     try p.attributeSpecifier();
 
     const reserved_index = try p.tree.nodes.addOne(gpa);
+    const record_decl: Tree.Node.Index = @enumFromInt(reserved_index);
 
     const maybe_ident = try p.eatIdentifier();
     try p.attributeSpecifier();
@@ -2628,7 +2629,7 @@ fn recordSpec(p: *Parser) Error!QualType {
             const record_ty: Type.Record = .{
                 .name = interned_name,
                 .layout = null,
-                .decl_node = @enumFromInt(reserved_index),
+                .decl_node = .pack(record_decl),
                 .fields = &.{},
             };
             const record_qt = try p.comp.type_store.put(gpa, if (is_struct)
@@ -2653,9 +2654,9 @@ fn recordSpec(p: *Parser) Error!QualType {
                 .{ .struct_forward_decl = fw }
             else
                 .{ .union_forward_decl = fw }, reserved_index);
-            try p.decl_buf.append(gpa, @enumFromInt(reserved_index));
+            try p.decl_buf.append(gpa, record_decl);
             assert(try p.wip_attrs.applyTypeAttrs(p, record_qt) == record_qt);
-            try p.wip_attrs.applyDeclAttrs(p, @enumFromInt(reserved_index), .null);
+            try p.wip_attrs.applyDeclAttrs(p, record_decl, .null);
             return record_qt;
         }
     };
@@ -2685,7 +2686,7 @@ fn recordSpec(p: *Parser) Error!QualType {
         // can be specified after the closing rbrace, which we haven't encountered yet.
         const record_ty: Type.Record = .{
             .name = interned_name,
-            .decl_node = @enumFromInt(reserved_index),
+            .decl_node = .pack(record_decl),
             .layout = null,
             .fields = &.{},
         };
@@ -2709,7 +2710,7 @@ fn recordSpec(p: *Parser) Error!QualType {
         break :blk .{ record_ty, record_qt, .null };
     };
 
-    try p.decl_buf.append(gpa, @enumFromInt(reserved_index));
+    try p.decl_buf.append(gpa, record_decl);
     const decl_buf_top = p.decl_buf.items.len;
     const record_buf_top = p.record_buf.items.len;
     errdefer p.decl_buf.items.len = decl_buf_top - 1;
@@ -2759,7 +2760,6 @@ fn recordSpec(p: *Parser) Error!QualType {
     if (p.func.qt == null) {
         _ = p.tentative_defs.orderedRemove(.incompleteType(record_ty.name));
     }
-    const record_decl: Node.Index = @enumFromInt(reserved_index);
     assert(try p.wip_attrs.applyTypeAttrs(p, qt) == qt);
     try p.wip_attrs.applyDeclAttrs(p, record_decl, prev_decl);
 
@@ -3092,6 +3092,7 @@ fn enumSpec(p: *Parser) Error!QualType {
     } else null;
 
     const reserved_index = try p.tree.nodes.addOne(gpa);
+    const enum_decl: Tree.Node.Index = @enumFromInt(reserved_index);
 
     const l_brace = p.eatToken(.l_brace) orelse {
         const ident = maybe_ident orelse {
@@ -3113,7 +3114,7 @@ fn enumSpec(p: *Parser) Error!QualType {
                 .tag = fixed_qt,
                 .fixed = fixed_qt != null,
                 .incomplete = true,
-                .decl_node = @enumFromInt(reserved_index),
+                .decl_node = enum_decl,
                 .fields = &.{},
             } });
 
@@ -3166,7 +3167,7 @@ fn enumSpec(p: *Parser) Error!QualType {
         // can be specified after the closing rbrace, which we haven't encountered yet.
         const enum_ty: Type.Enum = .{
             .name = interned_name,
-            .decl_node = @enumFromInt(reserved_index),
+            .decl_node = enum_decl,
             .tag = fixed_qt,
             .incomplete = true,
             .fixed = fixed_qt != null,
@@ -3177,7 +3178,7 @@ fn enumSpec(p: *Parser) Error!QualType {
     };
 
     // reserve space for this enum
-    try p.decl_buf.append(gpa, @enumFromInt(reserved_index));
+    try p.decl_buf.append(gpa, enum_decl);
     const decl_buf_top = p.decl_buf.items.len;
     const list_buf_top = p.list_buf.items.len;
     const enum_buf_top = p.enum_buf.items.len;
@@ -3208,7 +3209,7 @@ fn enumSpec(p: *Parser) Error!QualType {
         .fields = &.{},
     } }, reserved_index);
     assert(try p.wip_attrs.applyTypeAttrs(p, qt) == qt);
-    try p.wip_attrs.applyDeclAttrs(p, @enumFromInt(reserved_index), prev_decl);
+    try p.wip_attrs.applyDeclAttrs(p, enum_decl, prev_decl);
 
     const enum_fields = p.enum_buf.items[enum_buf_top..];
     const field_nodes = p.list_buf.items[list_buf_top..];
@@ -3257,7 +3258,7 @@ fn enumSpec(p: *Parser) Error!QualType {
     { // Override previous incomplete type
         enum_ty.fields = enum_fields;
         enum_ty.incomplete = false;
-        enum_ty.decl_node = @enumFromInt(reserved_index);
+        enum_ty.decl_node = enum_decl;
         const base_type = qt.base(p.comp);
         std.debug.assert(base_type.type.@"enum".name == enum_ty.name);
         try p.comp.type_store.set(gpa, .{ .@"enum" = enum_ty }, @intFromEnum(base_type.qt._index));
@@ -5894,7 +5895,7 @@ fn returnStmt(p: *Parser) Error!?Node.Index {
     const ret_qt: QualType = if (func_qt.get(p.comp, .func)) |func_ty| func_ty.return_type else .invalid;
     const ret_void = !ret_qt.isInvalid() and ret_qt.is(p.comp, .void);
 
-    if (func_qt.hasAttribute(&p.tree, .noreturn)) {
+    if (p.tree.attr_map.hasAttribute(p.func.decl, .noreturn)) {
         try p.err(e_tok, .invalid_noreturn, .{p.tokSlice(p.func.name)});
     }
 

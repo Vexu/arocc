@@ -1209,6 +1209,7 @@ pub const QualType = packed struct(u32) {
         }
     }
 
+    /// Checks for attributes on the declarations of struct, union, enum and typedef types.
     pub fn getAttribute(qt: QualType, tree: *const Tree, tag: Attribute.Tag) ?Attribute {
         if (qt.isInvalid()) return null;
         const comp = tree.comp;

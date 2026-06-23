@@ -1212,11 +1212,6 @@ fn applyCallingConvention(wip: *Wip) !void {
     }
     func.cc = cc;
 
-    if (wip.current.target == null) {
-        wip.current.qt = try comp.type_store.put(comp.gpa, .{ .func = func });
-        return;
-    }
-
     // TODO this can overwrite a typedef
     // typedef void (*fn_ptr)(void);
     // __cdecl fn_ptr a;

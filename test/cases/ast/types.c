@@ -104,3 +104,6 @@ enum_decl: 'enum E: unsigned int'
       cast: (int_cast) 'long' (value: 3)
         int_literal: 'int' (value: 3)
 
+variable: '*fn () cc(cdecl) void'
+ name: ptr_to_cdecl
+

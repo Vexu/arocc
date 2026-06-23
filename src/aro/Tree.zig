@@ -3037,10 +3037,11 @@ pub fn bitfieldWidth(tree: *const Tree, node: Node.Index, inspect_lval: bool) ?u
 const CalledFunctionAttr = struct {
     /// name token of the thing being called, for diagnostics
     tok: TokenIndex,
-    /// true if `warn_unused_result` attribute present
+    /// The requested attribute if present.
     attr: ?Attribute,
 };
 
+/// Check for an attribute on function declaration or its return type.
 pub fn calledFunctionAttr(tree: *const Tree, node: Node.Index, tag: Attribute.Tag) ?CalledFunctionAttr {
     const comp = tree.comp;
     const am = &tree.attr_map;
@@ -3061,10 +3062,7 @@ pub fn calledFunctionAttr(tree: *const Tree, node: Node.Index, tag: Attribute.Ta
         .member_access_expr, .member_access_ptr_expr => |access| {
             var qt = access.base.qt(tree);
             if (qt.get(comp, .pointer)) |pointer| qt = pointer.child;
-            const record_ty = switch (qt.base(comp).type) {
-                .@"struct", .@"union" => |record| record,
-                else => return null,
-            };
+            const record_ty = qt.getRecord(comp) orelse return null;
 
             const field = record_ty.fields[access.member_index];
             return .{
