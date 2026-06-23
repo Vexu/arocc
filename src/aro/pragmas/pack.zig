@@ -15,7 +15,10 @@ pragma: Pragma = .{
     .deinit = deinit,
     .parserHandler = parserHandler,
 },
-stack: std.ArrayList(struct { label: []const u8, val: u8 }) = .empty,
+
+// Pack states are saved in this stack so `pop` can restore them exactly.
+// A `null` value means no packing, or natural alignment.
+stack: std.ArrayList(struct { label: []const u8, val: ?u8 }) = .empty,
 
 pub fn init(allocator: mem.Allocator) !*Pragma {
     var pack = try allocator.create(Pack);
@@ -82,7 +85,7 @@ fn parserHandler(pragma: *Pragma, p: *Parser, start_idx: TokenIndex) Compilation
                         }
                     }
                     if (action == .push) {
-                        try pack.stack.append(p.comp.gpa, .{ .label = label orelse "", .val = p.pragma_pack orelse 8 });
+                        try pack.stack.append(p.comp.gpa, .{ .label = label orelse "", .val = p.pragma_pack });
                     } else {
                         const pop_success = pack.pop(p, label);
                         if (new_val != null) {
