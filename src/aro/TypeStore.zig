@@ -678,7 +678,10 @@ pub const QualType = packed struct(u32) {
                     break :request;
                 }
             } else if (comp.langopts.emulate == .msvc) {
-                const type_align = qt.base(comp).qt.alignof(comp);
+                const type_align = switch (qt.type(comp)) {
+                    .typedef => |typedef| typedef.base.alignof(comp),
+                    else => qt.base(comp).qt.alignof(comp),
+                };
                 return @max(requested, type_align);
             }
             return requested;
