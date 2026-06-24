@@ -1166,6 +1166,7 @@ fn expr(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!bool {
         switch (tok.id) {
             .nl, .eof => break tok,
             .whitespace => if (pp.top_expansion_buf.items.len == 0) continue,
+            .comment => continue,
             else => {},
         }
         try pp.top_expansion_buf.append(gpa, tokFromRaw(tok));
