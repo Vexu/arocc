@@ -1167,6 +1167,10 @@ fn expr(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!bool {
             .nl, .eof => break tok,
             .whitespace => if (pp.top_expansion_buf.items.len == 0) continue,
             .comment => continue,
+            .unterminated_comment => {
+                try pp.err(tok, .unterminated_comment, .{});
+                continue;
+            },
             else => {},
         }
         try pp.top_expansion_buf.append(gpa, tokFromRaw(tok));
@@ -1400,9 +1404,6 @@ fn skip(
             line_start = false;
             tokenizer.index += 1;
         }
-    } else {
-        const eof = tokenizer.next();
-        return pp.err(eof, .unterminated_conditional_directive, .{});
     }
 }
 
