@@ -1212,6 +1212,14 @@ fn applyCallingConvention(wip: *Wip) !void {
     }
     func.cc = cc;
 
+    // We cannot pass the function type directly here because the pointer to
+    // type_store.extra might get invalidated while setting the updated type.
+    const lb = &wip.current.parser.list_buf;
+    const list_buf_top = lb.items.len;
+    defer lb.items.len = list_buf_top;
+    try lb.appendSlice(comp.gpa, @ptrCast(func.params));
+    func.params = @ptrCast(lb.items[list_buf_top..]);
+
     // TODO this can overwrite a typedef
     // typedef void (*fn_ptr)(void);
     // __cdecl fn_ptr a;
