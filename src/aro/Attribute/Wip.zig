@@ -1214,12 +1214,11 @@ fn applyCallingConvention(wip: *Wip) !void {
 
     // We cannot pass the function type directly here because the pointer to
     // type_store.extra might get invalidated while setting the updated type.
-    var owned_params: ?[]Type.Func.Param = null;
-    defer if (owned_params) |some| comp.gpa.free(some);
-    if (func.params.len != 0) {
-        owned_params = try comp.gpa.dupe(Type.Func.Param, func.params);
-        func.params = owned_params.?;
-    }
+    const lb = &wip.current.parser.list_buf;
+    const list_buf_top = lb.items.len;
+    defer lb.items.len = list_buf_top;
+    try lb.appendSlice(comp.gpa, @ptrCast(func.params));
+    func.params = @ptrCast(lb.items[list_buf_top..]);
 
     // TODO this can overwrite a typedef
     // typedef void (*fn_ptr)(void);
