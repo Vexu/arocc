@@ -1212,6 +1212,15 @@ fn applyCallingConvention(wip: *Wip) !void {
     }
     func.cc = cc;
 
+    // We cannot pass the function type directly here because the pointer to
+    // type_store.extra might get invalidated while setting the updated type.
+    var owned_params: ?[]Type.Func.Param = null;
+    defer if (owned_params) |some| comp.gpa.free(some);
+    if (func.params.len != 0) {
+        owned_params = try comp.gpa.dupe(Type.Func.Param, func.params);
+        func.params = owned_params.?;
+    }
+
     // TODO this can overwrite a typedef
     // typedef void (*fn_ptr)(void);
     // __cdecl fn_ptr a;
