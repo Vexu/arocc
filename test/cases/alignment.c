@@ -57,6 +57,11 @@ void array_element_typedef(void) {
     _Static_assert(_Alignof(__typeof(a)) == 8, "");
 }
 
+void array_size_align_typedef(void) {
+    typedef int elem __attribute__((aligned(8)));
+    typedef elem arr[4];
+}
+
 /** manifest:
 syntax
 args = -Wno-implicit-int
@@ -73,5 +78,6 @@ alignment.c:13:1: error: requested negative alignment of -2 is invalid
 alignment.c:15:10: error: expected an integer constant as argmuent of '_Alignas' attribute but got an expression
 alignment.c:35:24: error: expected an integer constant as argmuent of 'aligned' attribute but got a string
 alignment.c:36:10: error: expression is not an integer constant expression
+alignment.c:62:21: error: size of array element of type 'elem' (aka 'int') (4 bytes) isn't a multiple of its alignment (8 bytes)
 */
 

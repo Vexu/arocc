@@ -3659,6 +3659,13 @@ const Declarator = struct {
                     try p.err(source_tok, .array_func_elem, .{});
                     return .nested_invalid;
                 }
+                if (elem_qt.sizeofOrNull(p.comp)) |elem_size| {
+                    const elem_align = elem_qt.alignof(p.comp);
+                    if (elem_size % elem_align != 0) {
+                        try p.err(source_tok, .array_elem_size_not_multiple, .{ elem_qt, elem_size, elem_align });
+                        return .nested_invalid;
+                    }
+                }
                 if (elem_qt.get(p.comp, .array)) |elem_array_ty| {
                     if (elem_array_ty.len == .static) {
                         try p.err(source_tok, .static_non_outermost_array, .{});

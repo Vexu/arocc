@@ -437,6 +437,11 @@ pub const array_incomplete_elem: Diagnostic = .{
     .kind = .@"error",
 };
 
+pub const array_elem_size_not_multiple: Diagnostic = .{
+    .fmt = "size of array element of type {qt} ({d} bytes) isn't a multiple of its alignment ({d} bytes)",
+    .kind = .@"error",
+};
+
 pub const array_func_elem: Diagnostic = .{
     .fmt = "arrays cannot have functions as their element type",
     .kind = .@"error",
