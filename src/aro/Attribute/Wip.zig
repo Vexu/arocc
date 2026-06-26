@@ -597,6 +597,15 @@ fn applyAlignment(wip: *Wip) !void {
         }
         casted = @intCast(requested);
     }
+    if (comp.langopts.emulate == .msvc) {
+        switch (wip.current.node()) {
+            .enum_forward_decl, .enum_decl => {
+                try wip.err(.msvc_enum_align_ignored, .{});
+                return;
+            },
+            else => {},
+        }
+    }
     try wip.addAlignmentToTypeMap(casted);
     try wip.add(.{ .alignment = casted });
 }
