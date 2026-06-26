@@ -149,6 +149,12 @@ pub const non_pow2_align: Diagnostic = .{
     .kind = .@"error",
 };
 
+pub const msvc_enum_align_ignored: Diagnostic = .{
+    .fmt = "alignment specifier is ignored on enum",
+    .kind = .warning,
+    .opt = .@"ignored-attributes",
+};
+
 // warn_unused_result
 pub const warn_unused_result_void: Diagnostic = .{
     .fmt = "attribute {at} cannot be applied to functions without return value",
