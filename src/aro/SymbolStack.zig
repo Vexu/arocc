@@ -181,16 +181,19 @@ pub fn defineTypedef(
     qt: QualType,
     tok: TokenIndex,
     node: Node.Index,
-) !void {
+) !Node.OptIndex {
+    var old_decl: Node.OptIndex = .null;
     if (s.get(name, .vars)) |prev| {
         switch (prev.kind) {
             .typedef => {
                 if (!prev.qt.isInvalid() and !qt.eqlQualified(prev.qt, p.comp)) {
-                    if (qt.isInvalid()) return;
+                    if (qt.isInvalid()) return .null;
                     const non_typedef_qt = qt.type(p.comp).typedef.base;
                     const non_typedef_prev_qt = prev.qt.type(p.comp).typedef.base;
                     try p.err(tok, .redefinition_of_typedef, .{ non_typedef_qt, non_typedef_prev_qt });
                     if (prev.tok != 0) try p.err(prev.tok, .previous_definition, .{});
+                } else {
+                    old_decl = prev.node;
                 }
             },
             .enumeration, .decl, .def, .constexpr => {
@@ -208,6 +211,7 @@ pub fn defineTypedef(
         .node = .pack(node),
         .val = .{},
     });
+    return old_decl;
 }
 
 pub fn defineSymbol(
@@ -219,30 +223,32 @@ pub fn defineSymbol(
     node: Node.Index,
     val: Value,
     constexpr: bool,
-) !void {
+) !Node.OptIndex {
+    var old_decl: Node.OptIndex = .null;
     if (s.get(name, .vars)) |prev| {
         switch (prev.kind) {
             .enumeration => {
-                if (qt.isInvalid()) return;
+                if (qt.isInvalid()) return .null;
                 try p.err(tok, .redefinition_different_sym, .{p.tokSlice(tok)});
                 try p.err(prev.tok, .previous_definition, .{});
             },
             .decl => {
                 if (!prev.qt.isInvalid() and !qt.eqlQualified(prev.qt, p.comp)) {
-                    if (qt.isInvalid()) return;
+                    if (qt.isInvalid()) return .null;
                     try p.err(tok, .redefinition_incompatible, .{p.tokSlice(tok)});
                     try p.err(prev.tok, .previous_definition, .{});
                 } else {
                     if (prev.node.unpack()) |some| p.setTentativeDeclDefinition(some, node);
+                    old_decl = prev.node;
                 }
             },
             .def, .constexpr => if (!prev.qt.isInvalid()) {
-                if (qt.isInvalid()) return;
+                if (qt.isInvalid()) return .null;
                 try p.err(tok, .redefinition, .{p.tokSlice(tok)});
                 try p.err(prev.tok, .previous_definition, .{});
             },
             .typedef => {
-                if (qt.isInvalid()) return;
+                if (qt.isInvalid()) return .null;
                 try p.err(tok, .redefinition_different_sym, .{p.tokSlice(tok)});
                 try p.err(prev.tok, .previous_definition, .{});
             },
@@ -258,6 +264,7 @@ pub fn defineSymbol(
         .node = .pack(node),
         .val = val,
     });
+    return old_decl;
 }
 
 /// Get a pointer to the named symbol in the innermost scope.
@@ -276,35 +283,38 @@ pub fn declareSymbol(
     qt: QualType,
     tok: TokenIndex,
     node: Node.Index,
-) !void {
+) !Node.OptIndex {
+    var old_decl: Node.OptIndex = .null;
     if (s.get(name, .vars)) |prev| {
         switch (prev.kind) {
             .enumeration => {
-                if (qt.isInvalid()) return;
+                if (qt.isInvalid()) return .null;
                 try p.err(tok, .redefinition_different_sym, .{p.tokSlice(tok)});
                 try p.err(prev.tok, .previous_definition, .{});
             },
             .decl => {
                 if (!prev.qt.isInvalid() and !qt.eqlQualified(prev.qt, p.comp)) {
-                    if (qt.isInvalid()) return;
+                    if (qt.isInvalid()) return .null;
                     try p.err(tok, .redefinition_incompatible, .{p.tokSlice(tok)});
                     try p.err(prev.tok, .previous_definition, .{});
                 } else {
                     if (prev.node.unpack()) |some| p.setTentativeDeclDefinition(node, some);
+                    old_decl = prev.node;
                 }
             },
             .def, .constexpr => {
                 if (!prev.qt.isInvalid() and !qt.eqlQualified(prev.qt, p.comp)) {
-                    if (qt.isInvalid()) return;
+                    if (qt.isInvalid()) return .null;
                     try p.err(tok, .redefinition_incompatible, .{p.tokSlice(tok)});
                     try p.err(prev.tok, .previous_definition, .{});
                 } else {
                     if (prev.node.unpack()) |some| p.setTentativeDeclDefinition(node, some);
-                    return;
+                    // Attributes from definitions are not merged with new declarations.
+                    return .null;
                 }
             },
             .typedef => {
-                if (qt.isInvalid()) return;
+                if (qt.isInvalid()) return .null;
                 try p.err(tok, .redefinition_different_sym, .{p.tokSlice(tok)});
                 try p.err(prev.tok, .previous_definition, .{});
             },
@@ -332,6 +342,7 @@ pub fn declareSymbol(
             .out_of_scope = true,
         });
     }
+    return old_decl;
 }
 
 pub fn defineParam(

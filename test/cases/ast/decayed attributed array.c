@@ -16,8 +16,8 @@ implicit typedef: 'struct __NSConstantString_tag'
 implicit typedef: 'long double'
  name: __float80
 
-variable: 'attributed([1]int)'
- attr: aligned alignment: null
+variable: '[1]int'
+ aligned: null
  name: arr
  init:
   array_init_expr: '[1]int'
@@ -26,17 +26,16 @@ variable: 'attributed([1]int)'
 variable: '*int'
  name: ptr
  init:
-  implicit cast: (array_to_pointer) 'decayed *attributed([1]int)' (value: &arr)
-    decl_ref_expr: 'attributed([1]int)' lvalue
-     attr: aligned alignment: null
+  implicit cast: (array_to_pointer) 'decayed *[1]int' (value: &arr)
+    decl_ref_expr: '[1]int' lvalue
      name: arr
 
 function: 'fn () void'
  name: foo
  body:
   compound_stmt
-    variable: 'attributed([64]char)'
-     attr: aligned alignment: .{ .node = @enumFromInt(14), .requested = 8 }
+    variable: '[64]char'
+     _Alignas: 8
      name: x
 
     variable: '*char'
@@ -46,12 +45,10 @@ function: 'fn () void'
        operand:
         array_access_expr: 'char' lvalue
          base:
-          implicit cast: (array_to_pointer) 'decayed *attributed([64]char)'
-            paren_expr: 'attributed([64]char)' lvalue
-             attr: aligned alignment: .{ .node = @enumFromInt(14), .requested = 8 }
+          implicit cast: (array_to_pointer) 'decayed *[64]char'
+            paren_expr: '[64]char' lvalue
              operand:
-              decl_ref_expr: 'attributed([64]char)' lvalue
-               attr: aligned alignment: .{ .node = @enumFromInt(14), .requested = 8 }
+              decl_ref_expr: '[64]char' lvalue
                name: x
          index:
           int_literal: 'int' (value: 0)

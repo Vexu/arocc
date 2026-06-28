@@ -27,6 +27,8 @@ enum E {
     E = (long) 3,
 };
 
+void (*ptr_to_cdecl)(void) __attribute__((cdecl));
+
 /** manifest:
 syntax
 args = --target=x86_64-linux

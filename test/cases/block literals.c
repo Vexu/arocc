@@ -52,6 +52,14 @@ void my_func(IntToIntBlock block) {
   b = ^int { if (0) return 4; };
   b = ^__block int (const char* fmt, char *buf, ...) {};
   b = ^void { return 4; };
+
+  __auto_type block_returns_func = ^int (*(void))(int a) {
+    return 0;
+  };
+  __auto_type another_returns_func = ^int (*(void)) {
+    return 0;
+  };
+  // __auto_type noreturn_block = ^_Noreturn void {}; TODO: clang "type name does allow function specifier to be specified"
 }
 
 __block int thing;
@@ -73,6 +81,7 @@ void blocks_attribute() {
   [[__clang__::blocks(byref)]] int never_enough_attr_caps;
   [[clang::blocks(byval)]] int this_is_probably_enough_attr_capping;
   [[gnu::blocks(byref)]] int gnu_blocks_not_supported_tho; // TODO: this should emit an unknown attribute warning
+  void *b = ^__attribute((blocks(value))) {};
 }
 
 void noreturn_attribute() {
@@ -85,18 +94,28 @@ void noreturn_attribute() {
   b = ^__attribute((noreturn)) (int i) { return i; };
 }
 
-void nonnull_attribute() {
-  void *b = ^__attribute((nonnull)) (void *a) {};
+void other_attributes() {
+  void *b = ^__attribute((ohno)) {};
+  b = ^__attribute((deprecated)) {};
+  b = ^__attribute((unavailable)) {};
+  b = ^__attribute((pure)) {};
+  b = ^__attribute((const("var"))) {};
+  b = ^__attribute((visibility("bad"))) {};
+  b = ^__attribute((aligned(3))) {}; // uncomment to show more clang errors below (aro is better)
+  b = ^__attribute((format)) {}; // uncomment to show more clang errors below (aro is better)
   b = ^__attribute((nonnull(0))) (void *a) {};
-  b = ^__attribute((nonnull(1))) (void *a) {};
-  b = ^__attribute((nonnull(2))) (void *a) {};
+  b = ^__attribute((fastcall)) {};
+  b = ^__attribute((unused)) {};
+  b = ^__attribute((warning)) {};
 }
 
 /** manifest:
 syntax
-args = -fblocks -Wpedantic --target=aarch64-macos -std=c23
+args = -fblocks -Wpedantic --target=aarch64-macos -std=c23 -Wno-gnu-auto-type
 
-block literals.c:23:17: error: __block attribute not allowed, only allowed on local variables
+block literals.c:23:17: warning: 'blocks' attribute only applies to local variables
+<builtin>:362:32: note: expanded from here
+block literals.c:23:17: warning: 'blocks' attribute ignored when parsing type
 <builtin>:362:32: note: expanded from here
 block literals.c:24:12: error: variable is not assignable (missing __block type specifier)
 block literals.c:25:18: warning: implicit integer to pointer conversion from 'int' to 'int *'
@@ -110,36 +129,47 @@ block literals.c:52:31: warning: non-void block does not return a value
 block literals.c:52:7: note: block defined here
 block literals.c:53:55: warning: non-void block does not return a value
 block literals.c:53:7: note: block defined here
-block literals.c:53:8: warning: TODO: implement 'blocks' attribute for blocks
-<builtin>:362:32: note: expanded from here
 block literals.c:54:15: warning: void block should not return a value
 block literals.c:54:7: note: block defined here
-block literals.c:57:1: error: __block attribute not allowed, only allowed on local variables
+block literals.c:65:1: warning: 'blocks' attribute only applies to local variables
 <builtin>:362:32: note: expanded from here
-block literals.c:60:1: warning: attribute 'blocks' is ignored, place it after "struct" to apply attribute to type declaration
+block literals.c:66:1: warning: 'blocks' attribute only applies to local variables
 <builtin>:362:32: note: expanded from here
-block literals.c:66:25: warning: unknown `blocks` argument. Possible values are: 'byref'
-block literals.c:67:18: error: 'blocks' attribute takes at least 1 argument(s)
-block literals.c:70:12: warning: unknown attribute 'blocks' ignored
-block literals.c:71:12: warning: unknown attribute '__blocks__' ignored
-block literals.c:72:16: warning: unknown attribute '__blocks__' ignored
-block literals.c:73:16: warning: unknown attribute 'blocks' ignored
-block literals.c:74:12: warning: unknown attribute 'blocks' ignored [-Wunknown-attributes]
-block literals.c:79:51: error: block declared 'noreturn' should not return
-block literals.c:79:13: note: block defined here
-block literals.c:80:44: warning: non-void block does not return a value
-block literals.c:80:7: note: block defined here
-block literals.c:81:59: error: block declared 'noreturn' should not return
-block literals.c:81:7: note: block defined here
-block literals.c:82:57: error: block declared 'noreturn' should not return
-block literals.c:82:7: note: block defined here
-block literals.c:83:8: error: only gnu attributes are allowed on block literals
-block literals.c:83:33: warning: non-void block does not return a value
-block literals.c:83:7: note: block defined here
-block literals.c:84:34: error: block declared 'noreturn' should not return
-block literals.c:84:7: note: block defined here
-block literals.c:85:42: error: block declared 'noreturn' should not return
-block literals.c:85:7: note: block defined here
-block literals.c:90:21: error: 'nonnull' attribute parameter 1 is out of bounds
-block literals.c:92:21: error: 'nonnull' attribute parameter 1 is out of bounds
+block literals.c:69:3: warning: 'blocks' attribute only applies to local variables
+<builtin>:362:32: note: expanded from here
+block literals.c:68:16: warning: 'blocks' attribute only applies to local variables
+<builtin>:362:32: note: expanded from here
+block literals.c:68:1: warning: attribute 'blocks' is ignored, place it after "struct" to apply attribute to type declaration
+<builtin>:362:32: note: expanded from here
+block literals.c:74:25: warning: unknown 'blocks' argument. Possible values are: byref
+block literals.c:75:18: error: 'blocks' attribute takes one argument
+block literals.c:77:5: warning: unknown attribute 'blocks' ignored
+block literals.c:82:19: warning: unknown 'clang::blocks' argument. Possible values are: byref
+block literals.c:83:5: warning: unknown attribute 'gnu::blocks' ignored
+block literals.c:84:34: warning: unknown 'blocks' argument. Possible values are: byref
+block literals.c:88:51: error: block declared 'noreturn' should not return
+block literals.c:88:13: note: block defined here
+block literals.c:89:44: warning: non-void block does not return a value
+block literals.c:89:7: note: block defined here
+block literals.c:90:59: error: block declared 'noreturn' should not return
+block literals.c:90:7: note: block defined here
+block literals.c:91:57: error: block declared 'noreturn' should not return
+block literals.c:91:7: note: block defined here
+block literals.c:92:10: error: only gnu attributes are allowed on block literals
+block literals.c:92:33: warning: non-void block does not return a value
+block literals.c:92:7: note: block defined here
+block literals.c:93:34: error: block declared 'noreturn' should not return
+block literals.c:93:7: note: block defined here
+block literals.c:94:42: error: block declared 'noreturn' should not return
+block literals.c:94:7: note: block defined here
+block literals.c:98:27: warning: unknown attribute 'ohno' ignored
+block literals.c:101:21: warning: TODO: implement 'pure' attribute
+block literals.c:102:21: error: 'const' attribute takes no arguments
+block literals.c:103:32: warning: unknown 'visibility' argument. Possible values are: "hidden", "default", "internal", and "protected"
+block literals.c:104:21: error: requested alignment is not a power of 2
+block literals.c:105:21: warning: TODO: implement 'format' attribute
+block literals.c:106:29: error: 'nonnull' attribute parameter 1 is out of bounds
+block literals.c:107:21: warning: 'fastcall' calling convention is not supported for this target
+block literals.c:108:21: warning: TODO: implement 'unused' attribute
+block literals.c:109:21: warning: 'warning' attribute only applies to functions
 */

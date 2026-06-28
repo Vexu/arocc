@@ -605,6 +605,12 @@ pub fn hasAArch64ACLETypes(target: *const Target) bool {
     return target.cpu.arch.isAARCH64();
 }
 
+pub fn hasProtectedVisibility(target: *const Target) bool {
+    if (target.cpu.arch.isWasm()) return false;
+    if (target.ofmt == .macho) return false;
+    return true;
+}
+
 pub const FPSemantics = enum {
     None,
     IEEEHalf,
@@ -1587,7 +1593,13 @@ test "alignment functions - smoke test" {
 }
 
 test "target size/align tests" {
-    var comp: @import("Compilation.zig") = undefined;
+    var comp: @import("Compilation.zig") = .{
+        .gpa = undefined,
+        .arena = undefined,
+        .io = undefined,
+        .cwd = undefined,
+        .diagnostics = undefined,
+    };
 
     const linux: Os = .{ .tag = .linux, .version_range = .{ .none = {} } };
     const x86_target: Target = .{

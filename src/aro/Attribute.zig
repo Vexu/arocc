@@ -1,415 +1,25 @@
 const std = @import("std");
 const mem = std.mem;
-const Interner = @import("backend").Interner;
-const ZigType = std.builtin.Type;
-const CallingConvention = @import("backend").CallingConvention;
-const Compilation = @import("Compilation.zig");
-const Diagnostics = @import("Diagnostics.zig");
-const Parser = @import("Parser.zig");
+const Allocator = mem.Allocator;
+const assert = std.debug.assert;
+
 const Tree = @import("Tree.zig");
 const TokenIndex = Tree.TokenIndex;
-const TypeStore = @import("TypeStore.zig");
-const Type = TypeStore.Type;
-const QualType = TypeStore.QualType;
 const Value = @import("Value.zig");
 
 const Attribute = @This();
 
-tag: Tag,
+args: Args,
 syntax: Syntax,
-args: Arguments,
+name: Namespaced,
+tok: TokenIndex,
 
-pub const Syntax = enum {
-    c23,
-    declspec,
-    gnu,
-    keyword,
-};
+pub const Tag = std.meta.Tag(Args);
+pub const Wip = @import("Attribute/Wip.zig");
+pub const Map = @import("Attribute/Map.zig");
 
-pub const Kind = enum {
-    c23,
-    declspec,
-    gnu,
-
-    pub fn toSyntax(kind: Kind) Syntax {
-        return switch (kind) {
-            .c23 => .c23,
-            .declspec => .declspec,
-            .gnu => .gnu,
-        };
-    }
-};
-
-pub const Iterator = struct {
-    source: ?struct {
-        qt: QualType,
-        comp: *const Compilation,
-    },
-    slice: []const Attribute,
-    index: usize,
-
-    pub fn initSlice(slice: []const Attribute) Iterator {
-        return .{ .source = null, .slice = slice, .index = 0 };
-    }
-
-    pub fn initType(qt: QualType, comp: *const Compilation) Iterator {
-        return .{ .source = .{ .qt = qt, .comp = comp }, .slice = &.{}, .index = 0 };
-    }
-
-    /// returns the next attribute as well as its index within the slice or current type
-    /// The index can be used to determine when a nested type has been recursed into
-    pub fn next(self: *Iterator) ?struct { Attribute, usize } {
-        if (self.index < self.slice.len) {
-            defer self.index += 1;
-            return .{ self.slice[self.index], self.index };
-        }
-        if (self.source) |*source| {
-            if (source.qt.isInvalid()) {
-                self.source = null;
-                return null;
-            }
-            loop: switch (source.qt.type(source.comp)) {
-                .typeof => |typeof| continue :loop typeof.base.type(source.comp),
-                .attributed => |attributed| {
-                    self.slice = attributed.attributes;
-                    self.index = 1;
-                    source.qt = attributed.base;
-                    return .{ self.slice[0], 0 };
-                },
-                .typedef => |typedef| continue :loop typedef.base.type(source.comp),
-                else => self.source = null,
-            }
-        }
-        return null;
-    }
-};
-
-/// number of required arguments
-pub fn requiredArgCount(attr: Tag) u32 {
-    switch (attr) {
-        .nonnull => return 0,
-        inline else => |tag| {
-            comptime var needed = 0;
-            comptime {
-                const info = @typeInfo(@field(attributes, @tagName(tag))).@"struct";
-                for (info.field_names, info.field_types) |arg_name, arg_type| {
-                    if (!mem.eql(u8, arg_name, "__name_tok") and @typeInfo(arg_type) != .optional) needed += 1;
-                }
-            }
-            return needed;
-        },
-    }
-}
-
-/// maximum number of args that can be passed
-pub fn maxArgCount(attr: Tag) u32 {
-    switch (attr) {
-        .nonnull => return std.math.maxInt(u32),
-        inline else => |tag| {
-            comptime var max = 0;
-            comptime {
-                const field_names = @typeInfo(@field(attributes, @tagName(tag))).@"struct".field_names;
-                for (field_names) |arg_field_name| {
-                    if (!mem.eql(u8, arg_field_name, "__name_tok")) max += 1;
-                }
-            }
-            return max;
-        },
-    }
-}
-
-fn UnwrapOptional(comptime T: type) type {
-    return switch (@typeInfo(T)) {
-        .optional => |optional| optional.child,
-        else => T,
-    };
-}
-
-pub const Formatting = struct {
-    /// The quote char (single or double) to use when printing identifiers/strings corresponding
-    /// to the enum in the first field of the `attr`. Identifier enums use single quotes, string enums
-    /// use double quotes
-    fn quoteChar(attr: Tag) []const u8 {
-        switch (attr) {
-            .calling_convention => unreachable,
-            inline else => |tag| {
-                const field_types = @typeInfo(@field(attributes, @tagName(tag))).@"struct".field_types;
-
-                if (field_types.len == 0) unreachable;
-                const Unwrapped = UnwrapOptional(field_types[0]);
-                if (@typeInfo(Unwrapped) != .@"enum") unreachable;
-
-                return if (Unwrapped.opts.enum_kind == .identifier) "'" else "\"";
-            },
-        }
-    }
-
-    /// returns a comma-separated string of quoted enum values, representing the valid
-    /// choices for the string or identifier enum of the first field of the `attr`.
-    pub fn choices(attr: Tag) []const u8 {
-        switch (attr) {
-            .calling_convention => unreachable,
-            inline else => |tag| {
-                const field_types = @typeInfo(@field(attributes, @tagName(tag))).@"struct".field_types;
-
-                if (field_types.len == 0) unreachable;
-                const Unwrapped = UnwrapOptional(field_types[0]);
-                if (@typeInfo(Unwrapped) != .@"enum") unreachable;
-
-                const enum_field_names = @typeInfo(Unwrapped).@"enum".field_names;
-                const quote = comptime quoteChar(@enumFromInt(@intFromEnum(tag)));
-                comptime var values: []const u8 = quote ++ enum_field_names[0] ++ quote;
-                inline for (enum_field_names[1..]) |enum_field_name| {
-                    values = values ++ ", ";
-                    values = values ++ quote ++ enum_field_name ++ quote;
-                }
-                return values;
-            },
-        }
-    }
-};
-
-/// Checks if the first argument (if it exists) is an identifier enum
-pub fn wantsIdentEnum(attr: Tag) bool {
-    switch (attr) {
-        .calling_convention => return false,
-        inline else => |tag| {
-            const field_types = @typeInfo(@field(attributes, @tagName(tag))).@"struct".field_types;
-
-            if (field_types.len == 0) return false;
-            const Unwrapped = UnwrapOptional(field_types[0]);
-            if (@typeInfo(Unwrapped) != .@"enum") return false;
-
-            return Unwrapped.opts.enum_kind == .identifier;
-        },
-    }
-}
-
-pub fn diagnoseIdent(attr: Tag, arguments: *Arguments, ident: TokenIndex, p: *Parser) !bool {
-    switch (attr) {
-        inline else => |tag| {
-            const info = @typeInfo(@field(attributes, @tagName(tag))).@"struct";
-            if (info.field_names.len == 0) unreachable;
-            const Unwrapped = UnwrapOptional(info.field_types[0]);
-            if (@typeInfo(Unwrapped) != .@"enum") unreachable;
-            if (std.meta.stringToEnum(Unwrapped, normalize(p.tokSlice(ident)))) |enum_val| {
-                @field(@field(arguments, @tagName(tag)), info.field_names[0]) = enum_val;
-                return false;
-            }
-
-            try p.err(ident, .unknown_attr_enum, .{ @tagName(attr), Formatting.choices(attr) });
-            return true;
-        },
-    }
-}
-
-pub fn wantsAlignment(attr: Tag, idx: usize) bool {
-    switch (attr) {
-        inline else => |tag| {
-            const field_types = @typeInfo(@field(attributes, @tagName(tag))).@"struct".field_types;
-            if (field_types.len == 0) return false;
-
-            return switch (idx) {
-                inline 0...field_types.len - 1 => |i| UnwrapOptional(field_types[i]) == Alignment,
-                else => false,
-            };
-        },
-    }
-}
-
-pub fn diagnoseAlignment(attr: Tag, arguments: *Arguments, arg_idx: u32, res: Parser.Result, arg_start: TokenIndex, p: *Parser) !bool {
-    switch (attr) {
-        inline else => |tag| {
-            const arg_info = @typeInfo(@field(attributes, @tagName(tag))).@"struct";
-            if (arg_info.field_names.len == 0) unreachable;
-
-            switch (arg_idx) {
-                inline 0...arg_info.field_names.len - 1 => |arg_i| {
-                    if (UnwrapOptional(arg_info.field_types[arg_i]) != Alignment) unreachable;
-
-                    if (!res.val.is(.int, p.comp)) {
-                        try p.err(arg_start, .alignas_unavailable, .{});
-                        return true;
-                    }
-                    if (res.val.compare(.lt, Value.zero, p.comp)) {
-                        try p.err(arg_start, .negative_alignment, .{res});
-                        return true;
-                    }
-                    const requested = res.val.toInt(u29, p.comp) orelse {
-                        try p.err(arg_start, .maximum_alignment, .{res});
-                        return true;
-                    };
-                    if (!std.mem.isValidAlign(requested)) {
-                        try p.err(arg_start, .non_pow2_align, .{});
-                        return true;
-                    }
-
-                    @field(@field(arguments, @tagName(tag)), arg_info.field_names[arg_i]) = .{ .requested = requested };
-                    return false;
-                },
-                else => unreachable,
-            }
-        },
-    }
-}
-
-const type_strings = struct {
-    const string = "a string";
-    const int = "an integer constant";
-    const expression = "an expression";
-};
-
-fn diagnoseInvalidArgType(p: *Parser, arg_start: TokenIndex, expected: []const u8, actual: Interner.Key) !void {
-    try p.err(arg_start, .attribute_arg_invalid, .{
-        expected,
-        switch (actual) {
-            .int => type_strings.int,
-            .bytes => type_strings.string,
-            .float => "a floating point number",
-            .complex => "a complex floating point number",
-            .null => "nullptr",
-            else => unreachable,
-        },
-    });
-}
-
-fn diagnoseField(
-    comptime decl_name: [:0]const u8,
-    comptime field_name: [:0]const u8,
-    comptime Wanted: type,
-    arguments: *Arguments,
-    res: Parser.Result,
-    arg_start: TokenIndex,
-    node: Tree.Node,
-    p: *Parser,
-) !bool {
-    const identifier = "an identifier";
-    const alignment = "an integer constant";
-
-    const expected: []const u8 = switch (Wanted) {
-        Value => type_strings.string,
-        Identifier => identifier,
-        u32 => type_strings.int,
-        Alignment => alignment,
-        CallingConvention => identifier,
-        else => switch (@typeInfo(Wanted)) {
-            .@"enum" => if (Wanted.opts.enum_kind == .string) type_strings.string else identifier,
-            else => unreachable,
-        },
-    };
-
-    if (res.val.opt_ref == .none) {
-        if (Wanted == Identifier and node == .decl_ref_expr) {
-            @field(@field(arguments, decl_name), field_name) = .{ .tok = node.decl_ref_expr.name_tok };
-            return false;
-        }
-
-        try p.err(arg_start, .attribute_arg_invalid, .{ expected, type_strings.expression });
-        return true;
-    }
-    const key = p.comp.interner.get(res.val.ref());
-    switch (key) {
-        .int => {
-            if (@typeInfo(Wanted) == .int) {
-                @field(@field(arguments, decl_name), field_name) = res.val.toInt(Wanted, p.comp) orelse {
-                    try p.err(arg_start, .attribute_int_out_of_range, .{res});
-                    return true;
-                };
-
-                return false;
-            }
-        },
-        .bytes => |bytes| {
-            if (Wanted == Value) {
-                validate: {
-                    if (node != .string_literal_expr) break :validate;
-                    switch (node.string_literal_expr.qt.childType(p.comp).get(p.comp, .int).?) {
-                        .char, .uchar, .schar => {},
-                        else => break :validate,
-                    }
-                    @field(@field(arguments, decl_name), field_name) = try p.removeNull(res.val);
-                    return false;
-                }
-
-                try p.err(arg_start, .attribute_requires_string, .{decl_name});
-                return true;
-            } else if (@typeInfo(Wanted) == .@"enum" and @hasDecl(Wanted, "opts") and Wanted.opts.enum_kind == .string) {
-                const str = bytes[0 .. bytes.len - 1];
-                if (std.meta.stringToEnum(Wanted, str)) |enum_val| {
-                    @field(@field(arguments, decl_name), field_name) = enum_val;
-                    return false;
-                }
-
-                try p.err(arg_start, .unknown_attr_enum, .{ decl_name, Formatting.choices(@field(Tag, decl_name)) });
-                return true;
-            }
-        },
-        else => {},
-    }
-
-    try diagnoseInvalidArgType(p, arg_start, expected, key);
-    return true;
-}
-
-fn diagnoseNonnull(arguments: *Arguments, res: Parser.Result, arg_start: TokenIndex, p: *Parser) !bool {
-    if (res.val.opt_ref == .none) {
-        try p.err(arg_start, .attribute_arg_invalid, .{ type_strings.int, type_strings.expression });
-        return true;
-    }
-    const key = p.comp.interner.get(res.val.ref());
-    if (key == .int) {
-        const index = res.val.toInt(u32, p.comp) orelse {
-            try p.err(arg_start, .attribute_int_out_of_range, .{res});
-            return true;
-        };
-        if (arguments.nonnull.indices_len == 0) {
-            arguments.nonnull.indices_start = @intCast(p.comp.type_store.nonnull_args.items.len);
-        }
-        try p.comp.type_store.nonnull_args.append(p.comp.gpa, index);
-        arguments.nonnull.indices_len += 1;
-        return false;
-    }
-
-    try diagnoseInvalidArgType(p, arg_start, type_strings.int, key);
-    return true;
-}
-
-pub fn diagnose(attr: Tag, arguments: *Arguments, arg_idx: u32, res: Parser.Result, arg_start: TokenIndex, node: Tree.Node, p: *Parser) !bool {
-    switch (attr) {
-        .nonnull => return diagnoseNonnull(arguments, res, arg_start, p),
-        inline else => |tag| {
-            const decl_name = @typeInfo(attributes).@"struct".decl_names[@intFromEnum(tag)];
-            const max_arg_count = comptime maxArgCount(tag);
-            if (arg_idx >= max_arg_count) {
-                try p.err(arg_start, .attribute_too_many_args, .{ @tagName(attr), max_arg_count });
-                return true;
-            }
-
-            const arg_info = @typeInfo(@field(attributes, decl_name)).@"struct";
-            switch (arg_idx) {
-                inline 0...arg_info.field_names.len - 1 => |arg_i| {
-                    return diagnoseField(decl_name, arg_info.field_names[arg_i], UnwrapOptional(arg_info.field_types[arg_i]), arguments, res, arg_start, node, p);
-                },
-                else => unreachable,
-            }
-        },
-    }
-}
-
-const EnumTypes = enum {
-    string,
-    identifier,
-};
-pub const Alignment = struct {
-    node: Tree.Node.OptIndex = .null,
-    requested: u32,
-};
-pub const Identifier = struct {
-    tok: TokenIndex = 0,
-};
-
-const attributes = struct {
-    pub const access = struct {
+pub const Args = union(enum) {
+    access: struct {
         access_mode: enum {
             read_only,
             read_write,
@@ -422,75 +32,68 @@ const attributes = struct {
         },
         ref_index: u32,
         size_index: ?u32 = null,
-    };
-    pub const alias = struct {
+    },
+    alias: struct {
         alias: Value,
-    };
-    pub const aligned = struct {
-        alignment: ?Alignment = null,
-        __name_tok: TokenIndex,
-    };
-    pub const alloc_align = struct {
+    },
+    alignment: ?u32,
+    alloc_align: struct {
         position: u32,
-    };
-    pub const alloc_size = struct {
+    },
+    alloc_size: struct {
         position_1: u32,
         position_2: ?u32 = null,
-    };
-    pub const allocate = struct {
-        segname: Value,
-    };
-    pub const allocator = struct {};
-    pub const always_inline = struct {};
-    pub const appdomain = struct {};
-    pub const artificial = struct {};
-    pub const assume_aligned = struct {
-        alignment: Alignment,
+    },
+    allocator,
+    always_inline,
+    appdomain,
+    artificial,
+    assume_aligned: struct {
+        alignment: ?u32,
         offset: ?u32 = null,
-    };
-    pub const blocks = struct {
-        capture: enum {
-            byref,
+    },
+    blocks: enum {
+        const BlocksAttr = @This();
 
-            pub const opts = struct {
-                const enum_kind = .identifier;
-            };
-        },
-    };
-    pub const cleanup = struct {
-        function: Identifier,
-    };
-    pub const code_seg = struct {
+        byref,
+
+        pub const opts = struct {
+            pub const enum_kind = .identifier;
+            pub const map: std.StaticStringMap(BlocksAttr) = .initComptime(.{
+                .{ "byref", .byref },
+            });
+        };
+    },
+    cleanup: struct {
+        function: Tree.Node.Index,
+    },
+    code_seg: struct {
         segname: Value,
-    };
-    pub const cold = struct {};
-    pub const common = struct {};
-    pub const @"const" = struct {};
-    pub const constructor = struct {
-        priority: ?u32 = null,
-    };
-    pub const copy = struct {
-        function: Identifier,
-    };
-    pub const deprecated = struct {
-        msg: ?Value = null,
-        alternative: ?Value = null, // C23 deprecated attribute only takes 1 argument
-        __name_tok: TokenIndex,
-    };
-    pub const designated_init = struct {};
-    pub const destructor = struct {
-        priority: ?u32 = null,
-    };
-    pub const dllexport = struct {};
-    pub const dllimport = struct {};
-    pub const @"error" = struct {
-        msg: Value,
-        __name_tok: TokenIndex,
-    };
-    pub const externally_visible = struct {};
-    pub const fallthrough = struct {};
-    pub const flatten = struct {};
-    pub const format = struct {
+    },
+    cold,
+    common,
+    @"const",
+    constructor: struct {
+        priority: u16 = 65535,
+    },
+    copy: struct {
+        function: Tree.Node.Index,
+    },
+    deprecated: struct {
+        msg: ?[]const u8 = null,
+        replacement: ?[]const u8 = null,
+    },
+    designated_init,
+    destructor: struct {
+        priority: u16 = 65535,
+    },
+    dllexport,
+    dllimport,
+    @"error": []const u8,
+    externally_visible,
+    fallthrough,
+    flatten,
+    format: struct {
         archetype: enum {
             printf,
             scanf,
@@ -503,119 +106,100 @@ const attributes = struct {
         },
         string_index: u32,
         first_to_check: u32,
-    };
-    pub const format_arg = struct {
-        string_index: u32,
-    };
-    pub const gnu_inline = struct {};
-    pub const hot = struct {};
-    pub const ifunc = struct {
+    },
+    format_arg: u32,
+    gnu_inline,
+    hot,
+    ifunc: struct {
         resolver: Value,
-    };
-    pub const interrupt = struct {};
-    pub const interrupt_handler = struct {};
-    pub const jitintrinsic = struct {};
-    pub const leaf = struct {};
-    pub const malloc = struct {};
-    pub const may_alias = struct {};
-    pub const mode = struct {
-        mode: enum {
-            // zig fmt: off
-                byte,  word,  pointer,
-                BI,    QI,    HI,
-                PSI,   SI,    PDI,
-                DI,    TI,    OI,
-                XI,    QF,    HF,
-                TQF,   SF,    DF,
-                XF,    SD,    DD,
-                TD,    TF,    QQ,
-                HQ,    SQ,    DQ,
-                TQ,    UQQ,   UHQ,
-                USQ,   UDQ,   UTQ,
-                HA,    SA,    DA,
-                TA,    UHA,   USA,
-                UDA,   UTA,   CC,
-                BLK,   VOID,  QC,
-                HC,    SC,    DC,
-                XC,    TC,    CQI,
-                CHI,   CSI,   CDI,
-                CTI,   COI,   CPSI,
-                BND32, BND64,
-                // zig fmt: on
+    },
+    interrupt,
+    interrupt_handler,
+    jitintrinsic,
+    leaf,
+    malloc,
+    may_alias,
+    mode: enum {
+        // zig fmt: off
+        byte,  word,  pointer,
+        BI,    QI,    HI,
+        PSI,   SI,    PDI,
+        DI,    TI,    OI,
+        XI,    QF,    HF,
+        TQF,   SF,    DF,
+        XF,    SD,    DD,
+        TD,    TF,    QQ,
+        HQ,    SQ,    DQ,
+        TQ,    UQQ,   UHQ,
+        USQ,   UDQ,   UTQ,
+        HA,    SA,    DA,
+        TA,    UHA,   USA,
+        UDA,   UTA,   CC,
+        BLK,   VOID,  QC,
+        HC,    SC,    DC,
+        XC,    TC,    CQI,
+        CHI,   CSI,   CDI,
+        CTI,   COI,   CPSI,
+        BND32, BND64,
+        // zig fmt: on
 
-            const opts = struct {
-                const enum_kind = .identifier;
-            };
-        },
-    };
-    pub const naked = struct {};
-    pub const no_address_safety_analysis = struct {};
-    pub const no_icf = struct {};
-    pub const no_instrument_function = struct {};
-    pub const no_profile_instrument_function = struct {};
-    pub const no_reorder = struct {};
-    pub const no_sanitize = struct {
-        /// Todo: represent args as union?
-        alignment: Value,
-        object_size: ?Value = null,
-    };
-    pub const no_sanitize_address = struct {};
-    pub const no_sanitize_coverage = struct {};
-    pub const no_sanitize_thread = struct {};
-    pub const no_sanitize_undefined = struct {};
-    pub const no_split_stack = struct {};
-    pub const no_stack_limit = struct {};
-    pub const no_stack_protector = struct {};
-    pub const @"noalias" = struct {};
-    pub const noclone = struct {};
-    pub const nocommon = struct {};
-    pub const nodiscard = struct {};
-    pub const noinit = struct {};
-    pub const @"noinline" = struct {};
-    pub const noipa = struct {};
-    pub const nonnull = struct {
-        /// index into type_store.nonnull_args
-        indices_start: u32 = 0,
-        indices_len: u32 = 0,
-    };
-    pub const nonstring = struct {};
-    pub const noplt = struct {};
-    pub const @"noreturn" = struct {};
-    pub const nothrow = struct {};
-    // TODO: union args ?
-    //    const optimize = struct {
-    //    //            optimize, // u32 | []const u8 -- optimize?
-    //        };
-    //    };
-    pub const @"packed" = struct {};
-    pub const patchable_function_entry = struct {};
-    pub const persistent = struct {};
-    pub const process = struct {};
-    pub const pure = struct {};
-    pub const reproducible = struct {};
-    pub const restrict = struct {};
-    pub const retain = struct {};
-    pub const returns_nonnull = struct {};
-    pub const returns_twice = struct {};
-    pub const safebuffers = struct {};
-    pub const scalar_storage_order = struct {
-        order: enum {
-            @"little-endian",
-            @"big-endian",
+        const opts = struct {
+            const enum_kind = .identifier;
+        };
+    },
+    naked,
+    no_address_safety_analysis,
+    no_icf,
+    no_instrument_function,
+    no_profile_instrument_function,
+    no_reorder,
+    no_sanitize: []const Value,
+    no_sanitize_address,
+    no_sanitize_coverage,
+    no_sanitize_thread,
+    no_sanitize_undefined,
+    no_split_stack,
+    no_stack_limit,
+    no_stack_protector,
+    @"noalias",
+    noclone,
+    nocommon,
+    warn_unused_result: ?[]const u8,
+    noinit,
+    @"noinline",
+    noipa,
+    nonnull: []const u32,
+    nonstring,
+    noplt,
+    noreturn,
+    nothrow,
+    optimize: union(enum) {
+        index: u32,
+        features: []const u8,
+    },
+    @"packed",
+    patchable_function_entry: struct {},
+    persistent,
+    process,
+    pure,
+    reproducible,
+    retain,
+    returns_nonnull,
+    returns_twice,
+    scalar_storage_order: enum {
+        @"little-endian",
+        @"big-endian",
 
-            const opts = struct {
-                const enum_kind = .string;
-            };
-        },
-    };
-    pub const section = struct {
-        name: Value,
-    };
-    pub const selectany = struct {};
-    pub const sentinel = struct {
-        position: ?u32 = null,
-    };
-    pub const simd = struct {
+        const opts = struct {
+            const enum_kind = .string;
+        };
+    },
+    section: []const u8,
+    selectany,
+    sentinel: struct {
+        position: u32 = 0,
+    },
+    simd: struct {
         mask: ?enum {
             notinbranch,
             inbranch,
@@ -624,32 +208,26 @@ const attributes = struct {
                 const enum_kind = .string;
             };
         } = null,
-    };
-    pub const single = struct {};
-    pub const spectre = struct {
-        arg: enum {
-            nomitigation,
+    },
+    single,
+    spectre: enum {
+        nomitigation,
 
-            const opts = struct {
-                const enum_kind = .identifier;
-            };
-        },
-    };
-    pub const stack_protect = struct {};
-    pub const symver = struct {
+        const opts = struct {
+            const enum_kind = .identifier;
+        };
+    },
+    stack_protect,
+    symver: struct {
         version: Value, // TODO: validate format "name2@nodename"
-
-    };
-    pub const target = struct {
-        options: Value, // TODO: multiple arguments
-
-    };
-    pub const target_clones = struct {
-        options: Value, // TODO: multiple arguments
-
-    };
-    pub const thread = struct {};
-    pub const tls_model = struct {
+    },
+    target: struct {
+        options: []const Value,
+    },
+    target_clones: struct {
+        options: []const Value,
+    },
+    tls_model: struct {
         model: enum {
             @"global-dynamic",
             @"local-dynamic",
@@ -660,49 +238,26 @@ const attributes = struct {
                 const enum_kind = .string;
             };
         },
-    };
-    pub const transparent_union = struct {};
-    pub const unavailable = struct {
-        msg: ?Value = null,
-        __name_tok: TokenIndex,
-    };
-    pub const uninitialized = struct {};
-    pub const unsafe_indexable = struct {};
-    pub const unsequenced = struct {};
-    pub const unused = struct {};
-    pub const used = struct {};
-    pub const uuid = struct {
+    },
+    transparent_union,
+    unavailable: ?[]const u8,
+    unsafe_indexable,
+    unsequenced,
+    unused,
+    used,
+    uuid: struct {
         uuid: Value,
-    };
-    pub const vector_size = struct {
-        bytes: u32, // TODO: validate "The bytes argument must be a positive power-of-two multiple of the base type size"
-
-    };
-    pub const visibility = struct {
-        visibility_type: enum {
-            default,
-            hidden,
-            internal,
-            protected,
-
-            const opts = struct {
-                const enum_kind = .string;
-            };
-        },
-    };
-    pub const warn_if_not_aligned = struct {
-        alignment: Alignment,
-    };
-    pub const warn_unused_result = struct {};
-    pub const warning = struct {
-        msg: Value,
-        __name_tok: TokenIndex,
-    };
-    pub const weak = struct {};
-    pub const weakref = struct {
+    },
+    visibility: Visibility,
+    warn_if_not_aligned: struct {
+        alignment: ?u32,
+    },
+    warning: []const u8,
+    weak,
+    weakref: struct {
         target: ?Value = null,
-    };
-    pub const zero_call_used_regs = struct {
+    },
+    zero_call_used_regs: struct {
         choice: enum {
             skip,
             used,
@@ -718,924 +273,379 @@ const attributes = struct {
                 const enum_kind = .string;
             };
         },
-    };
-    pub const asm_label = struct {
+    },
+    asm_label: struct {
         name: Value,
-    };
-    pub const calling_convention = struct {
-        cc: CallingConvention,
-    };
-    pub const nullability = struct {
-        kind: enum {
-            nonnull,
-            nullable,
-            nullable_result,
-            unspecified,
-
-            const opts = struct {
-                const enum_kind = .identifier;
-            };
-        },
-    };
-    pub const unaligned = struct {};
-    pub const pcs = struct {
-        kind: enum {
-            aapcs,
-            @"aapcs-vfp",
-
-            const opts = struct {
-                const enum_kind = .string;
-            };
-        },
-    };
-    pub const riscv_vector_cc = struct {};
-    pub const aarch64_sve_pcs = struct {};
-    pub const aarch64_vector_pcs = struct {};
-    pub const fastcall = struct {};
-    pub const stdcall = struct {};
-    pub const vectorcall = struct {};
-    pub const cdecl = struct {};
-    pub const thiscall = struct {};
-    pub const sysv_abi = struct {};
-    pub const ms_abi = struct {};
-    pub const msvc_ptr = struct {
-        const UsageTracker = std.enums.EnumSet(PtrKind);
-        const PtrKind = enum {
-            ptr64,
-            ptr32,
-            sptr,
-            uptr,
-
-            const opts = struct {
-                const enum_kind = .identifier;
-            };
-
-            /// Returns the attribute that cannot be combined with the given one
-            fn incompatible(self: PtrKind) PtrKind {
-                return switch (self) {
-                    .ptr64 => .ptr32,
-                    .ptr32 => .ptr64,
-                    .sptr => .uptr,
-                    .uptr => .sptr,
-                };
-            }
-        };
-        kind: PtrKind,
-    };
+    },
+    unaligned,
     // TODO cannot be combined with weak or selectany
-    pub const internal_linkage = struct {};
-    pub const availability = struct {};
-    pub const neon_vector_type = struct {
-        len: u32,
-    };
-    pub const neon_polyvector_type = struct {
-        len: u32,
-    };
-};
+    internal_linkage,
+    availability: struct {
+        platform: enum {
+            android,
+            fuchsia,
+            ios,
+            macos,
+            tvos,
+            watchos,
+            driverkit,
+            ios_app_extension,
+            macos_app_extension,
+            tvos_app_extension,
+            watchos_app_extension,
+            maccatalyst,
+            maccatalyst_app_extension,
+            xros,
+            xros_app_extension,
+            swift,
+            shadermodel,
+            ohos,
 
-pub const Tag = std.meta.DeclEnum(attributes);
-
-pub const Arguments = blk: {
-    const decl_names = @typeInfo(attributes).@"struct".decl_names;
-    var types: [decl_names.len]type = undefined;
-    for (decl_names, &types) |decl_name, *T| {
-        T.* = @field(attributes, decl_name);
-    }
-
-    break :blk @Union(.auto, null, decl_names, &types, &@splat(.{}));
-};
-
-pub fn ArgumentsForTag(comptime tag: Tag) type {
-    const decl_name = @typeInfo(attributes).@"struct".decl_names[@intFromEnum(tag)];
-    return @field(attributes, decl_name);
-}
-
-pub fn initArguments(tag: Tag, name_tok: TokenIndex) Arguments {
-    switch (tag) {
-        inline else => |arg_tag| {
-            const union_element = @field(attributes, @tagName(arg_tag));
-            const init = std.mem.zeroInit(union_element, .{});
-            var args = @unionInit(Arguments, @tagName(arg_tag), init);
-            if (@hasField(@field(attributes, @tagName(arg_tag)), "__name_tok")) {
-                @field(args, @tagName(arg_tag)).__name_tok = name_tok;
-            }
-            return args;
+            const opts = struct {
+                const enum_kind = .identifier;
+            };
         },
-    }
-}
+        introduced: ?std.SemanticVersion = null,
+        deprecated: ?std.SemanticVersion = null,
+        obsoleted: ?std.SemanticVersion = null,
+        unavailable: bool = false,
+        strict: bool = false,
+        message: ?Value = null,
+        replacement: ?Value = null,
+        priority: u32 = 0,
+    },
+    optnone,
 
-pub fn fromString(kind: Kind, namespace: ?[]const u8, name: []const u8) ?Tag {
-    const Properties = struct {
-        tag: Tag,
-        gnu: bool = false,
-        declspec: bool = false,
-        c23: bool = false,
+    pub const Visibility = enum {
+        default,
+        hidden,
+        protected,
+
+        pub const opts = struct {
+            pub const enum_kind = .string;
+            pub const map = std.StaticStringMap(Visibility).initComptime(.{
+                .{ "default", .default },
+                .{ "hidden", .hidden },
+                .{ "internal", .hidden },
+                .{ "protected", .protected },
+            });
+        };
     };
-    const attribute_names = @import("Attribute/names.def").with(Properties);
+};
 
-    const normalized = normalize(name);
-    const actual_kind: Kind = if (namespace) |ns| blk: {
-        const normalized_ns = normalize(ns);
-        if (mem.eql(u8, normalized_ns, "gnu")) {
-            break :blk .gnu;
+pub const Syntax = enum {
+    standard,
+    gnu,
+    declspec,
+    keyword,
+};
+
+pub const Namespaced = union(enum) {
+    standard: Standard,
+    gnu: Gnu,
+    clang: Clang,
+    aro: Aro,
+    declspec: Declspec,
+    msvc: Msvc,
+    riscv: Riscv,
+    keyword: Keyword,
+
+    pub const Standard = enum {
+        deprecated,
+        fallthrough,
+        maybe_unused,
+        nodiscard,
+        noreturn,
+        /// Deprecated in C23
+        _Noreturn,
+        reproducible,
+        unsequenced,
+
+        pub const Vendors = enum {
+            aro,
+            clang,
+            gnu,
+            msvc,
+            riscv,
+        };
+    };
+    pub const Gnu = enum {
+        access, // Not supported by Clang
+        alias,
+        aligned,
+        alloc_align,
+        alloc_size,
+        always_inline,
+        artificial,
+        assume_aligned,
+        cdecl,
+        cleanup,
+        cold,
+        common,
+        __const,
+        @"const",
+        constructor,
+        copy, // Not supported by Clang
+        deprecated,
+        designated_init, // Not supported by Clang
+        destructor,
+        dllexport,
+        dllimport,
+        @"error",
+        externally_visible, // Not supported by Clang
+        fallthrough,
+        fastcall,
+        flatten,
+        format_arg,
+        format,
+        gnu_inline,
+        hot,
+        ifunc,
+        interrupt_handler, // Not supported by Clang
+        interrupt,
+        leaf,
+        malloc,
+        may_alias,
+        mode,
+        ms_abi,
+        no_address_safety_analysis,
+        no_icf,
+        no_instrument_function,
+        no_profile_instrument_function,
+        no_reorder, // Not supported by Clang
+        no_sanitize_address,
+        no_sanitize_coverage,
+        no_sanitize_thread,
+        no_sanitize_undefined,
+        no_sanitize,
+        no_split_stack, // Not supported by Clang
+        no_stack_limit,
+        no_stack_protector,
+        noclone, // Not supported by Clang
+        nocommon,
+        noinit, // Not supported by Clang
+        @"noinline",
+        noipa, // Not supported by Clang
+        nonnull,
+        nonstring,
+        noplt, // Not supported by Clang
+        noreturn,
+        nothrow,
+        optimize, // Not supported by Clang
+        @"packed",
+        patchable_function_entry,
+        pcs,
+        persistent, // Not supported by Clang
+        pure,
+        regcall,
+        regparm,
+        retain,
+        returns_nonnull, // Not supported by Clang
+        returns_twice, // Not supported by Clang
+        riscv_rvv_vector_bits,
+        scalar_storage_order, // Not supported by Clang
+        section,
+        selectany,
+        sentinel,
+        simd, // Not supported by Clang
+        stack_protect, // Not supported by Clang
+        stdcall,
+        symver, // Not supported by Clang
+        sysv_abi,
+        target_clones,
+        target,
+        thiscall,
+        tls_model,
+        transparent_union,
+        unused,
+        used,
+        vector_size,
+        visibility,
+        warn_if_not_aligned, // Not supported by Clang
+        warn_unused_result,
+        warn_unused,
+        warning,
+        weak,
+        weakref,
+        zero_call_used_regs,
+    };
+    pub const Clang = enum {
+        aarch64_sve_pcs,
+        aarch64_vector_pcs,
+        address_space,
+        always_inline,
+        arm_sve_vector_bits,
+        availability,
+        blocks,
+        ext_vector_type,
+        internal_linkage,
+        matrix_type,
+        neon_polyvector_type,
+        neon_vector_type,
+        no_sanitize_address,
+        no_sanitize_memory,
+        no_sanitize,
+        no_stack_protector,
+        noderef,
+        @"noinline",
+        optnone,
+        riscv_vector_cc,
+        riscv_vls_cc,
+        single,
+        unavailable,
+        unsafe_indexable,
+        vectorcall,
+        warn_unused_result,
+    };
+    pub const Aro = enum {};
+    pub const Declspec = enum {
+        @"align",
+        allocate,
+        allocator,
+        appdomain,
+        code_seg,
+        deprecated,
+        dllexport,
+        dllimport,
+        jitintrinsic,
+        naked,
+        @"noalias",
+        @"noinline",
+        noreturn,
+        process,
+        restrict,
+        safebuffers,
+        selectany,
+        spectre,
+        thread,
+        uuid,
+    };
+    pub const Msvc = enum {
+        forceinline_calls,
+        forceinline,
+        @"noinline",
+    };
+    pub const Riscv = enum {
+        vector_cc,
+        vls_cc,
+    };
+    pub const Keyword = enum {
+        _Alignas,
+        alignas,
+        noreturn,
+        asm_label,
+        nonnull,
+        null_unspecified,
+        nullable_result,
+        nullable,
+        __forceinline,
+        _forceinline,
+        __stdcall,
+        _stdcall,
+        __thiscall,
+        _thiscall,
+        __vectorcall,
+        _vectorcall,
+        __fastcall,
+        _fastcall,
+        _regcall,
+        __cdecl,
+        _cdecl,
+        ptr64,
+        ptr32,
+        sptr,
+        uptr,
+    };
+
+    pub fn fromString(syntax: Syntax, opt_vendor: ?[]const u8, name_raw: []const u8) ?Namespaced {
+        const name = normalize(name_raw);
+        switch (syntax) {
+            .standard => {
+                const vendor_str_raw = opt_vendor orelse {
+                    const tag = std.meta.stringToEnum(Namespaced.Standard, name) orelse return null;
+                    return .{ .standard = tag };
+                };
+                const vendor_str = normalize(vendor_str_raw);
+                const vendor = std.meta.stringToEnum(Namespaced.Standard.Vendors, vendor_str) orelse return null;
+                switch (vendor) {
+                    inline else => |vendor_tag| {
+                        const vendor_name = @tagName(vendor_tag);
+                        const tag = std.meta.stringToEnum(@FieldType(Namespaced, vendor_name), name) orelse return null;
+                        return @unionInit(Namespaced, vendor_name, tag);
+                    },
+                }
+            },
+            .gnu => {
+                assert(opt_vendor == null);
+                inline for (.{ "gnu", "clang", "aro" }) |vendor_name| {
+                    if (std.meta.stringToEnum(@FieldType(Namespaced, vendor_name), name)) |tag| {
+                        return @unionInit(Namespaced, vendor_name, tag);
+                    }
+                }
+                return null;
+            },
+            .declspec => {
+                assert(opt_vendor == null);
+                const tag = std.meta.stringToEnum(Namespaced.Declspec, name) orelse return null;
+                return .{ .declspec = tag };
+            },
+            .keyword => unreachable,
         }
-        return null;
-    } else kind;
-
-    const tag_and_opts = attribute_names.fromName(normalized) orelse return null;
-    switch (actual_kind) {
-        inline else => |available_kind| {
-            if (@field(tag_and_opts, @tagName(available_kind)))
-                return tag_and_opts.tag;
-        },
     }
-    return null;
-}
+
+    pub fn fromKeyword(id: Tree.Token.Id) Namespaced {
+        return .{ .keyword = switch (id) {
+            .keyword_alignas => ._Alignas,
+            .keyword_c23_alignas => .alignas,
+            .keyword_noreturn => .noreturn,
+            .keyword_asm, .keyword_asm1, .keyword_asm2 => .asm_label,
+            .keyword_nonnull => .nonnull,
+            .keyword_null_unspecified => .null_unspecified,
+            .keyword_nullable_result => .nullable_result,
+            .keyword_nullable => .nullable,
+            .keyword_forceinline => .__forceinline,
+            .keyword_forceinline2 => ._forceinline,
+            .keyword_stdcall => .__stdcall,
+            .keyword_stdcall2 => ._stdcall,
+            .keyword_thiscall => .__thiscall,
+            .keyword_thiscall2 => ._thiscall,
+            .keyword_vectorcall => .__vectorcall,
+            .keyword_vectorcall2 => ._vectorcall,
+            .keyword_fastcall => .__fastcall,
+            .keyword_fastcall2 => ._fastcall,
+            .keyword_regcall => ._regcall,
+            .keyword_cdecl => .__cdecl,
+            .keyword_cdecl2 => ._cdecl,
+            .keyword_ptr64 => .ptr64,
+            .keyword_ptr32 => .ptr32,
+            .keyword_sptr => .sptr,
+            .keyword_uptr => .uptr,
+            else => unreachable,
+        } };
+    }
+
+    pub fn hasIdentifierArg(n: Namespaced) bool {
+        return switch (n) {
+            .gnu => |gnu_attr| switch (gnu_attr) {
+                .access, .mode, .format => true,
+                else => false,
+            },
+            .clang => |clang_attr| switch (clang_attr) {
+                .blocks => true,
+                else => false,
+            },
+            .declspec => |declspec_attr| switch (declspec_attr) {
+                .spectre => true,
+                else => false,
+            },
+            else => false,
+        };
+    }
+};
 
 pub fn normalize(name: []const u8) []const u8 {
     if (name.len >= 4 and mem.startsWith(u8, name, "__") and mem.endsWith(u8, name, "__")) {
         return name[2 .. name.len - 2];
     }
     return name;
-}
-
-fn ignoredAttrErr(p: *Parser, tok: TokenIndex, attr: Attribute.Tag, context: []const u8) !void {
-    try p.err(tok, .ignored_attribute, .{ @tagName(attr), context });
-}
-
-pub fn applyParameterAttributes(p: *Parser, qt: QualType, attr_buf_start: usize, diagnostic: ?Parser.Diagnostic) !QualType {
-    const attrs = p.attr_buf.items(.attr)[attr_buf_start..];
-    const toks = p.attr_buf.items(.tok)[attr_buf_start..];
-    var filter_attrs: std.ArrayList(usize) = .empty;
-    defer filter_attrs.deinit(p.comp.gpa);
-    for (attrs, toks, 0..) |attr, tok, i| switch (attr.tag) {
-        .blocks => {
-            try p.err(tok, .block_attribute_not_allowed, .{});
-            try filter_attrs.append(p.comp.gpa, i);
-        },
-        else => {},
-    };
-    p.attr_buf.orderedRemoveMany(filter_attrs.items);
-    return applyVariableAttributes(p, qt, attr_buf_start, diagnostic);
-}
-
-pub fn applyVariableAttributes(p: *Parser, qt: QualType, attr_buf_start: usize, diagnostic: ?Parser.Diagnostic) !QualType {
-    const gpa = p.comp.gpa;
-    const attrs = p.attr_buf.items(.attr)[attr_buf_start..];
-    const toks = p.attr_buf.items(.tok)[attr_buf_start..];
-    p.attr_application_buf.items.len = 0;
-    var base_qt = qt;
-    var common = false;
-    var nocommon = false;
-    var msvc_ptr_attrs_seen: attributes.msvc_ptr.UsageTracker = .empty;
-    for (attrs, toks) |attr, tok| switch (attr.tag) {
-        // zig fmt: off
-        .alias, .may_alias, .deprecated, .unavailable, .unused, .warn_if_not_aligned, .weak, .used,
-        .noinit, .retain, .persistent, .section, .mode, .asm_label, .nullability, .unaligned, .selectany, .internal_linkage,
-        .visibility,
-         => try p.attr_application_buf.append(gpa, attr),
-        // zig fmt: on
-        .common => if (nocommon) {
-            try p.err(tok, .ignore_common, .{});
-        } else {
-            try p.attr_application_buf.append(gpa, attr);
-            common = true;
-        },
-        .nocommon => if (common) {
-            try p.err(tok, .ignore_nocommon, .{});
-        } else {
-            try p.attr_application_buf.append(gpa, attr);
-            nocommon = true;
-        },
-        .vector_size => try attr.applyVectorSize(p, tok, &base_qt),
-        .neon_vector_type => try attr.applyNeonVector(p, tok, &base_qt, .neon),
-        .neon_polyvector_type => try attr.applyNeonVector(p, tok, &base_qt, .neon_poly),
-        .aligned => try attr.applyAligned(p, base_qt, diagnostic),
-        .nonstring => {
-            if (base_qt.get(p.comp, .array)) |array_ty| {
-                if (array_ty.elem.get(p.comp, .int)) |int_ty| switch (int_ty) {
-                    .char, .uchar, .schar => {
-                        try p.attr_application_buf.append(gpa, attr);
-                        continue;
-                    },
-                    else => {},
-                };
-            }
-            try p.err(tok, .non_string_ignored, .{qt});
-        },
-        .uninitialized => if (p.func.qt == null) {
-            try p.err(tok, .local_variable_attribute, .{"uninitialized"});
-        } else {
-            try p.attr_application_buf.append(gpa, attr);
-        },
-        .cleanup => if (p.func.qt == null) {
-            try p.err(tok, .local_variable_attribute, .{"cleanup"});
-        } else {
-            try p.attr_application_buf.append(gpa, attr);
-        },
-        .single,
-        .unsafe_indexable,
-        => try applyBoundsSafetyAttr(.fromTag(attr.tag), p, tok, &base_qt),
-
-        .calling_convention => try applyKeywordCallingConvention(attr, p, tok, base_qt),
-
-        .fastcall,
-        .stdcall,
-        .thiscall,
-        .vectorcall,
-        .cdecl,
-        .pcs,
-        .riscv_vector_cc,
-        .aarch64_sve_pcs,
-        .aarch64_vector_pcs,
-        .sysv_abi,
-        .ms_abi,
-        => try applyGnuAttrCallingConvention(attr, p, tok, base_qt),
-
-        .msvc_ptr => try applyMSVCPtr(attr, p, tok, base_qt, &msvc_ptr_attrs_seen),
-
-        .alloc_size,
-        .copy,
-        .tls_model,
-        => |t| try p.err(tok, .attribute_todo, .{ @tagName(t), "variables" }),
-        // There is already an error in Parser for _Noreturn keyword
-        .noreturn => if (attr.syntax != .keyword) try ignoredAttrErr(p, tok, attr.tag, "variables"),
-        .blocks => if (p.func.qt != null)
-            try p.attr_application_buf.append(gpa, attr)
-        else
-            try p.err(tok, .block_attribute_not_allowed, .{}),
-        else => try ignoredAttrErr(p, tok, attr.tag, "variables"),
-    };
-    return applySelected(base_qt, p);
-}
-
-pub fn applyFieldAttributes(p: *Parser, field_qt: *QualType, attr_buf_start: usize) ![]const Attribute {
-    const attrs = p.attr_buf.items(.attr)[attr_buf_start..];
-    const seen = p.attr_buf.items(.seen)[attr_buf_start..];
-    p.attr_application_buf.items.len = 0;
-    for (attrs, 0..) |attr, i| switch (attr.tag) {
-        .@"packed" => {
-            try p.attr_application_buf.append(p.comp.gpa, attr);
-            seen[i] = true;
-        },
-        .aligned => {
-            try attr.applyAligned(p, field_qt.*, null);
-            seen[i] = true;
-        },
-        else => {},
-    };
-    return p.attr_application_buf.items;
-}
-
-pub fn applyTypeAttributes(p: *Parser, qt: QualType, attr_buf_start: usize, diagnostic: ?Parser.Diagnostic) !QualType {
-    const gpa = p.comp.gpa;
-    const attrs = p.attr_buf.items(.attr)[attr_buf_start..];
-    const toks = p.attr_buf.items(.tok)[attr_buf_start..];
-    const seens = p.attr_buf.items(.seen)[attr_buf_start..];
-    p.attr_application_buf.items.len = 0;
-    var base_qt = qt;
-    var msvc_ptr_attrs_seen: attributes.msvc_ptr.UsageTracker = .empty;
-    for (attrs, toks, seens) |attr, tok, seen| {
-        if (seen) continue;
-
-        switch (attr.tag) {
-            // zig fmt: off
-            .@"packed", .may_alias, .deprecated, .unavailable, .unused, .warn_if_not_aligned, .mode,
-            .nullability, .unaligned, .warn_unused_result,
-            => try p.attr_application_buf.append(gpa, attr),
-            // zig fmt: on
-            .transparent_union => try attr.applyTransparentUnion(p, tok, base_qt),
-            .vector_size => try attr.applyVectorSize(p, tok, &base_qt),
-            .neon_vector_type => try attr.applyNeonVector(p, tok, &base_qt, .neon),
-            .neon_polyvector_type => try attr.applyNeonVector(p, tok, &base_qt, .neon_poly),
-            .aligned => try attr.applyAligned(p, base_qt, diagnostic),
-            .designated_init => if (base_qt.is(p.comp, .@"struct")) {
-                try p.attr_application_buf.append(gpa, attr);
-            } else {
-                try p.err(tok, .designated_init_invalid, .{});
-            },
-            .calling_convention => try applyKeywordCallingConvention(attr, p, tok, base_qt),
-
-            .fastcall,
-            .stdcall,
-            .thiscall,
-            .vectorcall,
-            .cdecl,
-            .pcs,
-            .riscv_vector_cc,
-            .aarch64_sve_pcs,
-            .aarch64_vector_pcs,
-            .sysv_abi,
-            .ms_abi,
-            => try applyGnuAttrCallingConvention(attr, p, tok, base_qt),
-
-            .single,
-            .unsafe_indexable,
-            => try applyBoundsSafetyAttr(.fromTag(attr.tag), p, tok, &base_qt),
-
-            .msvc_ptr => try applyMSVCPtr(attr, p, tok, base_qt, &msvc_ptr_attrs_seen),
-
-            .alloc_size,
-            .copy,
-            .scalar_storage_order,
-            .nonstring,
-            => |t| try p.err(tok, .attribute_todo, .{ @tagName(t), "types" }),
-            // TODO: clang doesn't emit a dx here, but behavior for `__block <typedef>` is unspecified
-            .blocks => {},
-            else => try ignoredAttrErr(p, tok, attr.tag, "types"),
-        }
-    }
-    return applySelected(base_qt, p);
-}
-
-pub fn applyFunctionAttributes(p: *Parser, qt: QualType, attr_buf_start: usize) !QualType {
-    const gpa = p.comp.gpa;
-    const attrs = p.attr_buf.items(.attr)[attr_buf_start..];
-    const toks = p.attr_buf.items(.tok)[attr_buf_start..];
-    p.attr_application_buf.items.len = 0;
-    var base_qt = qt;
-    var hot = false;
-    var cold = false;
-    var @"noinline" = false;
-    var always_inline = false;
-    for (attrs, toks) |attr, tok| switch (attr.tag) {
-        // zig fmt: off
-        .noreturn, .unused, .used, .warning, .deprecated, .unavailable, .weak, .pure, .leaf,
-        .@"const", .warn_unused_result, .section, .returns_nonnull, .returns_twice, .@"error",
-        .externally_visible, .retain, .flatten, .gnu_inline, .alias, .asm_label, .nodiscard,
-        .reproducible, .unsequenced, .nothrow, .nullability, .unaligned, .internal_linkage,
-        .visibility,
-         => try p.attr_application_buf.append(gpa, attr),
-        // zig fmt: on
-        .hot => if (cold) {
-            try p.err(tok, .ignore_hot, .{});
-        } else {
-            try p.attr_application_buf.append(gpa, attr);
-            hot = true;
-        },
-        .cold => if (hot) {
-            try p.err(tok, .ignore_cold, .{});
-        } else {
-            try p.attr_application_buf.append(gpa, attr);
-            cold = true;
-        },
-        .always_inline => if (@"noinline") {
-            try p.err(tok, .ignore_always_inline, .{});
-        } else {
-            try p.attr_application_buf.append(gpa, attr);
-            always_inline = true;
-        },
-        .@"noinline" => if (always_inline) {
-            try p.err(tok, .ignore_noinline, .{});
-        } else {
-            try p.attr_application_buf.append(gpa, attr);
-            @"noinline" = true;
-        },
-        .aligned => try attr.applyAligned(p, base_qt, null),
-        .format => try attr.applyFormat(p, base_qt),
-        .calling_convention => try applyKeywordCallingConvention(attr, p, tok, base_qt),
-
-        .fastcall,
-        .stdcall,
-        .thiscall,
-        .vectorcall,
-        .cdecl,
-        .pcs,
-        .riscv_vector_cc,
-        .aarch64_sve_pcs,
-        .aarch64_vector_pcs,
-        .sysv_abi,
-        .ms_abi,
-        => try applyGnuAttrCallingConvention(attr, p, tok, base_qt),
-
-        .malloc => {
-            if (base_qt.get(p.comp, .func).?.return_type.isPointer(p.comp)) {
-                try p.attr_application_buf.append(gpa, attr);
-            } else {
-                try ignoredAttrErr(p, tok, attr.tag, "functions that do not return pointers");
-            }
-        },
-        .alloc_align => {
-            const func_ty = base_qt.get(p.comp, .func).?;
-            if (func_ty.return_type.isPointer(p.comp)) {
-                if (attr.args.alloc_align.position == 0 or attr.args.alloc_align.position > func_ty.params.len) {
-                    try p.err(tok, .attribute_param_out_of_bounds, .{ "alloc_align", 1 });
-                } else {
-                    const arg_qt = func_ty.params[attr.args.alloc_align.position - 1].qt;
-                    if (arg_qt.isInvalid()) continue;
-                    const arg_sk = arg_qt.scalarKind(p.comp);
-                    if (!arg_sk.isInt() or !arg_sk.isReal()) {
-                        try p.err(tok, .alloc_align_required_int_param, .{});
-                    } else {
-                        try p.attr_application_buf.append(gpa, attr);
-                    }
-                }
-            } else {
-                try p.err(tok, .alloc_align_requires_ptr_return, .{});
-            }
-        },
-        .nonnull => {
-            const func_ty = base_qt.get(p.comp, .func).?;
-            try applyNonnull(p, attr, tok, func_ty);
-        },
-        .access,
-        .alloc_size,
-        .artificial,
-        .assume_aligned,
-        .constructor,
-        .copy,
-        .destructor,
-        .format_arg,
-        .ifunc,
-        .interrupt,
-        .interrupt_handler,
-        .no_address_safety_analysis,
-        .no_icf,
-        .no_instrument_function,
-        .no_profile_instrument_function,
-        .no_reorder,
-        .no_sanitize,
-        .no_sanitize_address,
-        .no_sanitize_coverage,
-        .no_sanitize_thread,
-        .no_sanitize_undefined,
-        .no_split_stack,
-        .no_stack_limit,
-        .no_stack_protector,
-        .noclone,
-        .noipa,
-        .noplt,
-        // .optimize,
-        .patchable_function_entry,
-        .sentinel,
-        .simd,
-        .stack_protect,
-        .symver,
-        .target,
-        .target_clones,
-        .weakref,
-        .zero_call_used_regs,
-        => |t| try p.err(tok, .attribute_todo, .{ @tagName(t), "functions" }),
-        // TODO: clang doesn't emit a dx here, but behavior for `__block <function>` is unspecified
-        .blocks => {},
-        else => try ignoredAttrErr(p, tok, attr.tag, "functions"),
-    };
-    return applySelected(qt, p);
-}
-
-fn applyNonnull(p: *Parser, attr: Attribute, tok: TokenIndex, func_ty: Type.Func) !void {
-    const gpa = p.comp.gpa;
-    var valid = true;
-    const nonnull = attr.args.nonnull;
-    if (nonnull.indices_len != 0) {
-        const indices = p.comp.type_store.nonnull_args.items[nonnull.indices_start..][0..nonnull.indices_len];
-        for (indices, 0..) |position, arg_i| {
-            if (position == 0 or position > func_ty.params.len) {
-                try p.err(tok, .attribute_param_out_of_bounds, .{ "nonnull", arg_i + 1 });
-                valid = false;
-                continue;
-            }
-            const arg_qt = func_ty.params[position - 1].qt;
-            if (arg_qt.isInvalid()) continue;
-            if (!arg_qt.isPointer(p.comp)) {
-                try p.err(tok, .attribute_requires_pointer, .{"nonnull"});
-                valid = false;
-            }
-        }
-    }
-    if (valid) try p.attr_application_buf.append(gpa, attr);
-}
-
-pub fn applyBlockAttributes(p: *Parser, qt: QualType, attr_buf_start: usize) !QualType {
-    const gpa = p.comp.gpa;
-    const attrs = p.attr_buf.items(.attr)[attr_buf_start..];
-    const toks = p.attr_buf.items(.tok)[attr_buf_start..];
-    p.attr_application_buf.items.len = 0;
-    for (attrs, toks) |attr, tok| switch (attr.tag) {
-        // zig fmt: off
-        .noreturn, .deprecated, .unavailable, .pure, .@"const", .visibility,
-        // zig fmt: on
-        => try p.attr_application_buf.append(gpa, attr),
-        .aligned => try attr.applyAligned(p, qt, null),
-        .format => try attr.applyFormat(p, qt),
-        // zig fmt: off
-        .fastcall, .stdcall, .thiscall, .vectorcall, .cdecl, .pcs,
-        .riscv_vector_cc, .aarch64_sve_pcs, .aarch64_vector_pcs, .sysv_abi,
-        .ms_abi,
-        // zig fmt: on
-        => try applyGnuAttrCallingConvention(attr, p, tok, qt),
-
-        .nonnull => {
-            const block_ty = qt.get(p.comp, .block).?;
-            const func_ty = block_ty.func.get(p.comp, .func).?;
-            try applyNonnull(p, attr, tok, func_ty);
-        },
-
-        .sentinel,
-        .blocks, // TODO: clang doesn't emit any diagnostic, but it's not clear what this does
-        => |t| try p.err(tok, .attribute_todo, .{ @tagName(t), "blocks" }),
-
-        // TODO: clang warns with the specific contexts they're allowed in
-        // (eg "'weakref' attribute only applies to variables and functions")
-        // zig fmt: off
-        .unused, .used, .weak, .leaf, .warn_unused_result, .returns_nonnull,
-        .returns_twice, .retain, .gnu_inline, .nothrow, .internal_linkage, .hot,
-        .cold, .always_inline, .@"noinline", .malloc, .artificial, .assume_aligned,
-        .constructor, .ifunc, .no_address_safety_analysis,
-        .no_instrument_function, .no_profile_instrument_function,
-        .no_stack_protector, .patchable_function_entry, .simd, .stack_protect,
-        .symver, .weakref,
-        => try ignoredAttrErr(p, tok, attr.tag, "blocks"),
-        // zig fmt: on
-
-        // TODO: clang errors with the specific contexts they're allowed in
-        // (eg "'warning' attribute only applies to functions")
-        // zig fmt: off
-        .warning, .section, .@"error", .flatten, .alias, .no_sanitize,
-        .no_sanitize_address, .no_sanitize_thread, .no_split_stack, .target,
-        .target_clones, .zero_call_used_regs,
-        => try ignoredAttrErr(p, tok, attr.tag, "blocks"),
-        // zig fmt: on
-
-        else => try ignoredAttrErr(p, tok, attr.tag, "blocks"),
-    };
-    return applySelected(qt, p);
-}
-
-pub fn applyLabelAttributes(p: *Parser, attr_buf_start: usize) !QualType {
-    const gpa = p.comp.gpa;
-    const attrs = p.attr_buf.items(.attr)[attr_buf_start..];
-    const toks = p.attr_buf.items(.tok)[attr_buf_start..];
-    p.attr_application_buf.items.len = 0;
-    var hot = false;
-    var cold = false;
-    for (attrs, toks) |attr, tok| switch (attr.tag) {
-        .unused => try p.attr_application_buf.append(gpa, attr),
-        .hot => if (cold) {
-            try p.err(tok, .ignore_hot, .{});
-        } else {
-            try p.attr_application_buf.append(gpa, attr);
-            hot = true;
-        },
-        .cold => if (hot) {
-            try p.err(tok, .ignore_cold, .{});
-        } else {
-            try p.attr_application_buf.append(gpa, attr);
-            cold = true;
-        },
-        else => try ignoredAttrErr(p, tok, attr.tag, "labels"),
-    };
-    return applySelected(.void, p);
-}
-
-pub fn applyStatementAttributes(p: *Parser, expr_start: TokenIndex, attr_buf_start: usize) !QualType {
-    const attrs = p.attr_buf.items(.attr)[attr_buf_start..];
-    const toks = p.attr_buf.items(.tok)[attr_buf_start..];
-    p.attr_application_buf.items.len = 0;
-    for (attrs, toks) |attr, tok| switch (attr.tag) {
-        .fallthrough => {
-            for (p.tok_ids[p.tok_i..]) |tok_id| {
-                switch (tok_id) {
-                    .keyword_case, .keyword_default, .eof => {
-                        try p.attr_application_buf.append(p.comp.gpa, attr);
-                        break;
-                    },
-                    .r_brace, .semicolon => {},
-                    else => {
-                        try p.err(expr_start, .invalid_fallthrough, .{});
-                        break;
-                    },
-                }
-            }
-        },
-        else => try p.err(tok, .cannot_apply_attribute_to_statement, .{@tagName(attr.tag)}),
-    };
-    return applySelected(.void, p);
-}
-
-pub fn applyEnumeratorAttributes(p: *Parser, qt: QualType, attr_buf_start: usize) !QualType {
-    const attrs = p.attr_buf.items(.attr)[attr_buf_start..];
-    const toks = p.attr_buf.items(.tok)[attr_buf_start..];
-    p.attr_application_buf.items.len = 0;
-    for (attrs, toks) |attr, tok| switch (attr.tag) {
-        .deprecated, .unavailable => try p.attr_application_buf.append(p.comp.gpa, attr),
-        else => try ignoredAttrErr(p, tok, attr.tag, "enums"),
-    };
-    return applySelected(qt, p);
-}
-
-fn applyAligned(attr: Attribute, p: *Parser, qt: QualType, diagnostic: ?Parser.Diagnostic) !void {
-    if (attr.args.aligned.alignment) |alignment| alignas: {
-        if (attr.syntax != .keyword) break :alignas;
-
-        const align_tok = attr.args.aligned.__name_tok;
-        if (diagnostic) |d| try p.err(align_tok, d, .{});
-
-        if (qt.isInvalid()) return;
-        const default_align = qt.base(p.comp).qt.alignof(p.comp);
-        if (qt.is(p.comp, .func)) {
-            try p.err(align_tok, .alignas_on_func, .{});
-        } else if (alignment.requested < default_align) {
-            try p.err(align_tok, .minimum_alignment, .{default_align});
-        }
-    }
-    try p.attr_application_buf.append(p.comp.gpa, attr);
-}
-
-fn applyTransparentUnion(attr: Attribute, p: *Parser, tok: TokenIndex, qt: QualType) !void {
-    const union_ty = qt.get(p.comp, .@"union") orelse {
-        return p.err(tok, .transparent_union_wrong_type, .{});
-    };
-    // TODO validate union defined at end
-    if (union_ty.layout == null) return;
-    if (union_ty.fields.len == 0) {
-        return p.err(tok, .transparent_union_one_field, .{});
-    }
-    const first_field_size = union_ty.fields[0].qt.bitSizeof(p.comp);
-    for (union_ty.fields[1..]) |field| {
-        const field_size = field.qt.bitSizeof(p.comp);
-        if (field_size == first_field_size) continue;
-
-        try p.err(field.name_tok, .transparent_union_size, .{ field.name.lookup(p.comp), field_size });
-        return p.err(union_ty.fields[0].name_tok, .transparent_union_size_note, .{first_field_size});
-    }
-
-    try p.attr_application_buf.append(p.comp.gpa, attr);
-}
-
-fn applyVectorSize(attr: Attribute, p: *Parser, tok: TokenIndex, qt: *QualType) !void {
-    if (qt.isInvalid()) return;
-    const scalar_kind = qt.scalarKind(p.comp);
-    if (scalar_kind != .int and scalar_kind != .float) {
-        if (qt.get(p.comp, .@"enum")) |enum_ty| {
-            if (p.comp.langopts.emulate == .clang and enum_ty.incomplete) {
-                return; // Clang silently ignores vector_size on incomplete enums.
-            }
-        }
-        try p.err(tok, .invalid_vec_elem_ty, .{qt.*});
-        return error.ParsingFailed;
-    }
-    if (qt.get(p.comp, .bit_int)) |bit_int| {
-        if (bit_int.bits < 8) {
-            try p.err(tok, .bit_int_vec_too_small, .{});
-            return error.ParsingFailed;
-        } else if (!std.math.isPowerOfTwo(bit_int.bits)) {
-            try p.err(tok, .bit_int_vec_not_pow2, .{});
-            return error.ParsingFailed;
-        }
-    }
-
-    const vec_bytes = attr.args.vector_size.bytes;
-    const elem_size = qt.sizeof(p.comp);
-    if (vec_bytes % elem_size != 0) {
-        return p.err(tok, .vec_size_not_multiple, .{});
-    }
-
-    qt.* = try p.comp.type_store.put(p.comp.gpa, .{ .vector = .{
-        .elem = qt.*,
-        .len = @intCast(vec_bytes / elem_size),
-    } });
-}
-
-fn applyNeonVector(attr: Attribute, p: *Parser, tok: TokenIndex, qt: *QualType, kind: Type.Vector.Kind) !void {
-    if (qt.isInvalid()) return;
-    const valid_elem_ty = blk: {
-        if (kind == .neon_poly) {
-            const int_ty = qt.get(p.comp, .int) orelse break :blk false;
-            const poly_unsigned = p.comp.target.cpu.arch.isAARCH64();
-            break :blk if (poly_unsigned)
-                switch (int_ty) {
-                    .uchar, .ushort, .ulong, .ulong_long => true,
-                    else => false,
-                }
-            else switch (int_ty) {
-                .schar, .short, .long_long => true,
-                else => false,
-            };
-        }
-
-        const base_ty = qt.base(p.comp).type;
-        break :blk switch (base_ty) {
-            .int => |int| switch (int) {
-                .schar, .uchar, .short, .ushort, .int, .uint, .long, .ulong, .long_long, .ulong_long => true,
-                else => false,
-            },
-            .float => |float| switch (float) {
-                .float, .fp16, .bf16 => true,
-                .double => p.comp.target.cpu.arch.isAARCH64(),
-                else => false,
-            },
-            .storage_float => |storage_float| switch (storage_float) {
-                .mfp8 => true,
-            },
-            else => false,
-        };
-    };
-    if (!valid_elem_ty) {
-        try p.err(tok, .invalid_vec_elem_ty, .{qt.*});
-        return error.ParsingFailed;
-    }
-
-    // Neon vector size must be 64 or 128 bits
-    const elem_size = qt.bitSizeof(p.comp);
-    const vec_len = if (kind == .neon) attr.args.neon_vector_type.len else attr.args.neon_polyvector_type.len;
-    const vec_size = elem_size * vec_len;
-    if (vec_size != 64 and vec_size != 128) {
-        try p.err(tok, .invalid_neon_vec_size, .{});
-        return error.ParsingFailed;
-    }
-
-    qt.* = try p.comp.type_store.put(p.comp.gpa, .{ .vector = .{
-        .elem = qt.*,
-        .len = vec_len,
-        .kind = kind,
-    } });
-}
-
-fn applyFormat(attr: Attribute, p: *Parser, qt: QualType) !void {
-    // TODO validate
-    _ = qt;
-    try p.attr_application_buf.append(p.comp.gpa, attr);
-}
-
-/// These come from GNU attributes like __attribute__((sysv_abi))
-fn applyGnuAttrCallingConvention(attr: Attribute, p: *Parser, tok: TokenIndex, qt: QualType) !void {
-    if (!qt.isCallable(p.comp)) {
-        return p.err(tok, .callconv_non_func, .{ p.tokSlice(tok), qt });
-    }
-    const gpa = p.comp.gpa;
-    switch (attr.tag) {
-        .fastcall => if (p.comp.target.cpu.arch == .x86) {
-            try p.attr_application_buf.append(gpa, .{
-                .tag = .calling_convention,
-                .args = .{ .calling_convention = .{ .cc = .fastcall } },
-                .syntax = attr.syntax,
-            });
-        } else {
-            try p.err(tok, .callconv_not_supported, .{"fastcall"});
-        },
-        .stdcall => if (p.comp.target.cpu.arch == .x86) {
-            try p.attr_application_buf.append(gpa, .{
-                .tag = .calling_convention,
-                .args = .{ .calling_convention = .{ .cc = .stdcall } },
-                .syntax = attr.syntax,
-            });
-        } else {
-            try p.err(tok, .callconv_not_supported, .{"stdcall"});
-        },
-        .thiscall => if (p.comp.target.cpu.arch == .x86) {
-            try p.attr_application_buf.append(gpa, .{
-                .tag = .calling_convention,
-                .args = .{ .calling_convention = .{ .cc = .thiscall } },
-                .syntax = attr.syntax,
-            });
-        } else {
-            try p.err(tok, .callconv_not_supported, .{"thiscall"});
-        },
-        .vectorcall => if (p.comp.target.cpu.arch == .x86 or p.comp.target.cpu.arch.isAARCH64()) {
-            try p.attr_application_buf.append(gpa, .{
-                .tag = .calling_convention,
-                .args = .{ .calling_convention = .{ .cc = .vectorcall } },
-                .syntax = attr.syntax,
-            });
-        } else {
-            try p.err(tok, .callconv_not_supported, .{"vectorcall"});
-        },
-        .cdecl => {},
-        .pcs => if (p.comp.target.cpu.arch.isArm()) {
-            try p.attr_application_buf.append(gpa, .{
-                .tag = .calling_convention,
-                .args = .{ .calling_convention = .{ .cc = switch (attr.args.pcs.kind) {
-                    .aapcs => .arm_aapcs,
-                    .@"aapcs-vfp" => .arm_aapcs_vfp,
-                } } },
-                .syntax = attr.syntax,
-            });
-        } else {
-            try p.err(tok, .callconv_not_supported, .{"pcs"});
-        },
-        .riscv_vector_cc => if (p.comp.target.cpu.arch.isRISCV()) {
-            try p.attr_application_buf.append(gpa, .{
-                .tag = .calling_convention,
-                .args = .{ .calling_convention = .{ .cc = .riscv_vector } },
-                .syntax = attr.syntax,
-            });
-        } else {
-            try p.err(tok, .callconv_not_supported, .{"pcs"});
-        },
-        .aarch64_sve_pcs => if (p.comp.target.cpu.arch.isAARCH64()) {
-            try p.attr_application_buf.append(gpa, .{
-                .tag = .calling_convention,
-                .args = .{ .calling_convention = .{ .cc = .aarch64_sve_pcs } },
-                .syntax = attr.syntax,
-            });
-        } else {
-            try p.err(tok, .callconv_not_supported, .{"pcs"});
-        },
-        .aarch64_vector_pcs => if (p.comp.target.cpu.arch.isAARCH64()) {
-            try p.attr_application_buf.append(gpa, .{
-                .tag = .calling_convention,
-                .args = .{ .calling_convention = .{ .cc = .aarch64_vector_pcs } },
-                .syntax = attr.syntax,
-            });
-        } else {
-            try p.err(tok, .callconv_not_supported, .{"pcs"});
-        },
-        .sysv_abi => if (p.comp.target.cpu.arch == .x86_64 and p.comp.target.os.tag == .windows) {
-            try p.attr_application_buf.append(gpa, .{
-                .tag = .calling_convention,
-                .args = .{ .calling_convention = .{ .cc = .x86_64_sysv } },
-                .syntax = attr.syntax,
-            });
-        },
-        .ms_abi => if (p.comp.target.cpu.arch == .x86_64 and p.comp.target.os.tag != .windows) {
-            try p.attr_application_buf.append(gpa, .{
-                .tag = .calling_convention,
-                .args = .{ .calling_convention = .{ .cc = .x86_64_win } },
-                .syntax = attr.syntax,
-            });
-        },
-        else => unreachable,
-    }
-}
-
-fn applyBoundsSafetyAttr(bounds: Type.Pointer.Bounds, p: *Parser, tok: TokenIndex, qt: *QualType) !void {
-    if (qt.isInvalid()) return;
-    const pointer = qt.get(p.comp, .pointer) orelse {
-        return p.err(tok, .attribute_requires_pointer, .{@tagName(bounds)});
-    };
-    if (pointer.bounds == bounds) {
-        return p.err(tok, .redundant_bounds_annotation, .{@tagName(bounds)});
-    }
-    if (pointer.bounds != .c) {
-        return p.err(tok, .multiple_bounds_annotations, .{});
-    }
-    qt.* = try p.comp.type_store.put(p.comp.gpa, .{ .pointer = .{
-        .child = pointer.child,
-        .decayed = pointer.decayed,
-        .bounds = bounds,
-    } });
-}
-
-fn applyMSVCPtr(attr: Attribute, p: *Parser, tok: TokenIndex, qt: QualType, tracker: *attributes.msvc_ptr.UsageTracker) !void {
-    if (!qt.isPointer(p.comp)) {
-        return p.err(tok, .attribute_requires_pointer, .{p.tokSlice(tok)});
-    }
-    defer tracker.insert(attr.args.msvc_ptr.kind);
-
-    if (tracker.contains(attr.args.msvc_ptr.kind)) {
-        return p.err(tok, .attribute_already_applied, .{p.tokSlice(tok)});
-    }
-    const incompatible = attr.args.msvc_ptr.kind.incompatible();
-    if (tracker.contains(incompatible)) {
-        return p.err(tok, .msvc_ptr_not_compatible, .{ @tagName(incompatible), @tagName(attr.args.msvc_ptr.kind) });
-    }
-    try p.attr_application_buf.append(p.comp.gpa, attr);
-}
-
-/// These come from explicit MSVC keywords like __stdcall, __fastcall, etc
-fn applyKeywordCallingConvention(attr: Attribute, p: *Parser, tok: TokenIndex, qt: QualType) !void {
-    if (!qt.isCallable(p.comp)) {
-        return p.err(tok, .callconv_non_func, .{ p.tokSlice(tok), qt });
-    }
-    switch (attr.args.calling_convention.cc) {
-        .c => {},
-        .stdcall, .thiscall, .fastcall, .regcall => switch (p.comp.target.cpu.arch) {
-            .x86 => try p.attr_application_buf.append(p.comp.gpa, attr),
-            else => try p.err(tok, .callconv_not_supported, .{p.tok_ids[tok].symbol()}),
-        },
-        .vectorcall => switch (p.comp.target.cpu.arch) {
-            .x86, .aarch64, .aarch64_be => try p.attr_application_buf.append(p.comp.gpa, attr),
-            else => try p.err(tok, .callconv_not_supported, .{p.tok_ids[tok].symbol()}),
-        },
-        .riscv_vector,
-        .aarch64_sve_pcs,
-        .aarch64_vector_pcs,
-        .arm_aapcs,
-        .arm_aapcs_vfp,
-        .x86_64_sysv,
-        .x86_64_win,
-        => unreachable, // These can't come from keyword syntax
-    }
-}
-
-fn applySelected(qt: QualType, p: *Parser) !QualType {
-    if (p.attr_application_buf.items.len == 0) return qt;
-    if (qt.isInvalid()) return qt;
-    return (try p.comp.type_store.put(p.comp.gpa, .{ .attributed = .{
-        .base = qt,
-        .attributes = p.attr_application_buf.items,
-    } })).withQualifiers(qt);
-}
-
-pub fn visibilityFromString(s: []const u8) ?std.builtin.SymbolVisibility {
-    if (mem.eql(u8, s, "internal")) {
-        return .hidden;
-    }
-    const visibility = std.meta.stringToEnum(std.builtin.SymbolVisibility, s) orelse return null;
-    // compiler will notify us if .internal is added as a visibility type
-    switch (visibility) {
-        .default, .hidden, .protected => {},
-    }
-    return visibility;
 }

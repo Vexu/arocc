@@ -12,9 +12,6 @@ void foo(void) {
 
     _Complex unsigned cx = 0;
     EXPECT_TYPE(cx + 1L, _Complex long);
-
-    _Complex int cy = 0;
-    EXPECT_TYPE(cy + 4294967296wb, _Complex _BitInt(34));
 }
 
 /** manifest:

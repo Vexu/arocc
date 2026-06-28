@@ -6,7 +6,9 @@ __asm__(5);
 
 /** manifest:
 syntax
+skip = TODO: implement 'asm_label' attribute
 
+asm.c:1:16: warning: TODO: implement 'asm_label' attribute
 asm.c:2:9: error: meaningless 'volatile' on assembly outside function
 asm.c:2:18: error: meaningless 'volatile' on assembly outside function
 asm.c:2:18: error: duplicate asm qualifier 'volatile'

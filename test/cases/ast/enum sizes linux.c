@@ -16,8 +16,8 @@ implicit typedef: 'struct __NSConstantString_tag'
 implicit typedef: 'long double'
  name: __float80
 
-enum_decl: 'attributed(enum Small: unsigned char)'
- attr: packed
+enum_decl: 'enum Small: unsigned char'
+ packed
   enum_field: 'int' (value: 0)
    name: A
 
@@ -27,15 +27,15 @@ static_assert
     equal_expr: 'int' (value: 1)
      lhs:
       sizeof_expr: 'unsigned long'
-       operand type: attributed(enum Small: unsigned char)
+       operand type: enum Small: unsigned char
      rhs:
       implicit cast: (int_cast) 'unsigned long'
         int_literal: 'int' (value: 1)
  diagnostic:
   string_literal_expr: '[6]char' lvalue (value: "Small")
 
-enum_decl: 'attributed(enum StillSmall: unsigned char)'
- attr: packed
+enum_decl: 'enum StillSmall: unsigned char'
+ packed
   enum_field: 'int' (value: 255)
    name: B
    init:
@@ -47,15 +47,15 @@ static_assert
     equal_expr: 'int' (value: 1)
      lhs:
       sizeof_expr: 'unsigned long'
-       operand type: attributed(enum StillSmall: unsigned char)
+       operand type: enum StillSmall: unsigned char
      rhs:
       implicit cast: (int_cast) 'unsigned long'
         int_literal: 'int' (value: 1)
  diagnostic:
   string_literal_expr: '[11]char' lvalue (value: "StillSmall")
 
-enum_decl: 'attributed(enum Medium: unsigned short)'
- attr: packed
+enum_decl: 'enum Medium: unsigned short'
+ packed
   enum_field: 'int' (value: 255)
    name: C
    init:
@@ -70,15 +70,15 @@ static_assert
     equal_expr: 'int' (value: 1)
      lhs:
       sizeof_expr: 'unsigned long'
-       operand type: attributed(enum Medium: unsigned short)
+       operand type: enum Medium: unsigned short
      rhs:
       implicit cast: (int_cast) 'unsigned long'
         int_literal: 'int' (value: 2)
  diagnostic:
   string_literal_expr: '[7]char' lvalue (value: "Medium")
 
-enum_decl: 'attributed(enum StillMedium: short)'
- attr: packed
+enum_decl: 'enum StillMedium: short'
+ packed
   enum_field: 'int' (value: -32768)
    name: E
    init:
@@ -97,7 +97,7 @@ static_assert
     equal_expr: 'int' (value: 1)
      lhs:
       sizeof_expr: 'unsigned long'
-       operand type: attributed(enum StillMedium: short)
+       operand type: enum StillMedium: short
      rhs:
       implicit cast: (int_cast) 'unsigned long'
         int_literal: 'int' (value: 2)

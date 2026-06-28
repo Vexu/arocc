@@ -197,13 +197,12 @@ pub fn intToFloat(v: *Value, dest_ty: QualType, comp: *Compilation) !void {
     if (v.opt_ref == .none) return;
 
     if (dest_ty.is(comp, .complex)) {
-        const bits = dest_ty.bitSizeof(comp);
-        const cf: Interner.Key.Complex = switch (bits) {
-            32 => .{ .cf16 = .{ v.toFloat(f16, comp), 0 } },
-            64 => .{ .cf32 = .{ v.toFloat(f32, comp), 0 } },
-            128 => .{ .cf64 = .{ v.toFloat(f64, comp), 0 } },
-            160 => .{ .cf80 = .{ v.toFloat(f80, comp), 0 } },
-            256 => .{ .cf128 = .{ v.toFloat(f128, comp), 0 } },
+        const cf: Interner.Key.Complex = switch (dest_ty.childType(comp).bitSizeof(comp)) {
+            16 => .{ .cf16 = .{ v.toFloat(f16, comp), 0 } },
+            32 => .{ .cf32 = .{ v.toFloat(f32, comp), 0 } },
+            64 => .{ .cf64 = .{ v.toFloat(f64, comp), 0 } },
+            80 => .{ .cf80 = .{ v.toFloat(f80, comp), 0 } },
+            128 => .{ .cf128 = .{ v.toFloat(f128, comp), 0 } },
             else => unreachable,
         };
         v.* = try intern(comp, .{ .complex = cf });
@@ -289,19 +288,18 @@ pub fn intCast(v: *Value, dest_ty: QualType, comp: *Compilation) !IntCastChangeK
 /// `.none` value remains unchanged.
 pub fn floatCast(v: *Value, dest_ty: QualType, comp: *Compilation) !void {
     if (v.opt_ref == .none) return;
-    const bits = dest_ty.bitSizeof(comp);
-    if (dest_ty.is(comp, .complex)) {
-        const cf: Interner.Key.Complex = switch (bits) {
-            32 => .{ .cf16 = .{ v.toFloat(f16, comp), v.imag(f16, comp) } },
-            64 => .{ .cf32 = .{ v.toFloat(f32, comp), v.imag(f32, comp) } },
-            128 => .{ .cf64 = .{ v.toFloat(f64, comp), v.imag(f64, comp) } },
-            160 => .{ .cf80 = .{ v.toFloat(f80, comp), v.imag(f80, comp) } },
-            256 => .{ .cf128 = .{ v.toFloat(f128, comp), v.imag(f128, comp) } },
+    if (dest_ty.get(comp, .complex)) |scalar_qt| {
+        const cf: Interner.Key.Complex = switch (scalar_qt.bitSizeof(comp)) {
+            16 => .{ .cf16 = .{ v.toFloat(f16, comp), v.imag(f16, comp) } },
+            32 => .{ .cf32 = .{ v.toFloat(f32, comp), v.imag(f32, comp) } },
+            64 => .{ .cf64 = .{ v.toFloat(f64, comp), v.imag(f64, comp) } },
+            80 => .{ .cf80 = .{ v.toFloat(f80, comp), v.imag(f80, comp) } },
+            128 => .{ .cf128 = .{ v.toFloat(f128, comp), v.imag(f128, comp) } },
             else => unreachable,
         };
         v.* = try intern(comp, .{ .complex = cf });
     } else {
-        const f: Interner.Key.Float = switch (bits) {
+        const f: Interner.Key.Float = switch (dest_ty.bitSizeof(comp)) {
             16 => .{ .f16 = v.toFloat(f16, comp) },
             32 => .{ .f32 = v.toFloat(f32, comp) },
             64 => .{ .f64 = v.toFloat(f64, comp) },
@@ -522,21 +520,20 @@ fn complexAddSub(lhs: Value, rhs: Value, comptime T: type, op: ComplexOp, comp: 
 }
 
 pub fn add(res: *Value, lhs: Value, rhs: Value, qt: QualType, comp: *Compilation) !bool {
-    const bits: usize = @intCast(qt.bitSizeof(comp));
     const scalar_kind = qt.scalarKind(comp);
     if (scalar_kind.isFloat()) {
         if (scalar_kind == .complex_float) {
-            res.* = switch (bits) {
-                32 => try complexAddSub(lhs, rhs, f16, .add, comp),
-                64 => try complexAddSub(lhs, rhs, f32, .add, comp),
-                128 => try complexAddSub(lhs, rhs, f64, .add, comp),
-                160 => try complexAddSub(lhs, rhs, f80, .add, comp),
-                256 => try complexAddSub(lhs, rhs, f128, .add, comp),
+            res.* = switch (qt.childType(comp).bitSizeof(comp)) {
+                16 => try complexAddSub(lhs, rhs, f16, .add, comp),
+                32 => try complexAddSub(lhs, rhs, f32, .add, comp),
+                64 => try complexAddSub(lhs, rhs, f64, .add, comp),
+                80 => try complexAddSub(lhs, rhs, f80, .add, comp),
+                128 => try complexAddSub(lhs, rhs, f128, .add, comp),
                 else => unreachable,
             };
             return false;
         }
-        const f: Interner.Key.Float = switch (bits) {
+        const f: Interner.Key.Float = switch (qt.bitSizeof(comp)) {
             16 => .{ .f16 = lhs.toFloat(f16, comp) + rhs.toFloat(f16, comp) },
             32 => .{ .f32 = lhs.toFloat(f32, comp) + rhs.toFloat(f32, comp) },
             64 => .{ .f64 = lhs.toFloat(f64, comp) + rhs.toFloat(f64, comp) },
@@ -574,6 +571,7 @@ pub fn add(res: *Value, lhs: Value, rhs: Value, qt: QualType, comp: *Compilation
     const lhs_bigint = lhs_key.toBigInt(&lhs_space);
     const rhs_bigint = rhs_key.toBigInt(&rhs_space);
 
+    const bits: usize = @intCast(qt.bitSizeof(comp));
     const limbs = try comp.gpa.alloc(
         std.math.big.Limb,
         std.math.big.int.calcTwosCompLimbCount(bits),
@@ -596,21 +594,20 @@ pub fn decrement(res: *Value, val: Value, qt: QualType, comp: *Compilation) !boo
 
 /// elem_size is only used when subtracting two pointers, so we can scale the result by the size of the element type
 pub fn sub(res: *Value, lhs: Value, rhs: Value, qt: QualType, elem_size: u64, comp: *Compilation) !bool {
-    const bits: usize = @intCast(qt.bitSizeof(comp));
     const scalar_kind = qt.scalarKind(comp);
     if (scalar_kind.isFloat()) {
         if (scalar_kind == .complex_float) {
-            res.* = switch (bits) {
-                32 => try complexAddSub(lhs, rhs, f16, .sub, comp),
-                64 => try complexAddSub(lhs, rhs, f32, .sub, comp),
-                128 => try complexAddSub(lhs, rhs, f64, .sub, comp),
-                160 => try complexAddSub(lhs, rhs, f80, .sub, comp),
-                256 => try complexAddSub(lhs, rhs, f128, .sub, comp),
+            res.* = switch (qt.childType(comp).bitSizeof(comp)) {
+                16 => try complexAddSub(lhs, rhs, f16, .sub, comp),
+                32 => try complexAddSub(lhs, rhs, f32, .sub, comp),
+                64 => try complexAddSub(lhs, rhs, f64, .sub, comp),
+                80 => try complexAddSub(lhs, rhs, f80, .sub, comp),
+                128 => try complexAddSub(lhs, rhs, f128, .sub, comp),
                 else => unreachable,
             };
             return false;
         }
-        const f: Interner.Key.Float = switch (bits) {
+        const f: Interner.Key.Float = switch (qt.bitSizeof(comp)) {
             16 => .{ .f16 = lhs.toFloat(f16, comp) - rhs.toFloat(f16, comp) },
             32 => .{ .f32 = lhs.toFloat(f32, comp) - rhs.toFloat(f32, comp) },
             64 => .{ .f64 = lhs.toFloat(f64, comp) - rhs.toFloat(f64, comp) },
@@ -658,6 +655,7 @@ pub fn sub(res: *Value, lhs: Value, rhs: Value, qt: QualType, elem_size: u64, co
     const lhs_bigint = lhs_key.toBigInt(&lhs_space);
     const rhs_bigint = rhs_key.toBigInt(&rhs_space);
 
+    const bits: usize = @intCast(qt.bitSizeof(comp));
     const limbs = try comp.gpa.alloc(
         std.math.big.Limb,
         std.math.big.int.calcTwosCompLimbCount(bits),
@@ -671,22 +669,21 @@ pub fn sub(res: *Value, lhs: Value, rhs: Value, qt: QualType, elem_size: u64, co
 }
 
 pub fn mul(res: *Value, lhs: Value, rhs: Value, qt: QualType, comp: *Compilation) !bool {
-    const bits: usize = @intCast(qt.bitSizeof(comp));
     const scalar_kind = qt.scalarKind(comp);
     if (scalar_kind.isFloat()) {
         if (scalar_kind == .complex_float) {
-            const cf: Interner.Key.Complex = switch (bits) {
-                32 => .{ .cf16 = annex_g.complexFloatMul(f16, lhs.toFloat(f16, comp), lhs.imag(f16, comp), rhs.toFloat(f16, comp), rhs.imag(f16, comp)) },
-                64 => .{ .cf32 = annex_g.complexFloatMul(f32, lhs.toFloat(f32, comp), lhs.imag(f32, comp), rhs.toFloat(f32, comp), rhs.imag(f32, comp)) },
-                128 => .{ .cf64 = annex_g.complexFloatMul(f64, lhs.toFloat(f64, comp), lhs.imag(f64, comp), rhs.toFloat(f64, comp), rhs.imag(f64, comp)) },
-                160 => .{ .cf80 = annex_g.complexFloatMul(f80, lhs.toFloat(f80, comp), lhs.imag(f80, comp), rhs.toFloat(f80, comp), rhs.imag(f80, comp)) },
-                256 => .{ .cf128 = annex_g.complexFloatMul(f128, lhs.toFloat(f128, comp), lhs.imag(f128, comp), rhs.toFloat(f128, comp), rhs.imag(f128, comp)) },
+            const cf: Interner.Key.Complex = switch (qt.childType(comp).bitSizeof(comp)) {
+                16 => .{ .cf16 = annex_g.complexFloatMul(f16, lhs.toFloat(f16, comp), lhs.imag(f16, comp), rhs.toFloat(f16, comp), rhs.imag(f16, comp)) },
+                32 => .{ .cf32 = annex_g.complexFloatMul(f32, lhs.toFloat(f32, comp), lhs.imag(f32, comp), rhs.toFloat(f32, comp), rhs.imag(f32, comp)) },
+                64 => .{ .cf64 = annex_g.complexFloatMul(f64, lhs.toFloat(f64, comp), lhs.imag(f64, comp), rhs.toFloat(f64, comp), rhs.imag(f64, comp)) },
+                80 => .{ .cf80 = annex_g.complexFloatMul(f80, lhs.toFloat(f80, comp), lhs.imag(f80, comp), rhs.toFloat(f80, comp), rhs.imag(f80, comp)) },
+                128 => .{ .cf128 = annex_g.complexFloatMul(f128, lhs.toFloat(f128, comp), lhs.imag(f128, comp), rhs.toFloat(f128, comp), rhs.imag(f128, comp)) },
                 else => unreachable,
             };
             res.* = try intern(comp, .{ .complex = cf });
             return false;
         }
-        const f: Interner.Key.Float = switch (bits) {
+        const f: Interner.Key.Float = switch (qt.bitSizeof(comp)) {
             16 => .{ .f16 = lhs.toFloat(f16, comp) * rhs.toFloat(f16, comp) },
             32 => .{ .f32 = lhs.toFloat(f32, comp) * rhs.toFloat(f32, comp) },
             64 => .{ .f64 = lhs.toFloat(f64, comp) * rhs.toFloat(f64, comp) },
@@ -717,6 +714,7 @@ pub fn mul(res: *Value, lhs: Value, rhs: Value, qt: QualType, comp: *Compilation
 
         result_bigint.mul(lhs_bigint, rhs_bigint, limbs_buffer, comp.gpa);
 
+        const bits: usize = @intCast(qt.bitSizeof(comp));
         const signedness = qt.signedness(comp);
         const overflowed = !result_bigint.toConst().fitsInTwosComp(signedness, bits);
         if (overflowed) {
@@ -729,22 +727,21 @@ pub fn mul(res: *Value, lhs: Value, rhs: Value, qt: QualType, comp: *Compilation
 
 /// caller guarantees rhs != 0
 pub fn div(res: *Value, lhs: Value, rhs: Value, qt: QualType, comp: *Compilation) !bool {
-    const bits: usize = @intCast(qt.bitSizeof(comp));
     const scalar_kind = qt.scalarKind(comp);
     if (scalar_kind.isFloat()) {
         if (scalar_kind == .complex_float) {
-            const cf: Interner.Key.Complex = switch (bits) {
-                32 => .{ .cf16 = annex_g.complexFloatDiv(f16, lhs.toFloat(f16, comp), lhs.imag(f16, comp), rhs.toFloat(f16, comp), rhs.imag(f16, comp)) },
-                64 => .{ .cf32 = annex_g.complexFloatDiv(f32, lhs.toFloat(f32, comp), lhs.imag(f32, comp), rhs.toFloat(f32, comp), rhs.imag(f32, comp)) },
-                128 => .{ .cf64 = annex_g.complexFloatDiv(f64, lhs.toFloat(f64, comp), lhs.imag(f64, comp), rhs.toFloat(f64, comp), rhs.imag(f64, comp)) },
-                160 => .{ .cf80 = annex_g.complexFloatDiv(f80, lhs.toFloat(f80, comp), lhs.imag(f80, comp), rhs.toFloat(f80, comp), rhs.imag(f80, comp)) },
-                256 => .{ .cf128 = annex_g.complexFloatDiv(f128, lhs.toFloat(f128, comp), lhs.imag(f128, comp), rhs.toFloat(f128, comp), rhs.imag(f128, comp)) },
+            const cf: Interner.Key.Complex = switch (qt.childType(comp).bitSizeof(comp)) {
+                16 => .{ .cf16 = annex_g.complexFloatDiv(f16, lhs.toFloat(f16, comp), lhs.imag(f16, comp), rhs.toFloat(f16, comp), rhs.imag(f16, comp)) },
+                32 => .{ .cf32 = annex_g.complexFloatDiv(f32, lhs.toFloat(f32, comp), lhs.imag(f32, comp), rhs.toFloat(f32, comp), rhs.imag(f32, comp)) },
+                64 => .{ .cf64 = annex_g.complexFloatDiv(f64, lhs.toFloat(f64, comp), lhs.imag(f64, comp), rhs.toFloat(f64, comp), rhs.imag(f64, comp)) },
+                80 => .{ .cf80 = annex_g.complexFloatDiv(f80, lhs.toFloat(f80, comp), lhs.imag(f80, comp), rhs.toFloat(f80, comp), rhs.imag(f80, comp)) },
+                128 => .{ .cf128 = annex_g.complexFloatDiv(f128, lhs.toFloat(f128, comp), lhs.imag(f128, comp), rhs.toFloat(f128, comp), rhs.imag(f128, comp)) },
                 else => unreachable,
             };
             res.* = try intern(comp, .{ .complex = cf });
             return false;
         }
-        const f: Interner.Key.Float = switch (bits) {
+        const f: Interner.Key.Float = switch (qt.bitSizeof(comp)) {
             16 => .{ .f16 = lhs.toFloat(f16, comp) / rhs.toFloat(f16, comp) },
             32 => .{ .f32 = lhs.toFloat(f32, comp) / rhs.toFloat(f32, comp) },
             64 => .{ .f64 = lhs.toFloat(f64, comp) / rhs.toFloat(f64, comp) },
@@ -782,6 +779,7 @@ pub fn div(res: *Value, lhs: Value, rhs: Value, qt: QualType, comp: *Compilation
 
         result_q.divTrunc(&result_r, lhs_bigint, rhs_bigint, limbs_buffer);
 
+        const bits: usize = @intCast(qt.bitSizeof(comp));
         res.* = try intern(comp, .{ .int = .{ .big_int = result_q.toConst() } });
         return !result_q.toConst().fitsInTwosComp(qt.signedness(comp), bits);
     }
@@ -971,13 +969,12 @@ pub fn shr(lhs: Value, rhs: Value, qt: QualType, comp: *Compilation) !Value {
 }
 
 pub fn complexConj(val: Value, qt: QualType, comp: *Compilation) !Value {
-    const bits = qt.bitSizeof(comp);
-    const cf: Interner.Key.Complex = switch (bits) {
-        32 => .{ .cf16 = .{ val.toFloat(f16, comp), -val.imag(f16, comp) } },
-        64 => .{ .cf32 = .{ val.toFloat(f32, comp), -val.imag(f32, comp) } },
-        128 => .{ .cf64 = .{ val.toFloat(f64, comp), -val.imag(f64, comp) } },
-        160 => .{ .cf80 = .{ val.toFloat(f80, comp), -val.imag(f80, comp) } },
-        256 => .{ .cf128 = .{ val.toFloat(f128, comp), -val.imag(f128, comp) } },
+    const cf: Interner.Key.Complex = switch (qt.childType(comp).bitSizeof(comp)) {
+        16 => .{ .cf16 = .{ val.toFloat(f16, comp), -val.imag(f16, comp) } },
+        32 => .{ .cf32 = .{ val.toFloat(f32, comp), -val.imag(f32, comp) } },
+        64 => .{ .cf64 = .{ val.toFloat(f64, comp), -val.imag(f64, comp) } },
+        80 => .{ .cf80 = .{ val.toFloat(f80, comp), -val.imag(f80, comp) } },
+        128 => .{ .cf128 = .{ val.toFloat(f128, comp), -val.imag(f128, comp) } },
         else => unreachable,
     };
     return intern(comp, .{ .complex = cf });

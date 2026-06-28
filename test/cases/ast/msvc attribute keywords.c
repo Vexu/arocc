@@ -13,29 +13,27 @@ implicit typedef: '*char'
 implicit typedef: 'struct __NSConstantString_tag'
  name: __NSConstantString
 
-variable: '*attributed(int)'
+variable: '*int'
  name: a
 
-variable: 'attributed(int)'
- attr: unaligned
+variable: 'int'
  name: b
 
-function: 'kr (...) int'
+function: 'kr (...) cc(cdecl) int'
  name: foo
 
-function: 'attributed(kr (...) *int)'
- attr: calling_convention cc: stdcall
+function: 'kr (...) cc(stdcall) *int'
  name: bar
 
-function: 'fn (decayed *[]attributed(int), decayed *[]int) int'
+function: 'fn (decayed *[]int, decayed *[]int) int'
  name: baz
 
-function: 'fn (fn_ptr: *fn () void) void'
+function: 'fn (fn_ptr: *fn () cc(cdecl) void) void'
  name: quux
 
 variable: 'unsigned long long'
  name: l
- definition: 0xE
+ definition: 0x11
 
 variable: 'unsigned long long'
  name: l

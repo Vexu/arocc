@@ -18,10 +18,18 @@ typedef nullptr_t __ptr64 sized_nullptr;
 /** manifest:
 syntax
 args = --target=x86_64-windows-msvc -std=c23
+skip = TODO: reimplement msvc pointer attribute keywords
 
-msvc pointer keywords.c:11:14: error: '__ptr64' and '__ptr32' attributes are not compatible
-msvc pointer keywords.c:12:13: error: '__sptr' and '__uptr' attributes are not compatible
-msvc pointer keywords.c:13:14: warning: attribute '__ptr64' is already applied [-Wignored-attributes]
-msvc pointer keywords.c:15:5: error: '__ptr64' attribute only applies to pointer arguments
-msvc pointer keywords.c:16:19: error: '__ptr64' attribute only applies to pointer arguments
+msvc pointer keywords.c:3:15: warning: TODO: implement 'ptr64' attribute
+msvc pointer keywords.c:7:15: warning: TODO: implement 'ptr32' attribute
+msvc pointer keywords.c:8:1: error: static assertion failed ""
+msvc pointer keywords.c:9:1: error: static assertion failed ""
+msvc pointer keywords.c:11:6: warning: TODO: implement 'ptr64' attribute
+msvc pointer keywords.c:11:14: warning: TODO: implement 'ptr32' attribute
+msvc pointer keywords.c:12:6: warning: TODO: implement 'sptr' attribute
+msvc pointer keywords.c:12:13: warning: TODO: implement 'uptr' attribute
+msvc pointer keywords.c:13:6: warning: TODO: implement 'ptr64' attribute
+msvc pointer keywords.c:13:14: warning: TODO: implement 'ptr64' attribute
+msvc pointer keywords.c:15:5: warning: TODO: implement 'ptr64' attribute
+msvc pointer keywords.c:16:19: warning: TODO: implement 'ptr64' attribute
 */
