@@ -41,6 +41,10 @@ const Repr = struct {
         always_inline,
         gnu_inline,
         section,
+        weak,
+        selectany,
+        internal_linkage,
+        blocks,
     };
 };
 
@@ -77,6 +81,9 @@ pub fn put(map: *Map, gpa: mem.Allocator, attribute: Attribute) !Ref {
         .noreturn => repr.tag = .noreturn,
         .always_inline => repr.tag = .always_inline,
         .gnu_inline => repr.tag = .gnu_inline,
+        .weak => repr.tag = .weak,
+        .selectany => repr.tag = .selectany,
+        .internal_linkage => repr.tag = .internal_linkage,
         .alignment => |opt_value| if (opt_value) |value| {
             repr.tag = .alignment;
             repr.data = @intCast(map.extra.items.len);
@@ -159,6 +166,12 @@ pub fn put(map: *Map, gpa: mem.Allocator, attribute: Attribute) !Ref {
             try map.extra.append(gpa, attribute.tok);
             try map.putString(gpa, name);
         },
+        .blocks => |byref| {
+            repr.tag = .blocks;
+            repr.data = @intCast(map.extra.items.len);
+            try map.extra.append(gpa, attribute.tok);
+            try map.extra.append(gpa, @intFromEnum(byref));
+        },
         else => @panic("TODO"),
     }
 
@@ -186,6 +199,9 @@ pub fn get(map: *const Map, ref: Ref) Attribute {
         .noreturn => res.args = .noreturn,
         .always_inline => res.args = .always_inline,
         .gnu_inline => res.args = .gnu_inline,
+        .weak => res.args = .weak,
+        .selectany => res.args = .selectany,
+        .internal_linkage => res.args = .internal_linkage,
         .alignment_null => res.args = .{ .alignment = null },
         .alignment => {
             res.tok = map.extra.items[repr.data];
@@ -249,6 +265,11 @@ pub fn get(map: *const Map, ref: Ref) Attribute {
             res.tok = map.extra.items[repr.data];
             const name, _ = map.getString(repr.data + 1);
             res.args = .{ .section = name };
+        },
+        .blocks => {
+            res.tok = map.extra.items[repr.data];
+            const byref = map.extra.items[repr.data + 1];
+            res.args = .{ .blocks = @enumFromInt(byref) };
         },
     }
     return res;

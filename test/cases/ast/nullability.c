@@ -41,3 +41,6 @@ typedef: 'struct __sFILE'
 function: 'fn (_Nullable decayed *[2]int) void'
  name: f
 
+function: 'fn (_Nullable *fn (int) void) void'
+ name: arg
+

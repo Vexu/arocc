@@ -55,6 +55,9 @@ void my_func_accepting_block(double (*afunc)(int), double (^ablock)(int)) {
   __auto_type ^a;
 }
 
+// blocks can be nullable
+typedef int (^_Nullable NullableBlock)(void);
+
 /** manifest:
 syntax
 args = -fblocks -Wpedantic -Wno-gnu-auto-type --target=aarch64-macos

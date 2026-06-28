@@ -155,7 +155,7 @@ fn arg(wip: *Wip, comptime WantedBase: type) !?WantedBase {
         if (Wanted == Tree.Node.DeclRef and node == .decl_ref_expr) {
             return node.decl_ref_expr;
         }
-        if (@typeInfo(@TypeOf(Wanted)) == .@"enum" and Wanted.opts.enum_kind == .identifier and node == .identifier_arg) {
+        if (@typeInfo(Wanted) == .@"enum" and Wanted.opts.enum_kind == .identifier and node == .identifier_arg) {
             const str = tree.tokSlice(node.identifier_arg.identifier_tok);
             if (Wanted.opts.map.get(str)) |enum_val| return enum_val;
 
@@ -217,6 +217,7 @@ fn arg(wip: *Wip, comptime WantedBase: type) !?WantedBase {
 
 const Target = enum {
     function,
+    block_literal,
     function_pointer,
     variable,
     local_variable,
@@ -230,6 +231,7 @@ const Target = enum {
     pub fn str(t: Target) []const u8 {
         return switch (t) {
             .function => "functions",
+            .block_literal => "block literals",
             .function_pointer => "function pointers",
             .variable => "variables",
             .local_variable => "local variables",
@@ -243,11 +245,20 @@ const Target = enum {
     }
 };
 
+fn blockLiteralTarget(wip: *Wip) bool {
+    const node = wip.current.node();
+    return node == .block_literal;
+}
+
 fn checkTarget(wip: *Wip, list: []const Target) !bool {
     const node = wip.current.node();
     for (list) |target| switch (target) {
         .function => switch (node) {
             .function => return false,
+            else => {},
+        },
+        .block_literal => switch (node) {
+            .block_literal => return false,
             else => {},
         },
         .function_pointer => {
@@ -357,10 +368,16 @@ pub fn applyDeclAttrsExtra(
 
     if (prev_decl.unpack()) |prev| try wip.inherit(p, prev);
 
+    const is_block_literal = wip.blockLiteralTarget();
     for (wip.attrs.items[wip.top..]) |*attr| {
         if (attr.used_as_type_attr) continue;
         wip.current.attr = attr;
         wip.current.arg_i = 0;
+
+        if (is_block_literal and attr.syntax != .gnu) {
+            try wip.err(.block_only_gnu_attributes, .{});
+            continue;
+        }
 
         switch (attr.name) {
             .standard => |standard_attr| switch (standard_attr) {
@@ -390,7 +407,7 @@ pub fn applyDeclAttrsExtra(
                     try wip.add(.hot);
                 },
                 .@"const", .__const => {
-                    if (try wip.argCount(0)) continue;
+                    if (try wip.argCount(0)) return;
                     try wip.add(.@"const");
                 },
                 .aligned => try wip.applyAlignment(),
@@ -435,15 +452,24 @@ pub fn applyDeclAttrsExtra(
                 .always_inline => try wip.applyAlwaysInline(),
                 .gnu_inline => try wip.applyGnuInline(),
                 .section => try wip.applySection(),
+                .weak => {
+                    if (try wip.checkTarget(&.{ .function, .variable })) continue;
+                    if (try wip.argCount(0)) continue;
+                    try wip.add(.weak);
+                },
+                .selectany => {
+                    if (try wip.argCount(0)) continue;
+                    try wip.add(.selectany);
+                },
                 else => {
                     try wip.err(.unimplemented, .{attr});
                 },
             },
             .clang => |clang_attr| switch (clang_attr) {
                 .unavailable => {
-                    if (try wip.argCountMinMax(0, 1)) continue;
+                    if (try wip.argCountMinMax(0, 1)) return;
 
-                    const maybe_msg = (try wip.arg(?[]const u8)) orelse continue;
+                    const maybe_msg = (try wip.arg(?[]const u8)) orelse return;
                     try wip.add(.{ .unavailable = maybe_msg });
                 },
                 .aarch64_sve_pcs,
@@ -453,6 +479,12 @@ pub fn applyDeclAttrsExtra(
                 .vectorcall,
                 => try wip.applyCallingConvention(),
                 .always_inline => try wip.applyAlwaysInline(),
+                .internal_linkage => {
+                    if (try wip.checkTarget(&.{ .function, .variable })) continue;
+                    if (try wip.argCount(0)) continue;
+                    try wip.add(.internal_linkage);
+                },
+                .blocks => try wip.applyBlocks(),
                 else => {
                     try wip.err(.unimplemented, .{attr});
                 },
@@ -465,6 +497,10 @@ pub fn applyDeclAttrsExtra(
                 .deprecated => try wip.applyDeprecated(),
                 .noreturn => try wip.applyNoreturn(),
                 .allocate => try wip.applySection(),
+                .selectany => {
+                    if (try wip.argCount(0)) continue;
+                    try wip.add(.selectany);
+                },
                 else => {
                     try wip.err(.unimplemented, .{attr});
                 },
@@ -500,6 +536,8 @@ pub fn applyDeclAttrsExtra(
         }
     }
 
+    try wip.checkLinkageAttrs();
+
     try wip.addAppliedAttrs();
 }
 
@@ -534,6 +572,55 @@ fn inherit(wip: *Wip, p: *Parser, decl: Tree.Node.Index) !void {
     }
 }
 
+fn checkLinkageAttrs(wip: *Wip) !void {
+    const am = &wip.current.parser.tree.attr_map;
+
+    const internal_linkage = blk: {
+        for (wip.applied.items) |ref| {
+            const attr = am.get(ref);
+            if (attr.args == .internal_linkage) break :blk true;
+        }
+
+        break :blk switch (wip.current.node()) {
+            .function => |function| function.static,
+            .variable => |variable| switch (variable.storage_class) {
+                .static => true,
+                .@"extern" => false,
+                .auto, .register => wip.current.parser.func.qt != null,
+            },
+            else => false,
+        };
+    };
+
+    const remove_weak = internal_linkage;
+    const remove_selectany = internal_linkage or wip.current.node() == .function;
+
+    var err_weak = false;
+    var err_selectany = false;
+
+    var i: usize = 0;
+    for (wip.applied.items) |ref| {
+        const attr = am.get(ref);
+        if (attr.args == .weak and remove_weak) {
+            if (!err_weak) {
+                try wip.errTok(attr.tok, .invalid_weak, .{attr});
+                err_weak = true;
+            }
+            continue;
+        }
+        if (attr.args == .selectany and remove_selectany) {
+            if (!err_selectany) {
+                try wip.errTok(attr.tok, .invalid_selectany, .{attr});
+                err_selectany = true;
+            }
+            continue;
+        }
+        wip.applied.items[i] = ref;
+        i += 1;
+    }
+    wip.applied.items.len = i;
+}
+
 fn applyAlignment(wip: *Wip) !void {
     const qt = wip.current.qt;
     if (qt.isInvalid()) return;
@@ -562,7 +649,7 @@ fn applyAlignment(wip: *Wip) !void {
                 return;
             },
         }
-    } else if (try wip.checkTarget(&.{ .function, .variable, .typedef, .tag, .param, .field })) return;
+    } else if (try wip.checkTarget(&.{ .function, .variable, .typedef, .tag, .param, .field, .block_literal })) return;
 
     const comp = wip.current.parser.comp;
 
@@ -596,6 +683,15 @@ fn applyAlignment(wip: *Wip) !void {
             }
         }
         casted = @intCast(requested);
+    }
+    if (comp.langopts.emulate == .msvc) {
+        switch (wip.current.node()) {
+            .enum_forward_decl, .enum_decl => {
+                try wip.err(.msvc_enum_align_ignored, .{});
+                return;
+            },
+            else => {},
+        }
     }
     try wip.addAlignmentToTypeMap(casted);
     try wip.add(.{ .alignment = casted });
@@ -667,7 +763,7 @@ fn applyNonnull(wip: *Wip) !void {
     const comp = parser.comp;
     const qt = wip.current.qt;
     if (qt.isInvalid()) return;
-    if (try wip.checkTarget(&.{ .function, .function_pointer, .param })) return;
+    if (try wip.checkTarget(&.{ .function, .function_pointer, .param, .block_literal })) return;
     if (wip.current.node() == .param) {
         if (wip.current.attr.args_len != 0) {
             try wip.err(.nonnull_param_args, .{wip.current.attr});
@@ -750,7 +846,7 @@ fn applyTransparentUnion(wip: *Wip) !void {
 }
 
 fn applyVisibility(wip: *Wip) !void {
-    if (try wip.checkTarget(&.{ .function, .global_variable })) return;
+    if (try wip.checkTarget(&.{ .function, .global_variable, .block_literal })) return;
     if (try wip.argCount(1)) return;
 
     var kind = (try wip.arg(Attribute.Args.Visibility)) orelse return;
@@ -778,7 +874,7 @@ fn applyVisibility(wip: *Wip) !void {
 }
 
 fn applyNoreturn(wip: *Wip) !void {
-    if (try wip.checkTarget(&.{.function})) return;
+    if (try wip.checkTarget(&.{ .function, .block_literal })) return;
     if (try wip.argCount(0)) return;
 
     const name = wip.current.attr.name;
@@ -1199,7 +1295,7 @@ fn applyCallingConvention(wip: *Wip) !void {
         .ms_abi => if (ms_abi) continue :check .cdecl else (comp.target.cpu.arch == .x86_64 or comp.target.cpu.arch.isAARCH64()),
         .sysv_abi => if (ms_abi) comp.target.cpu.arch == .x86_64 else continue :check .cdecl,
         .fastcall, .regcall, .stdcall, .thiscall => comp.target.cpu.arch == .x86,
-        .vectorcall => comp.target.cpu.arch == .x86 or comp.target.cpu.arch.isAARCH64(),
+        .vectorcall => comp.target.cpu.arch == .x86 or comp.target.cpu.arch == .x86_64 or comp.target.cpu.arch.isAARCH64(),
     };
     if (!supported) {
         try wip.err(.callconv_not_supported, .{attr});
@@ -1211,6 +1307,14 @@ fn applyCallingConvention(wip: *Wip) !void {
         return;
     }
     func.cc = cc;
+
+    // We cannot pass the function type directly here because the pointer to
+    // type_store.extra might get invalidated while setting the updated type.
+    const lb = &wip.current.parser.list_buf;
+    const list_buf_top = lb.items.len;
+    defer lb.items.len = list_buf_top;
+    try lb.appendSlice(comp.gpa, @ptrCast(func.params));
+    func.params = @ptrCast(lb.items[list_buf_top..]);
 
     // TODO this can overwrite a typedef
     // typedef void (*fn_ptr)(void);
@@ -1224,12 +1328,6 @@ fn applyNullability(wip: *Wip) !void {
     const qt = wip.current.qt;
     if (qt.isInvalid()) return;
 
-    const comp = wip.current.parser.comp;
-    var pointer: Type.Pointer = qt.get(comp, .pointer) orelse {
-        try wip.err(.invalid_nullability, .{qt});
-        return;
-    };
-
     const new_nullability: Type.Pointer.Nullability = switch (attr.name.keyword) {
         .nonnull => .nonnull,
         .null_unspecified => .unspecified,
@@ -1237,13 +1335,32 @@ fn applyNullability(wip: *Wip) !void {
         .nullable => .nullable,
         else => unreachable,
     };
-    if (pointer.nullability != .default and pointer.nullability != new_nullability) {
-        try wip.err(.conflicting_nullability, .{ new_nullability.str(), pointer.nullability.str() });
-        return;
-    }
 
-    pointer.nullability = new_nullability;
-    wip.current.qt = try comp.type_store.put(comp.gpa, .{ .pointer = pointer });
+    const comp = wip.current.parser.comp;
+    var base_type = qt.base(comp).type;
+    switch (base_type) {
+        inline .pointer, .block => |*bt, tag| {
+            if (bt.nullability != .default and bt.nullability != new_nullability) {
+                try wip.err(.conflicting_nullability, .{ new_nullability.str(), bt.nullability.str() });
+                return;
+            }
+
+            bt.nullability = new_nullability;
+            wip.current.qt = try comp.type_store.put(
+                comp.gpa,
+                @unionInit(TypeStore.Type, @tagName(tag), bt.*),
+            );
+        },
+        else => {
+            if (wip.current.target == null and qt.is(comp, .array)) {
+                attr.used_as_type_attr = false;
+                return;
+            }
+
+            try wip.err(.invalid_nullability, .{qt});
+            return;
+        },
+    }
 }
 
 pub fn applyStmtAttrs(wip: *Wip, p: *Parser, stmt: Tree.Node.Index) !void {
@@ -1314,4 +1431,19 @@ fn applyFalltrhough(wip: *Wip) !void {
     }
 
     try wip.add(.fallthrough);
+}
+
+fn applyBlocks(wip: *Wip) !void {
+    if (try wip.argCount(1)) return;
+    // clang doesn't emit a dx, but it's not clear what this does on block literals
+    if (try wip.checkTarget(&.{ .local_variable, .block_literal })) return;
+
+    const attr = wip.current.attr;
+    switch (attr.syntax) {
+        .gnu, .standard => {},
+        else => return,
+    }
+
+    const byref = try wip.arg(@FieldType(Attribute.Args, "blocks")) orelse return;
+    try wip.add(.{ .blocks = byref });
 }

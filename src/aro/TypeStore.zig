@@ -119,6 +119,7 @@ const Index = enum(u29) {
     float_dfloat128 = std.math.maxInt(u29) - 37,
     float_dfloat64x = std.math.maxInt(u29) - 38,
     mfp8 = std.math.maxInt(u29) - 39,
+    block_literal_auto_return = std.math.maxInt(u29) - 40,
     _,
 };
 
@@ -170,6 +171,7 @@ pub const QualType = packed struct(u32) {
     pub const void_pointer: QualType = .{ ._index = .void_pointer };
     pub const char_pointer: QualType = .{ ._index = .char_pointer };
     pub const int_pointer: QualType = .{ ._index = .int_pointer };
+    pub const block_literal_auto_return: QualType = .{ ._index = .block_literal_auto_return };
 
     pub fn isInvalid(qt: QualType) bool {
         return qt._index == .invalid;
@@ -191,6 +193,10 @@ pub const QualType = packed struct(u32) {
         return qt.@"const" or qt.@"volatile" or qt.restrict;
     }
 
+    pub fn isBlockLiteralAutoReturn(qt: QualType) bool {
+        return qt._index == .block_literal_auto_return;
+    }
+
     pub fn unqualified(qt: QualType) QualType {
         return .{ ._index = qt._index };
     }
@@ -210,6 +216,7 @@ pub const QualType = packed struct(u32) {
             .auto_type => unreachable,
             .c23_auto => unreachable,
             .declarator_combine => unreachable,
+            .block_literal_auto_return => unreachable,
             .void => return .void,
             .bool => return .bool,
             .nullptr_t => return .nullptr_t,
@@ -481,6 +488,10 @@ pub const QualType = packed struct(u32) {
         };
     }
 
+    pub fn set(qt: QualType, comp: *Compilation, ty: Type) !void {
+        return comp.type_store.set(comp.gpa, ty, @intFromEnum(qt._index));
+    }
+
     /// Function or function pointer
     pub fn getFunc(qt: QualType, comp: *const Compilation) ?Type.Func {
         const base_qt = if (qt.get(comp, .pointer)) |pointer| pointer.child else qt;
@@ -610,7 +621,28 @@ pub const QualType = packed struct(u32) {
             },
             .@"struct", .@"union" => |record| {
                 const layout = record.layout orelse return null;
-                return layout.size_bits / 8;
+                const size = layout.size_bits / 8;
+                if (comp.langopts.emulate != .msvc) return size;
+                switch (qt.type(comp)) {
+                    .typedef => |typedef| {
+                        if (comp.type_store.requested_aligns.get(qt) == null) {
+                            return typedef.base.sizeofOrNull(comp);
+                        }
+                    },
+                    else => {},
+                }
+                const alignment = qt.requestedAlignment(comp) orelse return size;
+
+                const should_round_size = switch (qt.type(comp)) {
+                    .typedef => |typedef| switch (typedef.base.type(comp)) {
+                        .@"struct", .@"union" => true,
+                        else => false,
+                    },
+                    else => true,
+                };
+                if (!should_round_size) return size;
+
+                return std.mem.alignForward(u64, size, alignment);
             },
             .@"enum" => |enum_ty| {
                 const tag = enum_ty.tag orelse return null;
@@ -673,12 +705,16 @@ pub const QualType = packed struct(u32) {
     pub fn alignof(qt: QualType, comp: *const Compilation) u32 {
         if (qt.requestedAlignment(comp)) |requested| request: {
             if (qt.is(comp, .@"enum")) {
-                if (comp.langopts.emulate == .gcc) {
-                    // gcc does not respect alignment on enums
-                    break :request;
+                switch (comp.langopts.emulate) {
+                    .gcc => break :request, // gcc does not respect alignment on enums
+                    .msvc => return @max(requested, qt.base(comp).qt.alignof(comp)),
+                    .clang, .no => {},
                 }
             } else if (comp.langopts.emulate == .msvc) {
-                const type_align = qt.base(comp).qt.alignof(comp);
+                const type_align = switch (qt.type(comp)) {
+                    .typedef => |typedef| typedef.base.alignof(comp),
+                    else => qt.base(comp).qt.alignof(comp),
+                };
                 return @max(requested, type_align);
             }
             return requested;
@@ -1253,13 +1289,6 @@ pub const QualType = packed struct(u32) {
         }
     }
 
-    pub fn linkage(qt: QualType, comp: *const Compilation) std.builtin.GlobalLinkage {
-        if (qt.hasAttribute(comp, .internal_linkage)) return .internal;
-        if (qt.hasAttribute(comp, .weak)) return .weak;
-        if (qt.hasAttribute(comp, .selectany)) return .link_once;
-        return .strong;
-    }
-
     pub fn shouldDesugar(qt: QualType, comp: *const Compilation) bool {
         loop: switch (qt.type(comp)) {
             .pointer => |pointer| continue :loop pointer.child.type(comp),
@@ -1775,6 +1804,7 @@ pub const Type = union(enum) {
 
     pub const Block = struct {
         func: QualType,
+        nullability: Pointer.Nullability = .default,
     };
 
     pub const Func = struct {

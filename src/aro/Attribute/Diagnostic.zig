@@ -149,6 +149,12 @@ pub const non_pow2_align: Diagnostic = .{
     .kind = .@"error",
 };
 
+pub const msvc_enum_align_ignored: Diagnostic = .{
+    .fmt = "alignment specifier is ignored on enum",
+    .kind = .warning,
+    .opt = .@"ignored-attributes",
+};
+
 // warn_unused_result
 pub const warn_unused_result_void: Diagnostic = .{
     .fmt = "attribute {at} cannot be applied to functions without return value",
@@ -309,4 +315,21 @@ pub const conflicting_section_name: Diagnostic = .{
     .fmt = "{at} does not match previous declaration",
     .kind = .warning,
     .opt = .section,
+};
+
+// linkages
+pub const invalid_weak: Diagnostic = .{
+    .fmt = "{at} cannot be applied to declarations with internal linkage",
+    .kind = .@"error",
+};
+
+pub const invalid_selectany: Diagnostic = .{
+    .fmt = "{at} can only be applied to data items with external linkage",
+    .kind = .@"error",
+};
+
+// blocks
+pub const block_only_gnu_attributes: Diagnostic = .{
+    .fmt = "only gnu attributes are allowed on block literals",
+    .kind = .@"error",
 };
