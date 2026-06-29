@@ -180,6 +180,7 @@ block: ?struct {
     caret: TokenIndex,
     return_type: ?QualType = null,
     scope_depth: usize,
+    noreturn: bool = false,
 } = null,
 
 /// Various variables that are different for each record.
@@ -1496,7 +1497,6 @@ fn decl(p: *Parser) Error!bool {
                         .register => .register,
                         .static => .static,
                         .@"extern" => if (init_d.initializer == null) .@"extern" else .auto,
-                        .block => .block,
                         else => .auto, // Error reported in `validate`
                     },
                     .initializer = if (init_d.initializer) |some| some.node else null,
@@ -1674,7 +1674,6 @@ pub const DeclSpec = struct {
         register: TokenIndex,
         static: TokenIndex,
         typedef: TokenIndex,
-        block: TokenIndex,
         none,
     } = .none,
     thread_local: ?TokenIndex = null,
@@ -1688,7 +1687,6 @@ pub const DeclSpec = struct {
     fn validateParam(d: DeclSpec, p: *Parser) Error!void {
         switch (d.storage_class) {
             .none, .register => {},
-            .block => |tok_i| try p.err(tok_i, .block_attribute_not_allowed, .{}),
             .auto, .@"extern", .static, .typedef => |tok_i| try p.err(tok_i, .invalid_storage_on_param, .{}),
         }
         if (d.thread_local) |tok_i| try p.err(tok_i, .threadlocal_non_var, .{});
@@ -1699,7 +1697,7 @@ pub const DeclSpec = struct {
 
     fn validateFnDef(d: DeclSpec, p: *Parser) Error!void {
         switch (d.storage_class) {
-            .none, .@"extern", .static, .block => {},
+            .none, .@"extern", .static => {},
             .auto, .register, .typedef => |tok_i| try p.err(tok_i, .illegal_storage_on_func, .{}),
         }
         if (d.thread_local) |tok_i| try p.err(tok_i, .threadlocal_non_var, .{});
@@ -1708,7 +1706,7 @@ pub const DeclSpec = struct {
 
     fn validateFnDecl(d: DeclSpec, p: *Parser) Error!void {
         switch (d.storage_class) {
-            .none, .@"extern", .block => {},
+            .none, .@"extern" => {},
             .static => |tok_i| if (p.func.qt != null) try p.err(tok_i, .static_func_not_global, .{}),
             .typedef => unreachable,
             .auto, .register => |tok_i| try p.err(tok_i, .illegal_storage_on_func, .{}),
@@ -1727,7 +1725,6 @@ pub const DeclSpec = struct {
                 try p.err(p.tok_i, .auto_on_global, .{});
             },
             .register => if (p.func.qt == null and asm_label == null) try p.err(p.tok_i, .register_on_global, .{}),
-            .block => |tok| if (p.func.qt == null and asm_label == null) try p.err(tok, .block_attribute_not_allowed, .{}),
             else => {},
         }
     }
@@ -1842,7 +1839,6 @@ fn declSpec(p: *Parser) Error!?DeclSpec {
 ///  | keyword_threadlocal
 ///  | keyword_auto
 ///  | keyword_register
-///  | keyword_block
 fn storageClassSpec(p: *Parser, d: *DeclSpec) Error!bool {
     const start = p.tok_i;
     while (true) {
@@ -1853,7 +1849,6 @@ fn storageClassSpec(p: *Parser, d: *DeclSpec) Error!bool {
             .keyword_static,
             .keyword_auto,
             .keyword_register,
-            .keyword_block,
             => {
                 if (d.storage_class != .none) {
                     try p.err(p.tok_i, .multiple_storage_class, .{@tagName(d.storage_class)});
@@ -1872,7 +1867,7 @@ fn storageClassSpec(p: *Parser, d: *DeclSpec) Error!bool {
                 }
                 if (d.constexpr != null) {
                     switch (id) {
-                        .keyword_auto, .keyword_register, .keyword_static, .keyword_block => {},
+                        .keyword_auto, .keyword_register, .keyword_static => {},
                         else => try p.err(p.tok_i, .cannot_combine_spec, .{id.lexeme().?}),
                     }
                     if (d.thread_local) |tok| try p.err(p.tok_i, .cannot_combine_spec, .{p.tok_ids[tok].lexeme().?});
@@ -1883,7 +1878,6 @@ fn storageClassSpec(p: *Parser, d: *DeclSpec) Error!bool {
                     .keyword_static => d.storage_class = .{ .static = p.tok_i },
                     .keyword_auto => d.storage_class = .{ .auto = p.tok_i },
                     .keyword_register => d.storage_class = .{ .register = p.tok_i },
-                    .keyword_block => d.storage_class = .{ .block = p.tok_i },
                     else => unreachable,
                 }
             },
@@ -5920,16 +5914,16 @@ fn returnStmt(p: *Parser) Error!?Node.Index {
     _ = try p.expectToken(.semicolon);
 
     const ret_qt: QualType = if (p.block) |*block| ret_qt: {
-        if (block.return_type) |ret_qt| {
-            if (ret_qt.hasAttribute(p.comp, .noreturn)) {
-                try p.err(e_tok, .invalid_block_noreturn, .{});
-                try p.err(block.caret, .invalid_block_noreturn_block_defined_here, .{});
-            }
+        if (block.noreturn) {
+            try p.err(ret_tok, .invalid_block_noreturn, .{});
+            try p.err(block.caret, .invalid_block_noreturn_block_defined_here, .{});
+        }
 
+        if (block.return_type) |ret_qt| {
             if (ret_expr) |*some| {
                 if (ret_qt.is(p.comp, .void)) {
                     if (!some.qt.is(p.comp, .void)) {
-                        try p.err(e_tok, .void_block_returns_value, .{});
+                        try p.err(ret_tok, .void_block_returns_value, .{});
                         try p.err(block.caret, .block_return_block_defined_here, .{});
                     }
                 } else {
@@ -10280,6 +10274,26 @@ fn blockLiteral(p: *Parser) Error!?Result {
     try p.syms.pushScope(p);
     defer p.syms.popScope();
 
+    const attr_buf_top = p.attr_buf.len;
+    defer p.attr_buf.len = attr_buf_top;
+    while (true) {
+        if (try p.gnuAttribute()) continue;
+        const invalid_attr_tok = p.tok_i;
+        const invalid_attr_buf_i = p.attr_buf.len;
+        if (try p.c23Attribute() or try p.msvcAttribute()) {
+            try p.err(invalid_attr_tok, .block_only_gnu_attributes, .{});
+            p.attr_buf.len = invalid_attr_buf_i;
+            continue;
+        }
+        break;
+    }
+
+    const attrs = p.attr_buf.items(.attr)[attr_buf_top..];
+    for (attrs) |attr| switch (attr.tag) {
+        .noreturn => p.block.?.noreturn = true,
+        else => {},
+    };
+
     var maybe_ret_builder: TypeStore.Builder = .{ .parser = p };
     if (try p.typeSpec(&maybe_ret_builder)) {
         p.block.?.return_type = try maybe_ret_builder.finish();
@@ -10315,9 +10329,10 @@ fn blockLiteral(p: *Parser) Error!?Result {
         .kind = if (is_variadic) .variadic else .normal,
         .params = params,
     } });
-    const block_type = try p.comp.type_store.put(p.comp.gpa, .{ .block = .{
+    var block_type = try p.comp.type_store.put(p.comp.gpa, .{ .block = .{
         .func = block_func_type,
     } });
+    block_type = try Attribute.applyBlockAttributes(p, block_type, attr_buf_top);
 
     const node = try p.addNode(.{ .block_literal = .{
         .caret = caret,
