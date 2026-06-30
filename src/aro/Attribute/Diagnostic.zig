@@ -310,3 +310,9 @@ pub const conflicting_section_name: Diagnostic = .{
     .kind = .warning,
     .opt = .section,
 };
+
+// blocks
+pub const block_only_gnu_attributes: Diagnostic = .{
+    .fmt = "only gnu attributes are allowed on block literals",
+    .kind = .@"error",
+};

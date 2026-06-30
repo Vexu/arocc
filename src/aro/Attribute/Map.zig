@@ -41,6 +41,7 @@ const Repr = struct {
         always_inline,
         gnu_inline,
         section,
+        blocks,
     };
 };
 
@@ -159,6 +160,12 @@ pub fn put(map: *Map, gpa: mem.Allocator, attribute: Attribute) !Ref {
             try map.extra.append(gpa, attribute.tok);
             try map.putString(gpa, name);
         },
+        .blocks => |byref| {
+            repr.tag = .blocks;
+            repr.data = @intCast(map.extra.items.len);
+            try map.extra.append(gpa, attribute.tok);
+            try map.extra.append(gpa, @intFromEnum(byref));
+        },
         else => @panic("TODO"),
     }
 
@@ -249,6 +256,11 @@ pub fn get(map: *const Map, ref: Ref) Attribute {
             res.tok = map.extra.items[repr.data];
             const name, _ = map.getString(repr.data + 1);
             res.args = .{ .section = name };
+        },
+        .blocks => {
+            res.tok = map.extra.items[repr.data];
+            const byref = map.extra.items[repr.data + 1];
+            res.args = .{ .blocks = @enumFromInt(byref) };
         },
     }
     return res;
