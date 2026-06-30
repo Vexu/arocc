@@ -30,8 +30,9 @@ variable: 'IntToIntBlock: block (int) int'
     compound_stmt
       return_stmt: 'int'
        expr:
-        decl_ref_expr: 'int' lvalue
-         name: anotherArg
+        implicit cast: (lval_to_rval) 'int'
+          decl_ref_expr: 'int' lvalue
+           name: anotherArg
 
 function: 'fn (block: IntToIntBlock: block (int) int) void'
  name: my_func
@@ -251,6 +252,21 @@ function: 'fn (block: IntToIntBlock: block (int) int) void'
             implicit cast: (null_to_pointer) '*int'
               int_literal: 'int' (value: 0)
 
+    variable: 'block () decayed *[2]int'
+     name: block_returns_implied_array
+     init:
+      block_literal: 'block () decayed *[2]int'
+       body:
+        compound_stmt
+          variable: '[2]int'
+           name: arr
+
+          return_stmt: 'decayed *[2]int'
+           expr:
+            implicit cast: (array_to_pointer) 'decayed *[2]int'
+              decl_ref_expr: '[2]int' lvalue
+               name: arr
+
     implicit return_stmt: 'void'
 
 variable: 'int'
@@ -427,8 +443,9 @@ function: 'fn () void'
           compound_stmt
             return_stmt: 'int'
              expr:
-              decl_ref_expr: 'int' lvalue
-               name: i
+              implicit cast: (lval_to_rval) 'int'
+                decl_ref_expr: 'int' lvalue
+                 name: i
 
     implicit return_stmt: 'void'
 
