@@ -5935,7 +5935,10 @@ fn returnStmt(p: *Parser) Error!?Node.Index {
         }
 
         if (func.return_type.isBlockLiteralAutoReturn()) {
-            func.return_type = if (ret_expr) |some| some.qt else .void;
+            if (ret_expr) |*some| {
+                try some.lvalConversion(p, e_tok);
+                func.return_type = some.qt;
+            } else func.return_type = .void;
             try block.qt.set(p.comp, .{ .func = func });
         } else if (ret_expr) |*some| {
             if (func.return_type.is(p.comp, .void)) {
