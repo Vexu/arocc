@@ -610,7 +610,20 @@ pub const QualType = packed struct(u32) {
             },
             .@"struct", .@"union" => |record| {
                 const layout = record.layout orelse return null;
-                return layout.size_bits / 8;
+                const size = layout.size_bits / 8;
+                if (comp.langopts.emulate != .msvc) return size;
+                const alignment = qt.requestedAlignment(comp) orelse return size;
+
+                const should_round_size = switch (qt.type(comp)) {
+                    .typedef => |typedef| switch (typedef.base.type(comp)) {
+                        .@"struct", .@"union" => true,
+                        else => false,
+                    },
+                    else => true,
+                };
+                if (!should_round_size) return size;
+
+                return std.mem.alignForward(u64, size, alignment);
             },
             .@"enum" => |enum_ty| {
                 const tag = enum_ty.tag orelse return null;

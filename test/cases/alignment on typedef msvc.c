@@ -36,6 +36,13 @@ __declspec(align(16)) typedef enum {
 
 _Static_assert(_Alignof(AlignedEnum) == 16, "");
 
+typedef struct __declspec(align(16)) {
+  int x;
+} AlignedStruct;
+
+_Static_assert(_Alignof(AlignedStruct) == 16, "");
+_Static_assert(sizeof(AlignedStruct) == 16, "");
+
 /** manifest:
 syntax
 args = -target x86_64-windows-msvc
