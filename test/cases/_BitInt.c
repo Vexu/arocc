@@ -22,6 +22,8 @@ _Static_assert(((int)-18446744073709551616WB) == 0);
 
 _Static_assert(sizeof(_BitInt(65535)) == 8192, "");
 
+_Complex _BitInt(34) complex_bitint;
+
 /** manifest:
 syntax
 args = -std=c17 -Wpedantic
@@ -34,4 +36,5 @@ _BitInt.c:13:10: error: unsigned _BitInt must have a bit size of at least 1
 _BitInt.c:15:16: warning: '_BitInt' suffix for literals is a C23 extension [-Wc23-extensions]
 _BitInt.c:16:25: warning: '_BitInt' suffix for literals is a C23 extension [-Wc23-extensions]
 _BitInt.c:20:10: error: expected ';', found 'a character literal'
+_BitInt.c:25:1: error: '_Complex _BitInt' is invalid
 */

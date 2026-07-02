@@ -14,6 +14,18 @@ d
 
 e(hello/*foo*/)
 
+#if 1 // foo
+#endif /*bar*/
+
+#if 2 /*bar*/ == 2
+2
+#endif
+
+#define g(x) x
+#if /*foo*/g(/*foo*/1/*bar*/)
+/*foo*/g(/*foo*/1/*bar*/)
+#endif
+
 
 // MS EOF used to stop preprocessing before nested block comment
 

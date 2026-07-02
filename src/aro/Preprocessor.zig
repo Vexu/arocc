@@ -1166,6 +1166,11 @@ fn expr(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!bool {
         switch (tok.id) {
             .nl, .eof => break tok,
             .whitespace => if (pp.top_expansion_buf.items.len == 0) continue,
+            .comment => continue,
+            .unterminated_comment => {
+                try pp.err(tok, .unterminated_comment, .{});
+                continue;
+            },
             else => {},
         }
         try pp.top_expansion_buf.append(gpa, tokFromRaw(tok));
@@ -1267,6 +1272,7 @@ fn expr(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!bool {
         .tok_ids = pp.tokens.items(.id),
         .tok_i = @intCast(token_state.tokens_len),
         .in_macro = true,
+        .wip_attrs = .{},
 
         .tree = undefined,
         .labels = undefined,
@@ -1275,7 +1281,6 @@ fn expr(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!bool {
         .param_buf = undefined,
         .enum_buf = undefined,
         .record_buf = undefined,
-        .attr_buf = undefined,
         .string_ids = undefined,
     };
     defer parser.strings.deinit(gpa);
@@ -1399,9 +1404,6 @@ fn skip(
             line_start = false;
             tokenizer.index += 1;
         }
-    } else {
-        const eof = tokenizer.next();
-        return pp.err(eof, .unterminated_conditional_directive, .{});
     }
 }
 
@@ -1887,10 +1889,10 @@ fn handleBuiltinMacro(pp: *Preprocessor, builtin: Macro.Builtin.Func, param_toks
 
             const ident_str = pp.expandedSlice(identifier.?);
             return switch (builtin) {
-                .has_attribute => Attribute.fromString(.gnu, null, ident_str) != null,
+                .has_attribute => Attribute.Namespaced.fromString(.gnu, null, ident_str) != null,
                 .has_declspec_attribute => {
                     return if (pp.comp.langopts.declspec_attrs)
-                        Attribute.fromString(.declspec, null, ident_str) != null
+                        Attribute.Namespaced.fromString(.declspec, null, ident_str) != null
                     else
                         false;
                 },
@@ -2149,14 +2151,13 @@ fn expandFuncMacro(
                         if (vendor_ident) |some| {
                             const vendor_str = pp.expandedSlice(some);
                             const attr_str = pp.expandedSlice(attr_ident.?);
-                            const exists = Attribute.fromString(.gnu, vendor_str, attr_str) != null;
+                            const exists = Attribute.Namespaced.fromString(.standard, vendor_str, attr_str) != null;
 
                             const start = pp.comp.generated_buf.items.len;
                             try pp.comp.generated_buf.appendSlice(gpa, if (exists) "1\n" else "0\n");
                             try buf.append(gpa, try pp.makeGeneratedToken(start, .pp_num, tokFromRaw(raw)));
                             continue;
                         }
-                        if (!pp.comp.langopts.standard.atLeast(.c23)) break :res not_found;
 
                         const attrs = std.StaticStringMap([]const u8).initComptime(.{
                             .{ "deprecated", "201904L\n" },
@@ -2996,7 +2997,7 @@ fn pasteTokens(pp: *Preprocessor, lhs_toks: *ExpandBuf, rhs_toks: []const TokenW
         pasted_token.id;
 
     const hideset = try pp.hideset.intersection(pp.hideset.get(lhs.loc), pp.hideset.get(rhs.loc));
-    const generated_token = try pp.makeGeneratedTokenExtra(start, pasted_id, lhs, hideset);
+    const generated_token = try pp.makeGeneratedTokenExtra(start, pasted_id, lhs, hideset, lhs.flags.is_macro_arg or rhs.flags.is_macro_arg);
     try lhs_toks.append(gpa, generated_token);
 
     if (next.id != .nl and next.id != .eof) {
@@ -3007,13 +3008,13 @@ fn pasteTokens(pp: *Preprocessor, lhs_toks: *ExpandBuf, rhs_toks: []const TokenW
     try bufCopyTokens(gpa, lhs_toks, rhs_toks[rhs_rest..], &.{});
 }
 
-fn makeGeneratedTokenExtra(pp: *Preprocessor, start: usize, id: Token.Id, source: TokenWithExpansionLocs, hideset: Hideset.Index) !TokenWithExpansionLocs {
+fn makeGeneratedTokenExtra(pp: *Preprocessor, start: usize, id: Token.Id, source: TokenWithExpansionLocs, hideset: Hideset.Index, is_macro_arg: bool) !TokenWithExpansionLocs {
     const gpa = pp.comp.gpa;
     var pasted_token = TokenWithExpansionLocs{ .id = id, .loc = .{
         .id = .generated,
         .byte_offset = @intCast(start),
         .line = pp.generated_line,
-    } };
+    }, .flags = .{ .is_macro_arg = is_macro_arg } };
     pp.generated_line += 1;
     try pasted_token.addExpansionLocation(gpa, &.{source.loc});
     try pasted_token.addExpansionLocation(gpa, source.expansionSlice());
@@ -3023,7 +3024,7 @@ fn makeGeneratedTokenExtra(pp: *Preprocessor, start: usize, id: Token.Id, source
 }
 
 fn makeGeneratedToken(pp: *Preprocessor, start: usize, id: Token.Id, source: TokenWithExpansionLocs) !TokenWithExpansionLocs {
-    return pp.makeGeneratedTokenExtra(start, id, source, pp.hideset.get(source.loc));
+    return pp.makeGeneratedTokenExtra(start, id, source, pp.hideset.get(source.loc), false);
 }
 
 /// Defines a new macro and warns if it is a duplicate

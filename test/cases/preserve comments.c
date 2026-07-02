@@ -14,6 +14,18 @@ d
 
 e(hello/*foo*/)
 
+#if 1 // foo
+#endif /*bar*/
+
+#if 2 /*bar*/ == 2
+2
+#endif
+
+#define g(x) x
+#if /*foo*/g(/*foo*/1/*bar*/)
+/*foo*/g(/*foo*/1/*bar*/)
+#endif
+
 /** manifest:
 expand_partial
 args = -C

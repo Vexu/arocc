@@ -55,6 +55,9 @@ void my_func_accepting_block(double (*afunc)(int), double (^ablock)(int)) {
   __auto_type ^a;
 }
 
+// blocks can be nullable
+typedef int (^_Nullable NullableBlock)(void);
+
 /** manifest:
 syntax
 args = -fblocks -Wpedantic -Wno-gnu-auto-type --target=aarch64-macos
@@ -64,7 +67,7 @@ block types.c:10:9: error: type specifier missing, defaults to 'int'; ISO C99 an
 block types.c:10:15: error: block pointer to non-function type is invalid
 block types.c:12:14: error: expected identifier or '('
 block types.c:21:10: error: passing 'struct (anonymous struct at block types.c:21:11)' to parameter of incompatible type 'int'
-block types.c:18:72: note: passing argument to parameter here
+block types.c:18:69: note: passing argument to parameter here
 block types.c:22:48: error: expected 1 argument(s) got 0
 block types.c:25:11: error: initializing 'int' from incompatible type 'bar' (aka 'int (^)(int)')
 block types.c:26:10: error: block pointer to non-function type is invalid

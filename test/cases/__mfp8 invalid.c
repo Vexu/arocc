@@ -91,11 +91,11 @@ __mfp8 invalid.c:37:22: error: initializing '__mfp8' from incompatible type 'int
 __mfp8 invalid.c:42:15: error: assignment to '__mfp8' from incompatible type 'int'
 __mfp8 invalid.c:43:19: error: assignment to '__mfp8' from incompatible type 'int'
 __mfp8 invalid.c:46:15: error: passing 'int' to parameter of incompatible type '__mfp8'
-__mfp8 invalid.c:44:26: note: passing argument to parameter here
+__mfp8 invalid.c:44:20: note: passing argument to parameter here
 __mfp8 invalid.c:47:15: error: passing 'float' to parameter of incompatible type '__mfp8'
-__mfp8 invalid.c:44:26: note: passing argument to parameter here
+__mfp8 invalid.c:44:20: note: passing argument to parameter here
 __mfp8 invalid.c:48:14: error: passing '__mfp8' to parameter of incompatible type 'int'
-__mfp8 invalid.c:45:22: note: passing argument to parameter here
+__mfp8 invalid.c:45:19: note: passing argument to parameter here
 __mfp8 invalid.c:49:5: warning: plain '_Complex' requires a type specifier; assuming '_Complex double'
 __mfp8 invalid.c:49:21: error: expected ';', found 'an identifier'
 */
