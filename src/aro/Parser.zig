@@ -3765,8 +3765,7 @@ fn declarator(
         };
         try p.expectClosing(l_paren, .r_paren);
         const suffix_start = p.tok_i;
-        const outer_bare = try p.directDeclarator(&d, kind);
-        const outer = try p.wip_attrs.applyTypeAttrs(p, outer_bare);
+        const outer = try p.directDeclarator(&d, kind);
 
         // Correct the base type now that it is known.
         // If res.qt is the special marker there was no inner type.
@@ -4084,7 +4083,7 @@ fn paramDecls(p: *Parser) Error!?[]Type.Func.Param {
             if (some.old_style_func) |tok_i| try p.err(tok_i, .invalid_old_style_params, .{});
             try p.attributeSpecifier();
             name_tok = some.name;
-            param_qt = some.qt;
+            param_qt = try p.wip_attrs.applyTypeAttrs(p, some.qt);
         }
         const param_tok = if (name_tok != 0) name_tok else first_tok;
 

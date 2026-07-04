@@ -1234,6 +1234,11 @@ fn applyNullability(wip: *Wip) !void {
 
     const comp = wip.current.parser.comp;
     var pointer: Type.Pointer = qt.get(comp, .pointer) orelse {
+        if (wip.current.target == null and qt.is(comp, .array)) {
+            attr.used_as_type_attr = false;
+            return;
+        }
+
         try wip.err(.invalid_nullability, .{qt});
         return;
     };

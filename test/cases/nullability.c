@@ -13,6 +13,8 @@ typedef	struct __sFILE {
 
 void f(int [_Nullable 2]);
 
+void arg(void (*_Nullable)(int));
+
 /** manifest:
 syntax
 args = --target=x86_64-linux-gnu
