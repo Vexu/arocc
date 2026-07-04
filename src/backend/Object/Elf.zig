@@ -184,7 +184,7 @@ pub fn finish(elf: *Elf, w: *std.Io.Writer) !void {
             num_sections += @intFromBool(sect.*.relocations.items.len != 0);
         }
     }
-    const symtab_len = (elf.local_symbols.count() + elf.global_symbols.count() + 1) * @sizeOf(std.elf.Elf64_Sym);
+    const symtab_len = (elf.local_symbols.count() + elf.global_symbols.count() + 1) * @sizeOf(std.elf.Elf64.Sym);
 
     const symtab_offset = @sizeOf(std.elf.Elf64.Ehdr) + sections_len;
     const symtab_offset_aligned = std.mem.alignForward(u64, symtab_offset, 8);
@@ -232,19 +232,19 @@ pub fn finish(elf: *Elf, w: *std.Io.Writer) !void {
     // write symbols
     {
         // first symbol must be null
-        try w.writeStruct(std.mem.zeroes(std.elf.Elf64_Sym), endian);
+        try w.writeStruct(std.mem.zeroes(std.elf.Elf64.Sym), endian);
 
         var sym_index: u16 = 1;
         var it = elf.local_symbols.iterator();
         while (it.next()) |entry| {
             const sym = entry.value_ptr.*;
-            try w.writeStruct(std.elf.Elf64_Sym{
-                .st_name = name_offset,
-                .st_info = sym.info,
-                .st_other = 0,
-                .st_shndx = if (sym.section) |some| some.index else 0,
-                .st_value = sym.offset,
-                .st_size = sym.size,
+            try w.writeStruct(std.elf.Elf64.Sym{
+                .name = name_offset,
+                .info = @bitCast(sym.info),
+                .other = .{ .visibility = .DEFAULT },
+                .shndx = if (sym.section) |some| some.index else 0,
+                .value = sym.offset,
+                .size = sym.size,
             }, endian);
             sym.index = sym_index;
             sym_index += 1;
@@ -253,13 +253,13 @@ pub fn finish(elf: *Elf, w: *std.Io.Writer) !void {
         it = elf.global_symbols.iterator();
         while (it.next()) |entry| {
             const sym = entry.value_ptr.*;
-            try w.writeStruct(std.elf.Elf64_Sym{
-                .st_name = name_offset,
-                .st_info = sym.info,
-                .st_other = 0,
-                .st_shndx = if (sym.section) |some| some.index else 0,
-                .st_value = sym.offset,
-                .st_size = sym.size,
+            try w.writeStruct(std.elf.Elf64.Sym{
+                .name = name_offset,
+                .info = @bitCast(sym.info),
+                .other = .{ .visibility = .DEFAULT },
+                .shndx = if (sym.section) |some| some.index else 0,
+                .value = sym.offset,
+                .size = sym.size,
             }, endian);
             sym.index = sym_index;
             sym_index += 1;
@@ -331,7 +331,7 @@ pub fn finish(elf: *Elf, w: *std.Io.Writer) !void {
             .link = strtab_index,
             .info = elf.local_symbols.size + 1,
             .addralign = 8,
-            .entsize = @sizeOf(std.elf.Elf64_Sym),
+            .entsize = @sizeOf(std.elf.Elf64.Sym),
         };
         try w.writeStruct(sect_header, endian);
     }
