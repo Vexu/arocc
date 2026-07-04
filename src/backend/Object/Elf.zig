@@ -186,7 +186,7 @@ pub fn finish(elf: *Elf, w: *std.Io.Writer) !void {
     }
     const symtab_len = (elf.local_symbols.count() + elf.global_symbols.count() + 1) * @sizeOf(std.elf.Elf64_Sym);
 
-    const symtab_offset = @sizeOf(std.elf.Elf64_Ehdr) + sections_len;
+    const symtab_offset = @sizeOf(std.elf.Elf64.Ehdr) + sections_len;
     const symtab_offset_aligned = std.mem.alignForward(u64, symtab_offset, 8);
     const rela_offset = symtab_offset_aligned + symtab_len;
     const strtab_offset = rela_offset + relocations_len;
@@ -194,21 +194,28 @@ pub fn finish(elf: *Elf, w: *std.Io.Writer) !void {
     const sh_offset_aligned = std.mem.alignForward(u64, sh_offset, 16);
     const endian = elf.obj.target.cpu.arch.endian();
 
-    const elf_header: std.elf.Elf64_Ehdr = .{
-        .e_ident = .{ 0x7F, 'E', 'L', 'F', 2, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
-        .e_type = std.elf.ET.REL, // we only produce relocatables
-        .e_machine = elf.obj.target.toElfMachine(),
-        .e_version = 1,
-        .e_entry = 0, // linker will handle this
-        .e_phoff = 0, // no program header
-        .e_shoff = sh_offset_aligned, // section headers offset
-        .e_flags = 0, // no flags
-        .e_ehsize = @sizeOf(std.elf.Elf64_Ehdr),
-        .e_phentsize = 0, // no program header
-        .e_phnum = 0, // no program header
-        .e_shentsize = @sizeOf(std.elf.Elf64_Shdr),
-        .e_shnum = num_sections,
-        .e_shstrndx = strtab_index,
+    const elf_header: std.elf.Elf64.Ehdr = .{
+        .ident = .{
+            .magic = .{ 0x7F, 'E', 'L', 'F' },
+            .class = .@"64",
+            .data = .@"2LSB",
+            .version = 1,
+            .osabi = .NONE,
+            .abiversion = 0,
+        },
+        .type = .REL, // we only produce relocatables
+        .machine = elf.obj.target.toElfMachine(),
+        .version = 1,
+        .entry = 0, // linker will handle this
+        .phoff = 0, // no program header
+        .shoff = sh_offset_aligned, // section headers offset
+        .flags = 0, // no flags
+        .ehsize = @sizeOf(std.elf.Elf64.Ehdr),
+        .phentsize = 0, // no program header
+        .phnum = 0, // no program header
+        .shentsize = @sizeOf(std.elf.Elf64_Shdr),
+        .shnum = num_sections,
+        .shstrndx = strtab_index,
     };
     try w.writeStruct(elf_header, endian);
 
@@ -331,7 +338,7 @@ pub fn finish(elf: *Elf, w: *std.Io.Writer) !void {
 
     // remaining section headers
     {
-        var sect_offset: u64 = @sizeOf(std.elf.Elf64_Ehdr);
+        var sect_offset: u64 = @sizeOf(std.elf.Elf64.Ehdr);
         var rela_sect_offset: u64 = rela_offset;
         var it = elf.sections.iterator();
         while (it.next()) |entry| {
