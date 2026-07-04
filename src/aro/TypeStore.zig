@@ -686,9 +686,10 @@ pub const QualType = packed struct(u32) {
     pub fn alignof(qt: QualType, comp: *const Compilation) u32 {
         if (qt.requestedAlignment(comp)) |requested| request: {
             if (qt.is(comp, .@"enum")) {
-                if (comp.langopts.emulate == .gcc) {
-                    // gcc does not respect alignment on enums
-                    break :request;
+                switch (comp.langopts.emulate) {
+                    .gcc => break :request, // gcc does not respect alignment on enums
+                    .msvc => return @max(requested, qt.base(comp).qt.alignof(comp)),
+                    .clang, .no => {},
                 }
             } else if (comp.langopts.emulate == .msvc) {
                 const type_align = switch (qt.type(comp)) {

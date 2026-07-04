@@ -36,6 +36,19 @@ __declspec(align(16)) typedef enum {
 
 _Static_assert(_Alignof(AlignedEnum) == 16, "");
 
+__declspec(align(1)) typedef enum {
+  D,
+} UnderAlignedEnum;
+
+struct S {
+  char c;
+  UnderAlignedEnum e;
+};
+
+_Static_assert(_Alignof(UnderAlignedEnum) == _Alignof(NaturallyAlignedEnum), "");
+_Static_assert(_Alignof(struct S) == _Alignof(NaturallyAlignedEnum), "");
+_Static_assert(sizeof(struct S) == 8, "");
+
 __declspec(align(16)) typedef struct {
   int x;
 } AlignedStruct;
