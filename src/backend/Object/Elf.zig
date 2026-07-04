@@ -213,7 +213,7 @@ pub fn finish(elf: *Elf, w: *std.Io.Writer) !void {
         .ehsize = @sizeOf(std.elf.Elf64.Ehdr),
         .phentsize = 0, // no program header
         .phnum = 0, // no program header
-        .shentsize = @sizeOf(std.elf.Elf64_Shdr),
+        .shentsize = @sizeOf(std.elf.Elf64.Shdr),
         .shnum = num_sections,
         .shstrndx = strtab_index,
     };
@@ -300,38 +300,38 @@ pub fn finish(elf: *Elf, w: *std.Io.Writer) !void {
     // pad to 16 bytes
     try w.splatByteAll(0, @intCast(sh_offset_aligned - sh_offset));
     // mandatory null header
-    try w.writeStruct(std.mem.zeroes(std.elf.Elf64_Shdr), endian);
+    try w.writeStruct(std.mem.zeroes(std.elf.Elf64.Shdr), endian);
 
     // write strtab section header
     {
-        const sect_header: std.elf.Elf64_Shdr = .{
-            .sh_name = strtab_name,
-            .sh_type = std.elf.SHT_STRTAB,
-            .sh_flags = 0,
-            .sh_addr = 0,
-            .sh_offset = strtab_offset,
-            .sh_size = elf.strtab_len,
-            .sh_link = 0,
-            .sh_info = 0,
-            .sh_addralign = 1,
-            .sh_entsize = 0,
+        const sect_header: std.elf.Elf64.Shdr = .{
+            .name = strtab_name,
+            .type = .STRTAB,
+            .flags = .{ .shf = .{} },
+            .addr = 0,
+            .offset = strtab_offset,
+            .size = elf.strtab_len,
+            .link = 0,
+            .info = 0,
+            .addralign = 1,
+            .entsize = 0,
         };
         try w.writeStruct(sect_header, endian);
     }
 
     // write symtab section header
     {
-        const sect_header: std.elf.Elf64_Shdr = .{
-            .sh_name = symtab_name,
-            .sh_type = std.elf.SHT_SYMTAB,
-            .sh_flags = 0,
-            .sh_addr = 0,
-            .sh_offset = symtab_offset_aligned,
-            .sh_size = symtab_len,
-            .sh_link = strtab_index,
-            .sh_info = elf.local_symbols.size + 1,
-            .sh_addralign = 8,
-            .sh_entsize = @sizeOf(std.elf.Elf64_Sym),
+        const sect_header: std.elf.Elf64.Shdr = .{
+            .name = symtab_name,
+            .type = .SYMTAB,
+            .flags = .{ .shf = .{} },
+            .addr = 0,
+            .offset = symtab_offset_aligned,
+            .size = symtab_len,
+            .link = strtab_index,
+            .info = elf.local_symbols.size + 1,
+            .addralign = 8,
+            .entsize = @sizeOf(std.elf.Elf64_Sym),
         };
         try w.writeStruct(sect_header, endian);
     }
@@ -345,32 +345,32 @@ pub fn finish(elf: *Elf, w: *std.Io.Writer) !void {
             const sect = entry.value_ptr.*;
             const rela_count = sect.relocations.items.len;
             const rela_name_offset: u32 = if (rela_count != 0) @truncate(".rela".len) else 0;
-            try w.writeStruct(std.elf.Elf64_Shdr{
-                .sh_name = rela_name_offset + name_offset,
-                .sh_type = sect.type,
-                .sh_flags = sect.flags,
-                .sh_addr = 0,
-                .sh_offset = sect_offset,
-                .sh_size = sect.data.items.len,
-                .sh_link = 0,
-                .sh_info = 0,
-                .sh_addralign = if (sect.flags & std.elf.SHF_EXECINSTR != 0) 16 else 1,
-                .sh_entsize = 0,
+            try w.writeStruct(std.elf.Elf64.Shdr{
+                .name = rela_name_offset + name_offset,
+                .type = @enumFromInt(sect.type),
+                .flags = @bitCast(sect.flags),
+                .addr = 0,
+                .offset = sect_offset,
+                .size = sect.data.items.len,
+                .link = 0,
+                .info = 0,
+                .addralign = if (sect.flags & std.elf.SHF_EXECINSTR != 0) 16 else 1,
+                .entsize = 0,
             }, endian);
 
             if (rela_count != 0) {
                 const size = rela_count * @sizeOf(std.elf.Elf64_Rela);
-                try w.writeStruct(std.elf.Elf64_Shdr{
-                    .sh_name = name_offset,
-                    .sh_type = std.elf.SHT_RELA,
-                    .sh_flags = 0,
-                    .sh_addr = 0,
-                    .sh_offset = rela_sect_offset,
-                    .sh_size = rela_count * @sizeOf(std.elf.Elf64_Rela),
-                    .sh_link = symtab_index,
-                    .sh_info = sect.index,
-                    .sh_addralign = 8,
-                    .sh_entsize = @sizeOf(std.elf.Elf64_Rela),
+                try w.writeStruct(std.elf.Elf64.Shdr{
+                    .name = name_offset,
+                    .type = .RELA,
+                    .flags = .{ .shf = .{} },
+                    .addr = 0,
+                    .offset = rela_sect_offset,
+                    .size = rela_count * @sizeOf(std.elf.Elf64_Rela),
+                    .link = symtab_index,
+                    .info = sect.index,
+                    .addralign = 8,
+                    .entsize = @sizeOf(std.elf.Elf64_Rela),
                 }, endian);
                 rela_sect_offset += size;
             }
