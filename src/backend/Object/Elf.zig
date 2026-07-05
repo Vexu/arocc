@@ -178,7 +178,7 @@ pub fn finish(elf: *Elf, w: *std.Io.Writer) !void {
         var it = elf.sections.valueIterator();
         while (it.next()) |sect| {
             sections_len += sect.*.data.items.len;
-            relocations_len += sect.*.relocations.items.len * @sizeOf(std.elf.Elf64_Rela);
+            relocations_len += sect.*.relocations.items.len * @sizeOf(std.elf.Elf64.Rela);
             sect.*.index = num_sections;
             num_sections += 1;
             num_sections += @intFromBool(sect.*.relocations.items.len != 0);
@@ -272,10 +272,13 @@ pub fn finish(elf: *Elf, w: *std.Io.Writer) !void {
         var it = elf.sections.valueIterator();
         while (it.next()) |sect| {
             for (sect.*.relocations.items) |rela| {
-                try w.writeStruct(std.elf.Elf64_Rela{
-                    .r_offset = rela.offset,
-                    .r_addend = rela.addend,
-                    .r_info = (@as(u64, rela.symbol.index) << 32) | rela.type,
+                try w.writeStruct(std.elf.Elf64.Rela{
+                    .offset = rela.offset,
+                    .addend = rela.addend,
+                    .info = .{
+                        .type = rela.type,
+                        .sym = rela.symbol.index,
+                    },
                 }, endian);
             }
         }
@@ -359,18 +362,18 @@ pub fn finish(elf: *Elf, w: *std.Io.Writer) !void {
             }, endian);
 
             if (rela_count != 0) {
-                const size = rela_count * @sizeOf(std.elf.Elf64_Rela);
+                const size = rela_count * @sizeOf(std.elf.Elf64.Rela);
                 try w.writeStruct(std.elf.Elf64.Shdr{
                     .name = name_offset,
                     .type = .RELA,
                     .flags = .{ .shf = .{} },
                     .addr = 0,
                     .offset = rela_sect_offset,
-                    .size = rela_count * @sizeOf(std.elf.Elf64_Rela),
+                    .size = rela_count * @sizeOf(std.elf.Elf64.Rela),
                     .link = symtab_index,
                     .info = sect.index,
                     .addralign = 8,
-                    .entsize = @sizeOf(std.elf.Elf64_Rela),
+                    .entsize = @sizeOf(std.elf.Elf64.Rela),
                 }, endian);
                 rela_sect_offset += size;
             }
