@@ -612,6 +612,14 @@ pub const QualType = packed struct(u32) {
                 const layout = record.layout orelse return null;
                 const size = layout.size_bits / 8;
                 if (comp.langopts.emulate != .msvc) return size;
+                switch (qt.type(comp)) {
+                    .typedef => |typedef| {
+                        if (comp.type_store.requested_aligns.get(qt) == null) {
+                            return typedef.base.sizeofOrNull(comp);
+                        }
+                    },
+                    else => {},
+                }
                 const alignment = qt.requestedAlignment(comp) orelse return size;
 
                 const should_round_size = switch (qt.type(comp)) {
