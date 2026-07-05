@@ -610,7 +610,28 @@ pub const QualType = packed struct(u32) {
             },
             .@"struct", .@"union" => |record| {
                 const layout = record.layout orelse return null;
-                return layout.size_bits / 8;
+                const size = layout.size_bits / 8;
+                if (comp.langopts.emulate != .msvc) return size;
+                switch (qt.type(comp)) {
+                    .typedef => |typedef| {
+                        if (comp.type_store.requested_aligns.get(qt) == null) {
+                            return typedef.base.sizeofOrNull(comp);
+                        }
+                    },
+                    else => {},
+                }
+                const alignment = qt.requestedAlignment(comp) orelse return size;
+
+                const should_round_size = switch (qt.type(comp)) {
+                    .typedef => |typedef| switch (typedef.base.type(comp)) {
+                        .@"struct", .@"union" => true,
+                        else => false,
+                    },
+                    else => true,
+                };
+                if (!should_round_size) return size;
+
+                return std.mem.alignForward(u64, size, alignment);
             },
             .@"enum" => |enum_ty| {
                 const tag = enum_ty.tag orelse return null;
@@ -673,9 +694,10 @@ pub const QualType = packed struct(u32) {
     pub fn alignof(qt: QualType, comp: *const Compilation) u32 {
         if (qt.requestedAlignment(comp)) |requested| request: {
             if (qt.is(comp, .@"enum")) {
-                if (comp.langopts.emulate == .gcc) {
-                    // gcc does not respect alignment on enums
-                    break :request;
+                switch (comp.langopts.emulate) {
+                    .gcc => break :request, // gcc does not respect alignment on enums
+                    .msvc => return @max(requested, qt.base(comp).qt.alignof(comp)),
+                    .clang, .no => {},
                 }
             } else if (comp.langopts.emulate == .msvc) {
                 const type_align = switch (qt.type(comp)) {
