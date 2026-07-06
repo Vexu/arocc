@@ -179,6 +179,8 @@ blocks: bool = false,
 /// If non-null, contains ARM LDREX/STREX mask. Only populated on ARM targets.
 arm_ldrex: ?ArmLdrex = null,
 
+pthread: bool = false,
+
 pub fn setStandard(self: *LangOpts, name: []const u8) error{InvalidStandard}!void {
     self.standard = Standard.NameMap.get(name) orelse return error.InvalidStandard;
 }

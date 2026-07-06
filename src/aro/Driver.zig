@@ -858,6 +858,8 @@ pub fn parseArgs(
                 d.comp.langopts.blocks = true;
             } else if (mem.eql(u8, arg, "-fno-blocks")) {
                 d.comp.langopts.blocks = false;
+            } else if (mem.eql(u8, arg, "-pthread")) {
+                d.comp.langopts.pthread = true;
             } else {
                 try d.warn("unknown argument '{s}'", .{arg});
             }
