@@ -326,3 +326,6 @@ function: 'fn (afunc: *fn (int) double, ablock: block (int) double) void'
 
     implicit return_stmt: 'void'
 
+typedef: 'block () int'
+ name: NullableBlock
+

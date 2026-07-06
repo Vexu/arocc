@@ -1310,17 +1310,6 @@ fn applyNullability(wip: *Wip) !void {
     const qt = wip.current.qt;
     if (qt.isInvalid()) return;
 
-    const comp = wip.current.parser.comp;
-    var pointer: Type.Pointer = qt.get(comp, .pointer) orelse {
-        if (wip.current.target == null and qt.is(comp, .array)) {
-            attr.used_as_type_attr = false;
-            return;
-        }
-
-        try wip.err(.invalid_nullability, .{qt});
-        return;
-    };
-
     const new_nullability: Type.Pointer.Nullability = switch (attr.name.keyword) {
         .nonnull => .nonnull,
         .null_unspecified => .unspecified,
@@ -1328,13 +1317,32 @@ fn applyNullability(wip: *Wip) !void {
         .nullable => .nullable,
         else => unreachable,
     };
-    if (pointer.nullability != .default and pointer.nullability != new_nullability) {
-        try wip.err(.conflicting_nullability, .{ new_nullability.str(), pointer.nullability.str() });
-        return;
-    }
 
-    pointer.nullability = new_nullability;
-    wip.current.qt = try comp.type_store.put(comp.gpa, .{ .pointer = pointer });
+    const comp = wip.current.parser.comp;
+    var base_type = qt.base(comp).type;
+    switch (base_type) {
+        inline .pointer, .block => |*bt, tag| {
+            if (bt.nullability != .default and bt.nullability != new_nullability) {
+                try wip.err(.conflicting_nullability, .{ new_nullability.str(), bt.nullability.str() });
+                return;
+            }
+
+            bt.nullability = new_nullability;
+            wip.current.qt = try comp.type_store.put(
+                comp.gpa,
+                @unionInit(TypeStore.Type, @tagName(tag), bt.*),
+            );
+        },
+        else => {
+            if (wip.current.target == null and qt.is(comp, .array)) {
+                attr.used_as_type_attr = false;
+                return;
+            }
+
+            try wip.err(.invalid_nullability, .{qt});
+            return;
+        },
+    }
 }
 
 pub fn applyStmtAttrs(wip: *Wip, p: *Parser, stmt: Tree.Node.Index) !void {

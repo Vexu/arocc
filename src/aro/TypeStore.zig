@@ -1793,6 +1793,7 @@ pub const Type = union(enum) {
 
     pub const Block = struct {
         func: QualType,
+        nullability: Pointer.Nullability = .default,
     };
 
     pub const Func = struct {
