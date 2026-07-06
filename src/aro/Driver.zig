@@ -311,6 +311,8 @@ pub fn parseArgs(
     var strip = true;
     var debug: ?backend.CodeGenOptions.DebugFormat = null;
     var emulate: ?LangOpts.Compiler = null;
+    var m_args: std.ArrayList([]const u8) = .empty;
+    defer m_args.deinit(gpa);
     while (i < args.len) : (i += 1) {
         const arg = args[i];
         if (arg.len > 1 and arg[0] == '-') {
@@ -860,6 +862,8 @@ pub fn parseArgs(
                 d.comp.langopts.blocks = false;
             } else if (mem.eql(u8, arg, "-pthread")) {
                 d.comp.langopts.pthread = true;
+            } else if (mem.startsWith(u8, arg, "-m")) {
+                try m_args.append(gpa, arg);
             } else {
                 try d.warn("unknown argument '{s}'", .{arg});
             }
@@ -873,9 +877,9 @@ pub fn parseArgs(
         }
     }
     {
-        d.comp.target = try d.parseTarget(d.raw_target_triple orelse "native", d.raw_cpu);
+        d.comp.target = try d.parseTarget(d.raw_target_triple orelse "native", d.raw_cpu, m_args.items);
         if (d.raw_darwin_variant_target_triple) |darwin_triple| {
-            d.comp.darwin_target_variant = try d.parseTarget(darwin_triple, null);
+            d.comp.darwin_target_variant = try d.parseTarget(darwin_triple, null, &.{});
         }
         d.comp.langopts.setTargetOptions(d.comp.target);
     }
@@ -993,7 +997,12 @@ fn unsupportedOptionForTarget(d: *Driver, target: *const Target, opt: []const u8
     );
 }
 
-fn parseTarget(d: *Driver, arch_os_abi: []const u8, opt_cpu_features: ?[]const u8) Compilation.Error!Target {
+fn parseTarget(
+    d: *Driver,
+    arch_os_abi: []const u8,
+    opt_cpu_features: ?[]const u8,
+    m_args: []const []const u8,
+) Compilation.Error!Target {
     var query: std.Target.Query = .{
         .dynamic_linker = .init(null),
     };
@@ -1041,6 +1050,38 @@ fn parseTarget(d: *Driver, arch_os_abi: []const u8, opt_cpu_features: ?[]const u
 
     if (it.next() != null) {
         return d.fatal("unexpected extra field in target: '{s}'", .{arch_os_abi});
+    }
+
+    if (m_args.len != 0) {
+        var llvm_to_index: std.StringHashMapUnmanaged(std.Target.Cpu.Feature.Set.Index) = .empty;
+        defer llvm_to_index.deinit(d.comp.gpa);
+
+        const features = arch.allFeaturesList();
+        try llvm_to_index.ensureUnusedCapacity(d.comp.gpa, @intCast(features.len));
+        for (features) |feature| {
+            const llvm_name = feature.llvm_name orelse continue;
+            llvm_to_index.putAssumeCapacity(llvm_name, feature.index);
+        }
+
+        const add_set = &query.cpu_features_add;
+        const sub_set = &query.cpu_features_sub;
+        for (m_args) |m_arg| {
+            if (mem.cutPrefix(u8, m_arg, "-mno-")) |llvm_name| {
+                const index = llvm_to_index.get(llvm_name) orelse {
+                    try d.warn("unknown CPU feature '{s}'", .{llvm_name});
+                    continue;
+                };
+                sub_set.addFeature(index);
+            } else if (mem.cutPrefix(u8, m_arg, "-m")) |llvm_name| {
+                const index = llvm_to_index.get(llvm_name) orelse {
+                    try d.warn("unknown CPU feature '{s}'", .{llvm_name});
+                    continue;
+                };
+                add_set.addFeature(index);
+            } else {
+                unreachable;
+            }
+        }
     }
 
     if (opt_cpu_features) |cpu_features| {
