@@ -187,6 +187,10 @@ pub const QualType = packed struct(u32) {
         return qt._index == .auto_type or qt._index == .c23_auto;
     }
 
+    pub fn isCombinedDeclarator(qt: QualType) bool {
+        return qt._index == .declarator_combine;
+    }
+
     pub fn isQualified(qt: QualType) bool {
         return qt.@"const" or qt.@"volatile" or qt.restrict;
     }
@@ -1369,6 +1373,11 @@ pub const QualType = packed struct(u32) {
                 return false;
             },
             .block => |block| {
+                if (block.func.isCombinedDeclarator()) {
+                    try w.writeAll("combined block declarator");
+                    return false;
+                }
+
                 if (!block.func.is(comp, .func)) unreachable;
 
                 const simple = try block.func.printPrologue(comp, desugar, w);
@@ -1517,7 +1526,7 @@ pub const QualType = packed struct(u32) {
                 }
                 continue :loop pointer.child.type(comp);
             },
-            .block => |block| continue :loop block.func.type(comp),
+            .block => |block| if (!block.func.isCombinedDeclarator()) continue :loop block.func.type(comp),
             .func => |func| {
                 try w.writeByte('(');
                 for (func.params, 0..) |param, i| {
