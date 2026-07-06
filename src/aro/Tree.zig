@@ -3078,6 +3078,14 @@ pub fn calledFunctionAttr(tree: *const Tree, node: Node.Index, tag: Attribute.Ta
     }
 }
 
+pub fn linkage(tree: *const Tree, node: Node.Index) std.builtin.GlobalLinkage {
+    const am = &tree.attr_map;
+    if (am.hasAttribute(node, .internal_linkage)) return .internal;
+    if (am.hasAttribute(node, .weak)) return .weak;
+    if (am.hasAttribute(node, .selectany)) return .link_once;
+    return .strong;
+}
+
 pub fn isLval(tree: *const Tree, node: Node.Index) bool {
     var is_const: bool = undefined;
     return tree.isLvalExtra(node, &is_const);

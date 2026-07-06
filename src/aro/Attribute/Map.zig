@@ -41,6 +41,9 @@ const Repr = struct {
         always_inline,
         gnu_inline,
         section,
+        weak,
+        selectany,
+        internal_linkage,
     };
 };
 
@@ -77,6 +80,9 @@ pub fn put(map: *Map, gpa: mem.Allocator, attribute: Attribute) !Ref {
         .noreturn => repr.tag = .noreturn,
         .always_inline => repr.tag = .always_inline,
         .gnu_inline => repr.tag = .gnu_inline,
+        .weak => repr.tag = .weak,
+        .selectany => repr.tag = .selectany,
+        .internal_linkage => repr.tag = .internal_linkage,
         .alignment => |opt_value| if (opt_value) |value| {
             repr.tag = .alignment;
             repr.data = @intCast(map.extra.items.len);
@@ -186,6 +192,9 @@ pub fn get(map: *const Map, ref: Ref) Attribute {
         .noreturn => res.args = .noreturn,
         .always_inline => res.args = .always_inline,
         .gnu_inline => res.args = .gnu_inline,
+        .weak => res.args = .weak,
+        .selectany => res.args = .selectany,
+        .internal_linkage => res.args = .internal_linkage,
         .alignment_null => res.args = .{ .alignment = null },
         .alignment => {
             res.tok = map.extra.items[repr.data];

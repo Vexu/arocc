@@ -316,3 +316,14 @@ pub const conflicting_section_name: Diagnostic = .{
     .kind = .warning,
     .opt = .section,
 };
+
+// linkages
+pub const invalid_weak: Diagnostic = .{
+    .fmt = "{at} cannot be applied to declarations with internal linkage",
+    .kind = .@"error",
+};
+
+pub const invalid_selectany: Diagnostic = .{
+    .fmt = "{at} can only be applied to data items with external linkage",
+    .kind = .@"error",
+};

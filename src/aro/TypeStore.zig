@@ -1278,13 +1278,6 @@ pub const QualType = packed struct(u32) {
         }
     }
 
-    pub fn linkage(qt: QualType, comp: *const Compilation) std.builtin.GlobalLinkage {
-        if (qt.hasAttribute(comp, .internal_linkage)) return .internal;
-        if (qt.hasAttribute(comp, .weak)) return .weak;
-        if (qt.hasAttribute(comp, .selectany)) return .link_once;
-        return .strong;
-    }
-
     pub fn shouldDesugar(qt: QualType, comp: *const Compilation) bool {
         loop: switch (qt.type(comp)) {
             .pointer => |pointer| continue :loop pointer.child.type(comp),
