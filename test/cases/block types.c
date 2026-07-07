@@ -60,6 +60,11 @@ typedef int (^_Nullable NullableBlock)(void);
 
 int *^*mixed;
 
+// Block predefines
+#if !defined(__BLOCKS__)
+#error "expected __BLOCKS__ to be defined"
+#endif
+
 /** manifest:
 syntax
 args = -fblocks -Wpedantic -Wno-gnu-auto-type --target=aarch64-macos
