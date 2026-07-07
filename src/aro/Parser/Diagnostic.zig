@@ -2377,3 +2377,8 @@ pub const builtin_arm_ldrex_strex_unsupported_size: Diagnostic = .{
     .fmt = "address argument to {s} must be a pointer to {s} byte type ({qt} invalid)",
     .kind = .@"error",
 };
+
+pub const typename_invalid_specifier: Diagnostic = .{
+    .fmt = "type name does not allow {s} specifier to be specified",
+    .kind = .@"error",
+};

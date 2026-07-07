@@ -2475,10 +2475,7 @@ fn typeSpec(p: *Parser, builder: *TypeStore.Builder) Error!bool {
                     p.tok_i = atomic_tok;
                     break;
                 };
-                const base_qt = (try p.typeName()) orelse {
-                    try p.err(p.tok_i, .expected_type, .{});
-                    return error.ParsingFailed;
-                };
+                const base_qt = try p.expectTypeName(.r_paren);
                 try p.expectClosing(l_paren, .r_paren);
 
                 if (base_qt.isQualified() and !base_qt.isInvalid()) {
@@ -3032,12 +3029,72 @@ fn recordDecl(p: *Parser) Error!bool {
 }
 
 /// specQual : typeSpec+
-fn specQual(p: *Parser) Error!?QualType {
+fn specQual(p: *Parser, start_with_type_spec: bool) Error!?QualType {
     var builder: TypeStore.Builder = .{ .parser = p };
-    if (try p.typeSpec(&builder)) {
-        return try builder.finish();
+    var any = false;
+
+    // If a typename can appear in the same place as an expression
+    // a non-type specifier should cause an expected expression error.
+    if (start_with_type_spec) {
+        if (!try p.typeSpec(&builder)) return null;
+        any = true;
     }
-    return null;
+
+    while (true) {
+        switch (p.tok_ids[p.tok_i]) {
+            .keyword_auto_type => {
+                try builder.combine(.auto_type, p.tok_i); // always invalid
+                p.tok_i += 1;
+                continue;
+            },
+            .keyword_auto => if (p.comp.langopts.standard.atLeast(.c23)) {
+                try builder.combine(.c23_auto, p.tok_i); // always invalid
+                p.tok_i += 1;
+                continue;
+            },
+            else => {},
+        }
+        switch (p.tok_ids[p.tok_i]) {
+            .keyword_inline,
+            .keyword_inline1,
+            .keyword_inline2,
+            .keyword_noreturn,
+            .keyword_forceinline,
+            .keyword_forceinline2,
+            => {
+                try p.err(p.tok_i, .typename_invalid_specifier, .{"function"});
+                p.tok_i += 1;
+                continue;
+            },
+            .keyword_typedef,
+            .keyword_extern,
+            .keyword_static,
+            .keyword_auto,
+            .keyword_register,
+            .keyword_thread_local,
+            .keyword_c23_thread_local,
+            .keyword_thread,
+            => {
+                try p.err(p.tok_i, .typename_invalid_specifier, .{"storage class"});
+                p.tok_i += 1;
+                continue;
+            },
+            .keyword_constexpr => {
+                try p.err(p.tok_i, .typename_invalid_specifier, .{"constexpr"});
+                p.tok_i += 1;
+                continue;
+            },
+            else => {},
+        }
+        if (try p.typeSpec(&builder)) {
+            any = true;
+            continue;
+        }
+        break;
+    }
+
+    if (!any) return null;
+    return try builder.finish();
 }
 
 /// enumSpec
@@ -3059,7 +3116,7 @@ fn enumSpec(p: *Parser) Error!QualType {
 
         const fixed_attr_state = p.wip_attrs.state(true);
         defer p.wip_attrs.restore(fixed_attr_state);
-        const fixed = (try p.specQual()) orelse {
+        const fixed = (try p.specQual(false)) orelse {
             if (p.record.kind != .invalid) {
                 // This is a bit field.
                 p.tok_i -= 1;
@@ -4146,10 +4203,22 @@ fn paramDecls(p: *Parser) Error!?[]Type.Func.Param {
 
 /// typeName : specQual abstractDeclarator
 fn typeName(p: *Parser) Error!?QualType {
+    return p.typeNameExtra(true);
+}
+
+fn expectTypeName(p: *Parser, closing: Token.Id) Error!QualType {
+    return (try p.typeNameExtra(false)) orelse {
+        try p.err(p.tok_i, .expected_type, .{});
+        p.skipTo(closing);
+        return error.ParsingFailed;
+    };
+}
+
+fn typeNameExtra(p: *Parser, start_with_type_spec: bool) Error!?QualType {
     const attr_state = p.wip_attrs.state(true);
     defer p.wip_attrs.restore(attr_state);
 
-    var qt = (try p.specQual()) orelse return null;
+    var qt = (try p.specQual(start_with_type_spec)) orelse return null;
     qt = try p.wip_attrs.applyTypeAttrs(p, qt);
     if (try p.declarator(qt, .abstract)) |abstract_d| {
         if (abstract_d.old_style_func) |tok_i| try p.err(tok_i, .invalid_old_style_params, .{});
@@ -8441,10 +8510,7 @@ fn castExpr(p: *Parser) Error!?Result {
 fn builtinBitCast(p: *Parser, builtin_tok: TokenIndex) Error!Result {
     const l_paren = try p.expectToken(.l_paren);
 
-    const res_qt = (try p.typeName()) orelse {
-        try p.err(p.tok_i, .expected_type, .{});
-        return error.ParsingFailed;
-    };
+    const res_qt = try p.expectTypeName(.r_paren);
 
     _ = try p.expectToken(.comma);
 
@@ -8540,11 +8606,7 @@ fn convertvector(p: *Parser, builtin_tok: TokenIndex) Error!Result {
     const operand = try p.expect(assignExpr);
     _ = try p.expectToken(.comma);
 
-    var dest_qt = (try p.typeName()) orelse {
-        try p.err(p.tok_i, .expected_type, .{});
-        p.skipTo(.r_paren);
-        return error.ParsingFailed;
-    };
+    var dest_qt = try p.expectTypeName(.r_paren);
 
     try p.expectClosing(l_paren, .r_paren);
 
@@ -8583,18 +8645,11 @@ fn convertvector(p: *Parser, builtin_tok: TokenIndex) Error!Result {
 fn typesCompatible(p: *Parser, builtin_tok: TokenIndex) Error!Result {
     const l_paren = try p.expectToken(.l_paren);
 
-    const lhs = (try p.typeName()) orelse {
-        try p.err(p.tok_i, .expected_type, .{});
-        p.skipTo(.r_paren);
-        return error.ParsingFailed;
-    };
+    const lhs = try p.expectTypeName(.r_paren);
+
     _ = try p.expectToken(.comma);
 
-    const rhs = (try p.typeName()) orelse {
-        try p.err(p.tok_i, .expected_type, .{});
-        p.skipTo(.r_paren);
-        return error.ParsingFailed;
-    };
+    const rhs = try p.expectTypeName(.r_paren);
 
     try p.expectClosing(l_paren, .r_paren);
 
@@ -8668,10 +8723,7 @@ fn builtinVaArg(p: *Parser, builtin_tok: TokenIndex) Error!Result {
 
     _ = try p.expectToken(.comma);
 
-    const ty = (try p.typeName()) orelse {
-        try p.err(p.tok_i, .expected_type, .{});
-        return error.ParsingFailed;
-    };
+    const ty = try p.expectTypeName(.r_paren);
     try p.expectClosing(l_paren, .r_paren);
 
     if (!va_list.qt.eql(p.comp.type_store.va_list, p.comp)) {
@@ -8759,11 +8811,7 @@ fn builtinOffsetof(p: *Parser, builtin_tok: TokenIndex, offset_kind: OffsetKind)
     const l_paren = try p.expectToken(.l_paren);
     const ty_tok = p.tok_i;
 
-    const operand_qt = (try p.typeName()) orelse {
-        try p.err(p.tok_i, .expected_type, .{});
-        p.skipTo(.r_paren);
-        return error.ParsingFailed;
-    };
+    const operand_qt = try p.expectTypeName(.r_paren);
 
     const record_ty = operand_qt.getRecord(p.comp) orelse {
         try p.err(ty_tok, .offsetof_ty, .{operand_qt});
