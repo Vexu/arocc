@@ -407,7 +407,7 @@ pub fn applyDeclAttrsExtra(
                     try wip.add(.hot);
                 },
                 .@"const", .__const => {
-                    if (try wip.argCount(0)) return;
+                    if (try wip.argCount(0)) continue;
                     try wip.add(.@"const");
                 },
                 .aligned => try wip.applyAlignment(),
@@ -467,9 +467,9 @@ pub fn applyDeclAttrsExtra(
             },
             .clang => |clang_attr| switch (clang_attr) {
                 .unavailable => {
-                    if (try wip.argCountMinMax(0, 1)) return;
+                    if (try wip.argCountMinMax(0, 1)) continue;
 
-                    const maybe_msg = (try wip.arg(?[]const u8)) orelse return;
+                    const maybe_msg = (try wip.arg(?[]const u8)) orelse continue;
                     try wip.add(.{ .unavailable = maybe_msg });
                 },
                 .aarch64_sve_pcs,
@@ -1437,12 +1437,6 @@ fn applyBlocks(wip: *Wip) !void {
     if (try wip.argCount(1)) return;
     // clang doesn't emit a dx, but it's not clear what this does on block literals
     if (try wip.checkTarget(&.{ .local_variable, .block_literal })) return;
-
-    const attr = wip.current.attr;
-    switch (attr.syntax) {
-        .gnu, .standard => {},
-        else => return,
-    }
 
     const byref = try wip.arg(@FieldType(Attribute.Args, "blocks")) orelse return;
     try wip.add(.{ .blocks = byref });

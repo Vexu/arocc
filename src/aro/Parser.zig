@@ -5743,7 +5743,7 @@ fn compoundStmt(p: *Parser, is_fn_body: bool, stmt_expr_state: ?*StmtExprState) 
                 const implicit_ret = try p.addNode(.{ .return_stmt = .{
                     .return_tok = r_brace,
                     .return_qt = ret_qt,
-                    .operand = .{ .implicit = false },
+                    .operand = .{ .implicit = true },
                 } });
                 try p.decl_buf.append(gpa, implicit_ret);
             }
@@ -10375,10 +10375,7 @@ fn blockLiteral(p: *Parser) Error!?Result {
 
     // could have been updated by returnStmt
     func = qt.get(p.comp, .func).?;
-    if (func.return_type.isBlockLiteralAutoReturn()) {
-        func.return_type = .void;
-        try qt.set(p.comp, .{ .func = func });
-    }
+    assert(!func.return_type.isBlockLiteralAutoReturn());
 
     const block_qt = try p.comp.type_store.put(p.comp.gpa, .{ .block = .{ .func = qt } });
 

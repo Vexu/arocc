@@ -170,7 +170,7 @@ pub fn put(map: *Map, gpa: mem.Allocator, attribute: Attribute) !Ref {
             repr.tag = .blocks;
             repr.data = @intCast(map.extra.items.len);
             try map.extra.append(gpa, attribute.tok);
-            try map.extra.append(gpa, @intFromEnum(byref));
+            comptime std.debug.assert(byref == .byref);
         },
         else => @panic("TODO"),
     }
@@ -268,8 +268,7 @@ pub fn get(map: *const Map, ref: Ref) Attribute {
         },
         .blocks => {
             res.tok = map.extra.items[repr.data];
-            const byref = map.extra.items[repr.data + 1];
-            res.args = .{ .blocks = @enumFromInt(byref) };
+            res.args = .{ .blocks = .byref };
         },
     }
     return res;
