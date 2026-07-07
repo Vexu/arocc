@@ -2063,7 +2063,7 @@ fn attribute(p: *Parser, syntax: Attribute.Syntax) Error!void {
                 else => {},
             }
 
-            const arg = try p.expect(assignExpr);
+            const arg = try p.expectWithClosing(assignExpr, .r_paren);
             try p.wip_attrs.args.append(gpa, arg);
 
             if (p.eatToken(.r_paren)) |_| break;
@@ -4987,9 +4987,8 @@ fn asmOperand(p: *Parser, kind: enum { output, input }) Error!Tree.Node.AsmStmt.
         try p.err(p.tok_i, .expected_token, .{ p.tok_ids[p.tok_i], Token.Id.l_paren });
         return error.ParsingFailed;
     };
-    const maybe_res = try p.expr();
+    var res = try p.expectWithClosing(expr, .r_paren);
     try p.expectClosing(l_paren, .r_paren);
-    var res = try p.expectResult(maybe_res);
     if (kind == .output and !p.tree.isLval(res.node)) {
         try p.err(l_paren + 1, .invalid_asm_output, .{});
     } else if (kind == .input) {
@@ -7782,6 +7781,18 @@ fn expect(p: *Parser, comptime func: fn (*Parser) Error!?Result) Error!Result {
     return p.expectResult(try func(p));
 }
 
+fn expectWithClosing(p: *Parser, comptime func: fn (*Parser) Error!?Result, closing: Token.Id) Error!Result {
+    const opt_res = func(p) catch |er| {
+        if (er == error.ParsingFailed) p.skipTo(closing);
+        return er;
+    };
+    return opt_res orelse {
+        try p.err(p.tok_i, .expected_expr, .{});
+        p.skipTo(closing);
+        return error.ParsingFailed;
+    };
+}
+
 fn expectResult(p: *Parser, res: ?Result) Error!Result {
     return res orelse {
         try p.err(p.tok_i, .expected_expr, .{});
@@ -8438,7 +8449,7 @@ fn builtinBitCast(p: *Parser, builtin_tok: TokenIndex) Error!Result {
     _ = try p.expectToken(.comma);
 
     const operand_tok = p.tok_i;
-    var operand = try p.expect(assignExpr);
+    var operand = try p.expectWithClosing(assignExpr, .r_paren);
     try operand.lvalConversion(p, operand_tok);
 
     try p.expectClosing(l_paren, .r_paren);
@@ -10234,7 +10245,7 @@ fn checkArrayBounds(p: *Parser, index: Result, array: Result, tok: TokenIndex) !
 ///  | offsetof
 fn primaryExpr(p: *Parser) Error!?Result {
     if (p.eatToken(.l_paren)) |l_paren| {
-        var grouped_expr = try p.expect(expr);
+        var grouped_expr = try p.expectWithClosing(expr, .r_paren);
         try p.expectClosing(l_paren, .r_paren);
         try grouped_expr.un(p, .paren_expr, l_paren);
         return grouped_expr;
