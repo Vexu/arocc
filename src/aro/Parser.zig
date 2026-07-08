@@ -4210,7 +4210,8 @@ fn expectTypeName(p: *Parser, closing: Token.Id) Error!QualType {
     return (try p.typeNameExtra(false)) orelse {
         try p.err(p.tok_i, .expected_type, .{});
         p.skipTo(closing);
-        return error.ParsingFailed;
+        p.tok_i -= 1;
+        return .invalid;
     };
 }
 
@@ -8510,8 +8511,7 @@ fn castExpr(p: *Parser) Error!?Result {
 fn builtinBitCast(p: *Parser, builtin_tok: TokenIndex) Error!Result {
     const l_paren = try p.expectToken(.l_paren);
 
-    const res_qt = try p.expectTypeName(.r_paren);
-
+    const res_qt = try p.expectTypeName(.comma);
     _ = try p.expectToken(.comma);
 
     const operand_tok = p.tok_i;
@@ -8607,10 +8607,9 @@ fn convertvector(p: *Parser, builtin_tok: TokenIndex) Error!Result {
     _ = try p.expectToken(.comma);
 
     var dest_qt = try p.expectTypeName(.r_paren);
-
     try p.expectClosing(l_paren, .r_paren);
 
-    if (operand.qt.isInvalid() or operand.qt.isInvalid()) {
+    if (operand.qt.isInvalid() or dest_qt.isInvalid()) {
         dest_qt = .invalid;
     } else check: {
         const operand_vec = operand.qt.get(p.comp, .vector) orelse {
@@ -8645,12 +8644,10 @@ fn convertvector(p: *Parser, builtin_tok: TokenIndex) Error!Result {
 fn typesCompatible(p: *Parser, builtin_tok: TokenIndex) Error!Result {
     const l_paren = try p.expectToken(.l_paren);
 
-    const lhs = try p.expectTypeName(.r_paren);
-
+    const lhs = try p.expectTypeName(.comma);
     _ = try p.expectToken(.comma);
 
     const rhs = try p.expectTypeName(.r_paren);
-
     try p.expectClosing(l_paren, .r_paren);
 
     const any_invalid = lhs.isInvalid() or rhs.isInvalid();
@@ -8812,6 +8809,7 @@ fn builtinOffsetof(p: *Parser, builtin_tok: TokenIndex, offset_kind: OffsetKind)
     const ty_tok = p.tok_i;
 
     const operand_qt = try p.expectTypeName(.r_paren);
+    if (operand_qt.isInvalid()) return error.ParsingFailed;
 
     const record_ty = operand_qt.getRecord(p.comp) orelse {
         try p.err(ty_tok, .offsetof_ty, .{operand_qt});

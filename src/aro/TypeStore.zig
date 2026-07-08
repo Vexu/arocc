@@ -488,6 +488,10 @@ pub const QualType = packed struct(u32) {
     }
 
     pub fn getRecord(qt: QualType, comp: *const Compilation) ?Type.Record {
+        switch (qt._index) {
+            .invalid, .auto_type, .c23_auto => return null,
+            else => {},
+        }
         return switch (qt.base(comp).type) {
             .@"struct", .@"union" => |record| record,
             else => null,
