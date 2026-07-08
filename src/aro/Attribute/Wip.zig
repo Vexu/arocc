@@ -345,7 +345,7 @@ fn add(wip: *Wip, args: Attribute.Args) !void {
     try wip.applied.append(gpa, ref);
 }
 
-pub fn applyDeclAttrs(wip: *Wip, p: *Parser, decl: Tree.Node.Index, prev_decl: Tree.Node.OptIndex) !void {
+pub fn applyDeclAttrs(wip: *Wip, p: *Parser, decl: Tree.Node.Index, prev_decl: ?Tree.Node.Index) !void {
     return wip.applyDeclAttrsExtra(p, decl, decl.qt(&p.tree), prev_decl);
 }
 
@@ -354,7 +354,7 @@ pub fn applyDeclAttrsExtra(
     p: *Parser,
     decl: Tree.Node.Index,
     qt: QualType,
-    prev_decl: Tree.Node.OptIndex,
+    prev_decl: ?Tree.Node.Index,
 ) !void {
     wip.applied.items.len = 0;
     wip.current = .{
@@ -364,7 +364,7 @@ pub fn applyDeclAttrsExtra(
         .parser = p,
     };
 
-    if (prev_decl.unpack()) |prev| try wip.inherit(p, prev);
+    if (prev_decl) |prev| try wip.inherit(p, prev);
 
     for (wip.attrs.items[wip.top..]) |*attr| {
         if (attr.used_as_type_attr) continue;

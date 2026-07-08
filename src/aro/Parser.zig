@@ -1203,7 +1203,7 @@ fn addImplicitTypedef(p: *Parser, name: []const u8, qt: QualType) !void {
         .name = interned_name,
         .decl_node = node,
     } })).withQualifiers(qt);
-    assert(try p.syms.defineTypedef(p, interned_name, typedef_qt, name_tok, node) == .null);
+    assert(try p.syms.defineTypedef(p, interned_name, typedef_qt, name_tok, node) == null);
     try p.decl_buf.append(gpa, node);
 }
 
@@ -1484,8 +1484,7 @@ fn decl(p: *Parser) Error!bool {
                             },
                         },
                     });
-                    try p.wip_attrs.applyDeclAttrs(p, param_node, .null);
-                    try p.addMaybeUnusued(param_node);
+                    try p.wip_attrs.applyDeclAttrs(p, param_node, null);
 
                     const name_str = p.tokSlice(param_d.name);
                     const interned_name = try p.comp.internString(name_str);
@@ -1494,12 +1493,14 @@ fn decl(p: *Parser) Error!bool {
                     // find and correct parameter types
                     for (func_qt.get(p.comp, .func).?.params, new_params) |param, *new_param| {
                         if (param.name == interned_name) {
+                            if (new_param.name == .empty) try p.addMaybeUnusued(param_node);
                             new_param.* = .{
                                 .qt = param_d.qt,
                                 .name = param.name,
                                 .node = .pack(param_node),
                                 .name_tok = param.name_tok,
                             };
+                            p.markUsed(param.node.unpack().?);
                             break;
                         }
                     } else {
@@ -1515,12 +1516,8 @@ fn decl(p: *Parser) Error!bool {
             for (func_ty.params, new_params) |param, *new_param| {
                 if (new_param.name == .empty) {
                     try p.err(param.name_tok, .param_not_declared, .{param.name.lookup(p.comp)});
-                    new_param.* = .{
-                        .name = param.name,
-                        .name_tok = param.name_tok,
-                        .node = param.node,
-                        .qt = .int,
-                    };
+                    new_param.* = param;
+                    try p.syms.defineParam(p, param.name, .int, param.name_tok, param.node.unpack().?);
                 }
             }
             // Update the functio type to contain the declared parameters.
@@ -1543,7 +1540,7 @@ fn decl(p: *Parser) Error!bool {
                     .tok = param.name_tok,
                     .qt = param.qt,
                     .val = .{},
-                    .node = param.node,
+                    .node = param.node.unpack().?,
                 });
                 if (param.qt.isInvalid()) continue;
 
@@ -2614,7 +2611,7 @@ fn typeSpec(p: *Parser, builder: *TypeStore.Builder) Error!bool {
                     interned_name = try p.comp.internString(p.tokSlice(p.tok_i));
                 }
                 const typedef = (try p.syms.findTypedef(p, interned_name, p.tok_i, builder.type != .none)) orelse break;
-                if (typedef.node.unpack()) |some| p.markUsed(some);
+                p.markUsed(typedef.node);
                 if (!builder.combineTypedef(typedef.qt)) break;
             },
             .keyword_bit_int => {
@@ -2714,6 +2711,7 @@ fn recordSpec(p: *Parser) Error!QualType {
                 .tok = ident,
                 .qt = record_qt,
                 .val = .{},
+                .node = record_decl,
             });
 
             const fw: Node.ContainerForwardDecl = .{
@@ -2727,7 +2725,7 @@ fn recordSpec(p: *Parser) Error!QualType {
                 .{ .union_forward_decl = fw }, reserved_index);
             try p.decl_buf.append(gpa, record_decl);
             assert(try p.wip_attrs.applyTypeAttrs(p, record_qt) == record_qt);
-            try p.wip_attrs.applyDeclAttrs(p, record_decl, .null);
+            try p.wip_attrs.applyDeclAttrs(p, record_decl, null);
             return record_qt;
         }
     };
@@ -2736,7 +2734,7 @@ fn recordSpec(p: *Parser) Error!QualType {
     errdefer if (!done) p.skipTo(.r_brace);
 
     // Get forward declared type or create a new one
-    var record_ty: Type.Record, const qt: QualType, const prev_decl: Node.OptIndex = blk: {
+    var record_ty: Type.Record, const qt: QualType, const prev_decl: ?Node.Index = blk: {
         const interned_name = if (maybe_ident) |ident| interned: {
             const ident_str = p.tokSlice(ident);
             const interned_name = try p.comp.internString(ident_str);
@@ -2747,7 +2745,7 @@ fn recordSpec(p: *Parser) Error!QualType {
                     try p.err(ident, .redefinition, .{ident_str});
                     try p.err(prev.tok, .previous_definition, .{});
                 } else {
-                    break :blk .{ record_ty, prev.qt, record_ty.decl_node };
+                    break :blk .{ record_ty, prev.qt, record_ty.decl_node.unpack() orelse null };
                 }
             }
             break :interned interned_name;
@@ -2775,10 +2773,11 @@ fn recordSpec(p: *Parser) Error!QualType {
                 .tok = maybe_ident.?,
                 .qt = record_qt,
                 .val = .{},
+                .node = record_decl,
             });
         }
 
-        break :blk .{ record_ty, record_qt, .null };
+        break :blk .{ record_ty, record_qt, null };
     };
 
     try p.decl_buf.append(gpa, record_decl);
@@ -3012,7 +3011,7 @@ fn recordDecl(p: *Parser) Error!bool {
 
                     try p.decl_buf.append(gpa, node);
                     try p.record.addFieldsFromAnonymous(p, record_ty);
-                    try p.wip_attrs.applyDeclAttrs(p, node, .null);
+                    try p.wip_attrs.applyDeclAttrs(p, node, null);
                     break; // must be followed by a semicolon
                 },
                 else => {},
@@ -3043,7 +3042,7 @@ fn recordDecl(p: *Parser) Error!bool {
             });
             if (name_tok != 0) try p.record.addField(p, interned_name, name_tok);
             try p.decl_buf.append(gpa, node);
-            try p.wip_attrs.applyDeclAttrs(p, node, .null);
+            try p.wip_attrs.applyDeclAttrs(p, node, null);
         }
 
         if (!qt.isInvalid()) {
@@ -3255,6 +3254,7 @@ fn enumSpec(p: *Parser) Error!QualType {
                 .tok = ident,
                 .qt = enum_qt,
                 .val = .{},
+                .node = enum_decl,
             });
 
             const decl_node = try p.addNode(.{ .enum_forward_decl = .{
@@ -3264,7 +3264,7 @@ fn enumSpec(p: *Parser) Error!QualType {
             } });
             try p.decl_buf.append(gpa, decl_node);
             assert(try p.wip_attrs.applyTypeAttrs(p, enum_qt) == enum_qt);
-            try p.wip_attrs.applyDeclAttrs(p, decl_node, .null);
+            try p.wip_attrs.applyDeclAttrs(p, decl_node, null);
 
             return enum_qt;
         }
@@ -3275,7 +3275,7 @@ fn enumSpec(p: *Parser) Error!QualType {
 
     // Get forward declared type or create a new one
     var defined = false;
-    var enum_ty: Type.Enum, const qt: QualType, const prev_decl: Node.OptIndex = blk: {
+    var enum_ty: Type.Enum, const qt: QualType, const prev_decl: ?Node.Index = blk: {
         const interned_name = if (maybe_ident) |ident| interned: {
             const ident_str = p.tokSlice(ident);
             const interned_name = try p.comp.internString(ident_str);
@@ -3288,7 +3288,7 @@ fn enumSpec(p: *Parser) Error!QualType {
                 } else {
                     try p.checkEnumFixedTy(fixed_qt, ident, prev);
                     defined = true;
-                    break :blk .{ enum_ty, prev.qt, .pack(enum_ty.decl_node) };
+                    break :blk .{ enum_ty, prev.qt, enum_ty.decl_node };
                 }
             }
             break :interned interned_name;
@@ -3305,7 +3305,7 @@ fn enumSpec(p: *Parser) Error!QualType {
             .fields = &.{},
         };
         const enum_qt = try p.comp.type_store.put(gpa, .{ .@"enum" = enum_ty });
-        break :blk .{ enum_ty, enum_qt, .null };
+        break :blk .{ enum_ty, enum_qt, null };
     };
 
     // reserve space for this enum
@@ -3403,6 +3403,7 @@ fn enumSpec(p: *Parser) Error!QualType {
             .qt = qt,
             .tok = maybe_ident.?,
             .val = .{},
+            .node = enum_decl,
         });
     }
 
@@ -3602,7 +3603,7 @@ fn enumerator(p: *Parser, e: *Enumerator) Error!?EnumFieldAndNode {
             .init = field_init,
         },
     });
-    try p.wip_attrs.applyDeclAttrs(p, node, .null);
+    try p.wip_attrs.applyDeclAttrs(p, node, null);
     try p.tree.value_map.put(p.comp.gpa, node, e.val);
 
     const interned_name = try p.comp.internString(p.tokSlice(name_tok));
@@ -4131,12 +4132,18 @@ fn directDeclarator(
             while (true) {
                 const name_tok = try p.expectIdentifier();
                 const interned_name = try p.comp.internString(p.tokSlice(name_tok));
-                try p.syms.defineParam(p, interned_name, undefined, name_tok, null);
+                const param_node = try p.addNode(.{ .param = .{
+                    .name_tok = name_tok,
+                    .qt = .int,
+                    .storage_class = .auto,
+                } });
+                try p.syms.defineParam(p, interned_name, undefined, name_tok, param_node);
+                try p.addMaybeUnusued(param_node);
                 try p.param_buf.append(gpa, .{
                     .name = interned_name,
                     .name_tok = name_tok,
                     .qt = .int,
-                    .node = .null,
+                    .node = .pack(param_node),
                 });
                 if (p.eatToken(.comma) == null) break;
             }
@@ -4255,7 +4262,7 @@ fn paramDecls(p: *Parser) Error!?[]Type.Func.Param {
                 },
             },
         });
-        try p.wip_attrs.applyDeclAttrs(p, param_node, .null);
+        try p.wip_attrs.applyDeclAttrs(p, param_node, null);
         try p.addMaybeUnusued(param_node);
 
         if (name_tok != 0) {
@@ -5945,8 +5952,7 @@ fn pointerValue(p: *Parser, node: Node.Index, offset: Value) !Value {
         .decl_ref_expr => |decl_ref| {
             const var_name = try p.comp.internString(p.tokSlice(decl_ref.name_tok));
             const sym = p.syms.findSymbol(var_name) orelse return .{};
-            const sym_node = sym.node.unpack() orelse return .{};
-            return Value.pointer(.{ .node = @intFromEnum(sym_node), .offset = offset.ref() }, p.comp);
+            return Value.pointer(.{ .node = @intFromEnum(sym.node), .offset = offset.ref() }, p.comp);
         },
         .string_literal_expr => return p.tree.value_map.get(node).?,
         else => return .{},
@@ -10435,9 +10441,8 @@ fn primaryExpr(p: *Parser) Error!?Result {
                     try p.err(sym.tok, .previous_definition, .{});
                 }
 
-                const decl_node = sym.node.unpack().?;
-                try p.checkDeprecatedUnavailable(decl_node, name_tok);
-                p.markUsed(decl_node);
+                try p.checkDeprecatedUnavailable(sym.node, name_tok);
+                p.markUsed(sym.node);
 
                 if (sym.kind == .constexpr) {
                     return .{
@@ -10447,7 +10452,7 @@ fn primaryExpr(p: *Parser) Error!?Result {
                             .decl_ref_expr = .{
                                 .name_tok = name_tok,
                                 .qt = sym.qt,
-                                .decl = decl_node,
+                                .decl = sym.node,
                             },
                         }),
                     };
@@ -10464,13 +10469,13 @@ fn primaryExpr(p: *Parser) Error!?Result {
                     .{ .enumeration_ref = .{
                         .name_tok = name_tok,
                         .qt = sym.qt,
-                        .decl = decl_node,
+                        .decl = sym.node,
                     } }
                 else
                     .{ .decl_ref_expr = .{
                         .name_tok = name_tok,
                         .qt = sym.qt,
-                        .decl = decl_node,
+                        .decl = sym.node,
                     } });
 
                 const res: Result = .{
