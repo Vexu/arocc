@@ -1,5 +1,6 @@
 const std = @import("std");
 const Compilation = @import("Compilation.zig");
+const Diagnostics = @import("Diagnostics.zig");
 const Target = @import("Target.zig");
 
 /// Used to implement the __has_feature macro.
@@ -54,6 +55,19 @@ pub fn hasFeature(comp: *Compilation, ext: []const u8) bool {
 
 /// Used to implement the __has_extension macro.
 pub fn hasExtension(comp: *Compilation, ext: []const u8) bool {
+    // Extensions are a superset of features, so check all features first.
+    if (hasFeature(comp, ext)) {
+        return true;
+    }
+
+    // "-pedantic-errors" effectively disables extensions by erroring out on
+    // them, so we just return early. This makes "__has_extension" the same as
+    // "__has_feature" when this is set.
+    switch (comp.diagnostics.state.extensions) {
+        .@"error", .@"fatal error" => return false,
+        else => {},
+    }
+
     const list = .{
         // C11 features
         .c_alignas = true,
