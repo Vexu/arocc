@@ -1804,6 +1804,30 @@ pub const unused_value: Diagnostic = .{
     .opt = .@"unused-value",
 };
 
+pub const unused_variable: Diagnostic = .{
+    .fmt = "unused variable '{s}'",
+    .kind = .warning,
+    .opt = .@"unused-variable",
+};
+
+pub const unused_param: Diagnostic = .{
+    .fmt = "unused parameter '{s}'",
+    .kind = .warning,
+    .opt = .@"unused-parameter",
+};
+
+pub const unused_typedef: Diagnostic = .{
+    .fmt = "unused typedef '{s}'",
+    .kind = .warning,
+    .opt = .@"unused-local-typedef",
+};
+
+pub const unused_label: Diagnostic = .{
+    .fmt = "unused label '{s}'",
+    .kind = .warning,
+    .opt = .@"unused-label",
+};
+
 pub const invalid_imag: Diagnostic = .{
     .fmt = "invalid type {qt} to __imag operator",
     .kind = .@"error",

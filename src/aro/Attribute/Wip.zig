@@ -976,7 +976,7 @@ fn applySection(wip: *Wip) !void {
 }
 
 fn applyUnused(wip: *Wip) !void {
-    if (try wip.checkTarget(&.{ .function, .variable, .typedef, .tag, .field, .label })) return;
+    if (try wip.checkTarget(&.{ .function, .variable, .param, .typedef, .tag, .field, .label })) return;
     if (try wip.argCount(0)) return;
     try wip.add(.unused);
 }

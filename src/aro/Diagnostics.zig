@@ -209,6 +209,10 @@ pub const Option = enum {
     @"deprecated-attributes",
     section,
     @"label-attribute",
+    @"unused-variable",
+    @"unused-parameter",
+    @"unused-local-typedef",
+    @"unused-label",
 
     /// GNU extensions
     pub const gnu = [_]Option{
@@ -263,6 +267,10 @@ pub const Option = enum {
     pub const unused = [_]Option{
         .@"unused-value",
         .@"unused-result",
+        .@"unused-variable",
+        // .@"unused-parameter", // Matches gcc and clang
+        .@"unused-local-typedef",
+        .@"unused-label",
     };
 
     pub const most = implicit ++ unused ++ [_]Option{
@@ -375,6 +383,10 @@ pub fn set(d: *Diagnostics, name: []const u8, to: Message.Kind) Compilation.Erro
         .opt = .@"unknown-warning-option",
         .location = null,
     });
+}
+
+pub fn severity(d: *Diagnostics, option: Option) Message.Kind {
+    return d.state.options.get(option) orelse .off;
 }
 
 /// This mutates the `Diagnostics`, so may only be called when `message` is being added.

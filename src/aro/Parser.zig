@@ -80,7 +80,7 @@ const Switch = struct {
 
 const Label = union(enum) {
     unresolved_goto: TokenIndex,
-    label: TokenIndex,
+    label: Node.Index,
 };
 
 const InitContext = enum {
@@ -139,6 +139,11 @@ wip_attrs: Attribute.Wip = .{},
 /// For incomplete records/enums, the key stores the type name and the value is a variable name token.
 /// For incomplete arrays, the key stores the variable name and the value is the name token.
 tentative_defs: std.AutoArrayHashMapUnmanaged(TentativeDefinitionKey, TokenIndex) = .empty,
+
+maybe_unused_decl: std.AutoArrayHashMapUnmanaged(Node.Index, bool) = .empty,
+/// Error count before the function body was parsed. No unused warnings are
+/// issued if there were errors in the body.
+local_unused_err_count: u32 = 0,
 
 // configuration and miscellaneous info
 no_eval: bool = false,
@@ -863,7 +868,13 @@ fn completesTentativeArray(p: *Parser, name: StringId, qt: QualType) bool {
 fn findLabel(p: *Parser, name: []const u8) ?TokenIndex {
     for (p.labels.items) |item| {
         switch (item) {
-            .label => |l| if (mem.eql(u8, p.tokSlice(l), name)) return l,
+            .label => |l| {
+                const prev_label = l.tok(&p.tree);
+                if (mem.eql(u8, p.tokSlice(prev_label), name)) {
+                    p.markUsed(l);
+                    return prev_label;
+                }
+            },
             .unresolved_goto => {},
         }
     }
@@ -945,10 +956,66 @@ fn diagnoseIncompleteDefinitions(p: *Parser) !void {
 }
 
 fn diagnoseTentativeArrays(p: *Parser) !void {
-    var it = p.tentative_defs.iterator();
-    while (it.next()) |entry| {
-        if (entry.key_ptr.kind != .tentative_array) continue;
-        try p.err(entry.value_ptr.*, .tentative_array, .{});
+    for (p.tentative_defs.keys(), p.tentative_defs.values()) |key, tok| {
+        if (key.kind != .tentative_array) continue;
+        try p.err(tok, .tentative_array, .{});
+    }
+}
+
+fn diagnoseUnusedLocals(p: *Parser) !void {
+    defer p.maybe_unused_decl.clearRetainingCapacity();
+    // Don't warn about unused locals if there were error in the function body.
+    if (p.diagnostics.errors != p.local_unused_err_count) return;
+
+    for (p.maybe_unused_decl.keys(), p.maybe_unused_decl.values()) |unused_decl, used| {
+        if (used) continue;
+        const name_tok = unused_decl.tok(&p.tree);
+        try p.err(name_tok, switch (unused_decl.get(&p.tree)) {
+            .variable => .unused_variable,
+            .param => .unused_param,
+            .typedef => .unused_typedef,
+            .labeled_stmt => .unused_label,
+            .empty_decl => continue,
+            else => unreachable,
+        }, .{p.tokSlice(name_tok)});
+    }
+}
+
+fn addMaybeUnusued(p: *Parser, decl_node: Node.Index) !void {
+    if (p.tree.attr_map.hasAttribute(decl_node, .unused)) {
+        p.markUsed(decl_node); // Might have added an empty_decl.
+        return;
+    }
+
+    switch (decl_node.get(&p.tree)) {
+        .variable => |variable| {
+            if (variable.storage_class == .@"extern") return;
+            if (p.func.qt == null) return;
+            if (p.diagnostics.severity(.@"unused-variable") == .off) return;
+        },
+        .param => {
+            if (p.diagnostics.severity(.@"unused-parameter") == .off) return;
+        },
+        .typedef => {
+            if (p.func.qt == null) return;
+            if (p.diagnostics.severity(.@"unused-local-typedef") == .off) return;
+        },
+        .labeled_stmt => {
+            if (p.diagnostics.severity(.@"unused-label") == .off) return;
+        },
+        .empty_decl => {
+            if (p.diagnostics.severity(.@"unused-variable") == .off) return;
+        },
+        else => return,
+    }
+
+    const got = try p.maybe_unused_decl.getOrPut(p.comp.gpa, decl_node);
+    if (!got.found_existing) got.value_ptr.* = false;
+}
+
+fn markUsed(p: *Parser, decl_node: Node.Index) void {
+    if (p.maybe_unused_decl.getPtr(decl_node)) |val| {
+        val.* = true;
     }
 }
 
@@ -999,6 +1066,7 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
         p.record_members.deinit(gpa);
         p.wip_attrs.deinit(gpa);
         p.tentative_defs.deinit(gpa);
+        p.maybe_unused_decl.deinit(gpa);
     }
 
     try p.syms.pushScope(&p);
@@ -1417,6 +1485,7 @@ fn decl(p: *Parser) Error!bool {
                         },
                     });
                     try p.wip_attrs.applyDeclAttrs(p, param_node, .null);
+                    try p.addMaybeUnusued(param_node);
 
                     const name_str = p.tokSlice(param_d.name);
                     const interned_name = try p.comp.internString(name_str);
@@ -1506,6 +1575,7 @@ fn decl(p: *Parser) Error!bool {
         try p.tree.setNode(.{ .function = function }, @intFromEnum(decl_node));
         try p.wip_attrs.applyDeclAttrs(p, decl_node, previous_decl);
 
+        p.local_unused_err_count = p.diagnostics.errors;
         function.body = (try p.compoundStmt(true, null)) orelse {
             assert(init_d.d.old_style_func != null);
             try p.err(p.tok_i, .expected_fn_body, .{});
@@ -1529,6 +1599,7 @@ fn decl(p: *Parser) Error!bool {
             p.contains_address_of_label = false;
             p.computed_goto_tok = null;
         }
+        try p.diagnoseUnusedLocals();
         return true;
     }
 
@@ -1626,6 +1697,7 @@ fn decl(p: *Parser) Error!bool {
             try p.wip_attrs.applyDeclAttrs(p, decl_node, previous_decl);
         }
         if (completes_tentative_array) _ = p.tentative_defs.orderedRemove(.tentativeArray(interned_name));
+        try p.addMaybeUnusued(decl_node);
 
         if (p.eatToken(.comma) == null) break;
 
@@ -2285,6 +2357,7 @@ fn initDeclarator(p: *Parser, decl_spec: *DeclSpec, decl_node: Node.Index) Error
 
         const interned_name = try p.comp.internString(p.tokSlice(init_d.d.name));
         _ = try p.syms.declareSymbol(p, interned_name, init_d.d.qt, init_d.d.name, decl_node);
+        try p.addMaybeUnusued(decl_node);
 
         // TODO this should be a stack of auto type names because of statement expressions.
         if (init_d.d.qt.isAuto()) {
@@ -2541,6 +2614,7 @@ fn typeSpec(p: *Parser, builder: *TypeStore.Builder) Error!bool {
                     interned_name = try p.comp.internString(p.tokSlice(p.tok_i));
                 }
                 const typedef = (try p.syms.findTypedef(p, interned_name, p.tok_i, builder.type != .none)) orelse break;
+                if (typedef.node.unpack()) |some| p.markUsed(some);
                 if (!builder.combineTypedef(typedef.qt)) break;
             },
             .keyword_bit_int => {
@@ -4182,6 +4256,7 @@ fn paramDecls(p: *Parser) Error!?[]Type.Func.Param {
             },
         });
         try p.wip_attrs.applyDeclAttrs(p, param_node, .null);
+        try p.addMaybeUnusued(param_node);
 
         if (name_tok != 0) {
             interned_name = try p.comp.internString(p.tokSlice(name_tok));
@@ -5183,14 +5258,12 @@ fn gnuAsmStmt(p: *Parser, quals: Tree.GNUAssemblyQualifiers, asm_tok: TokenIndex
                 return error.ParsingFailed;
             };
             const ident_str = p.tokSlice(ident);
-            const label = p.findLabel(ident_str) orelse blk: {
+            _ = p.findLabel(ident_str) orelse
                 try p.labels.append(gpa, .{ .unresolved_goto = ident });
-                break :blk ident;
-            };
 
             const label_addr_node = try p.addNode(.{
                 .addr_of_label = .{
-                    .label_tok = label,
+                    .label_tok = ident,
                     .qt = .void_pointer,
                 },
             });
@@ -5623,21 +5696,6 @@ fn labeledStmt(p: *Parser) Error!?Node.Index {
         const name_tok = try p.expectIdentifier();
         const str = p.tokSlice(name_tok);
         p.tok_i += 1; // colon
-        if (p.findLabel(str)) |some| {
-            try p.err(name_tok, .duplicate_label, .{str});
-            try p.err(some, .previous_label, .{str});
-        } else {
-            p.label_count += 1;
-            try p.labels.append(p.comp.gpa, .{ .label = name_tok });
-            var i: usize = 0;
-            while (i < p.labels.items.len) {
-                if (p.labels.items[i] == .unresolved_goto and
-                    mem.eql(u8, p.tokSlice(p.labels.items[i].unresolved_goto), str))
-                {
-                    _ = p.labels.swapRemove(i);
-                } else i += 1;
-            }
-        }
 
         var node: Tree.Node = .{ .labeled_stmt = .{
             .body = undefined,
@@ -5656,6 +5714,25 @@ fn labeledStmt(p: *Parser) Error!?Node.Index {
             try p.wip_attrs.applyStmtAttrs(p, labeled_stmt);
         }
         const applied_any = p.wip_attrs.applied.items.len != 0;
+
+        if (p.findLabel(str)) |some| {
+            try p.err(name_tok, .duplicate_label, .{str});
+            try p.err(some, .previous_label, .{str});
+        } else {
+            p.label_count += 1;
+            try p.labels.append(p.comp.gpa, .{ .label = labeled_stmt });
+            var i: usize = 0;
+            var any_unresolved = false;
+            while (i < p.labels.items.len) {
+                if (p.labels.items[i] == .unresolved_goto and
+                    mem.eql(u8, p.tokSlice(p.labels.items[i].unresolved_goto), str))
+                {
+                    any_unresolved = true;
+                    _ = p.labels.swapRemove(i);
+                } else i += 1;
+            }
+            if (!any_unresolved) try p.addMaybeUnusued(labeled_stmt);
+        }
 
         node.labeled_stmt.body = try p.labelableStmt();
         try p.tree.setNode(node, @intFromEnum(labeled_stmt));
@@ -10360,6 +10437,7 @@ fn primaryExpr(p: *Parser) Error!?Result {
 
                 const decl_node = sym.node.unpack().?;
                 try p.checkDeprecatedUnavailable(decl_node, name_tok);
+                p.markUsed(decl_node);
 
                 if (sym.kind == .constexpr) {
                     return .{
@@ -11465,8 +11543,12 @@ fn genericSelection(p: *Parser) Error!?Result {
 }
 
 test "Node locations" {
+    var diagnostics: Diagnostics = .{
+        .output = .ignore,
+    };
     var comp = try Compilation.init(.testing);
     defer comp.deinit();
+    comp.diagnostics = &diagnostics;
 
     const file = try comp.addSourceFromBuffer("file.c",
         \\int foo = 5;
