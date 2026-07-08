@@ -208,6 +208,7 @@ pub const Option = enum {
     @"unsupported-visibility",
     @"deprecated-attributes",
     section,
+    @"label-attribute",
 
     /// GNU extensions
     pub const gnu = [_]Option{

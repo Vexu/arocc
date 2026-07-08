@@ -5334,12 +5334,14 @@ fn asmStr(p: *Parser) Error!Result {
 ///  | assembly ';'
 ///  | expr? ';'
 fn stmt(p: *Parser) Error!Node.Index {
-    const attr_state = p.wip_attrs.state(false);
-    defer p.wip_attrs.restore(attr_state);
+    const bare_stmt = blk: {
+        const attr_state = p.wip_attrs.state(true);
+        defer p.wip_attrs.restore(attr_state);
 
-    try p.attributeSpecifier();
+        try p.attributeSpecifier();
 
-    const bare_stmt = try p.attributedStmt();
+        break :blk try p.attributedStmt();
+    };
     try p.wip_attrs.applyStmtAttrs(p, bare_stmt);
     return bare_stmt;
 }
@@ -5478,20 +5480,20 @@ fn attributedStmt(p: *Parser) Error!Node.Index {
         defer p.decl_buf.items.len = decl_buf_top;
 
         const l_paren = try p.expectToken(.l_paren);
-        const got_decl = try p.decl();
 
         // for (init
         const init_start = p.tok_i;
         var prev_total = p.diagnostics.total;
         const init = init: {
-            if (got_decl) break :init null;
-            var init = (try p.expr()) orelse break :init null;
+            if (try p.declStmt()) |decl_stmt| break :init decl_stmt;
+            const opt_init = try p.expr();
+            _ = try p.expectToken(.semicolon);
+            var init = opt_init orelse break :init null;
 
             try init.saveValue(p);
             try init.maybeWarnUnused(p, init_start, prev_total);
             break :init init.node;
         };
-        if (!got_decl) _ = try p.expectToken(.semicolon);
 
         // for (init; cond
         const cond = cond: {
@@ -5528,10 +5530,7 @@ fn attributedStmt(p: *Parser) Error!Node.Index {
 
         return p.addNode(.{ .for_stmt = .{
             .for_tok = kw_for,
-            .init = if (decl_buf_top == p.decl_buf.items.len)
-                .{ .expr = init }
-            else
-                .{ .decls = p.decl_buf.items[decl_buf_top..] },
+            .init = init,
             .cond = cond,
             .incr = incr,
             .body = body,
@@ -5602,6 +5601,19 @@ fn attributedStmt(p: *Parser) Error!Node.Index {
     return error.ParsingFailed;
 }
 
+fn declStmt(p: *Parser) Error!?Node.Index {
+    const decl_buf_top = p.decl_buf.items.len;
+    defer p.decl_buf.items.len = decl_buf_top;
+    const first = p.tok_i;
+    if (try p.decl()) {
+        return try p.addNode(.{ .decl_stmt = .{
+            .decls = p.decl_buf.items[decl_buf_top..],
+            .first_tok = first,
+        } });
+    }
+    return null;
+}
+
 /// labeledStmt
 /// : IDENTIFIER ':' stmt
 /// | keyword_case integerConstExpr ':' stmt
@@ -5610,6 +5622,7 @@ fn labeledStmt(p: *Parser) Error!?Node.Index {
     if ((p.tok_ids[p.tok_i] == .identifier or p.tok_ids[p.tok_i] == .extended_identifier) and p.tok_ids[p.tok_i + 1] == .colon) {
         const name_tok = try p.expectIdentifier();
         const str = p.tokSlice(name_tok);
+        p.tok_i += 1; // colon
         if (p.findLabel(str)) |some| {
             try p.err(name_tok, .duplicate_label, .{str});
             try p.err(some, .previous_label, .{str});
@@ -5626,11 +5639,32 @@ fn labeledStmt(p: *Parser) Error!?Node.Index {
             }
         }
 
-        p.tok_i += 1;
-        return try p.addNode(.{ .labeled_stmt = .{
-            .body = try p.labelableStmt(),
+        var node: Tree.Node = .{ .labeled_stmt = .{
+            .body = undefined,
             .label_tok = name_tok,
-        } });
+        } };
+        const labeled_stmt = try p.addNode(node);
+
+        // Any gnu attributes between the label and the body statement apply to
+        // this labeled statement rather than that body statement.
+        const attr_tok = p.tok_i;
+        {
+            const attr_state = p.wip_attrs.state(true);
+            defer p.wip_attrs.restore(attr_state);
+
+            while (try p.gnuAttribute()) {}
+            try p.wip_attrs.applyStmtAttrs(p, labeled_stmt);
+        }
+        const applied_any = p.wip_attrs.applied.items.len != 0;
+
+        node.labeled_stmt.body = try p.labelableStmt();
+        try p.tree.setNode(node, @intFromEnum(labeled_stmt));
+
+        if (applied_any and node.labeled_stmt.body.get(&p.tree) == .decl_stmt) {
+            try p.err(attr_tok, .gnu_label_attr, .{});
+        }
+
+        return labeled_stmt;
     } else if (p.eatToken(.keyword_case)) |case| {
         var first_item = try p.integerConstExpr(.gnu_folding_extension);
         const ellipsis = p.tok_i;
@@ -5708,6 +5742,11 @@ fn labelableStmt(p: *Parser) Error!Node.Index {
             .semicolon_or_r_brace_tok = p.tok_i,
         } });
     }
+    const start = p.tok_i;
+    if (try p.declStmt()) |decl_stmt| {
+        try p.err(start, .label_decl, .{});
+        return decl_stmt;
+    }
     return p.stmt();
 }
 
@@ -5738,6 +5777,7 @@ fn compoundStmt(p: *Parser, is_fn_body: bool, stmt_expr_state: ?*StmtExprState) 
 
         if (stmt_expr_state) |state| state.* = .{};
         if (try p.parseOrNextStmt(staticAssert, l_brace)) continue;
+        // TODO use declStmt?
         if (try p.parseOrNextStmt(decl, l_brace)) continue;
         if (p.eatToken(.keyword_extension)) |ext| {
             const saved_extension = p.extension_suppressed;

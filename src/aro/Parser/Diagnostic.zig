@@ -2147,6 +2147,21 @@ pub const label_compound_end: Diagnostic = .{
     .extension = true,
 };
 
+pub const label_decl: Diagnostic = .{
+    .fmt = "label followed by a declaration is a C23 extension",
+    .opt = .@"c23-extensions",
+    .kind = .warning,
+    .suppress_version = .c23,
+    .extension = true,
+};
+
+pub const gnu_label_attr: Diagnostic = .{
+    .fmt = "GNU-style attribute between label and declaration applies to the label",
+    .opt = .@"label-attribute",
+    .kind = .warning,
+    .extension = true,
+};
+
 pub const u8_char_lit: Diagnostic = .{
     .fmt = "UTF-8 character literal is a C23 extension",
     .opt = .@"c23-extensions",

@@ -115,26 +115,30 @@ int (__attribute__((aligned)) a);
 
 [[deprecated("foo")]] int c23_extension;
 
+void gnu_label_attribute(int x) {
+    foo:
+    __attribute__((unused, hot))
+    int a;
+}
+
+__attribute__((fallthrough)) int fallthrough_on_decl;
+
 __attribute__(()) // test attribute at eof
 
 /** manifest:
 syntax
 args = -Wno-deprecated-non-prototype -Wc23-extensions -std=gnu17
-skip = TODO: implement 'unused' attribute
 skip = TODO: implement 'mode' attribute
 skip = TODO: implement 'format' attribute
 
 attributes.c:8:26: warning: 'noreturn' attribute only applies to functions [-Wignored-attributes]
 attributes.c:9:26: warning: unknown attribute 'does_not_exist' ignored [-Wunknown-attributes]
-attributes.c:18:32: warning: TODO: implement 'unused' attribute
 attributes.c:19:40: warning: unknown attribute 'uninitialized' ignored [-Wunknown-attributes]
-attributes.c:19:32: warning: TODO: implement 'unused' attribute
 attributes.c:20:20: warning: TODO: implement 'mode' attribute
 attributes.c:22:20: warning: 'section' attribute only applies to functions and global variables [-Wignored-attributes]
 attributes.c:27:20: error: 'deprecated' attribute cannot be applied to a statement
-attributes.c:31:20: error: 'hot' attribute cannot be applied to a statement
-attributes.c:31:29: error: 'cold' attribute cannot be applied to a statement
-attributes.c:31:37: error: 'unused' attribute cannot be applied to a statement
+attributes.c:31:29: error: 'cold' and 'hot' attributes are not compatible
+attributes.c:31:20: note: conflicting attribute is here
 attributes.c:36:20: error: 'fallthrough' attribute outside a switch statement
 attributes.c:40:20: error: 'noreturn' attribute cannot be applied to a statement
 attributes.c:55:16: warning: TODO: implement 'format' attribute
@@ -142,9 +146,11 @@ attributes.c:56:26: warning: TODO: implement 'format' attribute
 attributes.c:57:16: warning: TODO: implement 'format' attribute
 attributes.c:58:16: warning: TODO: implement 'format' attribute
 attributes.c:76:6: error: cannot call non function type 'int'
-attributes.c:95:16: warning: TODO: implement 'unused' attribute
 attributes.c:110:24: error: expected a string as argmuent of 'section' attribute but got an integer constant
 attributes.c:112:16: warning: unknown attribute 'void' ignored [-Wunknown-attributes]
 attributes.c:116:1: warning: [[]] attributes are a C23 extension [-Wc23-extensions]
-attributes.c:118:18: error: expected external declaration
+attributes.c:121:5: warning: label followed by a declaration is a C23 extension [-Wc23-extensions]
+attributes.c:120:5: warning: GNU-style attribute between label and declaration applies to the label [-Wlabel-attribute]
+attributes.c:124:16: error: 'fallthrough' attribute cannot be applied to a declaration
+attributes.c:126:18: error: expected external declaration
 */
