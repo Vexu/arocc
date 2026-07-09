@@ -2428,3 +2428,8 @@ pub const variable_missing_block_type_spec: Diagnostic = .{
     .fmt = "variable is not assignable (missing __block type specifier)",
     .kind = .@"error",
 };
+
+pub const block_cannot_return_type: Diagnostic = .{
+    .fmt = "block cannot return type {qt}",
+    .kind = .@"error",
+};

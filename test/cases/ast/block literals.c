@@ -230,6 +230,19 @@ function: 'fn (block: IntToIntBlock: block (int) int) void'
              expr:
               int_literal: 'int' (value: 4)
 
+    assign_expr: '*void'
+     lhs:
+      decl_ref_expr: '*void' lvalue
+       name: b
+     rhs:
+      implicit cast: (bitcast) '*void'
+        block_literal: 'block () invalid'
+         body:
+          compound_stmt
+            return_stmt: 'invalid'
+             expr:
+              int_literal: 'int' (value: 4)
+
     variable: 'block () *fn (a: int) int'
      name: block_returns_func
      init:

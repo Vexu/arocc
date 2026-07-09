@@ -53,6 +53,7 @@ void my_func(IntToIntBlock block) {
   b = ^__block int (const char* fmt, char *buf, ...) {};
   b = ^;
   b = ^void { return 4; };
+  b = ^int[4] { return 4; };
 
   __auto_type block_returns_func = ^int (*(void))(int a) {
     return 0;
@@ -134,45 +135,46 @@ block literals.c:54:8: error: missing body for block literal
 block literals.c:54:7: note: block defined here
 block literals.c:55:15: warning: void block should not return a value
 block literals.c:55:7: note: block defined here
-block literals.c:70:1: error: 'blocks' attribute only applies to local variables
-<builtin>:362:32: note: expanded from here
+block literals.c:56:8: error: block cannot return type 'int [4]'
 block literals.c:71:1: error: 'blocks' attribute only applies to local variables
 <builtin>:362:32: note: expanded from here
-block literals.c:74:3: error: 'blocks' attribute only applies to local variables
+block literals.c:72:1: error: 'blocks' attribute only applies to local variables
 <builtin>:362:32: note: expanded from here
-block literals.c:73:16: error: 'blocks' attribute only applies to local variables
+block literals.c:75:3: error: 'blocks' attribute only applies to local variables
 <builtin>:362:32: note: expanded from here
-block literals.c:73:1: warning: attribute 'blocks' is ignored, place it after "struct" to apply attribute to type declaration
+block literals.c:74:16: error: 'blocks' attribute only applies to local variables
 <builtin>:362:32: note: expanded from here
-block literals.c:79:25: warning: unknown 'blocks' argument. Possible values are: byref [-Wignored-attributes]
-block literals.c:80:18: error: 'blocks' attribute takes one argument
-block literals.c:81:5: warning: unknown attribute 'blocks' ignored [-Wunknown-attributes]
-block literals.c:83:19: warning: unknown 'clang::blocks' argument. Possible values are: byref [-Wignored-attributes]
-block literals.c:84:5: warning: unknown attribute 'gnu::blocks' ignored [-Wunknown-attributes]
-block literals.c:85:34: warning: unknown 'blocks' argument. Possible values are: byref [-Wignored-attributes]
-block literals.c:89:51: error: block declared 'noreturn' should not return [-Winvalid-noreturn]
-block literals.c:89:13: note: block defined here
-block literals.c:90:44: warning: non-void block does not return a value [-Wreturn-type]
-block literals.c:90:7: note: block defined here
-block literals.c:91:59: error: block declared 'noreturn' should not return [-Winvalid-noreturn]
+block literals.c:74:1: warning: attribute 'blocks' is ignored, place it after "struct" to apply attribute to type declaration
+<builtin>:362:32: note: expanded from here
+block literals.c:80:25: warning: unknown 'blocks' argument. Possible values are: byref [-Wignored-attributes]
+block literals.c:81:18: error: 'blocks' attribute takes one argument
+block literals.c:82:5: warning: unknown attribute 'blocks' ignored [-Wunknown-attributes]
+block literals.c:84:19: warning: unknown 'clang::blocks' argument. Possible values are: byref [-Wignored-attributes]
+block literals.c:85:5: warning: unknown attribute 'gnu::blocks' ignored [-Wunknown-attributes]
+block literals.c:86:34: warning: unknown 'blocks' argument. Possible values are: byref [-Wignored-attributes]
+block literals.c:90:51: error: block declared 'noreturn' should not return [-Winvalid-noreturn]
+block literals.c:90:13: note: block defined here
+block literals.c:91:44: warning: non-void block does not return a value [-Wreturn-type]
 block literals.c:91:7: note: block defined here
-block literals.c:92:57: error: block declared 'noreturn' should not return [-Winvalid-noreturn]
+block literals.c:92:59: error: block declared 'noreturn' should not return [-Winvalid-noreturn]
 block literals.c:92:7: note: block defined here
-block literals.c:93:10: error: only gnu attributes are allowed on block literals
-block literals.c:93:33: warning: non-void block does not return a value [-Wreturn-type]
+block literals.c:93:57: error: block declared 'noreturn' should not return [-Winvalid-noreturn]
 block literals.c:93:7: note: block defined here
-block literals.c:94:34: error: block declared 'noreturn' should not return [-Winvalid-noreturn]
+block literals.c:94:10: error: only gnu attributes are allowed on block literals
+block literals.c:94:33: warning: non-void block does not return a value [-Wreturn-type]
 block literals.c:94:7: note: block defined here
-block literals.c:95:42: error: block declared 'noreturn' should not return [-Winvalid-noreturn]
+block literals.c:95:34: error: block declared 'noreturn' should not return [-Winvalid-noreturn]
 block literals.c:95:7: note: block defined here
-block literals.c:99:27: warning: unknown attribute 'ohno' ignored [-Wunknown-attributes]
-block literals.c:102:21: warning: TODO: implement 'pure' attribute
-block literals.c:103:21: error: 'const' attribute takes no arguments
-block literals.c:104:32: warning: unknown 'visibility' argument. Possible values are: "hidden", "default", "internal", and "protected" [-Wignored-attributes]
-block literals.c:105:21: error: requested alignment is not a power of 2
-block literals.c:106:21: warning: TODO: implement 'format' attribute
-block literals.c:107:29: error: 'nonnull' attribute parameter 1 is out of bounds
-block literals.c:108:21: warning: 'fastcall' calling convention is not supported for this target [-Wignored-attributes]
-block literals.c:109:21: warning: TODO: implement 'unused' attribute
-block literals.c:110:21: warning: 'warning' attribute only applies to functions [-Wignored-attributes]
+block literals.c:96:42: error: block declared 'noreturn' should not return [-Winvalid-noreturn]
+block literals.c:96:7: note: block defined here
+block literals.c:100:27: warning: unknown attribute 'ohno' ignored [-Wunknown-attributes]
+block literals.c:103:21: warning: TODO: implement 'pure' attribute
+block literals.c:104:21: error: 'const' attribute takes no arguments
+block literals.c:105:32: warning: unknown 'visibility' argument. Possible values are: "hidden", "default", "internal", and "protected" [-Wignored-attributes]
+block literals.c:106:21: error: requested alignment is not a power of 2
+block literals.c:107:21: warning: TODO: implement 'format' attribute
+block literals.c:108:29: error: 'nonnull' attribute parameter 1 is out of bounds
+block literals.c:109:21: warning: 'fastcall' calling convention is not supported for this target [-Wignored-attributes]
+block literals.c:110:21: warning: TODO: implement 'unused' attribute
+block literals.c:111:21: warning: 'warning' attribute only applies to functions [-Wignored-attributes]
 */

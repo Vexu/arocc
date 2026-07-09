@@ -10331,6 +10331,13 @@ fn blockLiteral(p: *Parser) Error!?Result {
                 .params = &.{},
             } });
         }
+
+        var func = qt.get(p.comp, .func).?;
+        if (func.return_type.is(p.comp, .array)) {
+            try p.err(caret + 1, .block_cannot_return_type, .{func.return_type});
+            func.return_type = .invalid;
+            try qt.set(p.comp, .{ .func = func });
+        }
     } else {
         var params: []const Type.Func.Param = &.{};
         var is_variadic = false;
@@ -10347,7 +10354,6 @@ fn blockLiteral(p: *Parser) Error!?Result {
     }
 
     var func = qt.get(p.comp, .func).?;
-
     for (func.params) |param| {
         try p.syms.define(p.comp.gpa, .{
             .kind = .def,
