@@ -2424,6 +2424,11 @@ pub const block_defined_here: Diagnostic = .{
     .kind = .note,
 };
 
+pub const block_only_gnu_attributes: Diagnostic = .{
+    .fmt = "only gnu attributes are allowed on block literals",
+    .kind = .@"error",
+};
+
 pub const variable_missing_block_type_spec: Diagnostic = .{
     .fmt = "variable is not assignable (missing __block type specifier)",
     .kind = .@"error",

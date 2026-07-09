@@ -329,11 +329,6 @@ pub const invalid_selectany: Diagnostic = .{
 };
 
 // blocks
-pub const block_only_gnu_attributes: Diagnostic = .{
-    .fmt = "only gnu attributes are allowed on block literals",
-    .kind = .@"error",
-};
-
 pub const blocks_only_local_variables: Diagnostic = .{
     .fmt = "'blocks' attribute only applies to local variables",
     .kind = .@"error",

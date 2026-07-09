@@ -368,16 +368,10 @@ pub fn applyDeclAttrsExtra(
 
     if (prev_decl.unpack()) |prev| try wip.inherit(p, prev);
 
-    const is_block_literal = wip.blockLiteralTarget();
     for (wip.attrs.items[wip.top..]) |*attr| {
         if (attr.used_as_type_attr) continue;
         wip.current.attr = attr;
         wip.current.arg_i = 0;
-
-        if (is_block_literal and attr.syntax != .gnu) {
-            try wip.err(.block_only_gnu_attributes, .{});
-            continue;
-        }
 
         switch (attr.name) {
             .standard => |standard_attr| switch (standard_attr) {

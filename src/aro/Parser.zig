@@ -10318,7 +10318,17 @@ fn blockLiteral(p: *Parser) Error!?Result {
 
     const attr_state = p.wip_attrs.state(true);
     defer p.wip_attrs.restore(attr_state);
-    try p.attributeSpecifier();
+    while (true) {
+        if (try p.gnuAttribute()) continue;
+        const bad_attr_tok_i = p.tok_i;
+        const good_attrs_state = p.wip_attrs.state(false);
+        if (try p.c23Attribute() or try p.declspecAttribute()) {
+            try p.err(bad_attr_tok_i, .block_only_gnu_attributes, .{});
+            p.wip_attrs.restore(good_attrs_state);
+            continue;
+        }
+        break;
+    }
 
     var qt: QualType = undefined;
     if (try p.typeName()) |typename| {

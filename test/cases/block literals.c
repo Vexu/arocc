@@ -160,7 +160,7 @@ block literals.c:92:59: error: block declared 'noreturn' should not return [-Win
 block literals.c:92:7: note: block defined here
 block literals.c:93:57: error: block declared 'noreturn' should not return [-Winvalid-noreturn]
 block literals.c:93:7: note: block defined here
-block literals.c:94:10: error: only gnu attributes are allowed on block literals
+block literals.c:94:8: error: only gnu attributes are allowed on block literals
 block literals.c:94:33: warning: non-void block does not return a value [-Wreturn-type]
 block literals.c:94:7: note: block defined here
 block literals.c:95:34: error: block declared 'noreturn' should not return [-Winvalid-noreturn]
