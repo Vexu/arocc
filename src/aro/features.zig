@@ -1,10 +1,12 @@
 const std = @import("std");
+
+const Attribute = @import("Attribute.zig");
 const Compilation = @import("Compilation.zig");
-const Diagnostics = @import("Diagnostics.zig");
-const Target = @import("Target.zig");
 
 /// Used to implement the __has_feature macro.
-pub fn hasFeature(comp: *Compilation, ext: []const u8) bool {
+pub fn hasFeature(comp: *Compilation, ext_raw: []const u8) bool {
+    const ext = Attribute.normalize(ext_raw);
+
     const list = .{
         .assume_nonnull = true,
         .attribute_analyzer_noreturn = true,
@@ -54,7 +56,9 @@ pub fn hasFeature(comp: *Compilation, ext: []const u8) bool {
 }
 
 /// Used to implement the __has_extension macro.
-pub fn hasExtension(comp: *Compilation, ext: []const u8) bool {
+pub fn hasExtension(comp: *Compilation, ext_raw: []const u8) bool {
+    const ext = Attribute.normalize(ext_raw);
+
     // Extensions are a superset of features, so check all features first.
     if (hasFeature(comp, ext)) {
         return true;

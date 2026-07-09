@@ -1,5 +1,5 @@
 #if defined __has_feature
-#  if __has_feature(enumerator_attributes)
+#  if __has_feature(__enumerator_attributes__)
       #error feature exists
 #  endif
 #  if __has_feature(does_not_exist)
