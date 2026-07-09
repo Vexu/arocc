@@ -1435,8 +1435,25 @@ fn applyFalltrhough(wip: *Wip) !void {
 
 fn applyBlocks(wip: *Wip) !void {
     if (try wip.argCount(1)) return;
-    // clang doesn't emit a dx, but it's not clear what this does on block literals
-    if (try wip.checkTarget(&.{ .local_variable, .block_literal })) return;
+    const node = wip.current.node();
+    switch (node) {
+        .variable => |variable| switch (variable.storage_class) {
+            .auto, .register => if (wip.current.parser.func.qt == null) {
+                try wip.err(.blocks_only_local_variables, .{});
+                return;
+            },
+            .@"extern", .static => {
+                try wip.err(.blocks_only_local_variables, .{});
+                return;
+            },
+        },
+        // clang doesn't emit a dx, but it's not clear what this does on block literals
+        .block_literal => {},
+        else => {
+            try wip.err(.blocks_only_local_variables, .{});
+            return;
+        },
+    }
 
     const byref = try wip.arg(@FieldType(Attribute.Args, "blocks")) orelse return;
     try wip.add(.{ .blocks = byref });

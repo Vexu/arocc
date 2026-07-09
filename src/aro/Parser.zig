@@ -10370,7 +10370,7 @@ fn blockLiteral(p: *Parser) Error!?Result {
     const body = try p.compoundStmt(true, &compound_stmt_state) orelse {
         try p.err(p.tok_i, .missing_block_literal_body, .{});
         try p.err(caret, .block_defined_here, .{});
-        unreachable;
+        return error.ParsingFailed;
     };
 
     // could have been updated by returnStmt

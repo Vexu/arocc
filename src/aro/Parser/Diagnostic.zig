@@ -2416,7 +2416,7 @@ pub const block_return_block_defined_here: Diagnostic = .{
 
 pub const missing_block_literal_body: Diagnostic = .{
     .fmt = "missing body for block literal",
-    .kind = .@"fatal error",
+    .kind = .@"error",
 };
 
 pub const block_defined_here: Diagnostic = .{
