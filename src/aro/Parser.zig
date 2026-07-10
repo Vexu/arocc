@@ -5923,7 +5923,7 @@ fn compoundStmt(p: *Parser, is_fn_body: bool, stmt_expr_state: ?*StmtExprState) 
             if (ret_qt.isBlockLiteralAutoReturn()) {
                 func_ty.return_type = .void;
                 try block.qt.set(p.comp, .{ .func = func_ty });
-            } else if (last_noreturn != .yes) {
+            } else if (last_noreturn != .yes and !ret_qt.isInvalid()) {
                 if (last_noreturn == .no) switch (ret_qt.base(p.comp).type) {
                     .void => {},
                     .func, .array => {}, // Invalid, error reported elsewhere
