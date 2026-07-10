@@ -1730,12 +1730,10 @@ fn decl(p: *Parser) Error!bool {
     return true;
 }
 
-fn staticAssertMessage(p: *Parser, cond_node: Node.Index, maybe_message: ?Result, allocating: *std.Io.Writer.Allocating) !?[]const u8 {
-    const w = &allocating.writer;
-
+fn writeStaticAssertRequirement(p: *Parser, cond_node: Node.Index, start: TokenIndex, end: TokenIndex, w: *std.Io.Writer) !void {
     const cond = cond_node.get(&p.tree);
     if (cond == .builtin_types_compatible_p) {
-        try w.writeAll("'__builtin_types_compatible_p(");
+        try w.writeAll("__builtin_types_compatible_p(");
 
         const lhs_ty = cond.builtin_types_compatible_p.lhs;
         try lhs_ty.print(p.comp, w);
@@ -1744,16 +1742,49 @@ fn staticAssertMessage(p: *Parser, cond_node: Node.Index, maybe_message: ?Result
         const rhs_ty = cond.builtin_types_compatible_p.rhs;
         try rhs_ty.print(p.comp, w);
 
-        try w.writeAll(")'");
-    } else if (maybe_message == null) return null;
+        try w.writeByte(')');
+        return;
+    }
+
+    const start_loc = p.pp.tokens.items(.loc)[start];
+    const end_loc = p.pp.tokens.items(.loc)[end];
+    const end_offset = end_loc.byte_offset + @as(u32, @intCast(p.tokSlice(end).len));
+    if (start <= end and
+        start_loc.id == end_loc.id and
+        start_loc.id != Source.Id.generated and
+        start_loc.byte_offset <= end_loc.byte_offset)
+    {
+        const source = p.comp.getSource(start_loc.id);
+        if (end_offset <= source.buf.len) {
+            const requirement = source.buf[start_loc.byte_offset..end_offset];
+            if (std.mem.indexOfScalar(u8, requirement, '\n') == null) {
+                try w.writeAll(requirement);
+                return;
+            }
+        }
+    }
+
+    var tok = start;
+    while (tok <= end) : (tok += 1) {
+        if (tok != start) try w.writeByte(' ');
+        try w.writeAll(p.tokSlice(tok));
+    }
+}
+
+fn staticAssertMessage(p: *Parser, cond_node: Node.Index, cond_start: TokenIndex, cond_end: TokenIndex, maybe_message: ?Result, allocating: *std.Io.Writer.Allocating) ![]const u8 {
+    const w = &allocating.writer;
+
+    try w.writeAll("due to requirement '");
+    try p.writeStaticAssertRequirement(cond_node, cond_start, cond_end, w);
+    try w.writeAll("':");
 
     if (maybe_message) |message| {
-        assert(message.node.get(&p.tree) == .string_literal_expr);
-        if (allocating.written().len > 0) {
-            try w.writeByte(' ');
-        }
         const bytes = p.comp.interner.get(message.val.ref()).bytes;
-        try Value.printString(bytes, message.qt, p.comp, w);
+        const size: Compilation.CharUnitSize = @enumFromInt(message.qt.childType(p.comp).sizeof(p.comp));
+        if (bytes.len > @intFromEnum(size)) {
+            try w.writeByte(' ');
+            try Value.printString(bytes, message.qt, p.comp, w, .bare);
+        }
     }
     return allocating.written();
 }
@@ -1768,6 +1799,7 @@ fn staticAssert(p: *Parser) Error!bool {
     const res_token = p.tok_i;
     var res = try p.constExpr(.gnu_folding_extension);
     const res_node = res.node;
+    const res_end = p.tok_i - 1;
     const str = if (p.eatToken(.comma) != null)
         switch (p.tok_ids[p.tok_i]) {
             .string_literal,
@@ -1807,11 +1839,8 @@ fn staticAssert(p: *Parser) Error!bool {
             var allocating: std.Io.Writer.Allocating = .init(bfa.allocator());
             defer allocating.deinit();
 
-            if (p.staticAssertMessage(res_node, str, &allocating) catch return error.OutOfMemory) |message| {
-                try p.err(static_assert, .static_assert_failure_message, .{message});
-            } else {
-                try p.err(static_assert, .static_assert_failure, .{});
-            }
+            const message = p.staticAssertMessage(res_node, res_token, res_end, str, &allocating) catch return error.OutOfMemory;
+            try p.err(res_token, .static_assert_failure_message, .{message});
         }
     }
 

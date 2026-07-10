@@ -1099,7 +1099,7 @@ pub fn print(v: Value, qt: QualType, comp: *const Compilation, w: *std.Io.Writer
             .f32 => |x| try w.print("{d}", .{@round(@as(f64, @floatCast(x)) * 1000000) / 1000000}),
             inline else => |x| try w.print("{d}", .{@as(f64, @floatCast(x))}),
         },
-        .bytes => |b| try printString(b, qt, comp, w),
+        .bytes => |b| try printString(b, qt, comp, w, .quoted),
         .complex => |repr| switch (repr) {
             .cf32 => |components| try w.print("{d} + {d}i", .{ @round(@as(f64, @floatCast(components[0])) * 1000000) / 1000000, @round(@as(f64, @floatCast(components[1])) * 1000000) / 1000000 }),
             inline else => |components| try w.print("{d} + {d}i", .{ @as(f64, @floatCast(components[0])), @as(f64, @floatCast(components[1])) }),
@@ -1110,10 +1110,13 @@ pub fn print(v: Value, qt: QualType, comp: *const Compilation, w: *std.Io.Writer
     return null;
 }
 
-pub fn printString(bytes: []const u8, qt: QualType, comp: *const Compilation, w: *std.Io.Writer) std.Io.Writer.Error!void {
+pub fn printString(bytes: []const u8, qt: QualType, comp: *const Compilation, w: *std.Io.Writer, style: enum { quoted, bare }) std.Io.Writer.Error!void {
+    if (style == .quoted) {
+        try w.writeByte('"');
+    }
+
     const size: Compilation.CharUnitSize = @enumFromInt(qt.childType(comp).sizeof(comp));
     const without_null = bytes[0 .. bytes.len - @intFromEnum(size)];
-    try w.writeByte('"');
     switch (size) {
         .@"1" => try std.zig.stringEscape(without_null, w),
         .@"2" => {
@@ -1152,5 +1155,8 @@ pub fn printString(bytes: []const u8, qt: QualType, comp: *const Compilation, w:
             }
         },
     }
-    try w.writeByte('"');
+
+    if (style == .quoted) {
+        try w.writeByte('"');
+    }
 }

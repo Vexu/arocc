@@ -34,6 +34,6 @@ _Static_assert(__builtin_types_compatible_p(__typeof__(const int) *, int *), "Ty
 syntax
 args = -std=c23
 
-__builtin_types_compatible_p.c:30:1: error: static assertion failed '__builtin_types_compatible_p(int, long)'
-__builtin_types_compatible_p.c:31:1: error: static assertion failed '__builtin_types_compatible_p(typeof(const int) *, int *)' "Types do not match"
+__builtin_types_compatible_p.c:30:16: error: static assertion failed due to requirement '__builtin_types_compatible_p(int, long)':
+__builtin_types_compatible_p.c:31:16: error: static assertion failed due to requirement '__builtin_types_compatible_p(typeof(const int) *, int *)': Types do not match
 */
