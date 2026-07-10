@@ -103,14 +103,14 @@ pub const multiple_storage_class: Diagnostic = .{
     .kind = .@"error",
 };
 
-pub const static_assert_failure: Diagnostic = .{
-    .fmt = "static assertion failed",
+pub const static_assert_failure_message: Diagnostic = .{
+    .fmt = "static assertion failed{s}",
     .kind = .@"error",
 };
 
-pub const static_assert_failure_message: Diagnostic = .{
-    .fmt = "static assertion failed {s}",
-    .kind = .@"error",
+pub const static_assert_expression_evaluates_to: Diagnostic = .{
+    .fmt = "expression evaluates to '{s}'",
+    .kind = .note,
 };
 
 pub const expected_type: Diagnostic = .{
@@ -1189,6 +1189,11 @@ pub const ignored_on_types: Diagnostic = .{
     .fmt = "{at} attribute ignored when parsing type",
     .kind = .warning,
     .opt = .@"ignored-attributes",
+};
+
+pub const invalid_on_types: Diagnostic = .{
+    .fmt = "{at} attribute cannot be applied to types",
+    .kind = .@"error",
 };
 
 pub const declspec_empty_args: Diagnostic = .{

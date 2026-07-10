@@ -304,6 +304,27 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
     if (comp.code_gen_options.optimization_level.isSizeOptimized()) {
         try define(w, "__OPTIMIZE_SIZE__");
     }
+    if (comp.langopts.pthread) switch (target.os.tag) {
+        .maccatalyst,
+        .macos,
+        .tvos,
+        .ios,
+        .driverkit,
+        .visionos,
+        .watchos,
+        .hurd,
+        .linux,
+        .netbsd,
+        .openbsd,
+        .fuchsia,
+        => try define(w, "_REENTRANT"),
+        .windows => if (target.abi == .msvc) {
+            // This matches clang where it is marked as a FIXME
+            try define(w, "_MT");
+        },
+        .emscripten => try define(w, "__EMSCRIPTEN_PTHREADS__"),
+        else => {},
+    };
 
     // os macros
     switch (target.os.tag) {
@@ -403,6 +424,7 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
         .wasi => try define(w, "__wasi__"),
         .emscripten => try define(w, "__EMSCRIPTEN__"),
         .serenity => try define(w, "__serenity__"),
+        .@"switch" => try define(w, "__SWITCH__"),
         .@"3ds" => try define(w, "__3DS__"),
         .psp => try define(w, "__PSP__"),
         .psx => try define(w, "__psx__"),

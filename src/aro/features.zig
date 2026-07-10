@@ -47,6 +47,8 @@ pub fn hasFeature(comp: *Compilation, ext_raw: []const u8) bool {
         .c_generic_selections = comp.langopts.standard.atLeast(.c11),
         .c_static_assert = comp.langopts.standard.atLeast(.c11),
         .c_thread_local = comp.langopts.standard.atLeast(.c11) and comp.target.isTlsSupported(),
+        .c_attributes = comp.langopts.standard.atLeast(.c23),
+        .c_fixed_enum = comp.langopts.standard.atLeast(.c23),
         .bounds_attributes = comp.langopts.bounds_safety == .clang,
     };
     inline for (@typeInfo(@TypeOf(list)).@"struct".field_names) |f_name| {
@@ -80,14 +82,17 @@ pub fn hasExtension(comp: *Compilation, ext_raw: []const u8) bool {
         .c_generic_selections = true,
         .c_static_assert = true,
         .c_thread_local = comp.target.isTlsSupported(),
+        // C23 features
+        .c_attributes = true,
+        .c_fixed_enum = true,
         // misc
         .overloadable_unmarked = false, // TODO
         .statement_attributes_with_gnu_syntax = true,
-        .gnu_asm = true,
-        .gnu_asm_goto_with_outputs = true,
+        .gnu_asm = comp.langopts.gnu_asm,
+        .gnu_asm_goto_with_outputs = comp.langopts.gnu_asm,
         .matrix_types = false, // TODO
         .matrix_types_scalar_division = false, // TODO
-        .blocks = comp.langopts.blocks,
+        .define_target_os_macros = comp.langopts.emulate == .no or comp.langopts.emulate == .clang,
     };
     inline for (@typeInfo(@TypeOf(list)).@"struct".field_names) |f_name| {
         if (std.mem.eql(u8, f_name, ext)) return @field(list, f_name);

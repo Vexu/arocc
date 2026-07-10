@@ -32,11 +32,10 @@ _Static_assert(__builtin_constant_p(&"bar"), "");
 _Static_assert(!__builtin_constant_p(__builtin_constant_p()), "");
 _Static_assert(!__builtin_constant_p(__builtin_constant_p(1, 2)), "");
 
-_Static_assert(!__builtin_constant_p("ABC"[0]), ""); // Should be constant
+_Static_assert(__builtin_constant_p("ABC"[0]), "");
 
 /** manifest:
 syntax
-skip = array access of string literal should result in a constant
 
 builtin_constant_p.c:32:59: error: expected 1 argument(s) got 0
 builtin_constant_p.c:33:62: error: expected 1 argument(s) got 2

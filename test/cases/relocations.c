@@ -72,7 +72,7 @@ _Static_assert(&((int *)casted)[1] == &casted[1], "");
 syntax
 args = --target=x86_64-linux -std=c23
 
-relocations.c:22:1: error: static assertion failed
+relocations.c:22:16: error: static assertion failed due to requirement '&x + 1 == &y + 1'
 relocations.c:27:16: error: static assertion expression is not an integral constant expression
 relocations.c:28:16: error: static assertion expression is not an integral constant expression
 relocations.c:37:16: warning: taking address of packed member 'x' of class or structure 'Packed' may result in an unaligned pointer value [-Waddress-of-packed-member]

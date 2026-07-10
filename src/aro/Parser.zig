@@ -152,6 +152,7 @@ extension_suppressed: bool = false,
 contains_address_of_label: bool = false,
 label_count: u32 = 0,
 const_decl_folding: ConstDeclFoldingMode = .fold_const_decls,
+record_static_assert_eval_note: bool = false,
 /// location of first computed goto in function currently being parsed
 /// if a computed goto is used, the function must contain an
 /// address-of-label expression (tracked with contains_address_of_label)
@@ -1030,6 +1031,10 @@ fn markUsed(p: *Parser, decl_node: Node.Index) void {
 fn checkIgnoredAttrs(p: *Parser) !void {
     for (p.wip_attrs.attrs.items[p.wip_attrs.top..]) |*attr| {
         if (attr.used_as_type_attr) continue;
+        if (attr.syntax == .standard) {
+            try p.err(attr.tok, .invalid_on_types, .{attr});
+            continue;
+        }
         try p.err(attr.tok, .ignored_on_types, .{attr});
     }
 }
@@ -1734,32 +1739,68 @@ fn decl(p: *Parser) Error!bool {
     return true;
 }
 
-fn staticAssertMessage(p: *Parser, cond_node: Node.Index, maybe_message: ?Result, allocating: *std.Io.Writer.Allocating) !?[]const u8 {
+const StaticAsssertMessage = struct {
+    full: []const u8,
+    req_start: u32,
+    req_end: u32,
+};
+
+fn staticAssertMessage(p: *Parser, cond: Node.Index, maybe_message: ?Result, allocating: *std.Io.Writer.Allocating) !StaticAsssertMessage {
     const w = &allocating.writer;
 
-    const cond = cond_node.get(&p.tree);
-    if (cond == .builtin_types_compatible_p) {
-        try w.writeAll("'__builtin_types_compatible_p(");
-
-        const lhs_ty = cond.builtin_types_compatible_p.lhs;
-        try lhs_ty.print(p.comp, w);
-        try w.writeAll(", ");
-
-        const rhs_ty = cond.builtin_types_compatible_p.rhs;
-        try rhs_ty.print(p.comp, w);
-
-        try w.writeAll(")'");
-    } else if (maybe_message == null) return null;
+    try w.writeAll(" due to requirement '");
+    const start = allocating.written().len;
+    try p.tree.write(cond, w);
+    const end = allocating.written().len;
+    try w.writeByte('\'');
 
     if (maybe_message) |message| {
-        assert(message.node.get(&p.tree) == .string_literal_expr);
-        if (allocating.written().len > 0) {
-            try w.writeByte(' ');
-        }
         const bytes = p.comp.interner.get(message.val.ref()).bytes;
-        try Value.printString(bytes, message.qt, p.comp, w);
+        const size: Compilation.CharUnitSize = @enumFromInt(message.qt.childType(p.comp).sizeof(p.comp));
+        if (bytes.len > @intFromEnum(size)) {
+            try w.writeAll(": ");
+            try Value.printString(bytes, message.qt, p.comp, w, .bare);
+        }
     }
-    return allocating.written();
+    const written = allocating.written();
+    return .{
+        .full = written,
+        .req_start = @intCast(start),
+        .req_end = @intCast(end),
+    };
+}
+
+fn staticAssertEvaluationNote(p: *Parser, node: Node.Index, requirement: []const u8) Error!void {
+    const bin = loop: switch (node.get(&p.tree)) {
+        .cast => |cast_expr| continue :loop cast_expr.operand.get(&p.tree),
+        .paren_expr => |paren_expr| continue :loop paren_expr.operand.get(&p.tree),
+        .equal_expr,
+        .not_equal_expr,
+        .less_than_expr,
+        .less_than_equal_expr,
+        .greater_than_expr,
+        .greater_than_equal_expr,
+        => |bin| bin,
+        else => return,
+    };
+    var note_bfa_buf: [1024]u8 = undefined;
+    var note_bfa: std.heap.BufferFirstAllocator = .init(&note_bfa_buf, p.comp.gpa);
+    var note_allocating: std.Io.Writer.Allocating = .init(note_bfa.allocator());
+    defer note_allocating.deinit();
+
+    const lhs_val = p.tree.value_map.get(bin.lhs) orelse return;
+    const rhs_val = p.tree.value_map.get(bin.rhs) orelse return;
+
+    const w = &note_allocating.writer;
+    if (lhs_val.print(bin.lhs.qt(&p.tree), p.comp, w) catch return) |_| return;
+    w.print(" {s} ", .{p.tokSlice(bin.op_tok)}) catch return;
+    if (rhs_val.print(bin.rhs.qt(&p.tree), p.comp, w) catch return) |_| return;
+
+    const eval_text = note_allocating.written();
+
+    if (std.mem.eql(u8, eval_text, requirement)) return;
+
+    try p.err(bin.op_tok, .static_assert_expression_evaluates_to, .{eval_text});
 }
 
 /// staticAssert
@@ -1770,8 +1811,11 @@ fn staticAssert(p: *Parser) Error!bool {
     const static_assert = p.eatToken(.keyword_static_assert) orelse p.eatToken(.keyword_c23_static_assert) orelse return false;
     const l_paren = try p.expectToken(.l_paren);
     const res_token = p.tok_i;
+    const old_record_static_assert_eval_note = p.record_static_assert_eval_note;
+    p.record_static_assert_eval_note = true;
+    defer p.record_static_assert_eval_note = old_record_static_assert_eval_note;
+
     var res = try p.constExpr(.gnu_folding_extension);
-    const res_node = res.node;
     const str = if (p.eatToken(.comma) != null)
         switch (p.tok_ids[p.tok_i]) {
             .string_literal,
@@ -1811,11 +1855,9 @@ fn staticAssert(p: *Parser) Error!bool {
             var allocating: std.Io.Writer.Allocating = .init(bfa.allocator());
             defer allocating.deinit();
 
-            if (p.staticAssertMessage(res_node, str, &allocating) catch return error.OutOfMemory) |message| {
-                try p.err(static_assert, .static_assert_failure_message, .{message});
-            } else {
-                try p.err(static_assert, .static_assert_failure, .{});
-            }
+            const message = p.staticAssertMessage(res.node, str, &allocating) catch return error.OutOfMemory;
+            try p.err(res_token, .static_assert_failure_message, .{message.full});
+            try p.staticAssertEvaluationNote(res.node, message.full[message.req_start..message.req_end]);
         }
     }
 
@@ -3854,33 +3896,38 @@ fn declarator(
 ) Error!?Declarator {
     var d = Declarator{ .name = 0, .qt = base_qt };
 
-    if (p.eatToken(.caret)) |caret| {
-        d.qt = try p.wip_attrs.applyTypeAttrs(p, d.qt);
-        if (!p.comp.langopts.blocks) try p.err(caret, .blocks_not_enabled, .{});
-        try p.err(caret, .blocks_are_clang_extension, .{});
-
-        d.declarator_type = .block;
-        var builder: TypeStore.Builder = .{ .parser = p };
-        _ = try p.typeQual(&builder, true);
-
-        const block_qt = try p.comp.type_store.put(p.comp.gpa, .{ .block = .{
-            .func = d.qt,
-        } });
-        d.qt = try builder.finishQuals(block_qt);
-    }
-
     // Parse potential pointer declarators first.
-    while (p.eatToken(.asterisk)) |_| {
-        d.qt = try p.wip_attrs.applyTypeAttrs(p, d.qt);
-        d.declarator_type = .pointer;
-        var builder: TypeStore.Builder = .{ .parser = p };
-        _ = try p.typeQual(&builder, true);
+    while (true) switch (p.tok_ids[p.tok_i]) {
+        .caret => {
+            const caret = p.tok_i;
+            p.tok_i += 1;
+            d.qt = try p.wip_attrs.applyTypeAttrs(p, d.qt);
+            if (!p.comp.langopts.blocks) try p.err(caret, .blocks_not_enabled, .{});
+            try p.err(caret, .blocks_are_clang_extension, .{});
 
-        const pointer_qt = try p.comp.type_store.put(p.comp.gpa, .{ .pointer = .{
-            .child = d.qt,
-        } });
-        d.qt = try builder.finishQuals(pointer_qt);
-    }
+            d.declarator_type = .block;
+            var builder: TypeStore.Builder = .{ .parser = p };
+            _ = try p.typeQual(&builder, true);
+
+            const block_qt = try p.comp.type_store.put(p.comp.gpa, .{ .block = .{
+                .func = d.qt,
+            } });
+            d.qt = try builder.finishQuals(block_qt);
+        },
+        .asterisk => {
+            p.tok_i += 1;
+            d.qt = try p.wip_attrs.applyTypeAttrs(p, d.qt);
+            d.declarator_type = .pointer;
+            var builder: TypeStore.Builder = .{ .parser = p };
+            _ = try p.typeQual(&builder, true);
+
+            const pointer_qt = try p.comp.type_store.put(p.comp.gpa, .{ .pointer = .{
+                .child = d.qt,
+            } });
+            d.qt = try builder.finishQuals(pointer_qt);
+        },
+        else => break,
+    };
 
     const maybe_ident = p.tok_i;
     if (kind != .abstract and (try p.eatIdentifier()) != null) {
@@ -8485,6 +8532,10 @@ fn eqExpr(p: *Parser) Error!?Result {
             else
                 lhs.val.compare(op, rhs.val, p.comp);
 
+            if (p.record_static_assert_eval_note and res == false) {
+                try lhs.putValue(p);
+                try rhs.putValue(p);
+            }
             lhs.val = if (res) |val| Value.fromBool(val) else .{};
         } else {
             lhs.val.boolCast(p.comp);
@@ -8518,6 +8569,10 @@ fn compExpr(p: *Parser) Error!?Result {
                 lhs.val.comparePointers(op, rhs.val, p.comp)
             else
                 lhs.val.compare(op, rhs.val, p.comp);
+            if (p.record_static_assert_eval_note and res == false) {
+                try lhs.putValue(p);
+                try rhs.putValue(p);
+            }
             lhs.val = if (res) |val| Value.fromBool(val) else .{};
         } else {
             lhs.val.boolCast(p.comp);
@@ -9790,6 +9845,8 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!?Result {
                 try p.err(l_bracket, .invalid_subscript, .{});
             }
 
+            const item = try ptr.val.elem(index.val, p.comp);
+
             try ptr.saveValue(p);
             try index.saveValue(p);
             ptr.node = try p.addNode(.{ .array_access_expr = .{
@@ -9798,6 +9855,7 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!?Result {
                 .index = index.node,
                 .qt = ptr.qt,
             } });
+            ptr.val = item;
             return ptr;
         },
         .period => {

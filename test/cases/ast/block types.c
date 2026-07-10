@@ -329,3 +329,6 @@ function: 'fn (afunc: *fn (int) double, ablock: block (int) double) void'
 typedef: 'block () int'
  name: NullableBlock
 
+variable: 'invalid'
+ name: mixed
+

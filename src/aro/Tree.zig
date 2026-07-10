@@ -3312,6 +3312,196 @@ pub fn tokSlice(tree: *const Tree, tok_i: TokenIndex) []const u8 {
     return tree.comp.locSlice(loc);
 }
 
+pub fn write(tree: *const Tree, node: Node.Index, w: *std.Io.Writer) std.Io.Writer.Error!void {
+    switch (node.get(tree)) {
+        .cast => |cast| {
+            if (!cast.implicit) {
+                try w.writeByte('(');
+                try cast.qt.printDesugared(tree.comp, w);
+                try w.writeByte(')');
+            }
+            try tree.write(cast.operand, w);
+        },
+        .paren_expr => |un| {
+            try w.writeByte('(');
+            try tree.write(un.operand, w);
+            try w.writeByte(')');
+        },
+        .comma_expr => |bin| {
+            try tree.write(bin.lhs, w);
+            try w.writeAll(", ");
+            try tree.write(bin.rhs, w);
+        },
+        .bool_or_expr,
+        .bool_and_expr,
+        .bit_or_expr,
+        .bit_xor_expr,
+        .bit_and_expr,
+        .equal_expr,
+        .not_equal_expr,
+        .less_than_expr,
+        .less_than_equal_expr,
+        .greater_than_expr,
+        .greater_than_equal_expr,
+        .shl_expr,
+        .shr_expr,
+        .add_expr,
+        .sub_expr,
+        .mul_expr,
+        .div_expr,
+        .mod_expr,
+        => |bin| {
+            try tree.write(bin.lhs, w);
+            try w.print(" {s} ", .{tree.tokSlice(bin.op_tok)});
+            try tree.write(bin.rhs, w);
+        },
+        .addr_of_expr,
+        .deref_expr,
+        .plus_expr,
+        .negate_expr,
+        .bit_not_expr,
+        .bool_not_expr,
+        .pre_inc_expr,
+        .pre_dec_expr,
+        => |un| {
+            try w.writeAll(tree.tokSlice(un.op_tok));
+            try tree.write(un.operand, w);
+        },
+        .imag_expr,
+        .real_expr,
+        => |un| {
+            try w.writeAll(tree.tokSlice(un.op_tok));
+            try w.writeByte(' ');
+            try tree.write(un.operand, w);
+        },
+        .post_inc_expr,
+        .post_dec_expr,
+        => |un| {
+            try tree.write(un.operand, w);
+            try w.writeAll(tree.tokSlice(un.op_tok));
+        },
+        .bool_literal,
+        .nullptr_literal,
+        .int_literal,
+        .float_literal,
+        => |literal| {
+            try w.writeAll(tree.tokSlice(literal.literal_tok));
+        },
+        .char_literal => |literal| {
+            try w.writeAll(tree.tokSlice(literal.literal_tok));
+        },
+        .string_literal_expr => |literal| {
+            const val = tree.value_map.get(node).?;
+            _ = try val.print(literal.qt, tree.comp, w);
+        },
+        .imaginary_literal => |un| try tree.write(un.operand, w),
+        .sizeof_expr,
+        .alignof_expr,
+        => |type_info| {
+            try w.writeAll(tree.tokSlice(type_info.op_tok));
+            if (type_info.expr) |expr| {
+                try w.writeByte(' ');
+                return tree.write(expr, w);
+            }
+            try w.writeByte('(');
+            try type_info.operand_qt.printDesugared(tree.comp, w);
+            try w.writeByte(')');
+        },
+        .decl_ref_expr,
+        .enumeration_ref,
+        => |decl_ref| {
+            try w.writeAll(tree.tokSlice(decl_ref.name_tok));
+        },
+        .builtin_types_compatible_p => |bin| {
+            try w.writeAll(tree.tokSlice(bin.builtin_tok));
+            try w.writeByte('(');
+            try bin.lhs.printDesugared(tree.comp, w);
+            try w.writeAll(", ");
+            try bin.rhs.printDesugared(tree.comp, w);
+            try w.writeByte(')');
+        },
+        .generic_expr => |generic| {
+            try w.writeAll(tree.tokSlice(generic.generic_tok));
+            try w.writeByte('(');
+            try tree.write(generic.controlling, w);
+            for (generic.rest) |association| {
+                try w.writeAll(", ");
+                try tree.write(association, w);
+            }
+            try w.writeAll(", ");
+            try tree.write(generic.chosen, w);
+            try w.writeByte(')');
+        },
+        .generic_association_expr => |generic| {
+            try generic.association_qt.printDesugared(tree.comp, w);
+            try w.writeAll(": ");
+            try tree.write(generic.expr, w);
+        },
+        .generic_default_expr => |generic| {
+            try w.writeAll(tree.tokSlice(generic.default_tok));
+            try w.writeAll(": ");
+            try tree.write(generic.expr, w);
+        },
+        .builtin_call_expr => |call| {
+            try w.writeAll(tree.tokSlice(call.builtin_tok));
+            try w.writeByte('(');
+            for (call.args, 0..) |arg, i| {
+                if (i != 0) try w.writeAll(", ");
+                try tree.write(arg, w);
+            }
+            try w.writeByte(')');
+        },
+        .binary_cond_expr => |cond| {
+            try tree.write(cond.cond, w);
+            try w.writeAll(" ?: ");
+            try tree.write(cond.else_expr, w);
+        },
+        .cond_expr => |cond| {
+            try tree.write(cond.cond, w);
+            try w.writeAll(" ? ");
+            try tree.write(cond.then_expr, w);
+            try w.writeAll(" : ");
+            try tree.write(cond.else_expr, w);
+        },
+        .builtin_choose_expr => |cond| {
+            try w.writeAll("__builtin_choose_expr(");
+            try tree.write(cond.cond, w);
+            try w.writeAll(", ");
+            try tree.write(cond.then_expr, w);
+            try w.writeAll(", ");
+            try tree.write(cond.else_expr, w);
+            try w.writeByte(')');
+        },
+        .builtin_va_arg_pack,
+        .builtin_va_arg_pack_len,
+        => |va_arg| {
+            try w.writeAll(tree.tokSlice(va_arg.builtin_tok));
+            try w.writeAll("()");
+        },
+        .array_access_expr => |access| {
+            try tree.write(access.base, w);
+            try w.writeByte('[');
+            try tree.write(access.index, w);
+            try w.writeByte(']');
+        },
+        .member_access_expr,
+        .member_access_ptr_expr,
+        => |access| {
+            try tree.write(access.base, w);
+
+            var base_qt = access.base.qt(tree);
+            if (base_qt.get(tree.comp, .pointer)) |some| base_qt = some.child;
+            const fields = (base_qt.getRecord(tree.comp) orelse return).fields;
+            const name = fields[access.member_index].name.lookup(tree.comp);
+            if (name[0] == '(') return;
+
+            try w.writeAll(tree.tokSlice(access.access_tok));
+            try w.writeAll(name);
+        },
+        else => try w.writeAll("<node>"),
+    }
+}
+
 pub fn dump(tree: *const Tree, term: std.Io.Terminal) std.Io.Terminal.SetColorError!void {
     for (tree.root_decls.items) |i| {
         try tree.dumpNode(i, 0, term);
