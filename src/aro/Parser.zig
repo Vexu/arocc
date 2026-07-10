@@ -10613,7 +10613,6 @@ fn blockLiteral(p: *Parser) Error!?Result {
     return .{
         .node = node,
         .qt = block_qt,
-        .val = try .block(@intFromEnum(node), p.comp),
     };
 }
 
