@@ -436,14 +436,7 @@ fn genExpr(c: *CodeGen, node_index: Node.Index) Error!Ir.Ref {
             const old_continue_label = c.continue_label;
             defer c.continue_label = old_continue_label;
 
-            switch (@"for".init) {
-                .decls => |decls| {
-                    for (decls) |decl| try c.genStmt(decl);
-                },
-                .expr => |maybe_init| {
-                    if (maybe_init) |init| _ = try c.genExpr(init);
-                },
-            }
+            if (@"for".init) |init| try c.genStmt(init);
 
             const cond = @"for".cond orelse {
                 const then_label = try c.builder.makeLabel("for.then");
@@ -508,6 +501,11 @@ fn genExpr(c: *CodeGen, node_index: Node.Index) Error!Ir.Ref {
         .nullptr_literal,
         .asm_stmt,
         => return c.fail("TODO CodeGen.genStmt {t}\n", .{node}),
+        .decl_stmt => |decl_stmt| {
+            for (decl_stmt.decls) |decl| {
+                try c.genStmt(decl);
+            }
+        },
         .comma_expr => |bin| {
             _ = try c.genExpr(bin.lhs);
             return c.genExpr(bin.rhs);

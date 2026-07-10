@@ -76,6 +76,11 @@ pub const invalid_stmt_attr: Diagnostic = .{
     .kind = .@"error",
 };
 
+pub const stmt_attr_on_decl: Diagnostic = .{
+    .fmt = "{at} attribute cannot be applied to a declaration",
+    .kind = .@"error",
+};
+
 pub const previous_attribute: Diagnostic = .{
     .fmt = "previous attribute is here",
     .kind = .note,

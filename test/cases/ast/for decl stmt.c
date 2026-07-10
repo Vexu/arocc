@@ -21,17 +21,16 @@ function: 'fn () int'
  body:
   compound_stmt
     for_stmt
-     decl:
-      variable: 'int'
-       name: x
-       init:
-        int_literal: 'int' (value: 0)
-
-      variable: 'int'
-       name: y
-       init:
-        int_literal: 'int' (value: 1)
-
+     init:
+      decl_stmt
+        variable: 'int'
+         name: x
+         init:
+          int_literal: 'int' (value: 0)
+        variable: 'int'
+         name: y
+         init:
+          int_literal: 'int' (value: 1)
      incr:
       post_inc_expr: 'int'
        operand:

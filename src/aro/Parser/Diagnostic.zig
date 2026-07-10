@@ -1804,6 +1804,30 @@ pub const unused_value: Diagnostic = .{
     .opt = .@"unused-value",
 };
 
+pub const unused_variable: Diagnostic = .{
+    .fmt = "unused variable '{s}'",
+    .kind = .warning,
+    .opt = .@"unused-variable",
+};
+
+pub const unused_param: Diagnostic = .{
+    .fmt = "unused parameter '{s}'",
+    .kind = .warning,
+    .opt = .@"unused-parameter",
+};
+
+pub const unused_typedef: Diagnostic = .{
+    .fmt = "unused typedef '{s}'",
+    .kind = .warning,
+    .opt = .@"unused-local-typedef",
+};
+
+pub const unused_label: Diagnostic = .{
+    .fmt = "unused label '{s}'",
+    .kind = .warning,
+    .opt = .@"unused-label",
+};
+
 pub const invalid_imag: Diagnostic = .{
     .fmt = "invalid type {qt} to __imag operator",
     .kind = .@"error",
@@ -2147,6 +2171,21 @@ pub const label_compound_end: Diagnostic = .{
     .extension = true,
 };
 
+pub const label_decl: Diagnostic = .{
+    .fmt = "label followed by a declaration is a C23 extension",
+    .opt = .@"c23-extensions",
+    .kind = .warning,
+    .suppress_version = .c23,
+    .extension = true,
+};
+
+pub const gnu_label_attr: Diagnostic = .{
+    .fmt = "GNU-style attribute between label and declaration applies to the label",
+    .opt = .@"label-attribute",
+    .kind = .warning,
+    .extension = true,
+};
+
 pub const u8_char_lit: Diagnostic = .{
     .fmt = "UTF-8 character literal is a C23 extension",
     .opt = .@"c23-extensions",
@@ -2375,6 +2414,11 @@ pub const builtin_arm_ldrex_strex_unsupported: Diagnostic = .{
 
 pub const builtin_arm_ldrex_strex_unsupported_size: Diagnostic = .{
     .fmt = "address argument to {s} must be a pointer to {s} byte type ({qt} invalid)",
+    .kind = .@"error",
+};
+
+pub const typename_invalid_specifier: Diagnostic = .{
+    .fmt = "type name does not allow {s} specifier to be specified",
     .kind = .@"error",
 };
 

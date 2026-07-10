@@ -18,7 +18,7 @@ pub const Symbol = struct {
     name: StringId,
     qt: QualType,
     tok: TokenIndex,
-    node: Node.OptIndex = .null,
+    node: Node.Index,
     out_of_scope: bool = false,
     kind: Kind,
     val: Value,
@@ -181,13 +181,13 @@ pub fn defineTypedef(
     qt: QualType,
     tok: TokenIndex,
     node: Node.Index,
-) !Node.OptIndex {
-    var old_decl: Node.OptIndex = .null;
+) !?Node.Index {
+    var old_decl: ?Node.Index = null;
     if (s.get(name, .vars)) |prev| {
         switch (prev.kind) {
             .typedef => {
                 if (!prev.qt.isInvalid() and !qt.eqlQualified(prev.qt, p.comp)) {
-                    if (qt.isInvalid()) return .null;
+                    if (qt.isInvalid()) return null;
                     const non_typedef_qt = qt.type(p.comp).typedef.base;
                     const non_typedef_prev_qt = prev.qt.type(p.comp).typedef.base;
                     try p.err(tok, .redefinition_of_typedef, .{ non_typedef_qt, non_typedef_prev_qt });
@@ -208,7 +208,7 @@ pub fn defineTypedef(
         .name = name,
         .tok = tok,
         .qt = qt,
-        .node = .pack(node),
+        .node = node,
         .val = .{},
     });
     return old_decl;
@@ -223,18 +223,18 @@ pub fn defineSymbol(
     node: Node.Index,
     val: Value,
     constexpr: bool,
-) !Node.OptIndex {
-    var old_decl: Node.OptIndex = .null;
+) !?Node.Index {
+    var old_decl: ?Node.Index = null;
     if (s.get(name, .vars)) |prev| {
         switch (prev.kind) {
             .enumeration => {
-                if (qt.isInvalid()) return .null;
+                if (qt.isInvalid()) return null;
                 try p.err(tok, .redefinition_different_sym, .{p.tokSlice(tok)});
                 try p.err(prev.tok, .previous_definition, .{});
             },
             .decl => {
                 if (!prev.qt.isInvalid() and !qt.eqlQualified(prev.qt, p.comp)) {
-                    if (qt.isInvalid()) return .null;
+                    if (qt.isInvalid()) return null;
                     try p.err(tok, .redefinition_incompatible, .{p.tokSlice(tok)});
                     try p.err(prev.tok, .previous_definition, .{});
                 } else {
@@ -243,12 +243,12 @@ pub fn defineSymbol(
                 }
             },
             .def, .constexpr => if (!prev.qt.isInvalid()) {
-                if (qt.isInvalid()) return .null;
+                if (qt.isInvalid()) return null;
                 try p.err(tok, .redefinition, .{p.tokSlice(tok)});
                 try p.err(prev.tok, .previous_definition, .{});
             },
             .typedef => {
-                if (qt.isInvalid()) return .null;
+                if (qt.isInvalid()) return null;
                 try p.err(tok, .redefinition_different_sym, .{p.tokSlice(tok)});
                 try p.err(prev.tok, .previous_definition, .{});
             },
@@ -261,7 +261,7 @@ pub fn defineSymbol(
         .name = name,
         .tok = tok,
         .qt = qt,
-        .node = .pack(node),
+        .node = node,
         .val = val,
     });
     return old_decl;
@@ -283,18 +283,18 @@ pub fn declareSymbol(
     qt: QualType,
     tok: TokenIndex,
     node: Node.Index,
-) !Node.OptIndex {
-    var old_decl: Node.OptIndex = .null;
+) !?Node.Index {
+    var old_decl: ?Node.Index = null;
     if (s.get(name, .vars)) |prev| {
         switch (prev.kind) {
             .enumeration => {
-                if (qt.isInvalid()) return .null;
+                if (qt.isInvalid()) return null;
                 try p.err(tok, .redefinition_different_sym, .{p.tokSlice(tok)});
                 try p.err(prev.tok, .previous_definition, .{});
             },
             .decl => {
                 if (!prev.qt.isInvalid() and !qt.eqlQualified(prev.qt, p.comp)) {
-                    if (qt.isInvalid()) return .null;
+                    if (qt.isInvalid()) return null;
                     try p.err(tok, .redefinition_incompatible, .{p.tokSlice(tok)});
                     try p.err(prev.tok, .previous_definition, .{});
                 } else {
@@ -304,17 +304,17 @@ pub fn declareSymbol(
             },
             .def, .constexpr => {
                 if (!prev.qt.isInvalid() and !qt.eqlQualified(prev.qt, p.comp)) {
-                    if (qt.isInvalid()) return .null;
+                    if (qt.isInvalid()) return null;
                     try p.err(tok, .redefinition_incompatible, .{p.tokSlice(tok)});
                     try p.err(prev.tok, .previous_definition, .{});
                 } else {
                     if (prev.node.unpack()) |some| p.setTentativeDeclDefinition(node, some);
                     // Attributes from definitions are not merged with new declarations.
-                    return .null;
+                    return null;
                 }
             },
             .typedef => {
-                if (qt.isInvalid()) return .null;
+                if (qt.isInvalid()) return null;
                 try p.err(tok, .redefinition_different_sym, .{p.tokSlice(tok)});
                 try p.err(prev.tok, .previous_definition, .{});
             },
@@ -326,7 +326,7 @@ pub fn declareSymbol(
         .name = name,
         .tok = tok,
         .qt = qt,
-        .node = .pack(node),
+        .node = node,
         .val = .{},
     });
 
@@ -337,7 +337,7 @@ pub fn declareSymbol(
             .name = name,
             .tok = tok,
             .qt = qt,
-            .node = .pack(node),
+            .node = node,
             .val = .{},
             .out_of_scope = true,
         });
@@ -351,7 +351,7 @@ pub fn defineParam(
     name: StringId,
     qt: QualType,
     tok: TokenIndex,
-    node: ?Node.Index,
+    node: Node.Index,
 ) !void {
     if (s.get(name, .vars)) |prev| {
         switch (prev.kind) {
@@ -359,6 +359,7 @@ pub fn defineParam(
                 if (qt.isInvalid()) return;
                 try p.err(tok, .redefinition_of_parameter, .{p.tokSlice(tok)});
                 try p.err(prev.tok, .previous_definition, .{});
+                return;
             },
             .typedef => {
                 if (qt.isInvalid()) return;
@@ -373,7 +374,7 @@ pub fn defineParam(
         .name = name,
         .tok = tok,
         .qt = qt,
-        .node = .packOpt(node),
+        .node = node,
         .val = .{},
     });
 }
@@ -446,6 +447,6 @@ pub fn defineEnumeration(
         .tok = tok,
         .qt = qt,
         .val = val,
-        .node = .pack(node),
+        .node = node,
     });
 }

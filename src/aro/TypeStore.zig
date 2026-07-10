@@ -499,6 +499,10 @@ pub const QualType = packed struct(u32) {
     }
 
     pub fn getRecord(qt: QualType, comp: *const Compilation) ?Type.Record {
+        switch (qt._index) {
+            .invalid, .auto_type, .c23_auto => return null,
+            else => {},
+        }
         return switch (qt.base(comp).type) {
             .@"struct", .@"union" => |record| record,
             else => null,
@@ -3353,6 +3357,9 @@ pub const Builder = struct {
                 .long => .long_long,
                 .slong => .slong_long,
                 .ulong => .ulong_long,
+                .long_int => .long_long_int,
+                .ulong_int => .ulong_long_int,
+                .slong_int => .slong_long_int,
                 .complex => .complex_long,
                 .complex_signed => .complex_slong,
                 .complex_unsigned => .complex_ulong,
