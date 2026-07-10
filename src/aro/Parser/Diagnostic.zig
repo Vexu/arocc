@@ -1191,6 +1191,11 @@ pub const ignored_on_types: Diagnostic = .{
     .opt = .@"ignored-attributes",
 };
 
+pub const invalid_on_types: Diagnostic = .{
+    .fmt = "{at} attribute cannot be applied to types",
+    .kind = .@"error",
+};
+
 pub const declspec_empty_args: Diagnostic = .{
     .fmt = "parentheses must be omitted if '{s}' attribute's argument list is empty",
     .kind = .@"error",

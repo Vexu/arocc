@@ -1022,6 +1022,10 @@ fn markUsed(p: *Parser, decl_node: Node.Index) void {
 fn checkIgnoredAttrs(p: *Parser) !void {
     for (p.wip_attrs.attrs.items[p.wip_attrs.top..]) |*attr| {
         if (attr.used_as_type_attr) continue;
+        if (attr.syntax == .standard) {
+            try p.err(attr.tok, .invalid_on_types, .{attr});
+            continue;
+        }
         try p.err(attr.tok, .ignored_on_types, .{attr});
     }
 }

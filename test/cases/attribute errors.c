@@ -35,6 +35,9 @@ typedef struct {} A1, __declspec(deprecated) B1, C1;
 typedef struct {} A2, __attribute__((deprecated)) B2, C2;
 typedef struct {} A3, [[deprecated]] B3, C3;
 
+int standard_attr_on_types = sizeof(int [[noreturn, gnu::noreturn]]);
+// int [[noreturn]] standard_attr_on_types2; // TODO
+
 /** manifest:
 syntax
 args = --target=x86_64-linux -std=c23 -fdeclspec
@@ -43,6 +46,7 @@ skip = TODO: implement 'alias' attribute
 skip = TODO: implement 'assume_aligned' attribute
 skip = TODO: implement 'pure' attribute
 skip = TODO: implement 'simd' attribute
+skip = TODO: add error for standard decl attribute in type position
 
 attribute errors.c:3:24: warning: TODO: implement 'access' attribute
 attribute errors.c:4:24: warning: TODO: implement 'access' attribute
@@ -70,4 +74,6 @@ attribute errors.c:31:36: error: attribute 'vector_size' argument value '4294967
 attribute errors.c:32:46: error: expected an integer constant as argmuent of 'vector_size' attribute but got a complex floating point number
 attribute errors.c:34:23: error: a declspec attribute cannot appear here
 attribute errors.c:36:23: error: an attribute list cannot appear here
+attribute errors.c:38:43: error: 'noreturn' attribute cannot be applied to types
+attribute errors.c:38:53: error: 'gnu::noreturn' attribute cannot be applied to types
 */
