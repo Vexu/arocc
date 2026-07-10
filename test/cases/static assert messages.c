@@ -9,6 +9,7 @@ void bar(void) {
 }
 
 _Static_assert(1 == 0, "They are not equal!");
+_Static_assert(sizeof(int) == 3, "");
 
 /** manifest:
 syntax
@@ -20,4 +21,6 @@ static assert messages.c:4:20: error: static assertion failed due to requirement
 static assert messages.c:8:27: error: expected ')', found ','
 static assert messages.c:8:19: note: to match this '('
 static assert messages.c:11:16: error: static assertion failed due to requirement '1 == 0': They are not equal!
+static assert messages.c:12:16: error: static assertion failed due to requirement 'sizeof(int) == 3':
+static assert messages.c:12:28: note: expression evaluates to '4 == 3'
 */

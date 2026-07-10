@@ -92,6 +92,15 @@ const InitContext = enum {
     static,
 };
 
+const StaticAssertEvalNote = struct {
+    tok: TokenIndex,
+    lhs_val: Value,
+    lhs_qt: QualType,
+    op: std.math.CompareOperator,
+    rhs_val: Value,
+    rhs_qt: QualType,
+};
+
 /// How the parser handles const int decl references when it is expecting an integer
 /// constant expression.
 const ConstDeclFoldingMode = enum {
@@ -152,6 +161,8 @@ extension_suppressed: bool = false,
 contains_address_of_label: bool = false,
 label_count: u32 = 0,
 const_decl_folding: ConstDeclFoldingMode = .fold_const_decls,
+record_static_assert_eval_note: bool = false,
+static_assert_eval_note: ?StaticAssertEvalNote = null,
 /// location of first computed goto in function currently being parsed
 /// if a computed goto is used, the function must contain an
 /// address-of-label expression (tracked with contains_address_of_label)
@@ -1771,11 +1782,19 @@ fn writeStaticAssertRequirement(p: *Parser, cond_node: Node.Index, start: TokenI
     }
 }
 
-fn staticAssertMessage(p: *Parser, cond_node: Node.Index, cond_start: TokenIndex, cond_end: TokenIndex, maybe_message: ?Result, allocating: *std.Io.Writer.Allocating) ![]const u8 {
+const StaticAsssertMessage = struct {
+    full: []const u8,
+    req_start: u32,
+    req_end: u32,
+};
+
+fn staticAssertMessage(p: *Parser, cond_node: Node.Index, cond_start: TokenIndex, cond_end: TokenIndex, maybe_message: ?Result, allocating: *std.Io.Writer.Allocating) !StaticAsssertMessage {
     const w = &allocating.writer;
 
     try w.writeAll("due to requirement '");
+    const start = allocating.written().len;
     try p.writeStaticAssertRequirement(cond_node, cond_start, cond_end, w);
+    const end = allocating.written().len;
     try w.writeAll("':");
 
     if (maybe_message) |message| {
@@ -1786,7 +1805,64 @@ fn staticAssertMessage(p: *Parser, cond_node: Node.Index, cond_start: TokenIndex
             try Value.printString(bytes, message.qt, p.comp, w, .bare);
         }
     }
+    const written = allocating.written();
+    return .{
+        .full = written,
+        .req_start = @intCast(start),
+        .req_end = @intCast(end),
+    };
+}
+
+fn staticAssertComparisonOperator(op: std.math.CompareOperator) []const u8 {
+    return switch (op) {
+        .lt => "<",
+        .lte => "<=",
+        .eq => "==",
+        .gte => ">=",
+        .gt => ">",
+        .neq => "!=",
+    };
+}
+
+fn staticAssertRecordEvaluationNote(p: *Parser, tok: TokenIndex, op: std.math.CompareOperator, lhs: Result, rhs: Result) void {
+    if (lhs.val.opt_ref == .none or rhs.val.opt_ref == .none) return;
+    if (lhs.val.is(.pointer, p.comp) or rhs.val.is(.pointer, p.comp)) return;
+
+    p.static_assert_eval_note = .{
+        .tok = tok,
+        .lhs_val = lhs.val,
+        .lhs_qt = lhs.qt,
+        .op = op,
+        .rhs_val = rhs.val,
+        .rhs_qt = rhs.qt,
+    };
+}
+
+fn writeStaticAssertEvalValue(p: *Parser, w: *std.Io.Writer, val: Value, qt: QualType) !bool {
+    if (try val.print(qt, p.comp, w)) |_| return false;
+    return true;
+}
+
+fn writeStaticAssertEvalNote(p: *Parser, note: *const StaticAssertEvalNote, allocating: *std.Io.Writer.Allocating) !?[]const u8 {
+    const w = &allocating.writer;
+
+    if (!try p.writeStaticAssertEvalValue(w, note.lhs_val, note.lhs_qt)) return null;
+    try w.print(" {s} ", .{staticAssertComparisonOperator(note.op)});
+    if (!try p.writeStaticAssertEvalValue(w, note.rhs_val, note.rhs_qt)) return null;
     return allocating.written();
+}
+
+fn staticAssertEvaluationNote(p: *Parser, note: *const StaticAssertEvalNote, requirement: []const u8) Error!void {
+    var note_bfa_buf: [1024]u8 = undefined;
+    var note_bfa: std.heap.BufferFirstAllocator = .init(&note_bfa_buf, p.comp.gpa);
+    var note_allocating: std.Io.Writer.Allocating = .init(note_bfa.allocator());
+    defer note_allocating.deinit();
+
+    const eval_text = (p.writeStaticAssertEvalNote(note, &note_allocating) catch return error.OutOfMemory) orelse return;
+
+    if (std.mem.eql(u8, eval_text, requirement)) return;
+
+    try p.err(note.tok, .static_assert_expression_evaluates_to, .{eval_text});
 }
 
 /// staticAssert
@@ -1797,6 +1873,14 @@ fn staticAssert(p: *Parser) Error!bool {
     const static_assert = p.eatToken(.keyword_static_assert) orelse p.eatToken(.keyword_c23_static_assert) orelse return false;
     const l_paren = try p.expectToken(.l_paren);
     const res_token = p.tok_i;
+    const old_record_static_assert_eval_note = p.record_static_assert_eval_note;
+    const old_static_assert_eval_note = p.static_assert_eval_note;
+    p.record_static_assert_eval_note = true;
+    p.static_assert_eval_note = null;
+    defer {
+        p.record_static_assert_eval_note = old_record_static_assert_eval_note;
+        p.static_assert_eval_note = old_static_assert_eval_note;
+    }
     var res = try p.constExpr(.gnu_folding_extension);
     const res_node = res.node;
     const res_end = p.tok_i - 1;
@@ -1840,7 +1924,10 @@ fn staticAssert(p: *Parser) Error!bool {
             defer allocating.deinit();
 
             const message = p.staticAssertMessage(res_node, res_token, res_end, str, &allocating) catch return error.OutOfMemory;
-            try p.err(res_token, .static_assert_failure_message, .{message});
+            try p.err(res_token, .static_assert_failure_message, .{message.full});
+            if (p.static_assert_eval_note) |*note| {
+                try p.staticAssertEvaluationNote(note, message.full[message.req_start..message.req_end]);
+            }
         }
     }
 
@@ -8446,6 +8533,9 @@ fn eqExpr(p: *Parser) Error!?Result {
             else
                 lhs.val.compare(op, rhs.val, p.comp);
 
+            if (p.record_static_assert_eval_note and res == false) {
+                p.staticAssertRecordEvaluationNote(tok, op, lhs, rhs);
+            }
             lhs.val = if (res) |val| Value.fromBool(val) else .{};
         } else {
             lhs.val.boolCast(p.comp);
@@ -8479,6 +8569,9 @@ fn compExpr(p: *Parser) Error!?Result {
                 lhs.val.comparePointers(op, rhs.val, p.comp)
             else
                 lhs.val.compare(op, rhs.val, p.comp);
+            if (p.record_static_assert_eval_note and res == false) {
+                p.staticAssertRecordEvaluationNote(tok, op, lhs, rhs);
+            }
             lhs.val = if (res) |val| Value.fromBool(val) else .{};
         } else {
             lhs.val.boolCast(p.comp);
