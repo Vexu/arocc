@@ -184,7 +184,7 @@ function: 'fn (block: IntToIntBlock: block (int) int) void'
         block_literal: 'block () int'
          body:
           compound_stmt
-            implicit return_stmt: 'int' (value: 0)
+            implicit return_stmt: 'int'
 
     assign_expr: '*void'
      lhs:
@@ -203,7 +203,7 @@ function: 'fn (block: IntToIntBlock: block (int) int) void'
                expr:
                 int_literal: 'int' (value: 4)
 
-            implicit return_stmt: 'int' (value: 0)
+            implicit return_stmt: 'int'
 
     assign_expr: '*void'
      lhs:
@@ -215,7 +215,7 @@ function: 'fn (block: IntToIntBlock: block (int) int) void'
          blocks: .byref
          body:
           compound_stmt
-            implicit return_stmt: 'int' (value: 0)
+            implicit return_stmt: 'int'
 
     assign_expr: '*void'
      lhs:
@@ -358,7 +358,7 @@ function: 'fn () void'
          noreturn
          body:
           compound_stmt
-            implicit return_stmt: 'int' (value: 0)
+            implicit return_stmt: 'int'
 
     assign_expr: '*void'
      lhs:
@@ -401,7 +401,7 @@ function: 'fn () void'
                  expr:
                   int_literal: 'int' (value: 4)
 
-            implicit return_stmt: 'int' (value: 0)
+            implicit return_stmt: 'int'
 
     assign_expr: '*void'
      lhs:
@@ -412,7 +412,7 @@ function: 'fn () void'
         block_literal: 'block () int'
          body:
           compound_stmt
-            implicit return_stmt: 'int' (value: 0)
+            implicit return_stmt: 'int'
 
     assign_expr: '*void'
      lhs:

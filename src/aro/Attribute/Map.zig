@@ -175,8 +175,7 @@ pub fn put(map: *Map, gpa: mem.Allocator, attribute: Attribute) !Ref {
         },
         .blocks => |byref| {
             repr.tag = .blocks;
-            repr.data = @intCast(map.extra.items.len);
-            try map.extra.append(gpa, attribute.tok);
+            repr.data = attribute.tok;
             comptime std.debug.assert(byref == .byref);
         },
         else => @panic("TODO"),
@@ -278,7 +277,7 @@ pub fn get(map: *const Map, ref: Ref) Attribute {
             res.args = .{ .section = name };
         },
         .blocks => {
-            res.tok = map.extra.items[repr.data];
+            res.tok = repr.data;
             res.args = .{ .blocks = .byref };
         },
     }
