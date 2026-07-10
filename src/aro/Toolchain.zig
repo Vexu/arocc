@@ -103,8 +103,7 @@ pub fn discover(tc: *Toolchain) !void {
     return switch (tc.inner) {
         .uninitialized => unreachable,
         .linux => |*linux| linux.discover(tc),
-        .darwin => |*darwin| try darwin.discover(tc),
-        .unknown => {},
+        .darwin, .unknown => {},
     };
 }
 
