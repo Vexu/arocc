@@ -5983,7 +5983,7 @@ fn compoundStmt(p: *Parser, is_fn_body: bool, stmt_expr_state: ?*StmtExprState) 
                 const implicit_ret = try p.addNode(.{ .return_stmt = .{
                     .return_tok = r_brace,
                     .return_qt = ret_qt,
-                    .operand = .{ .implicit = true },
+                    .operand = .{ .implicit = false },
                 } });
                 try p.decl_buf.append(gpa, implicit_ret);
             }
