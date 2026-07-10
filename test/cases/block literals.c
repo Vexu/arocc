@@ -111,6 +111,13 @@ void other_attributes() {
   b = ^__attribute((warning)) {};
 }
 
+void keyword_attributes_and_storage_classes() {
+  void *b = ^inline {};
+  b = ^_Noreturn {};
+  b = ^__auto_type {};
+  b = ^auto {};
+}
+
 /** manifest:
 syntax
 args = -fblocks -Wpedantic --target=aarch64-macos -std=c23 -Wno-gnu-auto-type
@@ -177,4 +184,8 @@ block literals.c:108:29: error: 'nonnull' attribute parameter 1 is out of bounds
 block literals.c:109:21: warning: 'fastcall' calling convention is not supported for this target [-Wignored-attributes]
 block literals.c:110:21: warning: TODO: implement 'unused' attribute
 block literals.c:111:21: warning: 'warning' attribute only applies to functions [-Wignored-attributes]
+block literals.c:115:14: error: block literal does not allow function specifier to be specified
+block literals.c:116:8: error: block literal does not allow function specifier to be specified
+block literals.c:117:8: error: block literal does not allow function specifier to be specified
+block literals.c:118:8: error: block literal does not allow storage class to be specified
 */

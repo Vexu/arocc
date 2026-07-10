@@ -2438,3 +2438,8 @@ pub const block_cannot_return_type: Diagnostic = .{
     .fmt = "block cannot return type {qt}",
     .kind = .@"error",
 };
+
+pub const block_does_not_allow_specifier: Diagnostic = .{
+    .fmt = "block literal does not allow {s} to be specified",
+    .kind = .@"error",
+};

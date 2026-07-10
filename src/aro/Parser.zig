@@ -10321,6 +10321,35 @@ fn blockLiteral(p: *Parser) Error!?Result {
     while (true) {
         if (try p.gnuAttribute()) continue;
         const bad_attr_tok_i = p.tok_i;
+        switch (p.tok_ids[p.tok_i]) {
+            .keyword_inline,
+            .keyword_inline1,
+            .keyword_inline2,
+            .keyword_noreturn,
+            .keyword_auto_type,
+            .keyword_forceinline,
+            .keyword_forceinline2,
+            => {
+                try p.err(bad_attr_tok_i, .block_does_not_allow_specifier, .{"function specifier"});
+                p.tok_i += 1;
+                continue;
+            },
+            .keyword_typedef,
+            .keyword_extern,
+            .keyword_static,
+            .keyword_auto,
+            .keyword_register,
+            .keyword_thread_local,
+            .keyword_c23_thread_local,
+            .keyword_thread,
+            .keyword_constexpr,
+            => {
+                try p.err(bad_attr_tok_i, .block_does_not_allow_specifier, .{"storage class"});
+                p.tok_i += 1;
+                continue;
+            },
+            else => {},
+        }
         const good_attrs_state = p.wip_attrs.state(false);
         if (try p.c23Attribute() or try p.declspecAttribute()) {
             try p.err(bad_attr_tok_i, .block_only_gnu_attributes, .{});

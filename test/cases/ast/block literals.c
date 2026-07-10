@@ -572,3 +572,47 @@ function: 'fn () void'
 
     implicit return_stmt: 'void'
 
+function: 'fn () void'
+ name: keyword_attributes_and_storage_classes
+ body:
+  compound_stmt
+    variable: '*void'
+     name: b
+     init:
+      implicit cast: (bitcast) '*void'
+        block_literal: 'block () void'
+         body:
+          compound_stmt
+
+    assign_expr: '*void'
+     lhs:
+      decl_ref_expr: '*void' lvalue
+       name: b
+     rhs:
+      implicit cast: (bitcast) '*void'
+        block_literal: 'block () void'
+         body:
+          compound_stmt
+
+    assign_expr: '*void'
+     lhs:
+      decl_ref_expr: '*void' lvalue
+       name: b
+     rhs:
+      implicit cast: (bitcast) '*void'
+        block_literal: 'block () void'
+         body:
+          compound_stmt
+
+    assign_expr: '*void'
+     lhs:
+      decl_ref_expr: '*void' lvalue
+       name: b
+     rhs:
+      implicit cast: (bitcast) '*void'
+        block_literal: 'block () void'
+         body:
+          compound_stmt
+
+    implicit return_stmt: 'void'
+
