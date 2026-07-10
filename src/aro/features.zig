@@ -35,7 +35,7 @@ pub fn hasFeature(comp: *Compilation, ext_raw: []const u8) bool {
         .attribute_unavailable_with_message = true,
         .attribute_unused_on_fields = true,
         .attribute_diagnose_if_objc = true,
-        .blocks = false, // TODO
+        .blocks = comp.langopts.blocks,
         .c_thread_safety_attributes = true,
         .enumerator_attributes = true,
         .nullability = true,
