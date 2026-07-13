@@ -1281,6 +1281,7 @@ pub fn toLLVMTriple(target: *const Target, buf: []u8) []const u8 {
 
         .@"3ds",
         .wiiu,
+        .@"switch",
         .opencl,
         .opengl,
         .other,
@@ -1288,6 +1289,7 @@ pub fn toLLVMTriple(target: *const Target, buf: []u8) []const u8 {
         .psp,
         .psx,
         .tios,
+        .ashetos,
         .vita,
         => "unknown",
     };

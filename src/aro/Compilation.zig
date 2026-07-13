@@ -403,6 +403,7 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
         .wasi => try define(w, "__wasi__"),
         .emscripten => try define(w, "__EMSCRIPTEN__"),
         .serenity => try define(w, "__serenity__"),
+        .@"switch" => try define(w, "__SWITCH__"),
         .@"3ds" => try define(w, "__3DS__"),
         .psp => try define(w, "__PSP__"),
         .psx => try define(w, "__psx__"),
