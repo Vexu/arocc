@@ -3850,33 +3850,38 @@ fn declarator(
 ) Error!?Declarator {
     var d = Declarator{ .name = 0, .qt = base_qt };
 
-    if (p.eatToken(.caret)) |caret| {
-        d.qt = try p.wip_attrs.applyTypeAttrs(p, d.qt);
-        if (!p.comp.langopts.blocks) try p.err(caret, .blocks_not_enabled, .{});
-        try p.err(caret, .blocks_are_clang_extension, .{});
-
-        d.declarator_type = .block;
-        var builder: TypeStore.Builder = .{ .parser = p };
-        _ = try p.typeQual(&builder, true);
-
-        const block_qt = try p.comp.type_store.put(p.comp.gpa, .{ .block = .{
-            .func = d.qt,
-        } });
-        d.qt = try builder.finishQuals(block_qt);
-    }
-
     // Parse potential pointer declarators first.
-    while (p.eatToken(.asterisk)) |_| {
-        d.qt = try p.wip_attrs.applyTypeAttrs(p, d.qt);
-        d.declarator_type = .pointer;
-        var builder: TypeStore.Builder = .{ .parser = p };
-        _ = try p.typeQual(&builder, true);
+    while (true) switch (p.tok_ids[p.tok_i]) {
+        .caret => {
+            const caret = p.tok_i;
+            p.tok_i += 1;
+            d.qt = try p.wip_attrs.applyTypeAttrs(p, d.qt);
+            if (!p.comp.langopts.blocks) try p.err(caret, .blocks_not_enabled, .{});
+            try p.err(caret, .blocks_are_clang_extension, .{});
 
-        const pointer_qt = try p.comp.type_store.put(p.comp.gpa, .{ .pointer = .{
-            .child = d.qt,
-        } });
-        d.qt = try builder.finishQuals(pointer_qt);
-    }
+            d.declarator_type = .block;
+            var builder: TypeStore.Builder = .{ .parser = p };
+            _ = try p.typeQual(&builder, true);
+
+            const block_qt = try p.comp.type_store.put(p.comp.gpa, .{ .block = .{
+                .func = d.qt,
+            } });
+            d.qt = try builder.finishQuals(block_qt);
+        },
+        .asterisk => {
+            p.tok_i += 1;
+            d.qt = try p.wip_attrs.applyTypeAttrs(p, d.qt);
+            d.declarator_type = .pointer;
+            var builder: TypeStore.Builder = .{ .parser = p };
+            _ = try p.typeQual(&builder, true);
+
+            const pointer_qt = try p.comp.type_store.put(p.comp.gpa, .{ .pointer = .{
+                .child = d.qt,
+            } });
+            d.qt = try builder.finishQuals(pointer_qt);
+        },
+        else => break,
+    };
 
     const maybe_ident = p.tok_i;
     if (kind != .abstract and (try p.eatIdentifier()) != null) {

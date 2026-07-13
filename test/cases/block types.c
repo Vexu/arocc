@@ -58,6 +58,8 @@ void my_func_accepting_block(double (*afunc)(int), double (^ablock)(int)) {
 // blocks can be nullable
 typedef int (^_Nullable NullableBlock)(void);
 
+int *^*mixed;
+
 /** manifest:
 syntax
 args = -fblocks -Wpedantic -Wno-gnu-auto-type --target=aarch64-macos
@@ -79,4 +81,5 @@ block types.c:37:9: error: assignment to 'double (*)(int)' from incompatible typ
 block types.c:38:10: error: assignment to 'double (^)(int)' from incompatible type 'double (*)(int)'
 block types.c:46:5: error: assignment to 'int (^)(int)' from incompatible type 'unsigned int'
 block types.c:55:3: error: '__auto_type' not allowed in block return type
+block types.c:61:13: error: block pointer to non-function type is invalid
 */
