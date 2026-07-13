@@ -88,8 +88,8 @@ pub fn hasExtension(comp: *Compilation, ext_raw: []const u8) bool {
         // misc
         .overloadable_unmarked = false, // TODO
         .statement_attributes_with_gnu_syntax = true,
-        .gnu_asm = true,
-        .gnu_asm_goto_with_outputs = true,
+        .gnu_asm = comp.langopts.gnu_asm,
+        .gnu_asm_goto_with_outputs = comp.langopts.gnu_asm,
         .matrix_types = false, // TODO
         .matrix_types_scalar_division = false, // TODO
         .define_target_os_macros = comp.langopts.emulate == .no or comp.langopts.emulate == .clang,
