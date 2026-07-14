@@ -1731,44 +1731,18 @@ fn decl(p: *Parser) Error!bool {
     return true;
 }
 
-fn writeStaticAssertRequirement(p: *Parser, start: TokenIndex, end: TokenIndex, w: *std.Io.Writer) !void {
-    const start_loc = p.pp.tokens.items(.loc)[start];
-    const end_loc = p.pp.tokens.items(.loc)[end];
-    const end_offset = end_loc.byte_offset + @as(u32, @intCast(p.tokSlice(end).len));
-    if (start <= end and
-        start_loc.id == end_loc.id and
-        start_loc.id != Source.Id.generated and
-        start_loc.byte_offset <= end_loc.byte_offset)
-    {
-        const source = p.comp.getSource(start_loc.id);
-        if (end_offset <= source.buf.len) {
-            const requirement = source.buf[start_loc.byte_offset..end_offset];
-            if (std.mem.indexOfScalar(u8, requirement, '\n') == null) {
-                try w.writeAll(requirement);
-                return;
-            }
-        }
-    }
-
-    var tok = start;
-    while (tok <= end) : (tok += 1) {
-        if (tok != start) try w.writeByte(' ');
-        try w.writeAll(p.tokSlice(tok));
-    }
-}
-
 const StaticAsssertMessage = struct {
     full: []const u8,
     req_start: u32,
     req_end: u32,
 };
 
-fn staticAssertMessage(p: *Parser, cond_start: TokenIndex, cond_end: TokenIndex, maybe_message: ?Result, allocating: *std.Io.Writer.Allocating) !StaticAsssertMessage {
+fn staticAssertMessage(p: *Parser, cond: Node.Index, maybe_message: ?Result, allocating: *std.Io.Writer.Allocating) !StaticAsssertMessage {
     const w = &allocating.writer;
 
     try w.writeAll(" due to requirement '");
     const start = allocating.written().len;
-    try p.writeStaticAssertRequirement(cond_start, cond_end, w);
+    try p.tree.write(cond, w);
     const end = allocating.written().len;
     try w.writeByte('\'');
 
@@ -1834,7 +1808,6 @@ fn staticAssert(p: *Parser) Error!bool {
     defer p.record_static_assert_eval_note = old_record_static_assert_eval_note;
 
     var res = try p.constExpr(.gnu_folding_extension);
-    const res_end = p.tok_i - 1;
     const str = if (p.eatToken(.comma) != null)
         switch (p.tok_ids[p.tok_i]) {
             .string_literal,
@@ -1874,7 +1847,7 @@ fn staticAssert(p: *Parser) Error!bool {
             var allocating: std.Io.Writer.Allocating = .init(bfa.allocator());
             defer allocating.deinit();
 
-            const message = p.staticAssertMessage(res_token, res_end, str, &allocating) catch return error.OutOfMemory;
+            const message = p.staticAssertMessage(res.node, str, &allocating) catch return error.OutOfMemory;
             try p.err(res_token, .static_assert_failure_message, .{message.full});
             try p.staticAssertEvaluationNote(res.node, message.full[message.req_start..message.req_end]);
         }
