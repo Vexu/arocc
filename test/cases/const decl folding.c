@@ -70,12 +70,12 @@ const decl folding.c:34:27: error: '__builtin_choose_expr' requires a constant e
 const decl folding.c:38:15: warning: variable length array folded to constant array as an extension [-Wgnu-folding-constant]
 const decl folding.c:43:16: warning: implicit conversion turns string literal into bool: 'char [1]' to '_Bool' [-Wstring-conversion]
 const decl folding.c:43:16: error: static assertion expression is not an integral constant expression
-const decl folding.c:44:16: error: static assertion failed due to requirement '!""':
+const decl folding.c:44:16: error: static assertion failed due to requirement '!""'
 const decl folding.c:46:16: error: static assertion expression is not an integral constant expression
 const decl folding.c:47:16: error: static assertion expression is not an integral constant expression
 const decl folding.c:50:16: warning: address of array 'arr' will always evaluate to 'true' [-Wpointer-bool-conversion]
 const decl folding.c:50:16: error: static assertion expression is not an integral constant expression
-const decl folding.c:51:16: error: static assertion failed due to requirement '!arr':
+const decl folding.c:51:16: error: static assertion failed due to requirement '!arr'
 const decl folding.c:53:16: warning: implicit conversion from 'double' to '_Bool' changes value from 4.2 to true [-Wfloat-conversion]
 const decl folding.c:53:16: error: static assertion expression is not an integral constant expression
 */

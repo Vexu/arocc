@@ -22,9 +22,9 @@ skip = TODO: reimplement msvc pointer attribute keywords
 
 msvc pointer keywords.c:3:15: warning: TODO: implement 'ptr64' attribute
 msvc pointer keywords.c:7:15: warning: TODO: implement 'ptr32' attribute
-msvc pointer keywords.c:8:16: error: static assertion failed due to requirement 'sizeof(HANDLE32) == 4':
+msvc pointer keywords.c:8:16: error: static assertion failed due to requirement 'sizeof(HANDLE32) == 4'
 msvc pointer keywords.c:8:33: note: expression evaluates to '8 == 4'
-msvc pointer keywords.c:9:16: error: static assertion failed due to requirement '_Alignof(HANDLE32) == 4':
+msvc pointer keywords.c:9:16: error: static assertion failed due to requirement '_Alignof(HANDLE32) == 4'
 msvc pointer keywords.c:9:35: note: expression evaluates to '8 == 4'
 msvc pointer keywords.c:11:6: warning: TODO: implement 'ptr64' attribute
 msvc pointer keywords.c:11:14: warning: TODO: implement 'ptr32' attribute

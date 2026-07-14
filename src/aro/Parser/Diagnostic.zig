@@ -103,13 +103,8 @@ pub const multiple_storage_class: Diagnostic = .{
     .kind = .@"error",
 };
 
-pub const static_assert_failure: Diagnostic = .{
-    .fmt = "static assertion failed",
-    .kind = .@"error",
-};
-
 pub const static_assert_failure_message: Diagnostic = .{
-    .fmt = "static assertion failed {s}",
+    .fmt = "static assertion failed{s}",
     .kind = .@"error",
 };
 
