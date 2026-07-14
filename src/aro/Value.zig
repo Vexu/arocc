@@ -1067,6 +1067,18 @@ pub fn maxInt(qt: QualType, comp: *Compilation) !Value {
     return twosCompIntLimit(.max, qt, comp);
 }
 
+pub fn elem(arr: Value, index: Value, comp: *Compilation) !Value {
+    const index_int = index.toInt(u32, comp) orelse return .{};
+    if (arr.opt_ref == .none) return .{};
+    switch (comp.interner.get(arr.ref())) {
+        .bytes => |b| {
+            if (index_int > b.len) return .{};
+            return Value.int(b[index_int], comp);
+        },
+        else => return .{},
+    }
+}
+
 const NestedPrint = union(enum) {
     pointer: struct {
         node: u32,

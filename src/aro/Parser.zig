@@ -9758,6 +9758,8 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!?Result {
                 try p.err(l_bracket, .invalid_subscript, .{});
             }
 
+            const item = try ptr.val.elem(index.val, p.comp);
+
             try ptr.saveValue(p);
             try index.saveValue(p);
             ptr.node = try p.addNode(.{ .array_access_expr = .{
@@ -9766,6 +9768,7 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!?Result {
                 .index = index.node,
                 .qt = ptr.qt,
             } });
+            ptr.val = item;
             return ptr;
         },
         .period => {
