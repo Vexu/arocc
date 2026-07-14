@@ -7,6 +7,29 @@
 
 # include_next <stdint.h>
 
+# if defined(__APPLE__) && __ARO_EMULATE__ == __ARO_EMULATE_NO__
+
+#  if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 202311L
+#   define INTMAX_WIDTH   __INTMAX_WIDTH__
+#   define UINTMAX_WIDTH  __UINTMAX_WIDTH__
+#   define INTPTR_WIDTH   __INTPTR_WIDTH__
+#   define UINTPTR_WIDTH  __UINTPTR_WIDTH__
+#   define PTRDIFF_WIDTH  __PTRDIFF_WIDTH__
+#   define SIZE_WIDTH     __SIZE_WIDTH__
+#   define WCHAR_WIDTH    __WCHAR_WIDTH__
+
+#   define UINT8_WIDTH    8
+#   define UINT16_WIDTH   16
+#   define UINT32_WIDTH   32
+#   define UINT64_WIDTH   64
+#   define INT8_WIDTH     UINT8_WIDTH
+#   define INT16_WIDTH    UINT16_WIDTH
+#   define INT32_WIDTH    UINT32_WIDTH
+#   define INT64_WIDTH    UINT64_WIDTH
+#  endif
+
+# endif
+
 #else
 
 #define __stdint_int_c_cat(X, Y) X ## Y
