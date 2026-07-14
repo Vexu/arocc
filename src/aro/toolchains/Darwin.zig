@@ -16,18 +16,19 @@ pub fn defineSystemIncludes(self: *Darwin, tc: *Toolchain) !void {
         if (tc.driver.sysroot) |sysroot| {
             self.sdk_path = sysroot;
         } else if (builtin.target.os.tag.isDarwin()) {
+            self.sdk_path = try self.sdk.xcrun(tc, "--show-sdk-path");
+        } else {
             std.debug.assert(tc.getTarget().os.tag.isDarwin());
             try tc.driver.diagnostics.add(.{ .kind = .note, .text = "--sysroot may be required when cross-compiling to Darwin targets", .location = null });
-        } else {
-            self.sdk_path = try self.sdk.xcrun(tc, "--show-sdk-path");
         }
-        try tc.addPathIfExists(&.{ "usr", "local", "include" }, .file);
+
+        try tc.addSystemIncludeDirJoined(&.{ "usr", "local", "include" });
     }
 
-    if (self.sdk_path) |sdk| try tc.addPathIfExists(&.{ sdk, "usr", "local", "include" }, .file);
+    if (self.sdk_path) |sdk| try tc.addSystemIncludeDirJoined(&.{ sdk, "usr", "local", "include" });
     if (!tc.driver.nobuiltininc) try tc.addBuiltinIncludeDir();
 
-    if (self.sdk_path) |sdk| try tc.addPathIfExists(&.{ sdk, "usr", "include" }, .file);
+    if (self.sdk_path) |sdk| try tc.addSystemIncludeDirJoined(&.{ sdk, "usr", "include" });
 }
 
 const Sdk = union(enum) {
@@ -69,17 +70,23 @@ const Sdk = union(enum) {
         const result = std.process.run(tc.driver.comp.gpa, tc.driver.comp.io, .{
             .argv = &.{ "xcrun", "--sdk", @tagName(sdk), arg },
         }) catch |err| {
-            try tc.driver.err("{s} failed to run: {t}", .{ pretty_cmd, err });
+            try tc.driver.err("{s} failed to run: {s}", .{ pretty_cmd, @errorName(err) });
             return null;
         };
         defer gpa.free(result.stderr);
         defer gpa.free(result.stdout);
 
         if (result.term != .exited) {
-            try tc.driver.err("{s} stopped unexpectedly: {}\n{s}", .{ pretty_cmd, result.term, result.stderr });
+            var aw = std.Io.Writer.Allocating.init(gpa);
+            defer aw.deinit();
+            aw.writer.print("{any}", .{result.term}) catch return error.OutOfMemory;
+            try tc.driver.err("{s} stopped unexpectedly: {}\n{s}", .{ pretty_cmd, aw.writer.buffered(), result.stderr });
             return null;
         } else if (result.term.exited != 0) {
-            try tc.driver.err("{s} exited with exit code {d}\n{s}", .{ pretty_cmd, result.term.exited, result.stderr });
+            var aw = std.Io.Writer.Allocating.init(gpa);
+            defer aw.deinit();
+            aw.writer.print("{any}", .{result.term.exited}) catch return error.OutOfMemory;
+            try tc.driver.err("{s} exited with exit code {d}\n{s}", .{ pretty_cmd, aw.writer.buffered(), result.stderr });
             return null;
         } else if (result.stderr.len > 0) {
             try tc.driver.err("{s} stderr:\n{s}", .{ pretty_cmd, result.stderr });

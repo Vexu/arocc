@@ -529,6 +529,11 @@ pub fn defineSystemIncludes(tc: *Toolchain) !void {
     };
 }
 
+pub fn addSystemIncludeDirJoined(tc: *const Toolchain, components: []const []const u8) !void {
+    const path = try std.fs.path.join(tc.driver.comp.arena, components);
+    try tc.addSystemIncludeDir(path);
+}
+
 pub fn addSystemIncludeDir(tc: *const Toolchain, path: []const u8) !void {
     const d = tc.driver;
     _ = try d.includes.append(d.comp.gpa, .{ .kind = .system, .path = try d.comp.arena.dupe(u8, path) });
