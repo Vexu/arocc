@@ -411,10 +411,7 @@ const MsvcContext = struct {
                 pack_value = pack * BITS_PER_BYTE;
             }
         }
-        if (pack_value) |pack| {
-            pack_value = msvcPragmaPack(comp, pack);
-        }
-
+        pack_value = msvcPragmaPack(comp, pack_value);
         // The required alignment can be increased by adding a __declspec(align)
         // annotation. See test case 0023.
         const must_align = @as(u32, (requested_align orelse 1)) * BITS_PER_BYTE;
@@ -659,8 +656,8 @@ fn computeLayout(qt: QualType, comp: *const Compilation) RecordLayout {
 //        activate the default.
 //
 // See test case 0020.
-pub fn msvcPragmaPack(comp: *const Compilation, pack: u32) ?u32 {
-    return switch (pack) {
+pub fn msvcPragmaPack(comp: *const Compilation, pack: ?u32) ?u32 {
+    return switch (pack orelse 0) {
         8, 16, 32 => pack,
         64 => if (comp.target.cpu.arch == .x86) null else pack,
         128 => if (comp.target.cpu.arch == .thumb) pack else null,
