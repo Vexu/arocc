@@ -330,14 +330,6 @@ const compErr = blk: {
             .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
-            "aarch64-generic-windows-msvc:Msvc|0020",
-            .{ .parse = false, .layout = true, .extra = true, .offset = true },
-        },
-        .{
-            "aarch64-generic-windows-msvc:Msvc|0020",
-            .{ .parse = false, .layout = true, .extra = true, .offset = true },
-        },
-        .{
             "aarch64-generic-windows-msvc:Msvc|0021",
             .{ .parse = false, .layout = true, .extra = true, .offset = true },
         },
@@ -452,10 +444,6 @@ const compErr = blk: {
         .{
             "thumb-baseline-windows-msvc:Msvc|0018",
             .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "thumb-baseline-windows-msvc:Msvc|0020",
-            .{ .parse = false, .layout = true, .extra = true, .offset = true },
         },
         .{
             "thumb-baseline-windows-msvc:Msvc|0021",
