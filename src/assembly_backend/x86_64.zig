@@ -118,7 +118,7 @@ fn emitSingleValue(c: *AsmCodeGen, qt: QualType, node: Node.Index) !void {
         const bytes = value.toBytes(c.comp);
         const directive = if (bytes.len > bit_size / 8) "ascii" else "string";
         try c.data.print("  .{s} ", .{directive});
-        try Value.printString(bytes, qt, c.comp, c.data);
+        try Value.printString(bytes, qt, c.comp, c.data, .quoted);
 
         try c.data.writeByte('\n');
     } else unreachable;
