@@ -96,7 +96,6 @@ const StaticAssertEvalNote = struct {
     tok: TokenIndex,
     lhs_val: Value,
     lhs_qt: QualType,
-    op: std.math.CompareOperator,
     rhs_val: Value,
     rhs_qt: QualType,
 };
@@ -1798,18 +1797,7 @@ fn staticAssertMessage(p: *Parser, cond_start: TokenIndex, cond_end: TokenIndex,
     };
 }
 
-fn staticAssertComparisonOperator(op: std.math.CompareOperator) []const u8 {
-    return switch (op) {
-        .lt => "<",
-        .lte => "<=",
-        .eq => "==",
-        .gte => ">=",
-        .gt => ">",
-        .neq => "!=",
-    };
-}
-
-fn staticAssertRecordEvaluationNote(p: *Parser, tok: TokenIndex, op: std.math.CompareOperator, lhs: Result, rhs: Result) void {
+fn staticAssertRecordEvaluationNote(p: *Parser, tok: TokenIndex, lhs: Result, rhs: Result) void {
     if (lhs.val.opt_ref == .none or rhs.val.opt_ref == .none) return;
     if (lhs.val.is(.pointer, p.comp) or rhs.val.is(.pointer, p.comp)) return;
 
@@ -1817,7 +1805,6 @@ fn staticAssertRecordEvaluationNote(p: *Parser, tok: TokenIndex, op: std.math.Co
         .tok = tok,
         .lhs_val = lhs.val,
         .lhs_qt = lhs.qt,
-        .op = op,
         .rhs_val = rhs.val,
         .rhs_qt = rhs.qt,
     };
@@ -1832,7 +1819,7 @@ fn writeStaticAssertEvalNote(p: *Parser, note: *const StaticAssertEvalNote, allo
     const w = &allocating.writer;
 
     if (!try p.writeStaticAssertEvalValue(w, note.lhs_val, note.lhs_qt)) return null;
-    try w.print(" {s} ", .{staticAssertComparisonOperator(note.op)});
+    try w.print(" {s} ", .{p.tokSlice(note.tok)});
     if (!try p.writeStaticAssertEvalValue(w, note.rhs_val, note.rhs_qt)) return null;
     return allocating.written();
 }
@@ -8518,7 +8505,7 @@ fn eqExpr(p: *Parser) Error!?Result {
                 lhs.val.compare(op, rhs.val, p.comp);
 
             if (p.record_static_assert_eval_note and res == false) {
-                p.staticAssertRecordEvaluationNote(tok, op, lhs, rhs);
+                p.staticAssertRecordEvaluationNote(tok, lhs, rhs);
             }
             lhs.val = if (res) |val| Value.fromBool(val) else .{};
         } else {
@@ -8554,7 +8541,7 @@ fn compExpr(p: *Parser) Error!?Result {
             else
                 lhs.val.compare(op, rhs.val, p.comp);
             if (p.record_static_assert_eval_note and res == false) {
-                p.staticAssertRecordEvaluationNote(tok, op, lhs, rhs);
+                p.staticAssertRecordEvaluationNote(tok, lhs, rhs);
             }
             lhs.val = if (res) |val| Value.fromBool(val) else .{};
         } else {
