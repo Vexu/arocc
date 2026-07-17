@@ -3700,11 +3700,26 @@ fn findIncludeFilenameToken(
     }
 
     const source_tok = tokFromRaw(first);
-    const filename_tok, const expanded_trailing = switch (source_tok.id) {
-        .string_literal, .macro_string => .{ source_tok, false },
-        else => expanded: {
+    switch (source_tok.id) {
+        .string_literal, .macro_string => {
+            // Happy path, no macro expansion needed. We just check to ensure
+            // that there's no trailing tokens, and we're done.
+            if (trailing_token_behavior == .expect_nl_eof) {
+                // Error on extra tokens.
+                const nl = tokenizer.nextNoWS();
+                if (nl.id != .nl and nl.id != .eof) {
+                    skipToNl(tokenizer);
+                    try pp.err(source_tok, .extra_tokens_directive_end, .{});
+                }
+            }
+
+            return source_tok;
+        },
+
+        else => {
+            // Our include argument is a macro, so we need to try and expand
+            // it.
             const gpa = pp.comp.gpa;
-            // Try to expand if the argument is a macro.
             pp.top_expansion_buf.items.len = 0;
             defer for (pp.top_expansion_buf.items) |tok| TokenWithExpansionLocs.free(tok.expansion_locs, gpa);
             try pp.top_expansion_buf.append(gpa, source_tok);
@@ -3728,28 +3743,19 @@ fn findIncludeFilenameToken(
             const start = pp.comp.generated_buf.items.len;
             try pp.comp.generated_buf.appendSlice(gpa, include_str);
 
-            break :expanded .{ try pp.makeGeneratedToken(start, switch (include_str[0]) {
+            // Check for trailing tokens
+            if (trailing_toks.len != 0) {
+                if (trailing_token_behavior == .expect_nl_eof) skipToNl(tokenizer);
+                try pp.err(source_tok, .extra_tokens_directive_end, .{});
+            }
+
+            return try pp.makeGeneratedToken(start, switch (include_str[0]) {
                 '"' => .string_literal,
                 '<' => .macro_string,
                 else => unreachable,
-            }, pp.top_expansion_buf.items[0]), trailing_toks.len != 0 };
-        },
-    };
-
-    switch (trailing_token_behavior) {
-        .expect_nl_eof => {
-            // Error on extra tokens.
-            const nl = tokenizer.nextNoWS();
-            if ((nl.id != .nl and nl.id != .eof) or expanded_trailing) {
-                skipToNl(tokenizer);
-                try pp.err(filename_tok, .extra_tokens_directive_end, .{});
-            }
-        },
-        .ignore_trailing_tokens => if (expanded_trailing) {
-            try pp.err(filename_tok, .extra_tokens_directive_end, .{});
+            }, pp.top_expansion_buf.items[0]);
         },
     }
-    return filename_tok;
 }
 
 fn findIncludeSource(pp: *Preprocessor, tokenizer: *Tokenizer, first: RawToken, which: Compilation.WhichInclude) !Source {
