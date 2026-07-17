@@ -50,7 +50,7 @@ pub const ExpandedLocation = struct {
 const Source = @This();
 
 path: []const u8,
-buf: []const u8,
+buf: [:0]const u8,
 id: Id,
 /// each entry represents a byte position within `buf` where a backslash+newline was deleted
 /// from the original raw buffer. The same position can appear multiple times if multiple

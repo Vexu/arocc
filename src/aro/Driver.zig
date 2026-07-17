@@ -1249,7 +1249,7 @@ pub fn main(d: *Driver, tc: *Toolchain, args: []const []const u8, comptime fast_
         if (macro_buf.items.len > std.math.maxInt(u32)) {
             return d.fatal("user provided macro source exceeded max size", .{});
         }
-        const contents = try macro_buf.toOwnedSlice(d.comp.gpa);
+        const contents = try macro_buf.toOwnedSliceSentinel(d.comp.gpa, 0);
         errdefer d.comp.gpa.free(contents);
 
         break :macros try d.comp.addSourceFromOwnedBuffer("<command line>", contents, .user);

@@ -1241,7 +1241,7 @@ pub fn generateBuiltinMacros(comp: *Compilation, system_defines_mode: SystemDefi
 
     if (allocating.written().len > std.math.maxInt(u32)) return error.FileTooBig;
 
-    const contents = try allocating.toOwnedSlice();
+    const contents = try allocating.toOwnedSliceSentinel(0);
     errdefer comp.gpa.free(contents);
     return comp.addSourceFromOwnedBuffer("<builtin>", contents, .user);
 }
@@ -1661,7 +1661,7 @@ pub fn getSource(comp: *const Compilation, id: Source.Id) Source {
     }
     if (id.index == .generated) return .{
         .path = "<scratch space>",
-        .buf = comp.generated_buf.items,
+        .buf = @ptrCast(comp.generated_buf.items),
         .id = .generated,
         .splice_locs = &.{},
         .kind = .user,
@@ -1675,7 +1675,7 @@ pub fn getSource(comp: *const Compilation, id: Source.Id) Source {
 /// or line-ending changes happen.
 /// caller retains ownership of `path`
 /// To add a file's contents given its path, see addSourceFromPath
-pub fn addSourceFromOwnedBuffer(comp: *Compilation, path: []const u8, buf: []u8, kind: Source.Kind) !Source {
+pub fn addSourceFromOwnedBuffer(comp: *Compilation, path: []const u8, buf: [:0]u8, kind: Source.Kind) !Source {
     assert(buf.len <= std.math.maxInt(u32));
     try comp.sources.ensureUnusedCapacity(comp.gpa, 1);
 
@@ -1798,9 +1798,9 @@ pub fn addSourceFromOwnedBuffer(comp: *Compilation, path: []const u8, buf: []u8,
     if (i != contents.len) {
         var list: std.ArrayList(u8) = .{
             .items = contents[0..i],
-            .capacity = contents.len,
+            .capacity = contents.len + 1, // +1 for sentinel
         };
-        contents = try list.toOwnedSlice(comp.gpa);
+        contents = try list.toOwnedSliceSentinel(comp.gpa, 0);
     }
     errdefer @compileError("errdefers in callers would possibly free the realloced slice using the original len");
 
@@ -1819,7 +1819,7 @@ pub fn addSourceFromOwnedBuffer(comp: *Compilation, path: []const u8, buf: []u8,
 fn addNewlineEscapeError(
     comp: *Compilation,
     path: []const u8,
-    buf: []const u8,
+    buf: [:0]const u8,
     splice_locs: []const u32,
     byte_offset: u32,
     line: u32,
@@ -1855,7 +1855,7 @@ pub fn addSourceFromBuffer(comp: *Compilation, path: []const u8, buf: []const u8
     if (comp.sources.get(path)) |some| return some;
     if (buf.len > std.math.maxInt(u32)) return error.FileTooBig;
 
-    const contents = try comp.gpa.dupe(u8, buf);
+    const contents = try comp.gpa.dupeSentinel(u8, buf, 0);
     errdefer comp.gpa.free(contents);
 
     return comp.addSourceFromOwnedBuffer(path, contents, .user);
@@ -2234,7 +2234,7 @@ pub const IncludeType = enum {
     cli,
 };
 
-fn getPathContents(comp: *Compilation, path: []const u8, limit: Io.Limit) ![]u8 {
+fn getPathContents(comp: *Compilation, path: []const u8, limit: Io.Limit) ![:0]u8 {
     if (mem.indexOfScalar(u8, path, 0) != null) {
         return error.FileNotFound;
     }
@@ -2244,7 +2244,7 @@ fn getPathContents(comp: *Compilation, path: []const u8, limit: Io.Limit) ![]u8 
     return comp.getFileContents(file, limit);
 }
 
-fn getFileContents(comp: *Compilation, file: std.Io.File, limit: Io.Limit) ![]u8 {
+fn getFileContents(comp: *Compilation, file: std.Io.File, limit: Io.Limit) ![:0]u8 {
     var file_buf: [4096]u8 = undefined;
     var file_reader = file.reader(comp.io, &file_buf);
 
@@ -2259,14 +2259,14 @@ fn getFileContents(comp: *Compilation, file: std.Io.File, limit: Io.Limit) ![]u8
     var remaining = limit.min(.limited(std.math.maxInt(u32)));
     while (remaining.nonzero()) {
         const n = file_reader.interface.stream(&allocating.writer, remaining) catch |err| switch (err) {
-            error.EndOfStream => return allocating.toOwnedSlice(),
+            error.EndOfStream => return allocating.toOwnedSliceSentinel(0),
             error.WriteFailed => return error.OutOfMemory,
             error.ReadFailed => return file_reader.err.?,
         };
         remaining = remaining.subtract(n).?;
     }
     if (limit == .unlimited) return error.FileTooBig;
-    return allocating.toOwnedSlice();
+    return allocating.toOwnedSliceSentinel(0);
 }
 
 fn normalizePath(comp: *Compilation, path: []u8) void {
@@ -2283,7 +2283,7 @@ pub fn findEmbed(
     include_type: IncludeType,
     limit: Io.Limit,
     opt_dep_file: ?*DepFile,
-) !?[]u8 {
+) !?[:0]u8 {
     if (std.fs.path.isAbsolute(filename)) {
         if (comp.getPathContents(filename, limit)) |some| {
             errdefer comp.gpa.free(some);

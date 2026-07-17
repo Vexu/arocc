@@ -1642,16 +1642,18 @@ fn pragmaOperator(pp: *Preprocessor, arg_tok: TokenWithExpansionLocs, buf: *Expa
     const gpa = pp.comp.gpa;
 
     pp.char_buf.clearRetainingCapacity();
-    const total_len = directive.len + content.len + 1; // destringify can never grow the string, + 1 for newline
+    const total_len = directive.len + content.len + 2; // destringify can never grow the string, +2 for newline and null terminator
     try pp.char_buf.ensureUnusedCapacity(gpa, total_len);
     pp.char_buf.appendSliceAssumeCapacity(directive);
     pp.destringify(content);
-    pp.char_buf.appendAssumeCapacity('\n');
+    pp.char_buf.appendSliceAssumeCapacity("\n\x00");
 
     const start = pp.comp.generated_buf.items.len;
     try pp.comp.generated_buf.appendSlice(gpa, pp.char_buf.items);
+    defer pp.comp.generated_buf.items.len -= 1; // remove redundant null terminator
+
     var tmp_tokenizer: Tokenizer = .{
-        .buf = pp.comp.generated_buf.items,
+        .buf = pp.comp.generated_buf.items[0 .. pp.comp.generated_buf.items.len - 1 :0],
         .langopts = pp.comp.langopts,
         .index = @intCast(start),
         .source = .generated,
@@ -1769,9 +1771,9 @@ fn stringify(pp: *Preprocessor, tokens: []const TokenWithExpansionLocs) !void {
         pp.char_buf.appendSliceAssumeCapacity("\"\n");
         return;
     }
-    pp.char_buf.appendAssumeCapacity('"');
+    pp.char_buf.appendSliceAssumeCapacity("\"\x00");
     var tokenizer: Tokenizer = .{
-        .buf = pp.char_buf.items,
+        .buf = pp.char_buf.items[0 .. pp.char_buf.items.len - 1 :0],
         .index = 0,
         .source = .generated,
         .langopts = pp.comp.langopts,
@@ -1782,7 +1784,7 @@ fn stringify(pp: *Preprocessor, tokens: []const TokenWithExpansionLocs) !void {
     if (item.id == .unterminated_string_literal) {
         const tok = tokens[tokens.len - 1];
         try pp.err(tok, .invalid_pp_stringify_escape, .{});
-        pp.char_buf.items.len -= 2; // erase unpaired backslash and appended end quote
+        pp.char_buf.items.len -= 3; // erase unpaired backslash and appended end quote
         pp.char_buf.appendAssumeCapacity('"');
     }
     pp.char_buf.appendAssumeCapacity('\n');
@@ -2975,15 +2977,16 @@ fn pasteTokens(pp: *Preprocessor, lhs_toks: *ExpandBuf, rhs_toks: []const TokenW
 
     const start = pp.comp.generated_buf.items.len;
     const end = start + pp.expandedSlice(lhs).len + pp.expandedSlice(rhs).len;
-    try pp.comp.generated_buf.ensureTotalCapacity(gpa, end + 1); // +1 for a newline
+    try pp.comp.generated_buf.ensureTotalCapacity(gpa, end + 2); // +2 for a newline and null terminator
     // We cannot use the same slices here since they might be invalidated by `ensureCapacity`
     pp.comp.generated_buf.appendSliceAssumeCapacity(pp.expandedSlice(lhs));
     pp.comp.generated_buf.appendSliceAssumeCapacity(pp.expandedSlice(rhs));
-    pp.comp.generated_buf.appendAssumeCapacity('\n');
+    pp.comp.generated_buf.appendSliceAssumeCapacity("\n\x00");
+    defer pp.comp.generated_buf.items.len -= 1; // remove redundant null terminator
 
     // Try to tokenize the result.
     var tmp_tokenizer: Tokenizer = .{
-        .buf = pp.comp.generated_buf.items,
+        .buf = pp.comp.generated_buf.items[0 .. pp.comp.generated_buf.items.len - 1 :0],
         .langopts = pp.comp.langopts,
         .index = @intCast(start),
         .source = .generated,
