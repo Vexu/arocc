@@ -1150,7 +1150,7 @@ pub const Token = struct {
 
 const Tokenizer = @This();
 
-buf: []const u8,
+buf: [:0]const u8,
 index: u32 = 0,
 source: Source.Id,
 langopts: LangOpts,
@@ -1159,7 +1159,7 @@ splice_index: u32 = 0,
 splice_locs: []const u32,
 
 pub fn next(self: *Tokenizer) Token {
-    var state: enum {
+    const State = enum {
         start,
         whitespace,
         u,
@@ -1200,335 +1200,365 @@ pub fn next(self: *Tokenizer) Token {
         pp_num,
         pp_num_exponent,
         pp_num_digit_separator,
-    } = .start;
+    };
 
     var start = self.index;
     var id: Token.Id = .eof;
 
-    while (self.index < self.buf.len) : (self.index += 1) {
-        const c = self.buf[self.index];
-        switch (state) {
-            .start => switch (c) {
-                '\n' => {
-                    id = .nl;
-                    self.index += 1;
-                    self.line += 1;
-                    break;
-                },
-                '"' => {
-                    id = .string_literal;
-                    state = .string_literal;
-                },
-                '\'' => {
-                    id = .char_literal;
-                    state = .char_literal_start;
-                },
-                'u' => state = .u,
-                'U' => state = .U,
-                'L' => state = .L,
-                '\\' => {
-                    const ucn_kind = UCNKind.classify(self.buf[self.index..]);
-                    switch (ucn_kind) {
-                        .none => {
-                            self.index += 1;
-                            id = .invalid;
-                            break;
-                        },
-                        .incomplete => {
-                            self.index += 1;
-                            id = .incomplete_ucn;
-                            break;
-                        },
-                        .hex4, .hex8 => {
-                            self.index += @backingInt(ucn_kind);
-                            id = .extended_identifier;
-                            state = .extended_identifier;
-                        },
-                    }
-                },
-                'a'...'t', 'v'...'z', 'A'...'K', 'M'...'T', 'V'...'Z', '_' => state = .identifier,
-                '=' => state = .equal,
-                '!' => state = .bang,
-                '|' => state = .pipe,
-                '(' => {
-                    id = .l_paren;
-                    self.index += 1;
-                    break;
-                },
-                ')' => {
-                    id = .r_paren;
-                    self.index += 1;
-                    break;
-                },
-                '[' => {
-                    id = .l_bracket;
-                    self.index += 1;
-                    break;
-                },
-                ']' => {
-                    id = .r_bracket;
-                    self.index += 1;
-                    break;
-                },
-                ';' => {
-                    id = .semicolon;
-                    self.index += 1;
-                    break;
-                },
-                ',' => {
-                    id = .comma;
-                    self.index += 1;
-                    break;
-                },
-                '?' => {
-                    id = .question_mark;
-                    self.index += 1;
-                    break;
-                },
-                ':' => state = .colon,
-                '%' => state = .percent,
-                '*' => state = .asterisk,
-                '+' => state = .plus,
-                '<' => state = .angle_bracket_left,
-                '>' => state = .angle_bracket_right,
-                '^' => state = .caret,
-                '{' => {
-                    id = .l_brace;
-                    self.index += 1;
-                    break;
-                },
-                '}' => {
-                    id = .r_brace;
-                    self.index += 1;
-                    break;
-                },
-                '~' => {
-                    id = .tilde;
-                    self.index += 1;
-                    break;
-                },
-                '.' => state = .period,
-                '-' => state = .minus,
-                '/' => state = .slash,
-                '&' => state = .ampersand,
-                '#' => state = .hash,
-                '0'...'9' => state = .pp_num,
-                '\t', '\x0B', '\x0C', ' ' => state = .whitespace,
-                '$' => if (self.langopts.dollars_in_identifiers) {
-                    state = .extended_identifier;
-                } else {
+    loop: switch (State.start) {
+        .start => switch (self.buf[self.index]) {
+            0 => {
+                if (self.index != self.buf.len) {
                     id = .invalid;
                     self.index += 1;
-                    break;
-                },
-                0x1A => if (self.langopts.ms_extensions) {
-                    id = .eof;
-                    break;
-                } else {
-                    id = .invalid;
-                    self.index += 1;
-                    break;
-                },
-                0x80...0xFF => state = .extended_identifier,
-                else => {
-                    id = .invalid;
-                    self.index += 1;
-                    break;
-                },
+                }
             },
-            .whitespace => switch (c) {
-                '\t', '\x0B', '\x0C', ' ' => {},
-                else => {
-                    id = .whitespace;
-                    break;
-                },
+            '\n' => {
+                id = .nl;
+                self.index += 1;
+                self.line += 1;
             },
-            .u => switch (c) {
+            '"' => {
+                id = .string_literal;
+                continue :loop .string_literal;
+            },
+            '\'' => {
+                id = .char_literal;
+                continue :loop .char_literal_start;
+            },
+            'u' => continue :loop .u,
+            'U' => continue :loop .U,
+            'L' => continue :loop .L,
+            '\\' => {
+                const ucn_kind = UCNKind.classify(self.buf[self.index..]);
+                switch (ucn_kind) {
+                    .none => {
+                        self.index += 1;
+                        id = .invalid;
+                    },
+                    .incomplete => {
+                        self.index += 1;
+                        id = .incomplete_ucn;
+                    },
+                    .hex4, .hex8 => {
+                        self.index += @backingInt(ucn_kind);
+                        id = .extended_identifier;
+                        continue :loop .extended_identifier;
+                    },
+                }
+            },
+            'a'...'t', 'v'...'z', 'A'...'K', 'M'...'T', 'V'...'Z', '_' => continue :loop .identifier,
+            '=' => continue :loop .equal,
+            '!' => continue :loop .bang,
+            '|' => continue :loop .pipe,
+            '(' => {
+                id = .l_paren;
+                self.index += 1;
+            },
+            ')' => {
+                id = .r_paren;
+                self.index += 1;
+            },
+            '[' => {
+                id = .l_bracket;
+                self.index += 1;
+            },
+            ']' => {
+                id = .r_bracket;
+                self.index += 1;
+            },
+            ';' => {
+                id = .semicolon;
+                self.index += 1;
+            },
+            ',' => {
+                id = .comma;
+                self.index += 1;
+            },
+            '?' => {
+                id = .question_mark;
+                self.index += 1;
+            },
+            ':' => continue :loop .colon,
+            '%' => continue :loop .percent,
+            '*' => continue :loop .asterisk,
+            '+' => continue :loop .plus,
+            '<' => continue :loop .angle_bracket_left,
+            '>' => continue :loop .angle_bracket_right,
+            '^' => continue :loop .caret,
+            '{' => {
+                id = .l_brace;
+                self.index += 1;
+            },
+            '}' => {
+                id = .r_brace;
+                self.index += 1;
+            },
+            '~' => {
+                id = .tilde;
+                self.index += 1;
+            },
+            '.' => continue :loop .period,
+            '-' => continue :loop .minus,
+            '/' => continue :loop .slash,
+            '&' => continue :loop .ampersand,
+            '#' => continue :loop .hash,
+            '0'...'9' => continue :loop .pp_num,
+            '\t', '\x0B', '\x0C', ' ' => continue :loop .whitespace,
+            '$' => if (self.langopts.dollars_in_identifiers) {
+                continue :loop .extended_identifier;
+            } else {
+                id = .invalid;
+                self.index += 1;
+            },
+            0x1A => if (self.langopts.ms_extensions) {
+                id = .eof;
+            } else {
+                id = .invalid;
+                self.index += 1;
+            },
+            0x80...0xFF => continue :loop .extended_identifier,
+            else => {
+                id = .invalid;
+                self.index += 1;
+            },
+        },
+        .whitespace => {
+            self.index += 1;
+            switch (self.buf[self.index]) {
+                '\t', '\x0B', '\x0C', ' ' => continue :loop .whitespace,
+                else => id = .whitespace,
+            }
+        },
+        .u => {
+            self.index += 1;
+            switch (self.buf[self.index]) {
                 '8' => {
-                    state = .u8;
+                    continue :loop .u8;
                 },
                 '\'' => {
                     id = .char_literal_utf_16;
-                    state = .char_literal_start;
+                    continue :loop .char_literal_start;
                 },
                 '\"' => {
                     id = .string_literal_utf_16;
-                    state = .string_literal;
+                    continue :loop .string_literal;
                 },
                 else => {
                     self.index -= 1;
-                    state = .identifier;
+                    continue :loop .identifier;
                 },
-            },
-            .u8 => switch (c) {
+            }
+        },
+        .u8 => {
+            self.index += 1;
+            switch (self.buf[self.index]) {
                 '\"' => {
                     id = .string_literal_utf_8;
-                    state = .string_literal;
+                    continue :loop .string_literal;
                 },
                 '\'' => {
                     id = .char_literal_utf_8;
-                    state = .char_literal_start;
+                    continue :loop .char_literal_start;
                 },
                 else => {
                     self.index -= 1;
-                    state = .identifier;
+                    continue :loop .identifier;
                 },
-            },
-            .U => switch (c) {
+            }
+        },
+        .U => {
+            self.index += 1;
+            switch (self.buf[self.index]) {
                 '\'' => {
                     id = .char_literal_utf_32;
-                    state = .char_literal_start;
+                    continue :loop .char_literal_start;
                 },
                 '\"' => {
                     id = .string_literal_utf_32;
-                    state = .string_literal;
+                    continue :loop .string_literal;
                 },
                 else => {
                     self.index -= 1;
-                    state = .identifier;
+                    continue :loop .identifier;
                 },
-            },
-            .L => switch (c) {
+            }
+        },
+        .L => {
+            self.index += 1;
+            switch (self.buf[self.index]) {
                 '\'' => {
                     id = .char_literal_wide;
-                    state = .char_literal_start;
+                    continue :loop .char_literal_start;
                 },
                 '\"' => {
                     id = .string_literal_wide;
-                    state = .string_literal;
+                    continue :loop .string_literal;
                 },
                 else => {
                     self.index -= 1;
-                    state = .identifier;
+                    continue :loop .identifier;
                 },
-            },
-            .string_literal => switch (c) {
+            }
+        },
+        .string_literal => {
+            self.index += 1;
+            switch (self.buf[self.index]) {
                 '\\' => {
-                    state = .string_escape_sequence;
+                    continue :loop .string_escape_sequence;
                 },
                 '"' => {
                     self.index += 1;
-                    break;
                 },
                 '\n' => {
                     id = .unterminated_string_literal;
-                    break;
                 },
                 '\r' => unreachable,
-                else => {},
-            },
-            .char_literal_start => switch (c) {
+                0 => {
+                    if (self.index == self.buf.len) {
+                        id = .unterminated_string_literal;
+                    } else {
+                        continue :loop .string_literal;
+                    }
+                },
+                else => continue :loop .string_literal,
+            }
+        },
+        .char_literal_start => {
+            self.index += 1;
+            switch (self.buf[self.index]) {
                 '\\' => {
-                    state = .char_escape_sequence;
+                    continue :loop .char_escape_sequence;
                 },
                 '\'' => {
                     id = .empty_char_literal;
                     self.index += 1;
-                    break;
                 },
                 '\n' => {
                     id = .unterminated_char_literal;
-                    break;
                 },
-                else => {
-                    state = .char_literal;
+                0 => {
+                    if (self.index == self.buf.len) {
+                        id = .unterminated_char_literal;
+                    } else {
+                        continue :loop .char_literal;
+                    }
                 },
-            },
-            .char_literal => switch (c) {
+                else => continue :loop .char_literal,
+            }
+        },
+        .char_literal => {
+            self.index += 1;
+            switch (self.buf[self.index]) {
                 '\\' => {
-                    state = .char_escape_sequence;
+                    continue :loop .char_escape_sequence;
                 },
                 '\'' => {
                     self.index += 1;
-                    break;
                 },
                 '\n' => {
                     id = .unterminated_char_literal;
-                    break;
                 },
-                else => {},
-            },
-            .char_escape_sequence => switch (c) {
+                0 => {
+                    if (self.index == self.buf.len) {
+                        id = .unterminated_char_literal;
+                    } else {
+                        continue :loop .char_literal;
+                    }
+                },
+                else => continue :loop .char_literal,
+            }
+        },
+        .char_escape_sequence => {
+            self.index += 1;
+            switch (self.buf[self.index]) {
                 '\r', '\n' => {
                     id = .unterminated_char_literal;
-                    break;
                 },
-                else => state = .char_literal,
-            },
-            .string_escape_sequence => switch (c) {
+                else => continue :loop .char_literal,
+            }
+        },
+        .string_escape_sequence => {
+            self.index += 1;
+            switch (self.buf[self.index]) {
                 '\r', '\n' => {
                     id = .unterminated_string_literal;
-                    break;
                 },
-                else => state = .string_literal,
-            },
-            .identifier, .extended_identifier => switch (c) {
-                'a'...'z', 'A'...'Z', '_', '0'...'9' => {},
+                else => continue :loop .string_literal,
+            }
+        },
+        inline .identifier, .extended_identifier => |state| {
+            self.index += 1;
+            switch (self.buf[self.index]) {
+                'a'...'z', 'A'...'Z', '_', '0'...'9' => {
+                    continue :loop state;
+                },
                 '$' => if (self.langopts.dollars_in_identifiers) {
-                    state = .extended_identifier;
+                    continue :loop .extended_identifier;
                 } else {
                     id = if (state == .identifier) Token.getTokenId(self.langopts, self.buf[start..self.index]) else .extended_identifier;
-                    break;
                 },
-                0x80...0xFF => state = .extended_identifier,
+                0x80...0xFF => continue :loop .extended_identifier,
                 '\\' => {
                     const ucn_kind = UCNKind.classify(self.buf[self.index..]);
                     switch (ucn_kind) {
                         .none, .incomplete => {
                             id = if (state == .identifier) Token.getTokenId(self.langopts, self.buf[start..self.index]) else .extended_identifier;
-                            break;
                         },
                         .hex4, .hex8 => {
-                            state = .extended_identifier;
                             self.index += @backingInt(ucn_kind);
+                            continue :loop .extended_identifier;
                         },
                     }
                 },
-
                 else => {
                     id = if (state == .identifier) Token.getTokenId(self.langopts, self.buf[start..self.index]) else .extended_identifier;
-                    break;
                 },
-            },
-            .equal => switch (c) {
+            }
+        },
+        .equal => {
+            self.index += 1;
+            switch (self.buf[self.index]) {
                 '=' => {
                     id = .equal_equal;
                     self.index += 1;
-                    break;
                 },
                 else => {
                     id = .equal;
-                    break;
                 },
-            },
-            .bang => switch (c) {
+            }
+        },
+        .bang => {
+            self.index += 1;
+            switch (self.buf[self.index]) {
                 '=' => {
                     id = .bang_equal;
                     self.index += 1;
-                    break;
                 },
                 else => {
                     id = .bang;
-                    break;
                 },
-            },
-            .pipe => switch (c) {
+            }
+        },
+        .pipe => {
+            self.index += 1;
+            switch (self.buf[self.index]) {
                 '=' => {
                     id = .pipe_equal;
                     self.index += 1;
-                    break;
                 },
                 '|' => {
                     id = .pipe_pipe;
                     self.index += 1;
-                    break;
                 },
                 else => {
                     id = .pipe;
-                    break;
                 },
-            },
-            .colon => switch (c) {
+            }
+        },
+        .colon => {
+            self.index += 1;
+            switch (self.buf[self.index]) {
                 '>' => {
                     if (self.langopts.hasDigraphs()) {
                         id = .r_bracket;
@@ -1536,23 +1566,22 @@ pub fn next(self: *Tokenizer) Token {
                     } else {
                         id = .colon;
                     }
-                    break;
                 },
                 ':' => {
                     id = .colon_colon;
                     self.index += 1;
-                    break;
                 },
                 else => {
                     id = .colon;
-                    break;
                 },
-            },
-            .percent => switch (c) {
+            }
+        },
+        .percent => {
+            self.index += 1;
+            switch (self.buf[self.index]) {
                 '=' => {
                     id = .percent_equal;
                     self.index += 1;
-                    break;
                 },
                 '>' => {
                     if (self.langopts.hasDigraphs()) {
@@ -1561,54 +1590,54 @@ pub fn next(self: *Tokenizer) Token {
                     } else {
                         id = .percent;
                     }
-                    break;
                 },
                 ':' => {
                     if (self.langopts.hasDigraphs()) {
-                        state = .hash_digraph;
+                        continue :loop .hash_digraph;
                     } else {
                         id = .percent;
-                        break;
                     }
                 },
                 else => {
                     id = .percent;
-                    break;
                 },
-            },
-            .asterisk => switch (c) {
+            }
+        },
+        .asterisk => {
+            self.index += 1;
+            switch (self.buf[self.index]) {
                 '=' => {
                     id = .asterisk_equal;
                     self.index += 1;
-                    break;
                 },
                 else => {
                     id = .asterisk;
-                    break;
                 },
-            },
-            .plus => switch (c) {
+            }
+        },
+        .plus => {
+            self.index += 1;
+            switch (self.buf[self.index]) {
                 '=' => {
                     id = .plus_equal;
                     self.index += 1;
-                    break;
                 },
                 '+' => {
                     id = .plus_plus;
                     self.index += 1;
-                    break;
                 },
                 else => {
                     id = .plus;
-                    break;
                 },
-            },
-            .angle_bracket_left => switch (c) {
-                '<' => state = .angle_bracket_angle_bracket_left,
+            }
+        },
+        .angle_bracket_left => {
+            self.index += 1;
+            switch (self.buf[self.index]) {
+                '<' => continue :loop .angle_bracket_angle_bracket_left,
                 '=' => {
                     id = .angle_bracket_left_equal;
                     self.index += 1;
-                    break;
                 },
                 ':' => {
                     if (self.langopts.hasDigraphs()) {
@@ -1617,7 +1646,6 @@ pub fn next(self: *Tokenizer) Token {
                     } else {
                         id = .angle_bracket_left;
                     }
-                    break;
                 },
                 '%' => {
                     if (self.langopts.hasDigraphs()) {
@@ -1626,209 +1654,258 @@ pub fn next(self: *Tokenizer) Token {
                     } else {
                         id = .angle_bracket_left;
                     }
-                    break;
                 },
                 else => {
                     id = .angle_bracket_left;
-                    break;
                 },
-            },
-            .angle_bracket_angle_bracket_left => switch (c) {
+            }
+        },
+        .angle_bracket_angle_bracket_left => {
+            self.index += 1;
+            switch (self.buf[self.index]) {
                 '=' => {
                     id = .angle_bracket_angle_bracket_left_equal;
                     self.index += 1;
-                    break;
                 },
                 else => {
                     id = .angle_bracket_angle_bracket_left;
-                    break;
                 },
-            },
-            .angle_bracket_right => switch (c) {
-                '>' => state = .angle_bracket_angle_bracket_right,
+            }
+        },
+        .angle_bracket_right => {
+            self.index += 1;
+            switch (self.buf[self.index]) {
+                '>' => continue :loop .angle_bracket_angle_bracket_right,
                 '=' => {
                     id = .angle_bracket_right_equal;
                     self.index += 1;
-                    break;
                 },
                 else => {
                     id = .angle_bracket_right;
-                    break;
                 },
-            },
-            .angle_bracket_angle_bracket_right => switch (c) {
+            }
+        },
+        .angle_bracket_angle_bracket_right => {
+            self.index += 1;
+            switch (self.buf[self.index]) {
                 '=' => {
                     id = .angle_bracket_angle_bracket_right_equal;
                     self.index += 1;
-                    break;
                 },
                 else => {
                     id = .angle_bracket_angle_bracket_right;
-                    break;
                 },
-            },
-            .caret => switch (c) {
+            }
+        },
+        .caret => {
+            self.index += 1;
+            switch (self.buf[self.index]) {
                 '=' => {
                     id = .caret_equal;
                     self.index += 1;
-                    break;
                 },
                 else => {
                     id = .caret;
-                    break;
                 },
-            },
-            .period => switch (c) {
-                '.' => state = .period2,
-                '0'...'9' => state = .pp_num,
+            }
+        },
+        .period => {
+            self.index += 1;
+            switch (self.buf[self.index]) {
+                '.' => continue :loop .period2,
+                '0'...'9' => continue :loop .pp_num,
                 else => {
                     id = .period;
-                    break;
                 },
-            },
-            .period2 => switch (c) {
+            }
+        },
+        .period2 => {
+            self.index += 1;
+            switch (self.buf[self.index]) {
                 '.' => {
                     id = .ellipsis;
                     self.index += 1;
-                    break;
                 },
                 else => {
                     id = .period;
                     self.index -= 1;
-                    break;
                 },
-            },
-            .minus => switch (c) {
+            }
+        },
+        .minus => {
+            self.index += 1;
+            switch (self.buf[self.index]) {
                 '>' => {
                     id = .arrow;
                     self.index += 1;
-                    break;
                 },
                 '=' => {
                     id = .minus_equal;
                     self.index += 1;
-                    break;
                 },
                 '-' => {
                     id = .minus_minus;
                     self.index += 1;
-                    break;
                 },
                 else => {
                     id = .minus;
-                    break;
                 },
-            },
-            .ampersand => switch (c) {
+            }
+        },
+        .ampersand => {
+            self.index += 1;
+            switch (self.buf[self.index]) {
                 '&' => {
                     id = .ampersand_ampersand;
                     self.index += 1;
-                    break;
                 },
                 '=' => {
                     id = .ampersand_equal;
                     self.index += 1;
-                    break;
                 },
                 else => {
                     id = .ampersand;
-                    break;
                 },
-            },
-            .hash => switch (c) {
+            }
+        },
+        .hash => {
+            self.index += 1;
+            switch (self.buf[self.index]) {
                 '#' => {
                     id = .hash_hash;
                     self.index += 1;
-                    break;
                 },
                 else => {
                     id = .hash;
-                    break;
                 },
-            },
-            .hash_digraph => switch (c) {
-                '%' => state = .hash_hash_digraph_partial,
+            }
+        },
+        .hash_digraph => {
+            self.index += 1;
+            switch (self.buf[self.index]) {
+                '%' => continue :loop .hash_hash_digraph_partial,
                 else => {
                     id = .hash;
-                    break;
                 },
-            },
-            .hash_hash_digraph_partial => switch (c) {
+            }
+        },
+        .hash_hash_digraph_partial => {
+            self.index += 1;
+            switch (self.buf[self.index]) {
                 ':' => {
                     id = .hash_hash;
                     self.index += 1;
-                    break;
                 },
                 else => {
                     id = .hash;
                     self.index -= 1; // re-tokenize the percent
-                    break;
                 },
-            },
-            .slash => switch (c) {
-                '/' => state = .line_comment,
-                '*' => state = .multi_line_comment,
+            }
+        },
+        .slash => {
+            self.index += 1;
+            switch (self.buf[self.index]) {
+                '/' => continue :loop .line_comment,
+                '*' => continue :loop .multi_line_comment,
                 '=' => {
                     id = .slash_equal;
                     self.index += 1;
-                    break;
                 },
                 else => {
                     id = .slash;
-                    break;
                 },
-            },
-            .line_comment => switch (c) {
+            }
+        },
+        .line_comment => {
+            self.index += 1;
+            switch (self.buf[self.index]) {
+                0 => {
+                    if (self.index == self.buf.len) {
+                        if (self.langopts.preserve_comments) {
+                            id = .comment;
+                        } else {
+                            continue :loop .start;
+                        }
+                    } else {
+                        continue :loop .line_comment;
+                    }
+                },
                 '\n' => {
                     if (self.langopts.preserve_comments) {
                         id = .comment;
-                        break;
+                    } else {
+                        continue :loop .start;
                     }
-                    self.index -= 1;
-                    state = .start;
                 },
-                else => {},
-            },
-            .multi_line_comment => switch (c) {
-                '*' => state = .multi_line_comment_asterisk,
-                '\n' => self.line += 1,
-                else => {},
-            },
-            .multi_line_comment_asterisk => switch (c) {
+                else => continue :loop .line_comment,
+            }
+        },
+        .multi_line_comment => {
+            self.index += 1;
+            switch (self.buf[self.index]) {
+                0 => {
+                    if (self.index == self.buf.len) {
+                        id = .unterminated_comment;
+                    } else {
+                        continue :loop .multi_line_comment;
+                    }
+                },
+                '*' => continue :loop .multi_line_comment_asterisk,
+                '\n' => {
+                    self.line += 1;
+                    continue :loop .multi_line_comment;
+                },
+                else => continue :loop .multi_line_comment,
+            }
+        },
+        .multi_line_comment_asterisk => {
+            self.index += 1;
+            switch (self.buf[self.index]) {
+                0 => {
+                    if (self.index == self.buf.len) {
+                        id = .unterminated_comment;
+                    } else {
+                        continue :loop .multi_line_comment;
+                    }
+                },
                 '/' => {
                     if (self.langopts.preserve_comments) {
                         self.index += 1;
                         id = .comment;
-                        break;
+                    } else {
+                        continue :loop .multi_line_comment_done;
                     }
-                    state = .multi_line_comment_done;
                 },
                 '\n' => {
                     self.line += 1;
-                    state = .multi_line_comment;
+                    continue :loop .multi_line_comment;
                 },
-                '*' => {},
-                else => state = .multi_line_comment,
-            },
-            .multi_line_comment_done => switch (c) {
+                '*' => continue :loop .multi_line_comment_asterisk,
+                else => continue :loop .multi_line_comment,
+            }
+        },
+        .multi_line_comment_done => {
+            self.index += 1;
+            switch (self.buf[self.index]) {
                 '\n' => {
                     start = self.index;
                     id = .nl;
                     self.index += 1;
                     self.line += 1;
-                    break;
                 },
                 '\r' => unreachable,
                 '\t', '\x0B', '\x0C', ' ' => {
                     start = self.index;
-                    state = .whitespace;
+                    continue :loop .whitespace;
                 },
                 else => {
                     id = .whitespace;
-                    break;
                 },
-            },
-            .pp_num => switch (c) {
+            }
+        },
+        .pp_num => {
+            self.index += 1;
+            switch (self.buf[self.index]) {
                 'a'...'d',
                 'A'...'D',
                 'f'...'o',
@@ -1838,20 +1915,21 @@ pub fn next(self: *Tokenizer) Token {
                 '0'...'9',
                 '_',
                 '.',
-                => {},
-                'e', 'E', 'p', 'P' => state = .pp_num_exponent,
+                => continue :loop .pp_num,
+                'e', 'E', 'p', 'P' => continue :loop .pp_num_exponent,
                 '\'' => if (self.langopts.standard.atLeast(.c23)) {
-                    state = .pp_num_digit_separator;
+                    continue :loop .pp_num_digit_separator;
                 } else {
                     id = .pp_num;
-                    break;
                 },
                 else => {
                     id = .pp_num;
-                    break;
                 },
-            },
-            .pp_num_digit_separator => switch (c) {
+            }
+        },
+        .pp_num_digit_separator => {
+            self.index += 1;
+            switch (self.buf[self.index]) {
                 'a'...'d',
                 'A'...'D',
                 'f'...'o',
@@ -1860,14 +1938,16 @@ pub fn next(self: *Tokenizer) Token {
                 'Q'...'Z',
                 '0'...'9',
                 '_',
-                => state = .pp_num,
+                => continue :loop .pp_num,
                 else => {
                     self.index -= 1;
                     id = .pp_num;
-                    break;
                 },
-            },
-            .pp_num_exponent => switch (c) {
+            }
+        },
+        .pp_num_exponent => {
+            self.index += 1;
+            switch (self.buf[self.index]) {
                 'a'...'o',
                 'q'...'z',
                 'A'...'O',
@@ -1877,62 +1957,13 @@ pub fn next(self: *Tokenizer) Token {
                 '.',
                 '+',
                 '-',
-                => state = .pp_num,
-                'p', 'P' => {},
+                => continue :loop .pp_num,
+                'p', 'P' => continue :loop .pp_num_exponent,
                 else => {
                     id = .pp_num;
-                    break;
                 },
-            },
-        }
-    } else if (self.index == self.buf.len) {
-        switch (state) {
-            .start => {},
-            .line_comment => if (self.langopts.preserve_comments) {
-                id = .comment;
-            },
-            .u, .u8, .U, .L, .identifier => id = Token.getTokenId(self.langopts, self.buf[start..self.index]),
-            .extended_identifier => id = .extended_identifier,
-
-            .period2 => {
-                self.index -= 1;
-                id = .period;
-            },
-
-            .multi_line_comment,
-            .multi_line_comment_asterisk,
-            => id = .unterminated_comment,
-
-            .char_escape_sequence, .char_literal, .char_literal_start => id = .unterminated_char_literal,
-            .string_escape_sequence, .string_literal => id = .unterminated_string_literal,
-
-            .whitespace => id = .whitespace,
-            .multi_line_comment_done => id = .whitespace,
-
-            .equal => id = .equal,
-            .bang => id = .bang,
-            .minus => id = .minus,
-            .slash => id = .slash,
-            .ampersand => id = .ampersand,
-            .hash => id = .hash,
-            .period => id = .period,
-            .pipe => id = .pipe,
-            .angle_bracket_angle_bracket_right => id = .angle_bracket_angle_bracket_right,
-            .angle_bracket_right => id = .angle_bracket_right,
-            .angle_bracket_angle_bracket_left => id = .angle_bracket_angle_bracket_left,
-            .angle_bracket_left => id = .angle_bracket_left,
-            .plus => id = .plus,
-            .colon => id = .colon,
-            .percent => id = .percent,
-            .caret => id = .caret,
-            .asterisk => id = .asterisk,
-            .hash_digraph => id = .hash,
-            .hash_hash_digraph_partial => {
-                id = .hash;
-                self.index -= 1; // re-tokenize the percent
-            },
-            .pp_num, .pp_num_exponent, .pp_num_digit_separator => id = .pp_num,
-        }
+            }
+        },
     }
 
     for (self.splice_locs[self.splice_index..]) |splice_offset| {
