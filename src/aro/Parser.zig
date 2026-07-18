@@ -3778,7 +3778,20 @@ const Declarator = struct {
     /// Used redundantly with `qt` in case it was set to `.invalid` by `validate`.
     declarator_type: enum { other, func, array, pointer, block } = .other,
 
-    const Kind = enum { normal, abstract, param, record };
+    const Kind = enum {
+        normal,
+        abstract,
+        param,
+        record,
+        block_literal,
+
+        fn identifierAllowed(kind: Kind) bool {
+            return switch (kind) {
+                .abstract, .block_literal => false,
+                else => true,
+            };
+        }
+    };
 
     fn validate(d: *Declarator, p: *Parser, source_tok: TokenIndex) Parser.Error!void {
         switch (try validateExtra(p, d.qt, source_tok)) {
@@ -3803,6 +3816,7 @@ const Declarator = struct {
     fn validateExtra(p: *Parser, cur: QualType, source_tok: TokenIndex) Parser.Error!ValidationResult {
         if (cur.isInvalid()) return .nested_invalid;
         if (cur.isAuto()) return .nested_auto;
+        if (cur.isBlockLiteralAutoReturn()) return .nested_auto;
         if (cur._index == .declarator_combine) return .declarator_combine;
 
         switch (cur.type(p.comp)) {
@@ -3857,6 +3871,7 @@ const Declarator = struct {
             },
             .func => |func_ty| {
                 const ret_qt = func_ty.return_type;
+                if (ret_qt.isBlockLiteralAutoReturn()) return .normal;
                 const child_res = try validateExtra(p, ret_qt, source_tok);
                 if (child_res != .normal) return child_res;
 
@@ -3905,6 +3920,13 @@ fn declarator(
         .caret => {
             const caret = p.tok_i;
             p.tok_i += 1;
+            if (d.qt.isBlockLiteralAutoReturn()) {
+                try p.err(caret, .typename_requires_spec_or_qual, .{});
+                d.qt = .invalid;
+                continue;
+            } else if (d.qt.isInvalid()) {
+                continue;
+            }
             d.qt = try p.wip_attrs.applyTypeAttrs(p, d.qt);
             if (!p.comp.langopts.blocks) try p.err(caret, .blocks_not_enabled, .{});
             try p.err(caret, .blocks_are_clang_extension, .{});
@@ -3919,7 +3941,15 @@ fn declarator(
             d.qt = try builder.finishQuals(block_qt);
         },
         .asterisk => {
+            const asterisk = p.tok_i;
             p.tok_i += 1;
+            if (d.qt.isBlockLiteralAutoReturn()) {
+                try p.err(asterisk, .typename_requires_spec_or_qual, .{});
+                d.qt = .invalid;
+                continue;
+            } else if (d.qt.isInvalid()) {
+                continue;
+            }
             d.qt = try p.wip_attrs.applyTypeAttrs(p, d.qt);
             d.declarator_type = .pointer;
             var builder: TypeStore.Builder = .{ .parser = p };
@@ -3934,7 +3964,7 @@ fn declarator(
     };
 
     const maybe_ident = p.tok_i;
-    if (kind != .abstract and (try p.eatIdentifier()) != null) {
+    if (kind.identifierAllowed() and (try p.eatIdentifier()) != null) {
         d.name = maybe_ident;
         const combine_tok = p.tok_i;
         d.qt = try p.wip_attrs.applyTypeAttrs(p, d.qt);
@@ -3950,10 +3980,15 @@ fn declarator(
 
         d.qt = try p.wip_attrs.applyTypeAttrs(p, d.qt);
         const special_marker: QualType = .{ ._index = .declarator_combine };
+        const inner_start = p.tok_i;
         var res = (try p.declarator(special_marker, kind)) orelse {
             p.tok_i = l_paren;
             break :blk;
         };
+        if (d.qt.isBlockLiteralAutoReturn()) {
+            try p.err(inner_start, .missing_type_specifier, .{});
+            d.qt = .int;
+        }
         try p.expectClosing(l_paren, .r_paren);
         const suffix_start = p.tok_i;
         const outer = try p.directDeclarator(&d, kind);
@@ -3963,7 +3998,7 @@ fn declarator(
         if (res.qt._index == .declarator_combine) {
             res.qt = outer;
             res.declarator_type = d.declarator_type;
-        } else if (outer.isInvalid() or res.qt.isInvalid()) {
+        } else if ((kind != .block_literal and outer.isInvalid()) or res.qt.isInvalid()) {
             res.qt = outer;
         } else {
             var cur = res.qt;
@@ -4022,7 +4057,17 @@ fn declarator(
                 },
             }
         }
+    } else if (kind == .block_literal) {
+        if (d.declarator_type != .func and d.qt._index != .declarator_combine) {
+            d.declarator_type = .func;
+            d.qt = try p.comp.type_store.put(p.comp.gpa, .{ .func = .{
+                .return_type = d.qt,
+                .params = &.{},
+                .kind = .normal,
+            } });
+        }
     }
+
     try d.validate(p, expected_ident);
     if (d.qt == base_qt) return null;
     return d;
@@ -4055,7 +4100,7 @@ fn directDeclarator(
                     p.tok_i -= 1;
                     return base_declarator.qt;
                 },
-                .param, .abstract => {},
+                .param, .abstract, .block_literal => {},
             }
             try p.err(p.tok_i, .expected_expr, .{});
             return error.ParsingFailed;
@@ -4151,7 +4196,7 @@ fn directDeclarator(
     } else if (p.eatToken(.l_paren)) |l_paren| {
         var func_ty: Type.Func = .{
             .kind = undefined,
-            .return_type = undefined,
+            .return_type = base_declarator.qt,
             .params = &.{},
         };
 
@@ -4160,7 +4205,8 @@ fn directDeclarator(
             try p.expectClosing(l_paren, .r_paren);
             func_ty.kind = .variadic;
 
-            func_ty.return_type = try p.directDeclarator(base_declarator, kind);
+            if (kind != .block_literal)
+                func_ty.return_type = try p.directDeclarator(base_declarator, kind);
 
             // Set after call to `directDeclarator` since we will return
             // a function type from here.
@@ -4212,14 +4258,16 @@ fn directDeclarator(
         }
 
         try p.expectClosing(l_paren, .r_paren);
-        func_ty.return_type = try p.directDeclarator(base_declarator, kind);
+        if (kind != .block_literal or !base_declarator.qt.isBlockLiteralAutoReturn())
+            func_ty.return_type = try p.directDeclarator(base_declarator, kind);
 
         // Set after call to `directDeclarator` since we will return
         // a function type from here.
         base_declarator.declarator_type = .func;
 
         return p.comp.type_store.put(gpa, .{ .func = func_ty });
-    } else return base_declarator.qt;
+    }
+    return base_declarator.qt;
 }
 
 /// paramDecls : paramDecl (',' paramDecl)* (',' '...')
@@ -6189,11 +6237,11 @@ fn returnStmt(p: *Parser) Error!?Node.Index {
                     try p.err(ret_tok, .void_block_returns_value, .{});
                     try p.err(block.caret, .block_return_block_defined_here, .{});
                 }
-            } else {
+            } else if (!func.return_type.isInvalid()) {
                 try some.coerce(p, func.return_type, e_tok, .ret);
                 try some.saveValue(p);
             }
-        } else if (!func.return_type.is(p.comp, .void)) {
+        } else if (!func.return_type.isInvalid() and !func.return_type.is(p.comp, .void)) {
             try p.err(ret_tok, .block_should_return, .{});
             try p.err(block.caret, .block_return_block_defined_here, .{});
         }
@@ -10362,92 +10410,57 @@ fn blockLiteral(p: *Parser) Error!?Result {
     try p.syms.pushScope(p);
     defer p.syms.popScope();
 
+    var has_declarator = false;
+    var qt: QualType = .block_literal_auto_return;
     const attr_state = p.wip_attrs.state(true);
     defer p.wip_attrs.restore(attr_state);
     while (true) {
         if (try p.gnuAttribute()) continue;
-        const bad_attr_tok_i = p.tok_i;
-        switch (p.tok_ids[p.tok_i]) {
-            .keyword_inline,
-            .keyword_inline1,
-            .keyword_inline2,
-            .keyword_noreturn,
-            .keyword_auto_type,
-            .keyword_forceinline,
-            .keyword_forceinline2,
-            => {
-                try p.err(bad_attr_tok_i, .block_does_not_allow_specifier, .{"function specifier"});
-                p.tok_i += 1;
+        if (p.eatToken(.keyword_auto_type)) |auto_type_tok| {
+            try p.err(auto_type_tok, .auto_type_not_allowed, .{"block return type"});
+            continue;
+        }
+        if (p.comp.langopts.standard.atLeast(.c23)) {
+            if (p.eatToken(.keyword_auto)) |auto_tok| {
+                try p.err(auto_tok, .c23_auto_not_allowed, .{"block return type"});
                 continue;
-            },
-            .keyword_typedef,
-            .keyword_extern,
-            .keyword_static,
-            .keyword_auto,
-            .keyword_register,
-            .keyword_thread_local,
-            .keyword_c23_thread_local,
-            .keyword_thread,
-            .keyword_constexpr,
-            => {
-                try p.err(bad_attr_tok_i, .block_does_not_allow_specifier, .{"storage class"});
-                p.tok_i += 1;
-                continue;
-            },
-            else => {},
+            }
         }
         const good_attrs_state = p.wip_attrs.state(false);
+        const bad_attr_tok_i = p.tok_i;
         if (try p.c23Attribute() or try p.declspecAttribute()) {
             try p.err(bad_attr_tok_i, .block_only_gnu_attributes, .{});
             p.wip_attrs.restore(good_attrs_state);
             continue;
         }
+        if (qt.isBlockLiteralAutoReturn()) if (try p.specQual(false)) |spec_qual| {
+            qt = spec_qual;
+            continue;
+        };
+        if (!has_declarator) {
+            const sig = (try p.declarator(qt, .block_literal)).?;
+            if (sig.old_style_func) |tok_i| try p.err(tok_i, .invalid_old_style_params, .{});
+            qt = sig.qt;
+            // should be guaranteed by block_literal declarator
+            assert(sig.declarator_type == .func);
+            has_declarator = true;
+            continue;
+        }
         break;
     }
 
-    var qt: QualType = undefined;
-    if (try p.typeName()) |typename| {
-        if (typename.is(p.comp, .func)) {
-            qt = typename;
-        } else {
-            qt = try p.comp.type_store.put(p.comp.gpa, .{ .func = .{
-                .return_type = typename,
-                .kind = .normal,
-                .params = &.{},
-            } });
+    if (!qt.isInvalid()) {
+        const func = qt.get(p.comp, .func).?;
+        for (func.params) |param| {
+            try p.syms.define(p.comp.gpa, .{
+                .kind = .def,
+                .name = param.name,
+                .tok = param.name_tok,
+                .qt = param.qt,
+                .val = .{},
+                .node = param.node.unpack().?,
+            });
         }
-
-        var func = qt.get(p.comp, .func).?;
-        if (func.return_type.is(p.comp, .array)) {
-            try p.err(caret + 1, .block_cannot_return_type, .{func.return_type});
-            func.return_type = .invalid;
-            try qt.set(p.comp, .{ .func = func });
-        }
-    } else {
-        var params: []const Type.Func.Param = &.{};
-        var is_variadic = false;
-        if (p.eatToken(.l_paren)) |l_paren| {
-            params = try p.paramDecls() orelse &.{};
-            is_variadic = p.eatToken(.ellipsis) != null;
-            try p.expectClosing(l_paren, .r_paren);
-        }
-        qt = try p.comp.type_store.put(p.comp.gpa, .{ .func = .{
-            .return_type = .block_literal_auto_return,
-            .kind = if (is_variadic) .variadic else .normal,
-            .params = params,
-        } });
-    }
-
-    var func = qt.get(p.comp, .func).?;
-    for (func.params) |param| {
-        try p.syms.define(p.comp.gpa, .{
-            .kind = .def,
-            .name = param.name,
-            .tok = param.name_tok,
-            .qt = param.qt,
-            .val = .{},
-            .node = param.node.unpack().?,
-        });
     }
 
     try p.tree.setNode(.{ .block_literal = .{
@@ -10464,9 +10477,12 @@ fn blockLiteral(p: *Parser) Error!?Result {
         return error.ParsingFailed;
     };
 
-    // could have been updated by returnStmt
-    func = qt.get(p.comp, .func).?;
-    assert(!func.return_type.isBlockLiteralAutoReturn());
+    if (std.debug.runtime_safety) blk: {
+        if (qt.isInvalid()) break :blk;
+        const func = qt.get(p.comp, .func).?;
+        // should've been updated by returnStmt or compoundStmt
+        assert(!func.return_type.isBlockLiteralAutoReturn());
+    }
 
     const block_qt = try p.comp.type_store.put(p.comp.gpa, .{ .block = .{ .func = qt } });
 
