@@ -2488,7 +2488,7 @@ pub const block_cannot_return_type: Diagnostic = .{
     .kind = .@"error",
 };
 
-pub const block_does_not_allow_specifier: Diagnostic = .{
-    .fmt = "block literal does not allow {s} to be specified",
+pub const typename_requires_spec_or_qual: Diagnostic = .{
+    .fmt = "type name requires a specifier or qualifier",
     .kind = .@"error",
 };

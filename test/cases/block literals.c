@@ -54,6 +54,23 @@ void my_func(IntToIntBlock block) {
   b = ^;
   b = ^void { return 4; };
   b = ^int[4] { return 4; };
+  b = ^(*) {};
+  b = ^* {};
+  b = ^** {};
+  b = ^void (*) {};
+  b = ^void * { return 4; };
+  b = ^void (*(int a)) { return a; };
+  b = ^void ((int a)) {};
+  b = ^^void {};
+  b = ^^void (int) {}; // comment out to show more clang errors below (aro is better)
+
+  // b = ^(int x)(int y) {};
+  b = ^void (^(int a))(int x) {
+    int c = a;
+    c = x;
+    c = a + x;
+  };
+  // b = ^void (^(int a))(int x)(int z) { };
 
   __auto_type block_returns_func = ^int (*(void))(int a) {
     return 0;
@@ -64,6 +81,9 @@ void my_func(IntToIntBlock block) {
   __auto_type block_returns_implied_array = ^{
     int arr[2];
     return arr;
+  };
+  int (^a)(int) = ^__attribute((const)) int __attribute__((const)) (int a) __attribute((const)) {
+    return a;
   };
 }
 
@@ -100,21 +120,22 @@ void other_attributes() {
   b = ^__attribute((deprecated)) {};
   b = ^__attribute((unavailable)) {};
   b = ^__attribute((pure)) {};
-  b = ^__attribute((const("var"))) {};
-  b = ^__attribute((visibility("bad"))) {};
-  b = ^__attribute((aligned(3))) {}; // uncomment to show more clang errors below (aro is better)
-  b = ^__attribute((format)) {}; // uncomment to show more clang errors below (aro is better)
-  b = ^__attribute((nonnull(0))) (void *a) {};
+  b = ^__attribute((const("var"))) {}; // comment out to show more clang errors below (aro is better)
+  b = ^__attribute((visibility("bad"))) {}; // comment out to show more clang errors below (aro is better)
+  b = ^__attribute((aligned(3))) {}; // comment out to show more clang errors below (aro is better)
+  b = ^__attribute((format)) {}; // comment out to show more clang errors below (aro is better)
+  b = ^__attribute((nonnull(0))) (void *a) {}; // comment out to show more clang errors below (aro is better)
   b = ^__attribute((fastcall)) {};
   b = ^__attribute((unused)) {};
-  b = ^__attribute((warning)) {};
+  b = ^__attribute((warning)) {}; // comment out to show more clang errors below (aro is better)
 }
 
 void keyword_attributes_and_storage_classes() {
-  void *b = ^inline {};
-  b = ^_Noreturn {};
-  b = ^__auto_type {};
-  b = ^auto {};
+  void *b = 0;
+  b = ^inline {}; // comment out to show more clang errors below (aro is better)
+  b = ^_Noreturn {}; // comment out to show more clang errors below (aro is better)
+  b = ^__auto_type {}; // comment out to show more clang errors below (aro is better)
+  b = ^auto {}; // comment out to show more clang errors below (aro is better)
 }
 
 /** manifest:
@@ -122,8 +143,6 @@ syntax
 args = -fblocks -Wpedantic --target=aarch64-macos -std=c23 -Wno-gnu-auto-type
 
 block literals.c:23:17: error: 'blocks' attribute only applies to local variables
-<builtin>:362:32: note: expanded from here
-block literals.c:23:17: warning: 'blocks' attribute ignored when parsing type
 <builtin>:362:32: note: expanded from here
 block literals.c:24:12: error: variable is not assignable (missing __block type specifier)
 block literals.c:25:18: warning: implicit integer to pointer conversion from 'int' to 'int *'
@@ -141,50 +160,71 @@ block literals.c:54:8: error: missing body for block literal
 block literals.c:54:7: note: block defined here
 block literals.c:55:15: warning: void block should not return a value
 block literals.c:55:7: note: block defined here
-block literals.c:56:8: error: block cannot return type 'int [4]'
-block literals.c:70:1: error: 'blocks' attribute only applies to local variables
+block literals.c:56:11: error: function cannot return an array
+block literals.c:57:9: error: type specifier missing, defaults to 'int'; ISO C99 and later do not support implicit int
+block literals.c:57:13: warning: non-void block does not return a value
+block literals.c:57:7: note: block defined here
+block literals.c:58:8: error: type name requires a specifier or qualifier
+block literals.c:59:8: error: type name requires a specifier or qualifier
+block literals.c:60:18: warning: non-void block does not return a value
+block literals.c:60:7: note: block defined here
+block literals.c:61:24: warning: implicit integer to pointer conversion from 'int' to 'void *'
+block literals.c:62:33: warning: implicit integer to pointer conversion from 'int' to 'void *'
+block literals.c:64:8: error: type name requires a specifier or qualifier
+block literals.c:64:9: error: missing body for block literal
+block literals.c:64:7: note: block defined here
+block literals.c:64:14: error: expected identifier or '('
+block literals.c:65:8: error: type name requires a specifier or qualifier
+block literals.c:65:9: error: missing body for block literal
+block literals.c:65:7: note: block defined here
+block literals.c:65:14: error: expected identifier or '('
+block literals.c:70:9: error: use of undeclared identifier 'x'
+block literals.c:71:13: error: use of undeclared identifier 'x'
+block literals.c:72:3: warning: non-void block does not return a value
+block literals.c:68:7: note: block defined here
+block literals.c:90:1: error: 'blocks' attribute only applies to local variables
 <builtin>:362:32: note: expanded from here
-block literals.c:71:1: error: 'blocks' attribute only applies to local variables
+block literals.c:91:1: error: 'blocks' attribute only applies to local variables
 <builtin>:362:32: note: expanded from here
-block literals.c:74:3: error: 'blocks' attribute only applies to local variables
+block literals.c:94:3: error: 'blocks' attribute only applies to local variables
 <builtin>:362:32: note: expanded from here
-block literals.c:73:16: error: 'blocks' attribute only applies to local variables
+block literals.c:93:16: error: 'blocks' attribute only applies to local variables
 <builtin>:362:32: note: expanded from here
-block literals.c:73:1: warning: attribute 'blocks' is ignored, place it after "struct" to apply attribute to type declaration
+block literals.c:93:1: warning: attribute 'blocks' is ignored, place it after "struct" to apply attribute to type declaration
 <builtin>:362:32: note: expanded from here
-block literals.c:79:25: warning: unknown 'blocks' argument. Possible values are: byref [-Wignored-attributes]
-block literals.c:80:18: error: 'blocks' attribute takes one argument
-block literals.c:81:5: warning: unknown attribute 'blocks' ignored [-Wunknown-attributes]
-block literals.c:83:19: warning: unknown 'clang::blocks' argument. Possible values are: byref [-Wignored-attributes]
-block literals.c:84:5: warning: unknown attribute 'gnu::blocks' ignored [-Wunknown-attributes]
-block literals.c:85:34: warning: unknown 'blocks' argument. Possible values are: byref [-Wignored-attributes]
-block literals.c:89:51: error: block declared 'noreturn' should not return [-Winvalid-noreturn]
-block literals.c:89:13: note: block defined here
-block literals.c:90:44: warning: non-void block does not return a value [-Wreturn-type]
-block literals.c:90:7: note: block defined here
-block literals.c:91:59: error: block declared 'noreturn' should not return [-Winvalid-noreturn]
-block literals.c:91:7: note: block defined here
-block literals.c:92:57: error: block declared 'noreturn' should not return [-Winvalid-noreturn]
-block literals.c:92:7: note: block defined here
-block literals.c:93:8: error: only gnu attributes are allowed on block literals
-block literals.c:93:33: warning: non-void block does not return a value [-Wreturn-type]
-block literals.c:93:7: note: block defined here
-block literals.c:94:34: error: block declared 'noreturn' should not return [-Winvalid-noreturn]
-block literals.c:94:7: note: block defined here
-block literals.c:95:42: error: block declared 'noreturn' should not return [-Winvalid-noreturn]
-block literals.c:95:7: note: block defined here
-block literals.c:99:27: warning: unknown attribute 'ohno' ignored [-Wunknown-attributes]
-block literals.c:102:21: warning: TODO: implement 'pure' attribute
-block literals.c:103:21: error: 'const' attribute takes no arguments
-block literals.c:104:32: warning: unknown 'visibility' argument. Possible values are: "hidden", "default", "internal", and "protected" [-Wignored-attributes]
-block literals.c:105:21: error: requested alignment is not a power of 2
-block literals.c:106:21: warning: TODO: implement 'format' attribute
-block literals.c:107:29: error: 'nonnull' attribute parameter 1 is out of bounds
-block literals.c:108:21: warning: 'fastcall' calling convention is not supported for this target [-Wignored-attributes]
-block literals.c:109:21: warning: 'unused' attribute only applies to functions, variables, parameters, typedefs, tag types, fields, and labels
-block literals.c:110:21: warning: 'warning' attribute only applies to functions [-Wignored-attributes]
-block literals.c:114:14: error: block literal does not allow function specifier to be specified
-block literals.c:115:8: error: block literal does not allow function specifier to be specified
-block literals.c:116:8: error: block literal does not allow function specifier to be specified
-block literals.c:117:8: error: block literal does not allow storage class to be specified
+block literals.c:99:25: warning: unknown 'blocks' argument. Possible values are: byref [-Wignored-attributes]
+block literals.c:100:18: error: 'blocks' attribute takes one argument
+block literals.c:101:5: warning: unknown attribute 'blocks' ignored [-Wunknown-attributes]
+block literals.c:103:19: warning: unknown 'clang::blocks' argument. Possible values are: byref [-Wignored-attributes]
+block literals.c:104:5: warning: unknown attribute 'gnu::blocks' ignored [-Wunknown-attributes]
+block literals.c:105:34: warning: unknown 'blocks' argument. Possible values are: byref [-Wignored-attributes]
+block literals.c:109:51: error: block declared 'noreturn' should not return [-Winvalid-noreturn]
+block literals.c:109:13: note: block defined here
+block literals.c:110:44: warning: non-void block does not return a value [-Wreturn-type]
+block literals.c:110:7: note: block defined here
+block literals.c:111:59: error: block declared 'noreturn' should not return [-Winvalid-noreturn]
+block literals.c:111:7: note: block defined here
+block literals.c:112:57: error: block declared 'noreturn' should not return [-Winvalid-noreturn]
+block literals.c:112:7: note: block defined here
+block literals.c:113:8: error: only gnu attributes are allowed on block literals
+block literals.c:113:33: warning: non-void block does not return a value [-Wreturn-type]
+block literals.c:113:7: note: block defined here
+block literals.c:114:34: error: block declared 'noreturn' should not return [-Winvalid-noreturn]
+block literals.c:114:7: note: block defined here
+block literals.c:115:42: error: block declared 'noreturn' should not return [-Winvalid-noreturn]
+block literals.c:115:7: note: block defined here
+block literals.c:119:27: warning: unknown attribute 'ohno' ignored [-Wunknown-attributes]
+block literals.c:122:21: warning: TODO: implement 'pure' attribute
+block literals.c:123:21: error: 'const' attribute takes no arguments
+block literals.c:124:32: warning: unknown 'visibility' argument. Possible values are: "hidden", "default", "internal", and "protected" [-Wignored-attributes]
+block literals.c:125:21: error: requested alignment is not a power of 2
+block literals.c:126:21: warning: TODO: implement 'format' attribute
+block literals.c:127:29: error: 'nonnull' attribute parameter 1 is out of bounds
+block literals.c:128:21: warning: 'fastcall' calling convention is not supported for this target [-Wignored-attributes]
+block literals.c:129:21: warning: 'unused' attribute only applies to functions, variables, parameters, typedefs, tag types, fields, and labels
+block literals.c:130:21: warning: 'warning' attribute only applies to functions [-Wignored-attributes]
+block literals.c:135:8: error: type name does not allow function specifier to be specified
+block literals.c:136:8: error: type name does not allow function specifier to be specified
+block literals.c:137:8: error: '__auto_type' not allowed in block return type
+block literals.c:138:8: error: 'auto' not allowed in block return type
 */

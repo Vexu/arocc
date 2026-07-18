@@ -63,6 +63,7 @@ function: 'fn (block: IntToIntBlock: block (int) int) void'
        name: block
      rhs:
       block_literal: 'block (arg: int) int'
+       blocks: .byref
        body:
         compound_stmt
           post_inc_expr: 'int'
@@ -236,12 +237,111 @@ function: 'fn (block: IntToIntBlock: block (int) int) void'
        name: b
      rhs:
       implicit cast: (bitcast) '*void'
+        block_literal: 'block () [4]int'
+         body:
+          compound_stmt
+            implicit return_stmt: '[4]int'
+
+    assign_expr: '*void'
+     lhs:
+      decl_ref_expr: '*void' lvalue
+       name: b
+     rhs:
+      implicit cast: (bitcast) '*void'
+        block_literal: 'block () *int'
+         body:
+          compound_stmt
+            implicit return_stmt: '*int'
+
+    assign_expr: '*void'
+     lhs:
+      decl_ref_expr: '*void' lvalue
+       name: b
+     rhs:
+      implicit cast: (bitcast) '*void'
         block_literal: 'block () invalid'
          body:
           compound_stmt
-            return_stmt: 'invalid'
+
+    assign_expr: '*void'
+     lhs:
+      decl_ref_expr: '*void' lvalue
+       name: b
+     rhs:
+      implicit cast: (bitcast) '*void'
+        block_literal: 'block () invalid'
+         body:
+          compound_stmt
+
+    assign_expr: '*void'
+     lhs:
+      decl_ref_expr: '*void' lvalue
+       name: b
+     rhs:
+      implicit cast: (bitcast) '*void'
+        block_literal: 'block () *void'
+         body:
+          compound_stmt
+            implicit return_stmt: '*void'
+
+    assign_expr: '*void'
+     lhs:
+      decl_ref_expr: '*void' lvalue
+       name: b
+     rhs:
+      implicit cast: (bitcast) '*void'
+        block_literal: 'block () *void'
+         body:
+          compound_stmt
+            return_stmt: '*void'
              expr:
-              int_literal: 'int' (value: 4)
+              implicit cast: (int_to_pointer) '*void' (value: 4)
+                int_literal: 'int' (value: 4)
+
+    assign_expr: '*void'
+     lhs:
+      decl_ref_expr: '*void' lvalue
+       name: b
+     rhs:
+      implicit cast: (bitcast) '*void'
+        block_literal: 'block (a: int) *void'
+         body:
+          compound_stmt
+            return_stmt: '*void'
+             expr:
+              implicit cast: (int_to_pointer) '*void'
+                implicit cast: (lval_to_rval) 'int'
+                  decl_ref_expr: 'int' lvalue
+                   name: a
+
+    assign_expr: '*void'
+     lhs:
+      decl_ref_expr: '*void' lvalue
+       name: b
+     rhs:
+      implicit cast: (bitcast) '*void'
+        block_literal: 'block (a: int) void'
+         body:
+          compound_stmt
+            implicit return_stmt: 'void'
+
+    assign_expr: '*void'
+     lhs:
+      decl_ref_expr: '*void' lvalue
+       name: b
+     rhs:
+      implicit cast: (bitcast) '*void'
+        block_literal: 'block (a: int) block (x: int) void'
+         body:
+          compound_stmt
+            variable: 'int'
+             name: c
+             init:
+              implicit cast: (lval_to_rval) 'int'
+                decl_ref_expr: 'int' lvalue
+                 name: a
+
+            implicit return_stmt: 'block (x: int) void'
 
     variable: 'block () *fn (a: int) int'
      name: block_returns_func
@@ -279,6 +379,21 @@ function: 'fn (block: IntToIntBlock: block (int) int) void'
             implicit cast: (array_to_pointer) 'decayed *[2]int'
               decl_ref_expr: '[2]int' lvalue
                name: arr
+
+    variable: 'block (int) int'
+     name: a
+     init:
+      block_literal: 'block (a: int) int'
+       const
+       const
+       const
+       body:
+        compound_stmt
+          return_stmt: 'int'
+           expr:
+            implicit cast: (lval_to_rval) 'int'
+              decl_ref_expr: 'int' lvalue
+               name: a
 
     implicit return_stmt: 'void'
 
@@ -579,6 +694,14 @@ function: 'fn () void'
     variable: '*void'
      name: b
      init:
+      implicit cast: (null_to_pointer) '*void'
+        int_literal: 'int' (value: 0)
+
+    assign_expr: '*void'
+     lhs:
+      decl_ref_expr: '*void' lvalue
+       name: b
+     rhs:
       implicit cast: (bitcast) '*void'
         block_literal: 'block () void'
          body:
