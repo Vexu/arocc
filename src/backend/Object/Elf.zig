@@ -209,7 +209,7 @@ pub fn finish(elf: *Elf, w: *std.Io.Writer) !void {
         .entry = 0, // linker will handle this
         .phoff = 0, // no program header
         .shoff = sh_offset_aligned, // section headers offset
-        .flags = 0, // no flags
+        .flags = .{ .int = 0 }, // no flags
         .ehsize = @sizeOf(std.elf.Elf64.Ehdr),
         .phentsize = 0, // no program header
         .phnum = 0, // no program header
