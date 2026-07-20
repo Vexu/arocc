@@ -213,8 +213,8 @@ _Static_assert(_Alignof(struct B_extra_size) == 1, "");
 #endif
 _Static_assert(sizeof(C) == 136, "");
 _Static_assert(_Alignof(C) == 128, "");
-_Static_assert(sizeof(struct C_extra_alignment) == 384, "");
-_Static_assert(_Alignof(struct C_extra_alignment) == 128, "");
+_Static_assert(sizeof(struct C_extra_alignment) == 144, "");
+_Static_assert(_Alignof(struct C_extra_alignment) == 8, "");
 _Static_assert(sizeof(struct C_extra_packed) == 136, "");
 _Static_assert(_Alignof(struct C_extra_packed) == 1, "");
 _Static_assert(sizeof(struct C_extra_required_alignment) == 137, "");

@@ -330,27 +330,7 @@ const compErr = blk: {
             .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
-            "aarch64-generic-windows-msvc:Msvc|0020",
-            .{ .parse = false, .layout = true, .extra = true, .offset = true },
-        },
-        .{
-            "aarch64-generic-windows-msvc:Msvc|0020",
-            .{ .parse = false, .layout = true, .extra = true, .offset = true },
-        },
-        .{
-            "aarch64-generic-windows-msvc:Msvc|0021",
-            .{ .parse = false, .layout = true, .extra = true, .offset = true },
-        },
-        .{
             "aarch64-generic-windows-msvc:Msvc|0026",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "aarch64-generic-windows-msvc:Msvc|0037",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "aarch64-generic-windows-msvc:Msvc|0039",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
@@ -363,18 +343,6 @@ const compErr = blk: {
         },
         .{
             "aarch64-generic-windows-msvc:Msvc|0053",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "aarch64-generic-windows-msvc:Msvc|0072",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "aarch64-generic-windows-msvc:Msvc|0080",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "x86-i586-windows-msvc:Msvc|0018",
             .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
@@ -402,10 +370,6 @@ const compErr = blk: {
             .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
-            "x86-i686-uefi-msvc:Msvc|0018",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
             "x86-i686-uefi-msvc:Msvc|0026",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
@@ -423,10 +387,6 @@ const compErr = blk: {
         },
         .{
             "x86-i686-uefi-msvc:Msvc|0053",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "x86-i686-windows-msvc:Msvc|0018",
             .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
@@ -454,27 +414,11 @@ const compErr = blk: {
             .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
-            "thumb-baseline-windows-msvc:Msvc|0020",
-            .{ .parse = false, .layout = true, .extra = true, .offset = true },
-        },
-        .{
-            "thumb-baseline-windows-msvc:Msvc|0021",
-            .{ .parse = false, .layout = true, .extra = true, .offset = true },
-        },
-        .{
             "thumb-baseline-windows-msvc:Msvc|0026",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
             "thumb-baseline-windows-msvc:Msvc|0029",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "thumb-baseline-windows-msvc:Msvc|0037",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "thumb-baseline-windows-msvc:Msvc|0039",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
         .{
@@ -487,18 +431,6 @@ const compErr = blk: {
         },
         .{
             "thumb-baseline-windows-msvc:Msvc|0053",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "thumb-baseline-windows-msvc:Msvc|0072",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "thumb-baseline-windows-msvc:Msvc|0080",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "x86_64-x86_64-uefi-msvc:Msvc|0018",
             .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
@@ -522,10 +454,6 @@ const compErr = blk: {
             .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
-            "x86_64-x86_64-windows-msvc:Msvc|0018",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
             "x86_64-x86_64-windows-msvc:Msvc|0026",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
@@ -543,6 +471,38 @@ const compErr = blk: {
         },
         .{
             "x86_64-x86_64-windows-msvc:Msvc|0053",
+            .{ .parse = false, .layout = false, .extra = true, .offset = false },
+        },
+        .{
+            "aarch64-generic-windows-msvc:Msvc|0066",
+            .{ .parse = false, .layout = false, .extra = true, .offset = false },
+        },
+        .{
+            "thumb-baseline-windows-msvc:Msvc|0066",
+            .{ .parse = false, .layout = false, .extra = true, .offset = false },
+        },
+        .{
+            "aarch64-generic-windows-msvc:Msvc|0046",
+            .{ .parse = false, .layout = false, .extra = true, .offset = false },
+        },
+        .{
+            "thumb-baseline-windows-msvc:Msvc|0046",
+            .{ .parse = false, .layout = false, .extra = true, .offset = false },
+        },
+        .{
+            "aarch64-generic-windows-msvc:Msvc|0044",
+            .{ .parse = false, .layout = false, .extra = true, .offset = false },
+        },
+        .{
+            "thumb-baseline-windows-msvc:Msvc|0044",
+            .{ .parse = false, .layout = false, .extra = true, .offset = false },
+        },
+        .{
+            "aarch64-generic-windows-msvc:Msvc|0022",
+            .{ .parse = false, .layout = false, .extra = true, .offset = false },
+        },
+        .{
+            "thumb-baseline-windows-msvc:Msvc|0022",
             .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
     });

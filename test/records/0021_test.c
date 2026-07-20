@@ -99,8 +99,8 @@ _Static_assert(__builtin_bitoffsetof(Z,y) == 128, "");
 #elif defined(TWO)
 _Static_assert(sizeof(Y) == 8, "");
 _Static_assert(_Alignof(Y) == 16, "");
-_Static_assert(sizeof(struct Y_extra_alignment) == 32, "");
-_Static_assert(_Alignof(struct Y_extra_alignment) == 16, "");
+_Static_assert(sizeof(struct Y_extra_alignment) == 16, "");
+_Static_assert(_Alignof(struct Y_extra_alignment) == 8, "");
 _Static_assert(sizeof(struct Y_extra_packed) == 8, "");
 _Static_assert(_Alignof(struct Y_extra_packed) == 1, "");
 _Static_assert(sizeof(struct Y_extra_required_alignment) == 9, "");
