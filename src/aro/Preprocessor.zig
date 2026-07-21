@@ -1189,7 +1189,7 @@ fn expr(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!bool {
     if (pp.top_expansion_buf.items.len != 0) {
         pp.expansion_source_loc = pp.top_expansion_buf.items[0].loc;
         pp.hideset.clearRetainingCapacity();
-        try pp.expandMacroExhaustive(tokenizer, &pp.top_expansion_buf, 0, pp.top_expansion_buf.items.len, false, .expr);
+        try pp.expandMacroExhaustive(null, &pp.top_expansion_buf, 0, pp.top_expansion_buf.items.len, .expr);
         removePlacemarkers(gpa, &pp.top_expansion_buf);
     }
     const val = try pp.evalExpr(pp.top_expansion_buf.items, eof, error_count == pp.diagnostics.errors);
@@ -2401,15 +2401,15 @@ fn bufCopyTokens(gpa: Allocator, buf: *ExpandBuf, tokens: []const TokenWithExpan
 
 fn nextBufToken(
     pp: *Preprocessor,
-    tokenizer: *Tokenizer,
+    /// If non-null will be used to expand `buf` as needed.
+    opt_tokenizer: ?*Tokenizer,
     buf: *ExpandBuf,
     start_idx: *usize,
     end_idx: *usize,
-    extend_buf: bool,
 ) Error!TokenWithExpansionLocs {
     start_idx.* += 1;
     if (start_idx.* == buf.items.len and start_idx.* >= end_idx.*) {
-        if (extend_buf) {
+        if (opt_tokenizer) |tokenizer| {
             const raw_tok = tokenizer.next();
             if (raw_tok.id.isMacroIdentifier() and
                 pp.poisoned_identifiers.get(pp.tokSlice(raw_tok)) != null)
@@ -2431,21 +2431,21 @@ fn nextBufToken(
 
 fn collectMacroFuncArguments(
     pp: *Preprocessor,
-    tokenizer: *Tokenizer,
+    /// If non-null will be used to expand `buf` as needed.
+    opt_tokenizer: ?*Tokenizer,
     buf: *ExpandBuf,
     start_idx: *usize,
     end_idx: *usize,
-    extend_buf: bool,
     is_builtin: bool,
     r_paren: *TokenWithExpansionLocs,
 ) !MacroArguments {
     const gpa = pp.comp.gpa;
     const name_tok = buf.items[start_idx.*];
-    const saved_tokenizer = tokenizer.*;
+    const saved_tokenizer = if (opt_tokenizer) |tokenizer| tokenizer.* else undefined;
     const old_end = end_idx.*;
 
     while (true) {
-        const tok = try nextBufToken(pp, tokenizer, buf, start_idx, end_idx, extend_buf);
+        const tok = try nextBufToken(pp, opt_tokenizer, buf, start_idx, end_idx);
         switch (tok.id) {
             .nl, .whitespace, .macro_ws => {},
             .l_paren => break,
@@ -2454,7 +2454,7 @@ fn collectMacroFuncArguments(
                     try pp.err(name_tok, .missing_lparen_after_builtin, .{pp.expandedSlice(name_tok)});
                 }
                 // Not a macro function call, go over normal identifier, rewind
-                tokenizer.* = saved_tokenizer;
+                if (opt_tokenizer) |tokenizer| tokenizer.* = saved_tokenizer;
                 end_idx.* = old_end;
                 return error.MissingLParen;
             },
@@ -2468,7 +2468,7 @@ fn collectMacroFuncArguments(
     var cur_argument: std.ArrayList(TokenWithExpansionLocs) = .empty;
     defer cur_argument.deinit(gpa);
     while (true) {
-        var tok = try nextBufToken(pp, tokenizer, buf, start_idx, end_idx, extend_buf);
+        var tok = try nextBufToken(pp, opt_tokenizer, buf, start_idx, end_idx);
         tok.flags.is_macro_arg = true;
         switch (tok.id) {
             .comma => {
@@ -2508,7 +2508,7 @@ fn collectMacroFuncArguments(
                     errdefer gpa.free(owned);
                     try args.append(gpa, owned);
                 }
-                tokenizer.* = saved_tokenizer;
+                if (opt_tokenizer) |tokenizer| tokenizer.* = saved_tokenizer;
                 try pp.err(name_tok, .unterminated_macro_arg_list, .{});
                 return error.Unterminated;
             },
@@ -2568,11 +2568,11 @@ const TokenIterator = struct {
 
 fn expandMacroExhaustive(
     pp: *Preprocessor,
-    tokenizer: *Tokenizer,
+    /// If non-null will be used to expand `buf` as needed.
+    opt_tokenizer: ?*Tokenizer,
     buf: *ExpandBuf,
     start_idx: usize,
     end_idx: usize,
-    extend_buf: bool,
     eval_ctx: EvalContext,
 ) MacroError!void {
     const gpa = pp.comp.gpa;
@@ -2623,11 +2623,10 @@ fn expandMacroExhaustive(
                     var macro_scan_idx = idx;
                     // to be saved in case this doesn't turn out to be a call
                     var args = pp.collectMacroFuncArguments(
-                        tokenizer,
+                        opt_tokenizer,
                         buf,
                         &macro_scan_idx,
                         &moving_end_idx,
-                        extend_buf,
                         macro.isBuiltin(),
                         &r_paren,
                     ) catch |er| switch (er) {
@@ -2696,7 +2695,7 @@ fn expandMacroExhaustive(
                         }
 
                         if (should_expand_args) {
-                            try pp.expandMacroExhaustive(tokenizer, &expand_buf, 0, expand_buf.items.len, false, eval_ctx);
+                            try pp.expandMacroExhaustive(null, &expand_buf, 0, expand_buf.items.len, eval_ctx);
                         }
                         // Even if not expanding the arguments, still append to expanded_args so expansion locations will
                         // get cleaned up.
@@ -2873,7 +2872,7 @@ fn expandMacro(pp: *Preprocessor, tokenizer: *Tokenizer, raw: RawToken) MacroErr
     pp.expansion_source_loc = source_tok.loc;
 
     pp.hideset.clearRetainingCapacity();
-    try pp.expandMacroExhaustive(tokenizer, &pp.top_expansion_buf, 0, 1, true, .non_expr);
+    try pp.expandMacroExhaustive(tokenizer, &pp.top_expansion_buf, 0, 1, .non_expr);
     try pp.addTokensFromExpandBuf(pp.top_expansion_buf.items, .{ .id = .nl, .loc = .{
         .id = tokenizer.source,
         .line = tokenizer.line,
@@ -3700,7 +3699,7 @@ fn pragma(pp: *Preprocessor, tokenizer: *Tokenizer, pragma_tok: TokenWithExpansi
         const pos = expand_buf.items.len;
         try expand_buf.append(pp.comp.gpa, tokFromRaw(next_tok));
         if (prag.shouldExpandTokenAtIndex(i)) {
-            try pp.expandMacroExhaustive(tokenizer, expand_buf, pos, pos + 1, true, .no_pragma);
+            try pp.expandMacroExhaustive(tokenizer, expand_buf, pos, pos + 1, .no_pragma);
         }
         i += 1;
 
@@ -3756,7 +3755,7 @@ fn findIncludeFilenameToken(
             try pp.top_expansion_buf.append(gpa, tokFromRaw(tok));
             if (tok.id == .eof) break;
         }
-        try pp.expandMacroExhaustive(tokenizer, &pp.top_expansion_buf, 0, pp.top_expansion_buf.items.len, false, .no_pragma);
+        try pp.expandMacroExhaustive(null, &pp.top_expansion_buf, 0, pp.top_expansion_buf.items.len, .no_pragma);
         removePlacemarkers(gpa, &pp.top_expansion_buf);
     }
 
