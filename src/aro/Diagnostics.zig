@@ -348,15 +348,15 @@ pub fn deinit(d: *Diagnostics) void {
 
 /// Used by the __has_warning builtin macro.
 pub fn warningExists(name: []const u8) bool {
-    if (std.mem.eql(u8, name, "pedantic")) return true;
+    if (mem.eql(u8, name, "pedantic")) return true;
     inline for (@typeInfo(Option).@"enum".decl_names) |group_name| {
-        if (std.mem.eql(u8, name, group_name)) return true;
+        if (mem.eql(u8, name, group_name)) return true;
     }
     return std.meta.stringToEnum(Option, name) != null;
 }
 
 pub fn set(d: *Diagnostics, name: []const u8, to: Message.Kind) Compilation.Error!void {
-    if (std.mem.eql(u8, name, "pedantic")) {
+    if (mem.eql(u8, name, "pedantic")) {
         d.state.extensions = to;
         return;
     }
@@ -366,7 +366,7 @@ pub fn set(d: *Diagnostics, name: []const u8, to: Message.Kind) Compilation.Erro
     }
 
     inline for (@typeInfo(Option).@"enum".decl_names) |group_name| {
-        if (std.mem.eql(u8, name, group_name)) {
+        if (mem.eql(u8, name, group_name)) {
             for (@field(Option, group_name)) |option| {
                 d.state.options.put(option, to);
             }
@@ -375,7 +375,7 @@ pub fn set(d: *Diagnostics, name: []const u8, to: Message.Kind) Compilation.Erro
     }
 
     var buf: [256]u8 = undefined;
-    const slice = std.fmt.bufPrint(&buf, "unknown warning '{s}'", .{name}) catch &buf;
+    const slice = mem.print(&buf, "unknown warning '{s}'", .{name}) catch &buf;
 
     try d.add(.{
         .text = slice,
@@ -481,7 +481,7 @@ pub fn addWithLocation(
             try d.addMessage(.{
                 .kind = .note,
                 .effective_kind = .note,
-                .text = std.fmt.bufPrint(
+                .text = mem.print(
                     &buf,
                     "(skipping {d} expansions in backtrace; use -fmacro-backtrace-limit=0 to see all)",
                     .{expansion_locs.len - d.macro_backtrace_limit},
@@ -529,7 +529,7 @@ pub fn formatArgs(w: *std.Io.Writer, fmt: []const u8, args: anytype) std.Io.Writ
 }
 
 pub fn templateIndex(w: *std.Io.Writer, fmt: []const u8, template: []const u8) std.Io.Writer.Error!usize {
-    const i = std.mem.indexOf(u8, fmt, template) orelse {
+    const i = mem.find(u8, fmt, template) orelse {
         if (@import("builtin").mode == .Debug) {
             std.debug.panic("template `{s}` not found in format string `{s}`", .{ template, fmt });
         }

@@ -204,7 +204,7 @@ pub const Renderer = struct {
         args: anytype,
     ) Error {
         try r.errors.ensureUnusedCapacity(r.gpa, 1);
-        r.errors.putAssumeCapacity(name, try std.fmt.allocPrint(r.gpa, format, args));
+        r.errors.putAssumeCapacity(name, try r.gpa.print(format, args));
         return error.LowerFail;
     }
 };

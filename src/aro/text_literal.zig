@@ -355,7 +355,7 @@ pub const Parser = struct {
 
         const start = p.i;
         if (p.literal[start] != '\\') {
-            p.i = mem.indexOfScalarPos(u8, p.literal, start + 1, '\\') orelse p.literal.len;
+            p.i = mem.findScalarPos(u8, p.literal, start + 1, '\\') orelse p.literal.len;
             const unescaped_slice = p.literal[start..p.i];
 
             const view = std.unicode.Utf8View.init(unescaped_slice) catch {

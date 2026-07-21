@@ -335,7 +335,7 @@ pub fn parseArgs(
                     macro = args[i];
                 }
                 var value: []const u8 = "1";
-                if (mem.indexOfScalar(u8, macro, '=')) |some| {
+                if (mem.findScalar(u8, macro, '=')) |some| {
                     value = macro[some + 1 ..];
                     macro = macro[0..some];
                 }
@@ -867,7 +867,7 @@ pub fn parseArgs(
             } else {
                 try d.warn("unknown argument '{s}'", .{arg});
             }
-        } else if (std.mem.endsWith(u8, arg, ".o") or std.mem.endsWith(u8, arg, ".obj")) {
+        } else if (mem.endsWith(u8, arg, ".o") or mem.endsWith(u8, arg, ".obj")) {
             try d.link_objects.append(gpa, arg);
         } else {
             const source = d.addSource(arg) catch |er| {
@@ -940,7 +940,7 @@ pub fn parseArgs(
 }
 
 fn option(arg: []const u8, name: []const u8) ?[]const u8 {
-    if (std.mem.startsWith(u8, arg, name) and arg.len > name.len) {
+    if (mem.startsWith(u8, arg, name) and arg.len > name.len) {
         return arg[name.len..];
     }
     return null;
@@ -1314,7 +1314,7 @@ pub fn initDepFile(d: *Driver, source: Source, buf: *[std.fs.max_name_bytes]u8) 
             std.fs.path.stem(source.path),
             d.comp.target.ofmt.fileExt(d.comp.target.cpu.arch),
         };
-        dep_file.target = std.fmt.bufPrint(buf, "{s}{s}", args) catch
+        dep_file.target = mem.print(buf, "{s}{s}", args) catch
             return d.fatal("dependency file name too long for filesystem '{s}{s}'", args);
     }
 
@@ -1327,7 +1327,7 @@ pub fn initDepFile(d: *Driver, source: Source, buf: *[std.fs.max_name_bytes]u8) 
 /// Returns name requested for the dependency file or null for stdout.
 pub fn getDepFileName(d: *Driver, source: Source, buf: *[std.fs.max_name_bytes]u8) Compilation.Error!?[]const u8 {
     if (d.dependencies.file) |file| {
-        if (std.mem.eql(u8, file, "-")) return null;
+        if (mem.eql(u8, file, "-")) return null;
         return file;
     }
     if (!d.dependencies.md) {
@@ -1336,7 +1336,7 @@ pub fn getDepFileName(d: *Driver, source: Source, buf: *[std.fs.max_name_bytes]u
     }
 
     const base_name = std.fs.path.stem(d.output_name orelse source.path);
-    return std.fmt.bufPrint(buf, "{s}.d", .{base_name}) catch
+    return mem.print(buf, "{s}.d", .{base_name}) catch
         return d.fatal("dependency file name too long for filesystem: {s}.d", .{base_name});
 }
 
@@ -1354,7 +1354,7 @@ fn getRandomFilename(d: *Driver, buf: *[std.fs.max_name_bytes]u8, extension: []c
         @as([]const u8, &random_name),
         extension,
     };
-    return std.fmt.bufPrint(buf, fmt_template, fmt_args) catch return d.fatal("Filename too long for filesystem: " ++ fmt_template, fmt_args);
+    return mem.print(buf, fmt_template, fmt_args) catch return d.fatal("Filename too long for filesystem: " ++ fmt_template, fmt_args);
 }
 
 /// If it's used, buf will either hold a filename or `/tmp/<12 random bytes with base-64 encoding>.<extension>`
@@ -1367,7 +1367,7 @@ fn getOutFileName(d: *Driver, source: Source, buf: *[std.fs.max_name_bytes]u8) !
             if (d.only_preprocess_and_compile) ".s" else d.comp.target.ofmt.fileExt(d.comp.target.cpu.arch),
         };
         return d.output_name orelse
-            std.fmt.bufPrint(buf, fmt_template, fmt_args) catch return d.fatal("Filename too long for filesystem: " ++ fmt_template, fmt_args);
+            mem.print(buf, fmt_template, fmt_args) catch return d.fatal("Filename too long for filesystem: " ++ fmt_template, fmt_args);
     }
 
     return d.getRandomFilename(buf, d.comp.target.ofmt.fileExt(d.comp.target.cpu.arch));

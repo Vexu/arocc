@@ -129,7 +129,7 @@ pub fn declareSymbol(
     };
     const name = if (maybe_name) |some| some else blk: {
         defer elf.unnamed_symbol_mangle += 1;
-        break :blk try std.fmt.allocPrint(elf.arena.allocator(), ".L.{d}", .{elf.unnamed_symbol_mangle});
+        break :blk try elf.arena.allocator().print(".L.{d}", .{elf.unnamed_symbol_mangle});
     };
 
     const gop = if (linkage == .Internal)

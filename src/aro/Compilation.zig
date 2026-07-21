@@ -406,9 +406,9 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
             const version = target.os.version_range.semver.min;
             var version_buf: [8]u8 = undefined;
             const version_str = if (target.os.tag == .macos and version.order(.{ .major = 10, .minor = 10, .patch = 0 }) == .lt)
-                std.fmt.bufPrint(&version_buf, "{d}{d}{d}", .{ version.major, @min(version.minor, 9), @min(version.patch, 9) }) catch unreachable
+                mem.print(&version_buf, "{d}{d}{d}", .{ version.major, @min(version.minor, 9), @min(version.patch, 9) }) catch unreachable
             else
-                std.fmt.bufPrint(&version_buf, "{d:0>2}{d:0>2}{d:0>2}", .{ version.major, @min(version.minor, 99), @min(version.patch, 99) }) catch unreachable;
+                mem.print(&version_buf, "{d:0>2}{d:0>2}{d:0>2}", .{ version.major, @min(version.minor, 99), @min(version.patch, 99) }) catch unreachable;
 
             try w.print("#define {s} {s}\n", .{ switch (target.os.tag) {
                 .tvos => "__ENVIRONMENT_TV_OS_VERSION_MIN_REQUIRED__",
@@ -1426,7 +1426,7 @@ fn generateFastOrLeastType(
         .least => "LEAST",
     };
 
-    const full = std.fmt.bufPrint(&buf, "{s}{s}{d}{s}", .{
+    const full = mem.print(&buf, "{s}{s}{d}{s}", .{
         base_name, kind_str, bits, suffix,
     }) catch unreachable;
 
@@ -1540,7 +1540,7 @@ fn generateExactWidthType(comp: *Compilation, w: *Io.Writer, original_qt: QualTy
 
     var buffer: [16]u8 = undefined;
     const suffix = "_TYPE__";
-    const full = std.fmt.bufPrint(&buffer, "{s}{d}{s}", .{
+    const full = mem.print(&buffer, "{s}{d}{s}", .{
         if (unsigned) "__UINT" else "__INT", width, suffix,
     }) catch unreachable;
 
@@ -1594,7 +1594,7 @@ fn generateExactWidthIntMax(comp: *Compilation, w: *Io.Writer, original_qt: Qual
     }
 
     var name_buffer: [6]u8 = undefined;
-    const name = std.fmt.bufPrint(&name_buffer, "{s}{d}", .{
+    const name = mem.print(&name_buffer, "{s}{d}", .{
         if (unsigned) "UINT" else "INT", bit_count,
     }) catch unreachable;
 
@@ -1870,7 +1870,7 @@ pub fn addSourceFromPath(comp: *Compilation, path: []const u8) !Source {
 fn addSourceFromPathExtra(comp: *Compilation, path: []const u8, kind: Source.Kind) !Source {
     if (comp.sources.get(path)) |some| return some;
 
-    if (mem.indexOfScalar(u8, path, 0) != null) {
+    if (mem.findScalar(u8, path, 0) != null) {
         return error.FileNotFound;
     }
 
@@ -2145,7 +2145,7 @@ const FindInclude = struct {
         var bfa_buf: [path_buf_stack_limit]u8 = undefined;
         var bfa_state: std.heap.BufferFirstAllocator = .init(&bfa_buf, find.comp.gpa);
         const bfa = bfa_state.allocator();
-        const framework_lookup = try std.fmt.allocPrint(bfa, "{s}.framework", .{framework_name});
+        const framework_lookup = try bfa.print("{s}.framework", .{framework_name});
         defer bfa.free(framework_lookup);
 
         const res = try find.check(&.{
@@ -2169,7 +2169,7 @@ const FindInclude = struct {
         var bfa_buf: [path_buf_stack_limit]u8 = undefined;
         var bfa_state: std.heap.BufferFirstAllocator = .init(&bfa_buf, find.comp.gpa);
         const bfa = bfa_state.allocator();
-        const framework_lookup = try std.fmt.allocPrint(bfa, "{s}.framework", .{framework_name});
+        const framework_lookup = try bfa.print("{s}.framework", .{framework_name});
         defer bfa.free(framework_lookup);
 
         const res = try find.check(&.{
@@ -2205,7 +2205,7 @@ const FindInclude = struct {
         find.comp.normalizePath(header_path);
 
         if (find.wait_for) |wait_for| if (std.fs.path.dirname(header_path)) |header_dir| {
-            if (std.mem.eql(u8, header_dir, wait_for)) find.wait_for = null;
+            if (mem.eql(u8, header_dir, wait_for)) find.wait_for = null;
             return null;
         };
 
@@ -2235,7 +2235,7 @@ pub const IncludeType = enum {
 };
 
 fn getPathContents(comp: *Compilation, path: []const u8, limit: Io.Limit) ![:0]u8 {
-    if (mem.indexOfScalar(u8, path, 0) != null) {
+    if (mem.findScalar(u8, path, 0) != null) {
         return error.FileNotFound;
     }
 
@@ -2271,7 +2271,7 @@ fn getFileContents(comp: *Compilation, file: std.Io.File, limit: Io.Limit) ![:0]
 
 fn normalizePath(comp: *Compilation, path: []u8) void {
     if (comp.langopts.ms_extensions and @import("builtin").target.os.tag != .windows) {
-        std.mem.replaceScalar(u8, path, std.fs.path.sep_windows, std.fs.path.sep_posix);
+        mem.replaceScalar(u8, path, std.fs.path.sep_windows, std.fs.path.sep_posix);
     }
 }
 
@@ -2535,7 +2535,7 @@ test "addSourceFromBuffer" {
             try std.testing.expectEqualSlices(u32, splices, source.splice_locs);
         }
 
-        fn withAllocationFailures(allocator: std.mem.Allocator) !void {
+        fn withAllocationFailures(allocator: mem.Allocator) !void {
             var comp = try Compilation.init(.testing);
             comp.gpa = allocator;
             defer comp.deinit();
@@ -2592,15 +2592,15 @@ test "addSourceFromBuffer - exhaustive check for carriage return elimination" {
     while (true) {
         const source = try comp.addSourceFromBuffer(&buf, &buf);
         source_count += 1;
-        try std.testing.expect(std.mem.indexOfScalar(u8, source.buf, '\r') == null);
+        try std.testing.expect(mem.findScalar(u8, source.buf, '\r') == null);
 
-        if (std.mem.allEqual(u8, &buf, alphabet[alen - 1])) break;
+        if (mem.allEqual(u8, &buf, alphabet[alen - 1])) break;
 
-        var idx = std.mem.indexOfScalar(u8, &alphabet, buf[buf.len - 1]).?;
+        var idx = mem.findScalar(u8, &alphabet, buf[buf.len - 1]).?;
         buf[buf.len - 1] = alphabet[(idx + 1) % alen];
         var j = buf.len - 1;
         while (j > 0) : (j -= 1) {
-            idx = std.mem.indexOfScalar(u8, &alphabet, buf[j - 1]).?;
+            idx = mem.findScalar(u8, &alphabet, buf[j - 1]).?;
             if (buf[j] == alphabet[0]) buf[j - 1] = alphabet[(idx + 1) % alen] else break;
         }
     }

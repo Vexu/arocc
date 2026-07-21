@@ -226,9 +226,9 @@ fn detectLSBRelease(tc: *const Toolchain) ?Tag {
 fn scanForRedHat(buf: []const u8) Tag {
     if (mem.startsWith(u8, buf, "Fedora release")) return .fedora;
     if (mem.startsWith(u8, buf, "Red Hat Enterprise Linux") or mem.startsWith(u8, buf, "CentOS") or mem.startsWith(u8, buf, "Scientific Linux")) {
-        if (mem.indexOfPos(u8, buf, 0, "release 7") != null) return .rhel7;
-        if (mem.indexOfPos(u8, buf, 0, "release 6") != null) return .rhel6;
-        if (mem.indexOfPos(u8, buf, 0, "release 5") != null) return .rhel5;
+        if (mem.findPos(u8, buf, 0, "release 7") != null) return .rhel7;
+        if (mem.findPos(u8, buf, 0, "release 6") != null) return .rhel6;
+        if (mem.findPos(u8, buf, 0, "release 5") != null) return .rhel5;
     }
 
     return .unknown;

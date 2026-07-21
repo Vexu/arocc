@@ -69,7 +69,7 @@ pub fn parse(text: []const u8) GCCVersion {
     var minor_str = second;
 
     if (rest.len == 0) {
-        const end = mem.indexOfNone(u8, minor_str, "0123456789") orelse minor_str.len;
+        const end = mem.findNone(u8, minor_str, "0123456789") orelse minor_str.len;
         if (end > 0) {
             good.suffix = minor_str[end..];
             minor_str = minor_str[0..end];
@@ -80,7 +80,7 @@ pub fn parse(text: []const u8) GCCVersion {
     good.minor_str = minor_str;
 
     if (rest.len > 0) {
-        const end = mem.indexOfNone(u8, rest, "0123456789") orelse rest.len;
+        const end = mem.findNone(u8, rest, "0123456789") orelse rest.len;
         if (end > 0) {
             const patch_num_text = rest[0..end];
             good.patch = std.fmt.parseInt(i32, patch_num_text, 10) catch return bad;

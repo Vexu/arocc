@@ -29,7 +29,7 @@ pub const Prefix = enum(u8) {
             'x', 'X' => return if (buf.len == 2) .decimal else .hex,
             'b', 'B' => return if (buf.len == 2) .decimal else .binary,
             else => {
-                if (mem.indexOfAny(u8, buf, "eE.")) |_| {
+                if (mem.findAny(u8, buf, "eE.")) |_| {
                     // This is a decimal floating point number that happens to start with zero
                     return .decimal;
                 } else if (Suffix.fromString(buf[1..], .int, allow_msvc_extensions)) |_| {
@@ -212,7 +212,7 @@ pub const Suffix = enum {
 
             for (parts) |part| {
                 const lower = std.ascii.lowerString(&scratch, part);
-                if (mem.indexOf(u8, buf, part) == null and mem.indexOf(u8, buf, lower) == null) continue :top;
+                if (mem.find(u8, buf, part) == null and mem.find(u8, buf, lower) == null) continue :top;
             }
             if (tag.isMSVCExtension() and !allow_msvc_extensions) continue;
             return tag;

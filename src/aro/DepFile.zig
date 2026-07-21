@@ -71,7 +71,7 @@ fn writeTarget(path: []const u8, w: *std.Io.Writer) !void {
 fn writePath(d: *const DepFile, path: []const u8, w: *std.Io.Writer) !void {
     switch (d.format) {
         .nmake => {
-            if (std.mem.indexOfAny(u8, path, " #${}^!")) |_|
+            if (std.mem.findAny(u8, path, " #${}^!")) |_|
                 try w.print("\"{s}\"", .{path})
             else
                 try w.writeAll(path);
