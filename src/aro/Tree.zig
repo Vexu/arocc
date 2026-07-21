@@ -167,6 +167,7 @@ pub const Node = union(enum) {
     variable: Variable,
     typedef: Typedef,
     global_asm: GlobalAsm,
+    block_literal: BlockLiteral,
 
     struct_decl: ContainerDecl,
     union_decl: ContainerDecl,
@@ -254,6 +255,7 @@ pub const Node = union(enum) {
 
     call_expr: Call,
 
+    block_capture_ref_expr: DeclRef,
     decl_ref_expr: DeclRef,
     enumeration_ref: DeclRef,
 
@@ -318,6 +320,12 @@ pub const Node = union(enum) {
         assert_tok: TokenIndex,
         cond: Node.Index,
         message: ?Node.Index,
+    };
+
+    pub const BlockLiteral = struct {
+        caret: TokenIndex,
+        qt: QualType,
+        body: Node.Index,
     };
 
     pub const Function = struct {
@@ -788,6 +796,13 @@ pub const Node = union(enum) {
                         .assert_tok = node_tok,
                         .cond = @enumFromInt(node_data[0]),
                         .message = unpackOptIndex(node_data[1]),
+                    },
+                },
+                .block_literal => .{
+                    .block_literal = .{
+                        .qt = @bitCast(node_data[0]),
+                        .body = @enumFromInt(node_data[1]),
+                        .caret = node_tok,
                     },
                 },
                 .fn_proto => {
@@ -1639,6 +1654,13 @@ pub const Node = union(enum) {
                         .member_index = node_data[2],
                     },
                 },
+                .block_capture_ref_expr => .{
+                    .block_capture_ref_expr = .{
+                        .name_tok = node_tok,
+                        .qt = @bitCast(node_data[0]),
+                        .decl = @enumFromInt(node_data[1]),
+                    },
+                },
                 .decl_ref_expr => .{
                     .decl_ref_expr = .{
                         .name_tok = node_tok,
@@ -2129,6 +2151,7 @@ pub const Node = union(enum) {
             builtin_call_expr_two,
             member_access_expr,
             member_access_ptr_expr,
+            block_capture_ref_expr,
             decl_ref_expr,
             enumeration_ref,
             builtin_ref,
@@ -2165,6 +2188,7 @@ pub const Node = union(enum) {
             codegen_diagnostic,
             alignas_type,
             identifier_arg,
+            block_literal,
         };
     };
 
@@ -2202,6 +2226,12 @@ pub fn setNode(tree: *Tree, node: Node, index: usize) !void {
             repr.data[0] = @intFromEnum(assert.cond);
             repr.data[1] = packOptIndex(assert.message);
             repr.tok = assert.assert_tok;
+        },
+        .block_literal => |block_literal| {
+            repr.tag = .block_literal;
+            repr.data[0] = @bitCast(block_literal.qt);
+            repr.data[1] = @intFromEnum(block_literal.body);
+            repr.tok = block_literal.caret;
         },
         .function => |function| {
             repr.tag = if (function.body != null) .fn_def else .fn_proto;
@@ -2864,6 +2894,12 @@ pub fn setNode(tree: *Tree, node: Node, index: usize) !void {
             repr.data[2] = access.member_index;
             repr.tok = access.access_tok;
         },
+        .block_capture_ref_expr => |block_capture_ref| {
+            repr.tag = .block_capture_ref_expr;
+            repr.data[0] = @bitCast(block_capture_ref.qt);
+            repr.data[1] = @intFromEnum(block_capture_ref.decl);
+            repr.tok = block_capture_ref.name_tok;
+        },
         .decl_ref_expr => |decl_ref| {
             repr.tag = .decl_ref_expr;
             repr.data[0] = @bitCast(decl_ref.qt);
@@ -3197,56 +3233,70 @@ pub fn linkage(tree: *const Tree, node: Node.Index) std.builtin.GlobalLinkage {
 }
 
 pub fn isLval(tree: *const Tree, node: Node.Index) bool {
-    var is_const: bool = undefined;
-    return tree.isLvalExtra(node, &is_const);
+    var extra: LvalExtra = undefined;
+    return tree.isLvalExtra(node, &extra);
 }
 
-pub fn isLvalExtra(tree: *const Tree, node: Node.Index, is_const: *bool) bool {
-    is_const.* = false;
+pub const LvalExtra = struct {
+    is_const: bool,
+    block_capture_kind: ?BlockCaptureKind,
+
+    pub const BlockCaptureKind = enum { by_ref, by_val };
+};
+
+pub fn isLvalExtra(tree: *const Tree, node: Node.Index, extra: *LvalExtra) bool {
+    extra.* = .{ .is_const = false, .block_capture_kind = null };
     var cur_node = node;
     switch (cur_node.get(tree)) {
+        .block_capture_ref_expr => |capture| {
+            extra.block_capture_kind = .by_val;
+            if (tree.attr_map.getAttribute(capture.decl, .blocks)) |attr| {
+                if (attr.args.blocks == .byref) extra.block_capture_kind = .by_ref;
+            }
+            return true;
+        },
         .compound_literal_expr => |literal| {
-            is_const.* = literal.qt.@"const";
+            extra.is_const = literal.qt.@"const";
             return true;
         },
         .string_literal_expr => return true,
         .member_access_ptr_expr => |access| {
             const ptr_qt = access.base.qt(tree);
-            if (ptr_qt.get(tree.comp, .pointer)) |pointer| is_const.* = pointer.child.@"const";
+            if (ptr_qt.get(tree.comp, .pointer)) |pointer| extra.is_const = pointer.child.@"const";
             return true;
         },
         .member_access_expr => |access| {
-            return tree.isLvalExtra(access.base, is_const);
+            return tree.isLvalExtra(access.base, extra);
         },
         .array_access_expr => |access| {
             const base_qt = access.base.qt(tree);
             // Array access operand undergoes lval conversions so the base can never
             // be a pure array type.
-            if (base_qt.get(tree.comp, .pointer)) |pointer| is_const.* = pointer.child.@"const";
+            if (base_qt.get(tree.comp, .pointer)) |pointer| extra.is_const = pointer.child.@"const";
             return true;
         },
         .decl_ref_expr => |decl_ref| {
-            is_const.* = decl_ref.qt.@"const";
+            extra.is_const = decl_ref.qt.@"const";
             return true;
         },
         .deref_expr => |un| {
             const operand_qt = un.operand.qt(tree);
             switch (operand_qt.base(tree.comp).type) {
                 .func => return false,
-                .pointer => |pointer| is_const.* = pointer.child.@"const",
+                .pointer => |pointer| extra.is_const = pointer.child.@"const",
                 else => {},
             }
             return true;
         },
         .paren_expr => |un| {
-            return tree.isLvalExtra(un.operand, is_const);
+            return tree.isLvalExtra(un.operand, extra);
         },
         .builtin_choose_expr => |conditional| {
             if (tree.value_map.get(conditional.cond)) |val| {
                 if (!val.isZero(tree.comp)) {
-                    return tree.isLvalExtra(conditional.then_expr, is_const);
+                    return tree.isLvalExtra(conditional.then_expr, extra);
                 } else {
-                    return tree.isLvalExtra(conditional.else_expr, is_const);
+                    return tree.isLvalExtra(conditional.else_expr, extra);
                 }
             }
             return false;
@@ -3504,7 +3554,7 @@ fn dumpAttribute(tree: *const Tree, ref: Attribute.Map.Ref, w: *std.Io.Writer) !
     return;
 }
 
-fn dumpNode(
+pub fn dumpNode(
     tree: *const Tree,
     node_index: Node.Index,
     level: u32,
@@ -3564,24 +3614,26 @@ fn dumpNode(
     }
 
     if (tree.value_map.get(node_index)) |val| {
-        try term.setColor(LITERAL);
-        try w.writeAll(" (value: ");
-        if (try val.print(node_index.qt(tree), tree.comp, w)) |nested| switch (nested) {
-            .pointer => |ptr| {
-                switch (tree.nodes.items(.tag)[ptr.node]) {
-                    .compound_literal_expr => {
-                        try w.writeAll("(compound literal) ");
-                        _ = try ptr.offset.print(tree.comp.type_store.ptrdiff, tree.comp, w);
-                    },
-                    else => {
-                        const ptr_node: Node.Index = @enumFromInt(ptr.node);
-                        const decl_name = tree.tokSlice(ptr_node.tok(tree));
-                        try ptr.offset.printPointer(decl_name, tree.comp, w);
-                    },
-                }
-            },
-        };
-        try w.writeByte(')');
+        if (!val.is(.block, tree.comp)) {
+            try term.setColor(LITERAL);
+            try w.writeAll(" (value: ");
+            if (try val.print(node_index.qt(tree), tree.comp, w)) |nested| switch (nested) {
+                .pointer => |ptr| {
+                    switch (tree.nodes.items(.tag)[ptr.node]) {
+                        .compound_literal_expr => {
+                            try w.writeAll("(compound literal) ");
+                            _ = try ptr.offset.print(tree.comp.type_store.ptrdiff, tree.comp, w);
+                        },
+                        else => {
+                            const ptr_node: Node.Index = @enumFromInt(ptr.node);
+                            const decl_name = tree.tokSlice(ptr_node.tok(tree));
+                            try ptr.offset.printPointer(decl_name, tree.comp, w);
+                        },
+                    }
+                },
+            };
+            try w.writeByte(')');
+        }
     }
     if (node == .return_stmt and node.return_stmt.operand == .implicit and node.return_stmt.operand.implicit) {
         try term.setColor(IMPLICIT);
@@ -3640,6 +3692,12 @@ fn dumpNode(
                 try w.print("0x{X}\n", .{@intFromEnum(definition)});
                 try term.setColor(.reset);
             }
+        },
+        .block_literal => |block_literal| {
+            try w.splatByteAll(' ', level + half);
+
+            try w.writeAll("body:\n");
+            try tree.dumpNode(block_literal.body, level + delta, term);
         },
         .typedef => |typedef| {
             try w.splatByteAll(' ', level + half);
@@ -4114,7 +4172,7 @@ fn dumpNode(
             try w.writeAll("operand:\n");
             try tree.dumpNode(un.operand, level + delta, term);
         },
-        .decl_ref_expr, .enumeration_ref => |dr| {
+        .block_capture_ref_expr, .decl_ref_expr, .enumeration_ref => |dr| {
             try w.splatByteAll(' ', level + 1);
             try w.writeAll("name: ");
             try term.setColor(NAME);

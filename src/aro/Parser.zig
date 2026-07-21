@@ -174,6 +174,14 @@ func: struct {
     decl: Node.OptIndex = .null,
 } = .{},
 
+block: struct {
+    /// `.null` if not in Block literal.
+    /// When parsing block literal signature, this is `.empty_decl`.
+    /// When parsing block literal body, this is `.block`, but the `qt` is a `.func`
+    node: Node.OptIndex = .null,
+    scope_depth: usize = undefined,
+} = .{},
+
 /// Various variables that are different for each record.
 record: struct {
     // invalid means we're not parsing a record
@@ -859,11 +867,11 @@ fn completesTentativeArray(p: *Parser, name: StringId, qt: QualType) bool {
     if (array_ty.len != .fixed) return false;
 
     const prev = p.syms.findSymbol(name) orelse return false;
-    if (prev.kind != .decl) return false;
-    const prev_array_ty = prev.qt.get(p.comp, .array) orelse return false;
+    if (prev.symbol.kind != .decl) return false;
+    const prev_array_ty = prev.symbol.qt.get(p.comp, .array) orelse return false;
     if (prev_array_ty.len != .incomplete) return false;
 
-    return qt.eqlQualified(prev.qt, p.comp);
+    return qt.eqlQualified(prev.symbol.qt, p.comp);
 }
 
 fn findLabel(p: *Parser, name: []const u8) ?TokenIndex {
@@ -3774,7 +3782,20 @@ const Declarator = struct {
     /// Used redundantly with `qt` in case it was set to `.invalid` by `validate`.
     declarator_type: enum { other, func, array, pointer, block } = .other,
 
-    const Kind = enum { normal, abstract, param, record };
+    const Kind = enum {
+        normal,
+        abstract,
+        param,
+        record,
+        block_literal,
+
+        fn isAbstract(kind: Kind) bool {
+            return switch (kind) {
+                .abstract, .block_literal => true,
+                else => false,
+            };
+        }
+    };
 
     fn validate(d: *Declarator, p: *Parser, source_tok: TokenIndex) Parser.Error!void {
         switch (try validateExtra(p, d.qt, source_tok)) {
@@ -3799,6 +3820,7 @@ const Declarator = struct {
     fn validateExtra(p: *Parser, cur: QualType, source_tok: TokenIndex) Parser.Error!ValidationResult {
         if (cur.isInvalid()) return .nested_invalid;
         if (cur.isAuto()) return .nested_auto;
+        if (cur.isBlockLiteralAutoReturn()) return .nested_auto;
         if (cur._index == .declarator_combine) return .declarator_combine;
 
         switch (cur.type(p.comp)) {
@@ -3845,6 +3867,7 @@ const Declarator = struct {
             },
             .func => |func_ty| {
                 const ret_qt = func_ty.return_type;
+                if (ret_qt.isBlockLiteralAutoReturn()) return .normal;
                 const child_res = try validateExtra(p, ret_qt, source_tok);
                 if (child_res != .normal) return child_res;
 
@@ -3893,6 +3916,13 @@ fn declarator(
         .caret => {
             const caret = p.tok_i;
             p.tok_i += 1;
+            if (d.qt.isBlockLiteralAutoReturn()) {
+                try p.err(caret, .typename_requires_spec_or_qual, .{});
+                d.qt = .invalid;
+                continue;
+            } else if (d.qt.isInvalid()) {
+                continue;
+            }
             d.qt = try p.wip_attrs.applyTypeAttrs(p, d.qt);
             if (!p.comp.langopts.blocks) try p.err(caret, .blocks_not_enabled, .{});
             try p.err(caret, .blocks_are_clang_extension, .{});
@@ -3907,7 +3937,15 @@ fn declarator(
             d.qt = try builder.finishQuals(block_qt);
         },
         .asterisk => {
+            const asterisk = p.tok_i;
             p.tok_i += 1;
+            if (d.qt.isBlockLiteralAutoReturn()) {
+                try p.err(asterisk, .typename_requires_spec_or_qual, .{});
+                d.qt = .invalid;
+                continue;
+            } else if (d.qt.isInvalid()) {
+                continue;
+            }
             d.qt = try p.wip_attrs.applyTypeAttrs(p, d.qt);
             d.declarator_type = .pointer;
             var builder: TypeStore.Builder = .{ .parser = p };
@@ -3922,7 +3960,7 @@ fn declarator(
     };
 
     const maybe_ident = p.tok_i;
-    if (kind != .abstract and (try p.eatIdentifier()) != null) {
+    if (!kind.isAbstract() and (try p.eatIdentifier()) != null) {
         d.name = maybe_ident;
         const combine_tok = p.tok_i;
         d.qt = try p.wip_attrs.applyTypeAttrs(p, d.qt);
@@ -3938,10 +3976,15 @@ fn declarator(
 
         d.qt = try p.wip_attrs.applyTypeAttrs(p, d.qt);
         const special_marker: QualType = .{ ._index = .declarator_combine };
+        const inner_start = p.tok_i;
         var res = (try p.declarator(special_marker, kind)) orelse {
             p.tok_i = l_paren;
             break :blk;
         };
+        if (d.qt.isBlockLiteralAutoReturn()) {
+            try p.err(inner_start, .missing_type_specifier, .{});
+            d.qt = .int;
+        }
         try p.expectClosing(l_paren, .r_paren);
         const suffix_start = p.tok_i;
         const outer = try p.directDeclarator(&d, kind);
@@ -3951,7 +3994,7 @@ fn declarator(
         if (res.qt._index == .declarator_combine) {
             res.qt = outer;
             res.declarator_type = d.declarator_type;
-        } else if (outer.isInvalid() or res.qt.isInvalid()) {
+        } else if ((kind != .block_literal and outer.isInvalid()) or res.qt.isInvalid()) {
             res.qt = outer;
         } else {
             var cur = res.qt;
@@ -4010,7 +4053,17 @@ fn declarator(
                 },
             }
         }
+    } else if (kind == .block_literal) {
+        if (d.declarator_type != .func and d.qt._index != .declarator_combine) {
+            d.declarator_type = .func;
+            d.qt = try p.comp.type_store.put(p.comp.gpa, .{ .func = .{
+                .return_type = d.qt,
+                .params = &.{},
+                .kind = .normal,
+            } });
+        }
     }
+
     try d.validate(p, expected_ident);
     if (d.qt == base_qt) return null;
     return d;
@@ -4043,7 +4096,7 @@ fn directDeclarator(
                     p.tok_i -= 1;
                     return base_declarator.qt;
                 },
-                .param, .abstract => {},
+                .param, .abstract, .block_literal => {},
             }
             try p.err(p.tok_i, .expected_expr, .{});
             return error.ParsingFailed;
@@ -4207,7 +4260,8 @@ fn directDeclarator(
         base_declarator.declarator_type = .func;
 
         return p.comp.type_store.put(gpa, .{ .func = func_ty });
-    } else return base_declarator.qt;
+    }
+    return base_declarator.qt;
 }
 
 /// paramDecls : paramDecl (',' paramDecl)* (',' '...')
@@ -5955,37 +6009,64 @@ fn compoundStmt(p: *Parser, is_fn_body: bool, stmt_expr_state: ?*StmtExprState) 
         else
             p.nodeIsNoreturn(p.decl_buf.items[p.decl_buf.items.len - 1]);
 
-        const ret_qt: QualType = if (p.func.qt.?.get(p.comp, .func)) |func_ty| func_ty.return_type else .invalid;
-        if (last_noreturn != .yes and !ret_qt.isInvalid()) {
-            var return_zero = false;
-            if (last_noreturn == .no) switch (ret_qt.base(p.comp).type) {
-                .void => {},
-                .func, .array => {}, // Invalid, error reported elsewhere
-                else => {
-                    const func_name = p.tokSlice(p.func.name);
-                    const interned_name = try p.comp.internString(func_name);
+        if (p.block.node.unpack()) |block_node| {
+            const block = block_node.get(&p.tree).block_literal;
+            var func_ty = block.qt.get(p.comp, .func).?;
+            const ret_qt = func_ty.return_type;
+            if (ret_qt.isBlockLiteralAutoReturn()) {
+                func_ty.return_type = .void;
+                try block.qt.set(p.comp, .{ .func = func_ty });
+            } else if (last_noreturn != .yes and !ret_qt.isInvalid()) {
+                if (last_noreturn == .no) switch (ret_qt.base(p.comp).type) {
+                    .void => {},
+                    .func, .array => {}, // Invalid, error reported elsewhere
+                    else => {
+                        try p.err(r_brace, .non_void_block_does_not_return, .{});
+                        try p.err(block.caret, .block_return_block_defined_here, .{});
+                    },
+                };
 
-                    if (interned_name == p.string_ids.main_id) {
-                        if (ret_qt.get(p.comp, .int)) |int_ty| {
-                            if (int_ty == .int) return_zero = true;
+                const implicit_ret = try p.addNode(.{ .return_stmt = .{
+                    .return_tok = r_brace,
+                    .return_qt = ret_qt,
+                    .operand = .{ .implicit = false },
+                } });
+                try p.decl_buf.append(gpa, implicit_ret);
+            }
+        } else {
+            const ret_qt: QualType = if (p.func.qt.?.get(p.comp, .func)) |func_ty| func_ty.return_type else .invalid;
+
+            if (last_noreturn != .yes and !ret_qt.isInvalid()) {
+                var return_zero = false;
+                if (last_noreturn == .no) switch (ret_qt.base(p.comp).type) {
+                    .void => {},
+                    .func, .array => {}, // Invalid, error reported elsewhere
+                    else => {
+                        const func_name = p.tokSlice(p.func.name);
+                        const interned_name = try p.comp.internString(func_name);
+
+                        if (interned_name == p.string_ids.main_id) {
+                            if (ret_qt.get(p.comp, .int)) |int_ty| {
+                                if (int_ty == .int) return_zero = true;
+                            }
                         }
-                    }
 
-                    if (!return_zero) {
-                        try p.err(p.tok_i - 1, .func_does_not_return, .{func_name});
-                    }
-                },
-            };
+                        if (!return_zero) {
+                            try p.err(p.tok_i - 1, .func_does_not_return, .{func_name});
+                        }
+                    },
+                };
 
-            const implicit_ret = try p.addNode(.{ .return_stmt = .{
-                .return_tok = r_brace,
-                .return_qt = ret_qt,
-                .operand = .{ .implicit = return_zero },
-            } });
-            try p.decl_buf.append(gpa, implicit_ret);
+                const implicit_ret = try p.addNode(.{ .return_stmt = .{
+                    .return_tok = r_brace,
+                    .return_qt = ret_qt,
+                    .operand = .{ .implicit = return_zero },
+                } });
+                try p.decl_buf.append(gpa, implicit_ret);
+            }
+            if (p.func.ident) |some| try p.decl_buf.insert(gpa, decl_buf_top, some.node);
+            if (p.func.pretty_ident) |some| try p.decl_buf.insert(gpa, decl_buf_top, some.node);
         }
-        if (p.func.ident) |some| try p.decl_buf.insert(gpa, decl_buf_top, some.node);
-        if (p.func.pretty_ident) |some| try p.decl_buf.insert(gpa, decl_buf_top, some.node);
     }
 
     return try p.addNode(.{ .compound_stmt = .{
@@ -5998,8 +6079,8 @@ fn pointerValue(p: *Parser, node: Node.Index, offset: Value) !Value {
     switch (node.get(&p.tree)) {
         .decl_ref_expr => |decl_ref| {
             const var_name = try p.comp.internString(p.tokSlice(decl_ref.name_tok));
-            const sym = p.syms.findSymbol(var_name) orelse return .{};
-            return Value.pointer(.{ .node = @intFromEnum(sym.node), .offset = offset.ref() }, p.comp);
+            const sym_lookup = p.syms.findSymbol(var_name) orelse return .{};
+            return Value.pointer(.{ .node = @intFromEnum(sym_lookup.symbol.node), .offset = offset.ref() }, p.comp);
         },
         .string_literal_expr => return p.tree.value_map.get(node).?,
         else => return .{},
@@ -6129,27 +6210,60 @@ fn returnStmt(p: *Parser) Error!?Node.Index {
     var ret_expr = try p.expr();
     _ = try p.expectToken(.semicolon);
 
-    const func_qt = p.func.qt.?; // `return` cannot be parsed outside of a function.
-    const ret_qt: QualType = if (func_qt.get(p.comp, .func)) |func_ty| func_ty.return_type else .invalid;
-    const ret_void = !ret_qt.isInvalid() and ret_qt.is(p.comp, .void);
+    const ret_qt: QualType = if (p.block.node.unpack()) |block_node| ret_qt: {
+        const block = block_node.get(&p.tree).block_literal;
+        var func = block.qt.get(p.comp, .func).?;
 
-    if (p.tree.attr_map.hasAttribute(p.func.decl, .noreturn)) {
-        try p.err(e_tok, .invalid_noreturn, .{p.tokSlice(p.func.name)});
-    }
-
-    if (ret_expr) |*some| {
-        if (ret_void) {
-            if (!some.qt.is(p.comp, .void)) {
-                try p.err(e_tok, .void_func_returns_value, .{p.tokSlice(p.func.name)});
-            }
-        } else {
-            try some.coerce(p, ret_qt, e_tok, .ret);
-
-            try some.saveValue(p);
+        if (p.tree.attr_map.hasAttribute(block_node, .noreturn)) {
+            try p.err(ret_tok, .invalid_block_noreturn, .{});
+            try p.err(block.caret, .invalid_block_noreturn_block_defined_here, .{});
         }
-    } else if (!ret_void) {
-        try p.err(ret_tok, .func_should_return, .{p.tokSlice(p.func.name)});
-    }
+
+        if (func.return_type.isBlockLiteralAutoReturn()) {
+            if (ret_expr) |*some| {
+                try some.lvalConversion(p, e_tok);
+                func.return_type = some.qt;
+            } else func.return_type = .void;
+            try block.qt.set(p.comp, .{ .func = func });
+        } else if (ret_expr) |*some| {
+            if (func.return_type.is(p.comp, .void)) {
+                if (!some.qt.is(p.comp, .void)) {
+                    try p.err(ret_tok, .void_block_returns_value, .{});
+                    try p.err(block.caret, .block_return_block_defined_here, .{});
+                }
+            } else if (!func.return_type.isInvalid()) {
+                try some.coerce(p, func.return_type, e_tok, .ret);
+                try some.saveValue(p);
+            }
+        } else if (!func.return_type.isInvalid() and !func.return_type.is(p.comp, .void)) {
+            try p.err(ret_tok, .block_should_return, .{});
+            try p.err(block.caret, .block_return_block_defined_here, .{});
+        }
+
+        break :ret_qt func.return_type;
+    } else if (p.func.qt) |func_qt| ret_qt: {
+        const ret_qt: QualType = if (func_qt.get(p.comp, .func)) |func_ty| func_ty.return_type else .invalid;
+        const ret_void = !ret_qt.isInvalid() and ret_qt.is(p.comp, .void);
+
+        if (p.tree.attr_map.hasAttribute(p.func.decl, .noreturn)) {
+            try p.err(e_tok, .invalid_noreturn, .{p.tokSlice(p.func.name)});
+        }
+
+        if (ret_expr) |*some| {
+            if (ret_void) {
+                if (!some.qt.is(p.comp, .void)) {
+                    try p.err(e_tok, .void_func_returns_value, .{p.tokSlice(p.func.name)});
+                }
+            } else {
+                try some.coerce(p, ret_qt, e_tok, .ret);
+
+                try some.saveValue(p);
+            }
+        } else if (!ret_void) {
+            try p.err(ret_tok, .func_should_return, .{p.tokSlice(p.func.name)});
+        }
+        break :ret_qt ret_qt;
+    } else unreachable; // `return` cannot be parsed outside of a function or block.
 
     return try p.addNode(.{ .return_stmt = .{
         .return_tok = ret_tok,
@@ -8184,10 +8298,14 @@ fn assignExpr(p: *Parser) Error!?Result {
 
     var rhs = try p.expect(assignExpr);
 
-    var is_const: bool = undefined;
-    if (!p.tree.isLvalExtra(lhs.node, &is_const) or is_const) {
+    var extra: Tree.LvalExtra = undefined;
+    if (!p.tree.isLvalExtra(lhs.node, &extra) or extra.is_const) {
         try p.issueConstAssignmentDiagnostics(lhs.node, tok);
         lhs.qt = .invalid;
+    }
+
+    if (extra.block_capture_kind == .by_val) {
+        try p.err(tok, .variable_missing_block_type_spec, .{});
     }
 
     if (tag == .assign_expr) {
@@ -9307,10 +9425,14 @@ fn unExpr(p: *Parser) Error!?Result {
             if (!scalar_kind.isReal())
                 try p.err(p.tok_i, .complex_prefix_postfix_op, .{operand.qt});
 
-            if (!p.tree.isLval(operand.node) or operand.qt.@"const") {
+            var lval_extra: Tree.LvalExtra = undefined;
+            if (!p.tree.isLvalExtra(operand.node, &lval_extra) or lval_extra.is_const or operand.qt.@"const") {
                 try p.err(tok, .not_assignable, .{});
                 return error.ParsingFailed;
             }
+            if (lval_extra.block_capture_kind == .by_val)
+                try p.err(tok, .variable_missing_block_type_spec, .{});
+
             if (operand.qt.get(p.comp, .pointer)) |pointer| {
                 try p.checkPtrArithmeticAllowed(pointer, p.tok_i, operand.node);
             }
@@ -9337,10 +9459,14 @@ fn unExpr(p: *Parser) Error!?Result {
             if (!scalar_kind.isReal())
                 try p.err(p.tok_i, .complex_prefix_postfix_op, .{operand.qt});
 
-            if (!p.tree.isLval(operand.node) or operand.qt.@"const") {
+            var extra: Tree.LvalExtra = undefined;
+            if (!p.tree.isLvalExtra(operand.node, &extra) or extra.is_const or operand.qt.@"const") {
                 try p.err(tok, .not_assignable, .{});
                 return error.ParsingFailed;
             }
+            if (extra.block_capture_kind == .by_val)
+                try p.err(tok, .variable_missing_block_type_spec, .{});
+
             if (operand.qt.get(p.comp, .pointer)) |pointer| {
                 try p.checkPtrArithmeticAllowed(pointer, p.tok_i, operand.node);
             }
@@ -9687,10 +9813,14 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!?Result {
             if (!scalar_kind.isReal())
                 try p.err(p.tok_i, .complex_prefix_postfix_op, .{operand.qt});
 
-            if (!p.tree.isLval(operand.node) or operand.qt.@"const") {
+            var extra: Tree.LvalExtra = undefined;
+            if (!p.tree.isLvalExtra(operand.node, &extra) or extra.is_const or operand.qt.@"const") {
                 try p.err(p.tok_i, .not_assignable, .{});
                 return error.ParsingFailed;
             }
+            if (extra.block_capture_kind == .by_val)
+                try p.err(p.tok_i, .variable_missing_block_type_spec, .{});
+
             if (operand.qt.get(p.comp, .pointer)) |pointer| {
                 try p.checkPtrArithmeticAllowed(pointer, p.tok_i, operand.node);
             }
@@ -9710,10 +9840,13 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!?Result {
             if (!scalar_kind.isReal())
                 try p.err(p.tok_i, .complex_prefix_postfix_op, .{operand.qt});
 
-            if (!p.tree.isLval(operand.node) or operand.qt.@"const") {
+            var extra: Tree.LvalExtra = undefined;
+            if (!p.tree.isLvalExtra(operand.node, &extra) or extra.is_const or operand.qt.@"const") {
                 try p.err(p.tok_i, .not_assignable, .{});
                 return error.ParsingFailed;
             }
+            if (extra.block_capture_kind == .by_val)
+                try p.err(p.tok_i, .variable_missing_block_type_spec, .{});
             if (operand.qt.get(p.comp, .pointer)) |pointer| {
                 try p.checkPtrArithmeticAllowed(pointer, p.tok_i, operand.node);
             }
@@ -10452,6 +10585,109 @@ fn checkArrayBounds(p: *Parser, index: Result, array: Result, tok: TokenIndex) !
     }
 }
 
+/// blockLiteral: '^' typeSpec? paramDecls? compoundStmt
+fn blockLiteral(p: *Parser) Error!?Result {
+    const restore_block = p.block;
+    defer p.block = restore_block;
+
+    const caret = try p.expectToken(.caret);
+    if (!p.comp.langopts.blocks) try p.err(caret, .blocks_not_enabled, .{});
+    try p.err(caret, .blocks_are_clang_extension, .{});
+
+    const node = try p.addNode(.{ .empty_decl = .{ .semicolon = caret } });
+    p.block = .{ .node = .pack(node), .scope_depth = p.syms.active_len };
+
+    try p.syms.pushScope(p);
+    defer p.syms.popScope();
+
+    var has_declarator = false;
+    var qt: QualType = .block_literal_auto_return;
+    const attr_state = p.wip_attrs.state(true);
+    defer p.wip_attrs.restore(attr_state);
+    while (true) {
+        if (try p.gnuAttribute()) continue;
+        if (p.eatToken(.keyword_auto_type)) |auto_type_tok| {
+            try p.err(auto_type_tok, .auto_type_not_allowed, .{"block return type"});
+            continue;
+        }
+        if (p.comp.langopts.standard.atLeast(.c23)) {
+            if (p.eatToken(.keyword_auto)) |auto_tok| {
+                try p.err(auto_tok, .c23_auto_not_allowed, .{"block return type"});
+                continue;
+            }
+        }
+        const good_attrs_state = p.wip_attrs.state(false);
+        const bad_attr_tok_i = p.tok_i;
+        if (try p.c23Attribute() or try p.declspecAttribute()) {
+            try p.err(bad_attr_tok_i, .block_only_gnu_attributes, .{});
+            p.wip_attrs.restore(good_attrs_state);
+            continue;
+        }
+        if (qt.isBlockLiteralAutoReturn()) if (try p.specQual(false)) |spec_qual| {
+            qt = spec_qual;
+            continue;
+        };
+        if (!has_declarator) {
+            const sig = (try p.declarator(qt, .block_literal)).?;
+            if (sig.old_style_func) |tok_i| try p.err(tok_i, .invalid_old_style_params, .{});
+            qt = sig.qt;
+            // should be guaranteed by block_literal declarator
+            assert(sig.declarator_type == .func);
+            has_declarator = true;
+            continue;
+        }
+        break;
+    }
+
+    if (!qt.isInvalid()) {
+        const func = qt.get(p.comp, .func).?;
+        for (func.params) |param| {
+            try p.syms.define(p.comp.gpa, .{
+                .kind = .def,
+                .name = param.name,
+                .tok = param.name_tok,
+                .qt = param.qt,
+                .val = .{},
+                .node = param.node.unpack().?,
+            });
+        }
+    }
+
+    try p.tree.setNode(.{ .block_literal = .{
+        .caret = caret,
+        .qt = qt,
+        .body = undefined,
+    } }, @intFromEnum(node));
+    try p.wip_attrs.applyDeclAttrsExtra(p, node, qt, null);
+
+    var compound_stmt_state: StmtExprState = .{};
+    const body = try p.compoundStmt(true, &compound_stmt_state) orelse {
+        try p.err(p.tok_i, .missing_block_literal_body, .{});
+        try p.err(caret, .block_defined_here, .{});
+        return error.ParsingFailed;
+    };
+
+    if (std.debug.runtime_safety) blk: {
+        if (qt.isInvalid()) break :blk;
+        const func = qt.get(p.comp, .func).?;
+        // should've been updated by returnStmt or compoundStmt
+        assert(!func.return_type.isBlockLiteralAutoReturn());
+    }
+
+    const block_qt = try p.comp.type_store.put(p.comp.gpa, .{ .block = .{ .func = qt } });
+
+    try p.tree.setNode(.{ .block_literal = .{
+        .caret = caret,
+        .body = body,
+        .qt = block_qt,
+    } }, @intFromEnum(node));
+
+    return .{
+        .node = node,
+        .qt = block_qt,
+    };
+}
+
 /// primaryExpr
 ///  : IDENTIFIER
 ///  | keyword_true
@@ -10470,6 +10706,7 @@ fn checkArrayBounds(p: *Parser, index: Result, array: Result, tok: TokenIndex) !
 ///  | chooseExpr
 ///  | vaStart
 ///  | offsetof
+///  | blockLiteral
 fn primaryExpr(p: *Parser) Error!?Result {
     if (p.eatToken(.l_paren)) |l_paren| {
         var grouped_expr = try p.expectWithClosing(expr, .r_paren);
@@ -10489,33 +10726,53 @@ fn primaryExpr(p: *Parser) Error!?Result {
                 return error.ParsingFailed;
             }
 
-            if (p.syms.findSymbol(interned_name)) |sym| {
-                if (sym.kind == .typedef) {
+            if (p.syms.findSymbol(interned_name)) |lookup| {
+                if (lookup.symbol.kind == .typedef) {
                     try p.err(name_tok, .unexpected_type_name, .{name});
                     return error.ParsingFailed;
                 }
-                if (sym.out_of_scope) {
+                if (lookup.symbol.out_of_scope) {
                     try p.err(name_tok, .out_of_scope_use, .{name});
-                    try p.err(sym.tok, .previous_definition, .{});
+                    try p.err(lookup.symbol.tok, .previous_definition, .{});
                 }
 
-                try p.checkDeprecatedUnavailable(sym.node, name_tok);
-                p.markUsed(sym.node);
+                try p.checkDeprecatedUnavailable(lookup.symbol.node, name_tok);
+                p.markUsed(lookup.symbol.node);
 
-                if (sym.kind == .constexpr) {
+                if (p.block.node != .null) {
+                    const is_capturable = switch (lookup.symbol.kind) {
+                        .decl, .def => true,
+                        else => false,
+                    };
+                    if (is_capturable and lookup.depth > 0 and lookup.depth < p.block.scope_depth) {
+                        return .{
+                            .val = lookup.symbol.val,
+                            .qt = lookup.symbol.qt,
+                            .node = try p.addNode(.{
+                                .block_capture_ref_expr = .{
+                                    .name_tok = name_tok,
+                                    .qt = lookup.symbol.qt,
+                                    .decl = lookup.symbol.node.unpack().?,
+                                },
+                            }),
+                        };
+                    }
+                }
+
+                if (lookup.symbol.kind == .constexpr) {
                     return .{
-                        .val = sym.val,
-                        .qt = sym.qt,
+                        .val = lookup.symbol.val,
+                        .qt = lookup.symbol.qt,
                         .node = try p.addNode(.{
                             .decl_ref_expr = .{
                                 .name_tok = name_tok,
-                                .qt = sym.qt,
-                                .decl = sym.node,
+                                .qt = lookup.symbol.qt,
+                                .decl = lookup.symbol.node,
                             },
                         }),
                     };
                 }
-                if (sym.val.is(.int, p.comp)) {
+                if (lookup.symbol.val.is(.int, p.comp)) {
                     switch (p.const_decl_folding) {
                         .gnu_folding_extension => try p.err(name_tok, .const_decl_folded, .{}),
                         .gnu_vla_folding_extension => try p.err(name_tok, .const_decl_folded_vla, .{}),
@@ -10523,22 +10780,22 @@ fn primaryExpr(p: *Parser) Error!?Result {
                     }
                 }
 
-                const node = try p.addNode(if (sym.kind == .enumeration)
+                const node = try p.addNode(if (lookup.symbol.kind == .enumeration)
                     .{ .enumeration_ref = .{
                         .name_tok = name_tok,
-                        .qt = sym.qt,
-                        .decl = sym.node,
+                        .qt = lookup.symbol.qt,
+                        .decl = lookup.symbol.node,
                     } }
                 else
                     .{ .decl_ref_expr = .{
                         .name_tok = name_tok,
-                        .qt = sym.qt,
-                        .decl = sym.node,
+                        .qt = lookup.symbol.qt,
+                        .decl = lookup.symbol.node,
                     } });
 
                 const res: Result = .{
-                    .val = if (p.const_decl_folding == .no_const_decl_folding and sym.kind != .enumeration) Value{} else sym.val,
-                    .qt = sym.qt,
+                    .val = if (p.const_decl_folding == .no_const_decl_folding and lookup.symbol.kind != .enumeration) Value{} else lookup.symbol.val,
+                    .qt = lookup.symbol.qt,
                     .node = node,
                 };
                 try res.putValue(p);
@@ -10795,6 +11052,7 @@ fn primaryExpr(p: *Parser) Error!?Result {
             return res;
         },
         .keyword_generic => return p.genericSelection(),
+        .caret => return p.blockLiteral(),
         else => return null,
     }
 }

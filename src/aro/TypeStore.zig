@@ -119,6 +119,7 @@ const Index = enum(u29) {
     float_dfloat128 = std.math.maxInt(u29) - 37,
     float_dfloat64x = std.math.maxInt(u29) - 38,
     mfp8 = std.math.maxInt(u29) - 39,
+    block_literal_auto_return = std.math.maxInt(u29) - 40,
     _,
 };
 
@@ -170,6 +171,7 @@ pub const QualType = packed struct(u32) {
     pub const void_pointer: QualType = .{ ._index = .void_pointer };
     pub const char_pointer: QualType = .{ ._index = .char_pointer };
     pub const int_pointer: QualType = .{ ._index = .int_pointer };
+    pub const block_literal_auto_return: QualType = .{ ._index = .block_literal_auto_return };
 
     pub fn isInvalid(qt: QualType) bool {
         return qt._index == .invalid;
@@ -191,6 +193,10 @@ pub const QualType = packed struct(u32) {
         return qt.@"const" or qt.@"volatile" or qt.restrict;
     }
 
+    pub fn isBlockLiteralAutoReturn(qt: QualType) bool {
+        return qt._index == .block_literal_auto_return;
+    }
+
     pub fn unqualified(qt: QualType) QualType {
         return .{ ._index = qt._index };
     }
@@ -210,6 +216,7 @@ pub const QualType = packed struct(u32) {
             .auto_type => unreachable,
             .c23_auto => unreachable,
             .declarator_combine => unreachable,
+            .block_literal_auto_return => unreachable,
             .void => return .void,
             .bool => return .bool,
             .nullptr_t => return .nullptr_t,
@@ -479,6 +486,10 @@ pub const QualType = packed struct(u32) {
             .typedef => |typedef| cur = typedef.base,
             else => |ty| return .{ .type = ty, .qt = cur },
         };
+    }
+
+    pub fn set(qt: QualType, comp: *Compilation, ty: Type) !void {
+        return comp.type_store.set(comp.gpa, ty, @intFromEnum(qt._index));
     }
 
     /// Function or function pointer

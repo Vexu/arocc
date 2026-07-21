@@ -1211,6 +1211,12 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
             }
         },
     }
+
+    // language extensions
+    if (comp.langopts.blocks) {
+        try w.print("#define __BLOCKS__ 1\n", .{});
+        try w.print("#define __block __attribute__((__blocks__(byref)))\n", .{});
+    }
 }
 
 const RiscvFloatAbi = enum { soft, single, double };

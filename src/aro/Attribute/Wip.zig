@@ -155,7 +155,7 @@ fn arg(wip: *Wip, comptime WantedBase: type) !?WantedBase {
         if (Wanted == Tree.Node.DeclRef and node == .decl_ref_expr) {
             return node.decl_ref_expr;
         }
-        if (@typeInfo(@TypeOf(Wanted)) == .@"enum" and Wanted.opts.enum_kind == .identifier and node == .identifier_arg) {
+        if (@typeInfo(Wanted) == .@"enum" and Wanted.opts.enum_kind == .identifier and node == .identifier_arg) {
             const str = tree.tokSlice(node.identifier_arg.identifier_tok);
             if (Wanted.opts.map.get(str)) |enum_val| return enum_val;
 
@@ -217,6 +217,7 @@ fn arg(wip: *Wip, comptime WantedBase: type) !?WantedBase {
 
 const Target = enum {
     function,
+    block_literal,
     function_pointer,
     variable,
     local_variable,
@@ -231,6 +232,7 @@ const Target = enum {
     pub fn str(t: Target) []const u8 {
         return switch (t) {
             .function => "functions",
+            .block_literal => "block literals",
             .function_pointer => "function pointers",
             .variable => "variables",
             .local_variable => "local variables",
@@ -245,11 +247,20 @@ const Target = enum {
     }
 };
 
+fn blockLiteralTarget(wip: *Wip) bool {
+    const node = wip.current.node();
+    return node == .block_literal;
+}
+
 fn checkTarget(wip: *Wip, list: []const Target) !bool {
     const node = wip.current.node();
     for (list) |target| switch (target) {
         .function => switch (node) {
             .function => return false,
+            else => {},
+        },
+        .block_literal => switch (node) {
+            .block_literal => return false,
             else => {},
         },
         .function_pointer => {
@@ -489,6 +500,7 @@ pub fn applyDeclAttrsExtra(
                     if (try wip.argCount(0)) continue;
                     try wip.add(.internal_linkage);
                 },
+                .blocks => try wip.applyBlocks(),
                 else => {
                     try wip.err(.unimplemented, .{attr});
                 },
@@ -653,7 +665,7 @@ fn applyAlignment(wip: *Wip) !void {
                 return;
             },
         }
-    } else if (try wip.checkTarget(&.{ .function, .variable, .typedef, .tag, .param, .field })) return;
+    } else if (try wip.checkTarget(&.{ .function, .variable, .typedef, .tag, .param, .field, .block_literal })) return;
 
     const comp = wip.current.parser.comp;
 
@@ -767,7 +779,7 @@ fn applyNonnull(wip: *Wip) !void {
     const comp = parser.comp;
     const qt = wip.current.qt;
     if (qt.isInvalid()) return;
-    if (try wip.checkTarget(&.{ .function, .function_pointer, .param })) return;
+    if (try wip.checkTarget(&.{ .function, .function_pointer, .param, .block_literal })) return;
     if (wip.current.node() == .param) {
         if (wip.current.attr.args_len != 0) {
             try wip.err(.nonnull_param_args, .{wip.current.attr});
@@ -850,7 +862,7 @@ fn applyTransparentUnion(wip: *Wip) !void {
 }
 
 fn applyVisibility(wip: *Wip) !void {
-    if (try wip.checkTarget(&.{ .function, .global_variable })) return;
+    if (try wip.checkTarget(&.{ .function, .global_variable, .block_literal })) return;
     if (try wip.argCount(1)) return;
 
     var kind = (try wip.arg(Attribute.Args.Visibility)) orelse return;
@@ -878,7 +890,7 @@ fn applyVisibility(wip: *Wip) !void {
 }
 
 fn applyNoreturn(wip: *Wip) !void {
-    if (try wip.checkTarget(&.{.function})) return;
+    if (try wip.checkTarget(&.{ .function, .block_literal })) return;
     if (try wip.argCount(0)) return;
 
     const name = wip.current.attr.name;
@@ -1459,4 +1471,30 @@ fn applyFalltrhough(wip: *Wip) !void {
     }
 
     try wip.add(.fallthrough);
+}
+
+fn applyBlocks(wip: *Wip) !void {
+    if (try wip.argCount(1)) return;
+    const node = wip.current.node();
+    switch (node) {
+        .variable => |variable| switch (variable.storage_class) {
+            .auto, .register => if (wip.current.parser.func.qt == null) {
+                try wip.err(.blocks_only_local_variables, .{});
+                return;
+            },
+            .@"extern", .static => {
+                try wip.err(.blocks_only_local_variables, .{});
+                return;
+            },
+        },
+        // clang doesn't emit a dx, but it's not clear what this does on block literals
+        .block_literal => {},
+        else => {
+            try wip.err(.blocks_only_local_variables, .{});
+            return;
+        },
+    }
+
+    const byref = try wip.arg(@FieldType(Attribute.Args, "blocks")) orelse return;
+    try wip.add(.{ .blocks = byref });
 }

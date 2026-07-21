@@ -2426,3 +2426,69 @@ pub const typename_invalid_specifier: Diagnostic = .{
     .fmt = "type name does not allow {s} specifier to be specified",
     .kind = .@"error",
 };
+
+pub const invalid_block_noreturn: Diagnostic = .{
+    .fmt = "block declared 'noreturn' should not return",
+    .kind = .@"error",
+    .opt = .@"invalid-noreturn",
+};
+
+pub const invalid_block_noreturn_block_defined_here: Diagnostic = .{
+    .fmt = "block defined here",
+    .kind = .note,
+    .opt = .@"invalid-noreturn",
+};
+
+pub const non_void_block_does_not_return: Diagnostic = .{
+    .fmt = "non-void block does not return a value",
+    .kind = .warning,
+    .opt = .@"return-type",
+};
+
+pub const void_block_returns_value: Diagnostic = .{
+    .fmt = "void block should not return a value",
+    .kind = .warning,
+    .opt = .@"return-type",
+};
+
+pub const block_should_return: Diagnostic = .{
+    .fmt = "non-void block should return a value",
+    .kind = .warning,
+    .opt = .@"return-type",
+};
+
+pub const block_return_block_defined_here: Diagnostic = .{
+    .fmt = "block defined here",
+    .kind = .note,
+    .opt = .@"return-type",
+};
+
+pub const missing_block_literal_body: Diagnostic = .{
+    .fmt = "missing body for block literal",
+    .kind = .@"error",
+};
+
+pub const block_defined_here: Diagnostic = .{
+    .fmt = "block defined here",
+    .kind = .note,
+};
+
+pub const block_only_gnu_attributes: Diagnostic = .{
+    .fmt = "only gnu attributes are allowed on block literals",
+    .kind = .@"error",
+};
+
+pub const variable_missing_block_type_spec: Diagnostic = .{
+    .fmt = "variable is not assignable (missing __block type specifier)",
+    .kind = .@"error",
+};
+
+pub const block_cannot_return_type: Diagnostic = .{
+    .fmt = "block cannot return type {qt}",
+    .kind = .@"error",
+};
+
+pub const typename_requires_spec_or_qual: Diagnostic = .{
+    .fmt = "type name requires a specifier or qualifier",
+    .kind = .@"error",
+};
