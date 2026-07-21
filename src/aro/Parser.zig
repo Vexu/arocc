@@ -6160,17 +6160,17 @@ fn returnStmt(p: *Parser) Error!?Node.Index {
 
 // ====== expressions ======
 
-pub fn macroExpr(p: *Parser, check_trailing: bool) Compilation.Error!bool {
+pub fn macroExpr(p: *Parser, check_trailing: bool) Compilation.Error!Value {
     const res = p.expect(condExpr) catch |e| switch (e) {
         error.OutOfMemory => return error.OutOfMemory,
         error.FatalError => return error.FatalError,
-        error.ParsingFailed => return false,
+        error.ParsingFailed => return .null,
     };
     if (check_trailing and p.tok_ids[p.tok_i] != .eof) {
         try p.err(p.tok_i, .invalid_preproc_operator, .{});
-        return false;
+        return .null;
     }
-    return res.val.toBool(p.comp);
+    return res.val;
 }
 
 const CallExpr = union(enum) {

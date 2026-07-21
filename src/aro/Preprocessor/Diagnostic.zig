@@ -229,13 +229,18 @@ pub const unterminated_comment: Diagnostic = .{
     .kind = .@"error",
 };
 
-pub const malformed_embed_param: Diagnostic = .{
-    .fmt = "unexpected token in embed parameter",
+pub const embed_param_identifier: Diagnostic = .{
+    .fmt = "expected identifier",
     .kind = .@"error",
 };
 
-pub const malformed_embed_limit: Diagnostic = .{
-    .fmt = "the limit parameter expects one non-negative integer as a parameter",
+pub const embed_param_args: Diagnostic = .{
+    .fmt = "expected '('",
+    .kind = .@"error",
+};
+
+pub const invalid_embed_limit: Diagnostic = .{
+    .fmt = "the limit parameter expects a non-negative integer as a parameter",
     .kind = .@"error",
 };
 
@@ -245,10 +250,9 @@ pub const duplicate_embed_param: Diagnostic = .{
     .opt = .@"duplicate-embed-param",
 };
 
-pub const unsupported_embed_param: Diagnostic = .{
-    .fmt = "unsupported embed parameter '{s}' embed parameter",
-    .kind = .warning,
-    .opt = .@"unsupported-embed-param",
+pub const unknown_embed_param: Diagnostic = .{
+    .fmt = "unknown embed parameter '{s}'",
+    .kind = .@"error",
 };
 
 pub const va_opt_lparen: Diagnostic = .{
