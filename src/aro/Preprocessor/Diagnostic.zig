@@ -290,7 +290,7 @@ pub const fn_macro_undefined: Diagnostic = .{
 // };
 
 pub const missing_lparen_after_builtin: Diagnostic = .{
-    .fmt = "Missing '(' after built-in macro '{s}'",
+    .fmt = "missing '(' after built-in macro '{s}'",
     .kind = .@"error",
 };
 
