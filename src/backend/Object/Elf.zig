@@ -350,7 +350,7 @@ pub fn finish(elf: *Elf, w: *std.Io.Writer) !void {
             const rela_name_offset: u32 = if (rela_count != 0) @truncate(".rela".len) else 0;
             try w.writeStruct(std.elf.Elf64.Shdr{
                 .name = rela_name_offset + name_offset,
-                .type = @enumFromInt(sect.type),
+                .type = @fromBackingInt(sect.type),
                 .flags = @bitCast(sect.flags),
                 .addr = 0,
                 .offset = sect_offset,

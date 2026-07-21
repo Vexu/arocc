@@ -775,9 +775,9 @@ pub const Node = union(enum) {
         _,
 
         pub fn get(index: Index, tree: *const Tree) Node {
-            const node_tok = tree.nodes.items(.tok)[@intFromEnum(index)];
-            const node_data = &tree.nodes.items(.data)[@intFromEnum(index)];
-            return switch (tree.nodes.items(.tag)[@intFromEnum(index)]) {
+            const node_tok = tree.nodes.items(.tok)[@backingInt(index)];
+            const node_data = &tree.nodes.items(.data)[@backingInt(index)];
+            return switch (tree.nodes.items(.tag)[@backingInt(index)]) {
                 .empty_decl => .{
                     .empty_decl = .{
                         .semicolon = node_tok,
@@ -786,7 +786,7 @@ pub const Node = union(enum) {
                 .static_assert => .{
                     .static_assert = .{
                         .assert_tok = node_tok,
-                        .cond = @enumFromInt(node_data[0]),
+                        .cond = @fromBackingInt(node_data[0]),
                         .message = unpackOptIndex(node_data[1]),
                     },
                 },
@@ -811,7 +811,7 @@ pub const Node = union(enum) {
                             .qt = @bitCast(node_data[0]),
                             .static = attr.static,
                             .@"inline" = attr.@"inline",
-                            .body = @enumFromInt(node_data[2]),
+                            .body = @fromBackingInt(node_data[2]),
                             .definition = null,
                         },
                     };
@@ -881,7 +881,7 @@ pub const Node = union(enum) {
                 .global_asm => .{
                     .global_asm = .{
                         .asm_tok = node_tok,
-                        .asm_str = @enumFromInt(node_data[0]),
+                        .asm_str = @fromBackingInt(node_data[0]),
                     },
                 },
                 .struct_decl => .{
@@ -964,7 +964,7 @@ pub const Node = union(enum) {
                 .labeled_stmt => .{
                     .labeled_stmt = .{
                         .label_tok = node_tok,
-                        .body = @enumFromInt(node_data[0]),
+                        .body = @fromBackingInt(node_data[0]),
                     },
                 },
                 .compound_stmt => .{
@@ -982,44 +982,44 @@ pub const Node = union(enum) {
                 .if_stmt => .{
                     .if_stmt = .{
                         .if_tok = node_tok,
-                        .cond = @enumFromInt(node_data[0]),
-                        .then_body = @enumFromInt(node_data[1]),
+                        .cond = @fromBackingInt(node_data[0]),
+                        .then_body = @fromBackingInt(node_data[1]),
                         .else_body = unpackOptIndex(node_data[2]),
                     },
                 },
                 .switch_stmt => .{
                     .switch_stmt = .{
                         .switch_tok = node_tok,
-                        .cond = @enumFromInt(node_data[0]),
-                        .body = @enumFromInt(node_data[1]),
+                        .cond = @fromBackingInt(node_data[0]),
+                        .body = @fromBackingInt(node_data[1]),
                     },
                 },
                 .case_stmt => .{
                     .case_stmt = .{
                         .case_tok = node_tok,
-                        .start = @enumFromInt(node_data[0]),
+                        .start = @fromBackingInt(node_data[0]),
                         .end = unpackOptIndex(node_data[1]),
-                        .body = @enumFromInt(node_data[2]),
+                        .body = @fromBackingInt(node_data[2]),
                     },
                 },
                 .default_stmt => .{
                     .default_stmt = .{
                         .default_tok = node_tok,
-                        .body = @enumFromInt(node_data[0]),
+                        .body = @fromBackingInt(node_data[0]),
                     },
                 },
                 .while_stmt => .{
                     .while_stmt = .{
                         .while_tok = node_tok,
-                        .cond = @enumFromInt(node_data[0]),
-                        .body = @enumFromInt(node_data[1]),
+                        .cond = @fromBackingInt(node_data[0]),
+                        .body = @fromBackingInt(node_data[1]),
                     },
                 },
                 .do_while_stmt => .{
                     .do_while_stmt = .{
                         .do_tok = node_tok,
-                        .cond = @enumFromInt(node_data[0]),
-                        .body = @enumFromInt(node_data[1]),
+                        .cond = @fromBackingInt(node_data[0]),
+                        .body = @fromBackingInt(node_data[1]),
                     },
                 },
                 .for_full => .{
@@ -1028,7 +1028,7 @@ pub const Node = union(enum) {
                         .init = unpackOptIndex(node_data[0]),
                         .cond = unpackOptIndex(tree.extra.items[node_data[1]]),
                         .incr = unpackOptIndex(tree.extra.items[node_data[1] + 1]),
-                        .body = @enumFromInt(node_data[2]),
+                        .body = @fromBackingInt(node_data[2]),
                     },
                 },
                 .for_init_cond => .{
@@ -1037,7 +1037,7 @@ pub const Node = union(enum) {
                         .init = unpackOptIndex(node_data[0]),
                         .cond = unpackOptIndex(node_data[1]),
                         .incr = null,
-                        .body = @enumFromInt(node_data[2]),
+                        .body = @fromBackingInt(node_data[2]),
                     },
                 },
                 .for_init_incr => .{
@@ -1046,7 +1046,7 @@ pub const Node = union(enum) {
                         .init = unpackOptIndex(node_data[0]),
                         .cond = null,
                         .incr = unpackOptIndex(node_data[1]),
-                        .body = @enumFromInt(node_data[2]),
+                        .body = @fromBackingInt(node_data[2]),
                     },
                 },
                 .for_cond_incr => .{
@@ -1055,7 +1055,7 @@ pub const Node = union(enum) {
                         .init = null,
                         .cond = unpackOptIndex(node_data[0]),
                         .incr = unpackOptIndex(node_data[1]),
-                        .body = @enumFromInt(node_data[2]),
+                        .body = @fromBackingInt(node_data[2]),
                     },
                 },
                 .for_init => .{
@@ -1064,7 +1064,7 @@ pub const Node = union(enum) {
                         .init = unpackOptIndex(node_data[0]),
                         .cond = null,
                         .incr = null,
-                        .body = @enumFromInt(node_data[2]),
+                        .body = @fromBackingInt(node_data[2]),
                     },
                 },
                 .for_cond => .{
@@ -1073,7 +1073,7 @@ pub const Node = union(enum) {
                         .init = null,
                         .cond = unpackOptIndex(node_data[0]),
                         .incr = null,
-                        .body = @enumFromInt(node_data[2]),
+                        .body = @fromBackingInt(node_data[2]),
                     },
                 },
                 .for_incr => .{
@@ -1082,7 +1082,7 @@ pub const Node = union(enum) {
                         .init = null,
                         .cond = null,
                         .incr = unpackOptIndex(node_data[0]),
-                        .body = @enumFromInt(node_data[2]),
+                        .body = @fromBackingInt(node_data[2]),
                     },
                 },
                 .for_ever => .{
@@ -1091,7 +1091,7 @@ pub const Node = union(enum) {
                         .init = null,
                         .cond = null,
                         .incr = null,
-                        .body = @enumFromInt(node_data[2]),
+                        .body = @fromBackingInt(node_data[2]),
                     },
                 },
                 .goto_stmt => .{
@@ -1102,7 +1102,7 @@ pub const Node = union(enum) {
                 .computed_goto_stmt => .{
                     .computed_goto_stmt = .{
                         .goto_tok = node_tok,
-                        .expr = @enumFromInt(node_data[0]),
+                        .expr = @fromBackingInt(node_data[0]),
                     },
                 },
                 .continue_stmt => .{
@@ -1125,7 +1125,7 @@ pub const Node = union(enum) {
                         .return_tok = node_tok,
                         .return_qt = @bitCast(node_data[0]),
                         .operand = .{
-                            .expr = @enumFromInt(node_data[1]),
+                            .expr = @fromBackingInt(node_data[1]),
                         },
                     },
                 },
@@ -1177,7 +1177,7 @@ pub const Node = union(enum) {
                     return .{
                         .asm_stmt = .{
                             .asm_tok = node_tok,
-                            .asm_str = @enumFromInt(node_data[0]),
+                            .asm_str = @fromBackingInt(node_data[0]),
                             .outputs = @ptrCast(outputs),
                             .inputs = @ptrCast(inputs),
                             .clobbers = @ptrCast(clobbers),
@@ -1189,7 +1189,7 @@ pub const Node = union(enum) {
                 .asm_stmt_simple => .{
                     .asm_stmt = .{
                         .asm_tok = node_tok,
-                        .asm_str = @enumFromInt(node_data[0]),
+                        .asm_str = @fromBackingInt(node_data[0]),
                         .outputs = &.{},
                         .inputs = &.{},
                         .clobbers = &.{},
@@ -1213,255 +1213,255 @@ pub const Node = union(enum) {
                     .assign_expr = .{
                         .op_tok = node_tok,
                         .qt = @bitCast(node_data[0]),
-                        .lhs = @enumFromInt(node_data[1]),
-                        .rhs = @enumFromInt(node_data[2]),
+                        .lhs = @fromBackingInt(node_data[1]),
+                        .rhs = @fromBackingInt(node_data[2]),
                     },
                 },
                 .mul_assign_expr => .{
                     .mul_assign_expr = .{
                         .op_tok = node_tok,
                         .qt = @bitCast(node_data[0]),
-                        .lhs = @enumFromInt(node_data[1]),
-                        .rhs = @enumFromInt(node_data[2]),
+                        .lhs = @fromBackingInt(node_data[1]),
+                        .rhs = @fromBackingInt(node_data[2]),
                     },
                 },
                 .div_assign_expr => .{
                     .div_assign_expr = .{
                         .op_tok = node_tok,
                         .qt = @bitCast(node_data[0]),
-                        .lhs = @enumFromInt(node_data[1]),
-                        .rhs = @enumFromInt(node_data[2]),
+                        .lhs = @fromBackingInt(node_data[1]),
+                        .rhs = @fromBackingInt(node_data[2]),
                     },
                 },
                 .mod_assign_expr => .{
                     .mod_assign_expr = .{
                         .op_tok = node_tok,
                         .qt = @bitCast(node_data[0]),
-                        .lhs = @enumFromInt(node_data[1]),
-                        .rhs = @enumFromInt(node_data[2]),
+                        .lhs = @fromBackingInt(node_data[1]),
+                        .rhs = @fromBackingInt(node_data[2]),
                     },
                 },
                 .add_assign_expr => .{
                     .add_assign_expr = .{
                         .op_tok = node_tok,
                         .qt = @bitCast(node_data[0]),
-                        .lhs = @enumFromInt(node_data[1]),
-                        .rhs = @enumFromInt(node_data[2]),
+                        .lhs = @fromBackingInt(node_data[1]),
+                        .rhs = @fromBackingInt(node_data[2]),
                     },
                 },
                 .sub_assign_expr => .{
                     .sub_assign_expr = .{
                         .op_tok = node_tok,
                         .qt = @bitCast(node_data[0]),
-                        .lhs = @enumFromInt(node_data[1]),
-                        .rhs = @enumFromInt(node_data[2]),
+                        .lhs = @fromBackingInt(node_data[1]),
+                        .rhs = @fromBackingInt(node_data[2]),
                     },
                 },
                 .shl_assign_expr => .{
                     .shl_assign_expr = .{
                         .op_tok = node_tok,
                         .qt = @bitCast(node_data[0]),
-                        .lhs = @enumFromInt(node_data[1]),
-                        .rhs = @enumFromInt(node_data[2]),
+                        .lhs = @fromBackingInt(node_data[1]),
+                        .rhs = @fromBackingInt(node_data[2]),
                     },
                 },
                 .shr_assign_expr => .{
                     .shr_assign_expr = .{
                         .op_tok = node_tok,
                         .qt = @bitCast(node_data[0]),
-                        .lhs = @enumFromInt(node_data[1]),
-                        .rhs = @enumFromInt(node_data[2]),
+                        .lhs = @fromBackingInt(node_data[1]),
+                        .rhs = @fromBackingInt(node_data[2]),
                     },
                 },
                 .bit_and_assign_expr => .{
                     .bit_and_assign_expr = .{
                         .op_tok = node_tok,
                         .qt = @bitCast(node_data[0]),
-                        .lhs = @enumFromInt(node_data[1]),
-                        .rhs = @enumFromInt(node_data[2]),
+                        .lhs = @fromBackingInt(node_data[1]),
+                        .rhs = @fromBackingInt(node_data[2]),
                     },
                 },
                 .bit_xor_assign_expr => .{
                     .bit_xor_assign_expr = .{
                         .op_tok = node_tok,
                         .qt = @bitCast(node_data[0]),
-                        .lhs = @enumFromInt(node_data[1]),
-                        .rhs = @enumFromInt(node_data[2]),
+                        .lhs = @fromBackingInt(node_data[1]),
+                        .rhs = @fromBackingInt(node_data[2]),
                     },
                 },
                 .bit_or_assign_expr => .{
                     .bit_or_assign_expr = .{
                         .op_tok = node_tok,
                         .qt = @bitCast(node_data[0]),
-                        .lhs = @enumFromInt(node_data[1]),
-                        .rhs = @enumFromInt(node_data[2]),
+                        .lhs = @fromBackingInt(node_data[1]),
+                        .rhs = @fromBackingInt(node_data[2]),
                     },
                 },
                 .compound_assign_dummy_expr => .{
                     .compound_assign_dummy_expr = .{
                         .op_tok = node_tok,
                         .qt = @bitCast(node_data[0]),
-                        .operand = @enumFromInt(node_data[1]),
+                        .operand = @fromBackingInt(node_data[1]),
                     },
                 },
                 .comma_expr => .{
                     .comma_expr = .{
                         .op_tok = node_tok,
                         .qt = @bitCast(node_data[0]),
-                        .lhs = @enumFromInt(node_data[1]),
-                        .rhs = @enumFromInt(node_data[2]),
+                        .lhs = @fromBackingInt(node_data[1]),
+                        .rhs = @fromBackingInt(node_data[2]),
                     },
                 },
                 .bool_or_expr => .{
                     .bool_or_expr = .{
                         .op_tok = node_tok,
                         .qt = @bitCast(node_data[0]),
-                        .lhs = @enumFromInt(node_data[1]),
-                        .rhs = @enumFromInt(node_data[2]),
+                        .lhs = @fromBackingInt(node_data[1]),
+                        .rhs = @fromBackingInt(node_data[2]),
                     },
                 },
                 .bool_and_expr => .{
                     .bool_and_expr = .{
                         .op_tok = node_tok,
                         .qt = @bitCast(node_data[0]),
-                        .lhs = @enumFromInt(node_data[1]),
-                        .rhs = @enumFromInt(node_data[2]),
+                        .lhs = @fromBackingInt(node_data[1]),
+                        .rhs = @fromBackingInt(node_data[2]),
                     },
                 },
                 .bit_or_expr => .{
                     .bit_or_expr = .{
                         .op_tok = node_tok,
                         .qt = @bitCast(node_data[0]),
-                        .lhs = @enumFromInt(node_data[1]),
-                        .rhs = @enumFromInt(node_data[2]),
+                        .lhs = @fromBackingInt(node_data[1]),
+                        .rhs = @fromBackingInt(node_data[2]),
                     },
                 },
                 .bit_xor_expr => .{
                     .bit_xor_expr = .{
                         .op_tok = node_tok,
                         .qt = @bitCast(node_data[0]),
-                        .lhs = @enumFromInt(node_data[1]),
-                        .rhs = @enumFromInt(node_data[2]),
+                        .lhs = @fromBackingInt(node_data[1]),
+                        .rhs = @fromBackingInt(node_data[2]),
                     },
                 },
                 .bit_and_expr => .{
                     .bit_and_expr = .{
                         .op_tok = node_tok,
                         .qt = @bitCast(node_data[0]),
-                        .lhs = @enumFromInt(node_data[1]),
-                        .rhs = @enumFromInt(node_data[2]),
+                        .lhs = @fromBackingInt(node_data[1]),
+                        .rhs = @fromBackingInt(node_data[2]),
                     },
                 },
                 .equal_expr => .{
                     .equal_expr = .{
                         .op_tok = node_tok,
                         .qt = @bitCast(node_data[0]),
-                        .lhs = @enumFromInt(node_data[1]),
-                        .rhs = @enumFromInt(node_data[2]),
+                        .lhs = @fromBackingInt(node_data[1]),
+                        .rhs = @fromBackingInt(node_data[2]),
                     },
                 },
                 .not_equal_expr => .{
                     .not_equal_expr = .{
                         .op_tok = node_tok,
                         .qt = @bitCast(node_data[0]),
-                        .lhs = @enumFromInt(node_data[1]),
-                        .rhs = @enumFromInt(node_data[2]),
+                        .lhs = @fromBackingInt(node_data[1]),
+                        .rhs = @fromBackingInt(node_data[2]),
                     },
                 },
                 .less_than_expr => .{
                     .less_than_expr = .{
                         .op_tok = node_tok,
                         .qt = @bitCast(node_data[0]),
-                        .lhs = @enumFromInt(node_data[1]),
-                        .rhs = @enumFromInt(node_data[2]),
+                        .lhs = @fromBackingInt(node_data[1]),
+                        .rhs = @fromBackingInt(node_data[2]),
                     },
                 },
                 .less_than_equal_expr => .{
                     .less_than_equal_expr = .{
                         .op_tok = node_tok,
                         .qt = @bitCast(node_data[0]),
-                        .lhs = @enumFromInt(node_data[1]),
-                        .rhs = @enumFromInt(node_data[2]),
+                        .lhs = @fromBackingInt(node_data[1]),
+                        .rhs = @fromBackingInt(node_data[2]),
                     },
                 },
                 .greater_than_expr => .{
                     .greater_than_expr = .{
                         .op_tok = node_tok,
                         .qt = @bitCast(node_data[0]),
-                        .lhs = @enumFromInt(node_data[1]),
-                        .rhs = @enumFromInt(node_data[2]),
+                        .lhs = @fromBackingInt(node_data[1]),
+                        .rhs = @fromBackingInt(node_data[2]),
                     },
                 },
                 .greater_than_equal_expr => .{
                     .greater_than_equal_expr = .{
                         .op_tok = node_tok,
                         .qt = @bitCast(node_data[0]),
-                        .lhs = @enumFromInt(node_data[1]),
-                        .rhs = @enumFromInt(node_data[2]),
+                        .lhs = @fromBackingInt(node_data[1]),
+                        .rhs = @fromBackingInt(node_data[2]),
                     },
                 },
                 .shl_expr => .{
                     .shl_expr = .{
                         .op_tok = node_tok,
                         .qt = @bitCast(node_data[0]),
-                        .lhs = @enumFromInt(node_data[1]),
-                        .rhs = @enumFromInt(node_data[2]),
+                        .lhs = @fromBackingInt(node_data[1]),
+                        .rhs = @fromBackingInt(node_data[2]),
                     },
                 },
                 .shr_expr => .{
                     .shr_expr = .{
                         .op_tok = node_tok,
                         .qt = @bitCast(node_data[0]),
-                        .lhs = @enumFromInt(node_data[1]),
-                        .rhs = @enumFromInt(node_data[2]),
+                        .lhs = @fromBackingInt(node_data[1]),
+                        .rhs = @fromBackingInt(node_data[2]),
                     },
                 },
                 .add_expr => .{
                     .add_expr = .{
                         .op_tok = node_tok,
                         .qt = @bitCast(node_data[0]),
-                        .lhs = @enumFromInt(node_data[1]),
-                        .rhs = @enumFromInt(node_data[2]),
+                        .lhs = @fromBackingInt(node_data[1]),
+                        .rhs = @fromBackingInt(node_data[2]),
                     },
                 },
                 .sub_expr => .{
                     .sub_expr = .{
                         .op_tok = node_tok,
                         .qt = @bitCast(node_data[0]),
-                        .lhs = @enumFromInt(node_data[1]),
-                        .rhs = @enumFromInt(node_data[2]),
+                        .lhs = @fromBackingInt(node_data[1]),
+                        .rhs = @fromBackingInt(node_data[2]),
                     },
                 },
                 .mul_expr => .{
                     .mul_expr = .{
                         .op_tok = node_tok,
                         .qt = @bitCast(node_data[0]),
-                        .lhs = @enumFromInt(node_data[1]),
-                        .rhs = @enumFromInt(node_data[2]),
+                        .lhs = @fromBackingInt(node_data[1]),
+                        .rhs = @fromBackingInt(node_data[2]),
                     },
                 },
                 .div_expr => .{
                     .div_expr = .{
                         .op_tok = node_tok,
                         .qt = @bitCast(node_data[0]),
-                        .lhs = @enumFromInt(node_data[1]),
-                        .rhs = @enumFromInt(node_data[2]),
+                        .lhs = @fromBackingInt(node_data[1]),
+                        .rhs = @fromBackingInt(node_data[2]),
                     },
                 },
                 .mod_expr => .{
                     .mod_expr = .{
                         .op_tok = node_tok,
                         .qt = @bitCast(node_data[0]),
-                        .lhs = @enumFromInt(node_data[1]),
-                        .rhs = @enumFromInt(node_data[2]),
+                        .lhs = @fromBackingInt(node_data[1]),
+                        .rhs = @fromBackingInt(node_data[2]),
                     },
                 },
                 .explicit_cast => .{
                     .cast = .{
                         .l_paren = node_tok,
                         .qt = @bitCast(node_data[0]),
-                        .kind = @enumFromInt(node_data[1]),
-                        .operand = @enumFromInt(node_data[2]),
+                        .kind = @fromBackingInt(@intCast(node_data[1])),
+                        .operand = @fromBackingInt(node_data[2]),
                         .implicit = false,
                     },
                 },
@@ -1469,8 +1469,8 @@ pub const Node = union(enum) {
                     .cast = .{
                         .l_paren = node_tok,
                         .qt = @bitCast(node_data[0]),
-                        .kind = @enumFromInt(node_data[1]),
-                        .operand = @enumFromInt(node_data[2]),
+                        .kind = @fromBackingInt(@intCast(node_data[1])),
+                        .operand = @fromBackingInt(node_data[2]),
                         .implicit = true,
                     },
                 },
@@ -1478,105 +1478,105 @@ pub const Node = union(enum) {
                     .addr_of_expr = .{
                         .op_tok = node_tok,
                         .qt = @bitCast(node_data[0]),
-                        .operand = @enumFromInt(node_data[1]),
+                        .operand = @fromBackingInt(node_data[1]),
                     },
                 },
                 .deref_expr => .{
                     .deref_expr = .{
                         .op_tok = node_tok,
                         .qt = @bitCast(node_data[0]),
-                        .operand = @enumFromInt(node_data[1]),
+                        .operand = @fromBackingInt(node_data[1]),
                     },
                 },
                 .plus_expr => .{
                     .plus_expr = .{
                         .op_tok = node_tok,
                         .qt = @bitCast(node_data[0]),
-                        .operand = @enumFromInt(node_data[1]),
+                        .operand = @fromBackingInt(node_data[1]),
                     },
                 },
                 .negate_expr => .{
                     .negate_expr = .{
                         .op_tok = node_tok,
                         .qt = @bitCast(node_data[0]),
-                        .operand = @enumFromInt(node_data[1]),
+                        .operand = @fromBackingInt(node_data[1]),
                     },
                 },
                 .bit_not_expr => .{
                     .bit_not_expr = .{
                         .op_tok = node_tok,
                         .qt = @bitCast(node_data[0]),
-                        .operand = @enumFromInt(node_data[1]),
+                        .operand = @fromBackingInt(node_data[1]),
                     },
                 },
                 .bool_not_expr => .{
                     .bool_not_expr = .{
                         .op_tok = node_tok,
                         .qt = @bitCast(node_data[0]),
-                        .operand = @enumFromInt(node_data[1]),
+                        .operand = @fromBackingInt(node_data[1]),
                     },
                 },
                 .pre_inc_expr => .{
                     .pre_inc_expr = .{
                         .op_tok = node_tok,
                         .qt = @bitCast(node_data[0]),
-                        .operand = @enumFromInt(node_data[1]),
+                        .operand = @fromBackingInt(node_data[1]),
                     },
                 },
                 .pre_dec_expr => .{
                     .pre_dec_expr = .{
                         .op_tok = node_tok,
                         .qt = @bitCast(node_data[0]),
-                        .operand = @enumFromInt(node_data[1]),
+                        .operand = @fromBackingInt(node_data[1]),
                     },
                 },
                 .imag_expr => .{
                     .imag_expr = .{
                         .op_tok = node_tok,
                         .qt = @bitCast(node_data[0]),
-                        .operand = @enumFromInt(node_data[1]),
+                        .operand = @fromBackingInt(node_data[1]),
                     },
                 },
                 .real_expr => .{
                     .real_expr = .{
                         .op_tok = node_tok,
                         .qt = @bitCast(node_data[0]),
-                        .operand = @enumFromInt(node_data[1]),
+                        .operand = @fromBackingInt(node_data[1]),
                     },
                 },
                 .post_inc_expr => .{
                     .post_inc_expr = .{
                         .op_tok = node_tok,
                         .qt = @bitCast(node_data[0]),
-                        .operand = @enumFromInt(node_data[1]),
+                        .operand = @fromBackingInt(node_data[1]),
                     },
                 },
                 .post_dec_expr => .{
                     .post_dec_expr = .{
                         .op_tok = node_tok,
                         .qt = @bitCast(node_data[0]),
-                        .operand = @enumFromInt(node_data[1]),
+                        .operand = @fromBackingInt(node_data[1]),
                     },
                 },
                 .paren_expr => .{
                     .paren_expr = .{
                         .op_tok = node_tok,
                         .qt = @bitCast(node_data[0]),
-                        .operand = @enumFromInt(node_data[1]),
+                        .operand = @fromBackingInt(node_data[1]),
                     },
                 },
                 .stmt_expr => .{
                     .stmt_expr = .{
                         .op_tok = node_tok,
                         .qt = @bitCast(node_data[0]),
-                        .operand = @enumFromInt(node_data[1]),
+                        .operand = @fromBackingInt(node_data[1]),
                     },
                 },
                 .cond_dummy_expr => .{
                     .cond_dummy_expr = .{
                         .op_tok = node_tok,
                         .qt = @bitCast(node_data[0]),
-                        .operand = @enumFromInt(node_data[1]),
+                        .operand = @fromBackingInt(node_data[1]),
                     },
                 },
                 .addr_of_label => .{
@@ -1589,15 +1589,15 @@ pub const Node = union(enum) {
                     .array_access_expr = .{
                         .l_bracket_tok = node_tok,
                         .qt = @bitCast(node_data[0]),
-                        .base = @enumFromInt(node_data[1]),
-                        .index = @enumFromInt(node_data[2]),
+                        .base = @fromBackingInt(node_data[1]),
+                        .index = @fromBackingInt(node_data[2]),
                     },
                 },
                 .call_expr => .{
                     .call_expr = .{
                         .l_paren_tok = node_tok,
                         .qt = @bitCast(node_data[0]),
-                        .callee = @enumFromInt(tree.extra.items[node_data[1]]),
+                        .callee = @fromBackingInt(tree.extra.items[node_data[1]]),
                         .args = @ptrCast(tree.extra.items[node_data[1] + 1 ..][0 .. node_data[2] - 1]),
                     },
                 },
@@ -1605,7 +1605,7 @@ pub const Node = union(enum) {
                     .call_expr = .{
                         .l_paren_tok = node_tok,
                         .qt = @bitCast(node_data[0]),
-                        .callee = @enumFromInt(node_data[1]),
+                        .callee = @fromBackingInt(node_data[1]),
                         .args = unPackElems(node_data[2..]),
                     },
                 },
@@ -1627,7 +1627,7 @@ pub const Node = union(enum) {
                     .member_access_expr = .{
                         .access_tok = node_tok,
                         .qt = @bitCast(node_data[0]),
-                        .base = @enumFromInt(node_data[1]),
+                        .base = @fromBackingInt(node_data[1]),
                         .member_index = node_data[2],
                     },
                 },
@@ -1635,7 +1635,7 @@ pub const Node = union(enum) {
                     .member_access_ptr_expr = .{
                         .access_tok = node_tok,
                         .qt = @bitCast(node_data[0]),
-                        .base = @enumFromInt(node_data[1]),
+                        .base = @fromBackingInt(node_data[1]),
                         .member_index = node_data[2],
                     },
                 },
@@ -1643,14 +1643,14 @@ pub const Node = union(enum) {
                     .decl_ref_expr = .{
                         .name_tok = node_tok,
                         .qt = @bitCast(node_data[0]),
-                        .decl = @enumFromInt(node_data[1]),
+                        .decl = @fromBackingInt(node_data[1]),
                     },
                 },
                 .enumeration_ref => .{
                     .enumeration_ref = .{
                         .name_tok = node_tok,
                         .qt = @bitCast(node_data[0]),
-                        .decl = @enumFromInt(node_data[1]),
+                        .decl = @fromBackingInt(node_data[1]),
                     },
                 },
                 .builtin_ref => .{
@@ -1681,7 +1681,7 @@ pub const Node = union(enum) {
                     .char_literal = .{
                         .literal_tok = node_tok,
                         .qt = @bitCast(node_data[0]),
-                        .kind = @enumFromInt(node_data[1]),
+                        .kind = @fromBackingInt(@intCast(node_data[1])),
                     },
                 },
                 .float_literal => .{
@@ -1694,14 +1694,14 @@ pub const Node = union(enum) {
                     .string_literal_expr = .{
                         .literal_tok = node_tok,
                         .qt = @bitCast(node_data[0]),
-                        .kind = @enumFromInt(node_data[1]),
+                        .kind = @fromBackingInt(@intCast(node_data[1])),
                     },
                 },
                 .imaginary_literal => .{
                     .imaginary_literal = .{
                         .op_tok = node_tok,
                         .qt = @bitCast(node_data[0]),
-                        .operand = @enumFromInt(node_data[1]),
+                        .operand = @fromBackingInt(node_data[1]),
                     },
                 },
                 .sizeof_expr => .{
@@ -1725,8 +1725,8 @@ pub const Node = union(enum) {
                     .generic_expr = .{
                         .generic_tok = node_tok,
                         .qt = @bitCast(node_data[0]),
-                        .controlling = @enumFromInt(node_data[1]),
-                        .chosen = @enumFromInt(node_data[2]),
+                        .controlling = @fromBackingInt(node_data[1]),
+                        .chosen = @fromBackingInt(node_data[2]),
                         .rest = &.{},
                     },
                 },
@@ -1734,8 +1734,8 @@ pub const Node = union(enum) {
                     .generic_expr = .{
                         .generic_tok = node_tok,
                         .qt = @bitCast(node_data[0]),
-                        .controlling = @enumFromInt(tree.extra.items[node_data[1]]),
-                        .chosen = @enumFromInt(tree.extra.items[node_data[1] + 1]),
+                        .controlling = @fromBackingInt(tree.extra.items[node_data[1]]),
+                        .chosen = @fromBackingInt(tree.extra.items[node_data[1] + 1]),
                         .rest = @ptrCast(tree.extra.items[node_data[1] + 2 ..][0 .. node_data[2] - 2]),
                     },
                 },
@@ -1743,40 +1743,40 @@ pub const Node = union(enum) {
                     .generic_association_expr = .{
                         .colon_tok = node_tok,
                         .association_qt = @bitCast(node_data[0]),
-                        .expr = @enumFromInt(node_data[1]),
+                        .expr = @fromBackingInt(node_data[1]),
                     },
                 },
                 .generic_default_expr => .{
                     .generic_default_expr = .{
                         .default_tok = node_tok,
-                        .expr = @enumFromInt(node_data[0]),
+                        .expr = @fromBackingInt(node_data[0]),
                     },
                 },
                 .binary_cond_expr => .{
                     .binary_cond_expr = .{
                         .cond_tok = node_tok,
                         .qt = @bitCast(node_data[0]),
-                        .cond = @enumFromInt(node_data[1]),
-                        .then_expr = @enumFromInt(tree.extra.items[node_data[2]]),
-                        .else_expr = @enumFromInt(tree.extra.items[node_data[2] + 1]),
+                        .cond = @fromBackingInt(node_data[1]),
+                        .then_expr = @fromBackingInt(tree.extra.items[node_data[2]]),
+                        .else_expr = @fromBackingInt(tree.extra.items[node_data[2] + 1]),
                     },
                 },
                 .cond_expr => .{
                     .cond_expr = .{
                         .cond_tok = node_tok,
                         .qt = @bitCast(node_data[0]),
-                        .cond = @enumFromInt(node_data[1]),
-                        .then_expr = @enumFromInt(tree.extra.items[node_data[2]]),
-                        .else_expr = @enumFromInt(tree.extra.items[node_data[2] + 1]),
+                        .cond = @fromBackingInt(node_data[1]),
+                        .then_expr = @fromBackingInt(tree.extra.items[node_data[2]]),
+                        .else_expr = @fromBackingInt(tree.extra.items[node_data[2] + 1]),
                     },
                 },
                 .builtin_choose_expr => .{
                     .builtin_choose_expr = .{
                         .cond_tok = node_tok,
                         .qt = @bitCast(node_data[0]),
-                        .cond = @enumFromInt(node_data[1]),
-                        .then_expr = @enumFromInt(tree.extra.items[node_data[2]]),
-                        .else_expr = @enumFromInt(tree.extra.items[node_data[2] + 1]),
+                        .cond = @fromBackingInt(node_data[1]),
+                        .then_expr = @fromBackingInt(tree.extra.items[node_data[2]]),
+                        .else_expr = @fromBackingInt(tree.extra.items[node_data[2] + 1]),
                     },
                 },
                 .builtin_types_compatible_p => .{
@@ -1790,15 +1790,15 @@ pub const Node = union(enum) {
                     .builtin_convertvector = .{
                         .builtin_tok = node_tok,
                         .dest_qt = @bitCast(node_data[0]),
-                        .operand = @enumFromInt(node_data[1]),
+                        .operand = @fromBackingInt(node_data[1]),
                     },
                 },
                 .builtin_shufflevector => .{
                     .builtin_shufflevector = .{
                         .builtin_tok = node_tok,
                         .qt = @bitCast(node_data[0]),
-                        .lhs = @enumFromInt(tree.extra.items[node_data[1]]),
-                        .rhs = @enumFromInt(tree.extra.items[node_data[1] + 1]),
+                        .lhs = @fromBackingInt(tree.extra.items[node_data[1]]),
+                        .rhs = @fromBackingInt(tree.extra.items[node_data[1] + 1]),
                         .indexes = @ptrCast(tree.extra.items[node_data[1] + 2 ..][0..node_data[2]]),
                     },
                 },
@@ -1874,7 +1874,7 @@ pub const Node = union(enum) {
                             else
                                 .auto,
                             .thread_local = attr.thread_local,
-                            .initializer = @enumFromInt(node_data[2]),
+                            .initializer = @fromBackingInt(node_data[2]),
                         },
                     };
                 },
@@ -1910,7 +1910,7 @@ pub const Node = union(enum) {
         }
 
         pub fn tok(index: Index, tree: *const Tree) TokenIndex {
-            return tree.nodes.items(.tok)[@intFromEnum(index)];
+            return tree.nodes.items(.tok)[@backingInt(index)];
         }
 
         pub fn loc(index: Index, tree: *const Tree) Source.Location {
@@ -1923,7 +1923,7 @@ pub const Node = union(enum) {
         }
 
         pub fn qtOrNull(index: Index, tree: *const Tree) ?QualType {
-            return switch (tree.nodes.items(.tag)[@intFromEnum(index)]) {
+            return switch (tree.nodes.items(.tag)[@backingInt(index)]) {
                 .empty_decl,
                 .static_assert,
                 .compound_stmt,
@@ -1964,7 +1964,7 @@ pub const Node = union(enum) {
                 .builtin_types_compatible_p => .int,
                 else => {
                     // If a node is typed the type is stored in data[0].
-                    return @bitCast(tree.nodes.items(.data)[@intFromEnum(index)][0]);
+                    return @bitCast(tree.nodes.items(.data)[@backingInt(index)][0]);
                 },
             };
         }
@@ -1981,15 +1981,15 @@ pub const Node = union(enum) {
         _,
 
         pub fn unpack(opt: OptIndex) ?Index {
-            return if (opt == .null) null else @enumFromInt(@intFromEnum(opt));
+            return if (opt == .null) null else @fromBackingInt(@backingInt(opt));
         }
 
         pub fn pack(index: Index) OptIndex {
-            return @enumFromInt(@intFromEnum(index));
+            return @fromBackingInt(@backingInt(index));
         }
 
         pub fn packOpt(optional: ?Index) OptIndex {
-            return if (optional) |some| @enumFromInt(@intFromEnum(some)) else .null;
+            return if (optional) |some| @fromBackingInt(@backingInt(some)) else .null;
         }
     };
 
@@ -2187,7 +2187,7 @@ pub const Node = union(enum) {
 pub fn addNode(tree: *Tree, node: Node) !Node.Index {
     const index = try tree.nodes.addOne(tree.comp.gpa);
     try tree.setNode(node, index);
-    return @enumFromInt(index);
+    return @fromBackingInt(@intCast(index));
 }
 
 pub fn setNode(tree: *Tree, node: Node, index: usize) !void {
@@ -2199,7 +2199,7 @@ pub fn setNode(tree: *Tree, node: Node, index: usize) !void {
         },
         .static_assert => |assert| {
             repr.tag = .static_assert;
-            repr.data[0] = @intFromEnum(assert.cond);
+            repr.data[0] = @backingInt(assert.cond);
             repr.data[1] = packOptIndex(assert.message);
             repr.tok = assert.assert_tok;
         },
@@ -2211,7 +2211,7 @@ pub fn setNode(tree: *Tree, node: Node, index: usize) !void {
                 .@"inline" = function.@"inline",
             });
             if (function.body) |some| {
-                repr.data[2] = @intFromEnum(some);
+                repr.data[2] = @backingInt(some);
             } else {
                 repr.data[2] = packOptIndex(function.definition);
             }
@@ -2236,7 +2236,7 @@ pub fn setNode(tree: *Tree, node: Node, index: usize) !void {
                 .register = variable.storage_class == .register,
             });
             if (variable.initializer) |some| {
-                repr.data[2] = @intFromEnum(some);
+                repr.data[2] = @backingInt(some);
             } else {
                 repr.data[2] = packOptIndex(variable.definition);
             }
@@ -2250,7 +2250,7 @@ pub fn setNode(tree: *Tree, node: Node, index: usize) !void {
         },
         .global_asm => |global_asm| {
             repr.tag = .global_asm;
-            repr.data[0] = @intFromEnum(global_asm.asm_str);
+            repr.data[0] = @backingInt(global_asm.asm_str);
             repr.tok = global_asm.asm_tok;
         },
         .struct_decl => |decl| {
@@ -2324,7 +2324,7 @@ pub fn setNode(tree: *Tree, node: Node, index: usize) !void {
         },
         .labeled_stmt => |labeled| {
             repr.tag = .labeled_stmt;
-            repr.data[0] = @intFromEnum(labeled.body);
+            repr.data[0] = @backingInt(labeled.body);
             repr.tok = labeled.label_tok;
         },
         .compound_stmt => |compound| {
@@ -2340,39 +2340,39 @@ pub fn setNode(tree: *Tree, node: Node, index: usize) !void {
         },
         .if_stmt => |@"if"| {
             repr.tag = .if_stmt;
-            repr.data[0] = @intFromEnum(@"if".cond);
-            repr.data[1] = @intFromEnum(@"if".then_body);
+            repr.data[0] = @backingInt(@"if".cond);
+            repr.data[1] = @backingInt(@"if".then_body);
             repr.data[2] = packOptIndex(@"if".else_body);
             repr.tok = @"if".if_tok;
         },
         .switch_stmt => |@"switch"| {
             repr.tag = .switch_stmt;
-            repr.data[0] = @intFromEnum(@"switch".cond);
-            repr.data[1] = @intFromEnum(@"switch".body);
+            repr.data[0] = @backingInt(@"switch".cond);
+            repr.data[1] = @backingInt(@"switch".body);
             repr.tok = @"switch".switch_tok;
         },
         .case_stmt => |case| {
             repr.tag = .case_stmt;
-            repr.data[0] = @intFromEnum(case.start);
+            repr.data[0] = @backingInt(case.start);
             repr.data[1] = packOptIndex(case.end);
             repr.data[2] = packOptIndex(case.body);
             repr.tok = case.case_tok;
         },
         .default_stmt => |default| {
             repr.tag = .default_stmt;
-            repr.data[0] = @intFromEnum(default.body);
+            repr.data[0] = @backingInt(default.body);
             repr.tok = default.default_tok;
         },
         .while_stmt => |@"while"| {
             repr.tag = .while_stmt;
-            repr.data[0] = @intFromEnum(@"while".cond);
-            repr.data[1] = @intFromEnum(@"while".body);
+            repr.data[0] = @backingInt(@"while".cond);
+            repr.data[1] = @backingInt(@"while".body);
             repr.tok = @"while".while_tok;
         },
         .do_while_stmt => |do_while| {
             repr.tag = .do_while_stmt;
-            repr.data[0] = @intFromEnum(do_while.cond);
-            repr.data[1] = @intFromEnum(do_while.body);
+            repr.data[0] = @backingInt(do_while.cond);
+            repr.data[1] = @backingInt(do_while.body);
             repr.tok = do_while.do_tok;
         },
         .for_stmt => |@"for"| {
@@ -2410,7 +2410,7 @@ pub fn setNode(tree: *Tree, node: Node, index: usize) !void {
             } else {
                 repr.tag = .for_ever;
             }
-            repr.data[2] = @intFromEnum(@"for".body);
+            repr.data[2] = @backingInt(@"for".body);
             repr.tok = @"for".for_tok;
         },
         .goto_stmt => |goto| {
@@ -2419,7 +2419,7 @@ pub fn setNode(tree: *Tree, node: Node, index: usize) !void {
         },
         .computed_goto_stmt => |computed_goto| {
             repr.tag = .computed_goto_stmt;
-            repr.data[0] = @intFromEnum(computed_goto.expr);
+            repr.data[0] = @backingInt(computed_goto.expr);
             repr.tok = computed_goto.goto_tok;
         },
         .continue_stmt => |@"continue"| {
@@ -2439,7 +2439,7 @@ pub fn setNode(tree: *Tree, node: Node, index: usize) !void {
             switch (@"return".operand) {
                 .expr => |expr| {
                     repr.tag = .return_stmt;
-                    repr.data[1] = @intFromEnum(expr);
+                    repr.data[1] = @backingInt(expr);
                 },
                 .none => {
                     repr.tag = .return_none_stmt;
@@ -2453,7 +2453,7 @@ pub fn setNode(tree: *Tree, node: Node, index: usize) !void {
         },
         .asm_stmt => |asm_stmt| {
             repr.tok = asm_stmt.asm_tok;
-            repr.data[0] = @intFromEnum(asm_stmt.asm_str);
+            repr.data[0] = @backingInt(asm_stmt.asm_str);
             if (asm_stmt.outputs.len == 0 and asm_stmt.inputs.len == 0 and asm_stmt.clobbers.len == 0 and asm_stmt.labels.len == 0) {
                 repr.tag = .asm_stmt_simple;
                 repr.data[1] = @bitCast(asm_stmt.quals);
@@ -2499,314 +2499,314 @@ pub fn setNode(tree: *Tree, node: Node, index: usize) !void {
         .assign_expr => |bin| {
             repr.tag = .assign_expr;
             repr.data[0] = @bitCast(bin.qt);
-            repr.data[1] = @intFromEnum(bin.lhs);
-            repr.data[2] = @intFromEnum(bin.rhs);
+            repr.data[1] = @backingInt(bin.lhs);
+            repr.data[2] = @backingInt(bin.rhs);
             repr.tok = bin.op_tok;
         },
         .mul_assign_expr => |bin| {
             repr.tag = .mul_assign_expr;
             repr.data[0] = @bitCast(bin.qt);
-            repr.data[1] = @intFromEnum(bin.lhs);
-            repr.data[2] = @intFromEnum(bin.rhs);
+            repr.data[1] = @backingInt(bin.lhs);
+            repr.data[2] = @backingInt(bin.rhs);
             repr.tok = bin.op_tok;
         },
         .div_assign_expr => |bin| {
             repr.tag = .div_assign_expr;
             repr.data[0] = @bitCast(bin.qt);
-            repr.data[1] = @intFromEnum(bin.lhs);
-            repr.data[2] = @intFromEnum(bin.rhs);
+            repr.data[1] = @backingInt(bin.lhs);
+            repr.data[2] = @backingInt(bin.rhs);
             repr.tok = bin.op_tok;
         },
         .mod_assign_expr => |bin| {
             repr.tag = .mod_assign_expr;
             repr.data[0] = @bitCast(bin.qt);
-            repr.data[1] = @intFromEnum(bin.lhs);
-            repr.data[2] = @intFromEnum(bin.rhs);
+            repr.data[1] = @backingInt(bin.lhs);
+            repr.data[2] = @backingInt(bin.rhs);
             repr.tok = bin.op_tok;
         },
         .add_assign_expr => |bin| {
             repr.tag = .add_assign_expr;
             repr.data[0] = @bitCast(bin.qt);
-            repr.data[1] = @intFromEnum(bin.lhs);
-            repr.data[2] = @intFromEnum(bin.rhs);
+            repr.data[1] = @backingInt(bin.lhs);
+            repr.data[2] = @backingInt(bin.rhs);
             repr.tok = bin.op_tok;
         },
         .sub_assign_expr => |bin| {
             repr.tag = .sub_assign_expr;
             repr.data[0] = @bitCast(bin.qt);
-            repr.data[1] = @intFromEnum(bin.lhs);
-            repr.data[2] = @intFromEnum(bin.rhs);
+            repr.data[1] = @backingInt(bin.lhs);
+            repr.data[2] = @backingInt(bin.rhs);
             repr.tok = bin.op_tok;
         },
         .shl_assign_expr => |bin| {
             repr.tag = .shl_assign_expr;
             repr.data[0] = @bitCast(bin.qt);
-            repr.data[1] = @intFromEnum(bin.lhs);
-            repr.data[2] = @intFromEnum(bin.rhs);
+            repr.data[1] = @backingInt(bin.lhs);
+            repr.data[2] = @backingInt(bin.rhs);
             repr.tok = bin.op_tok;
         },
         .shr_assign_expr => |bin| {
             repr.tag = .shr_assign_expr;
             repr.data[0] = @bitCast(bin.qt);
-            repr.data[1] = @intFromEnum(bin.lhs);
-            repr.data[2] = @intFromEnum(bin.rhs);
+            repr.data[1] = @backingInt(bin.lhs);
+            repr.data[2] = @backingInt(bin.rhs);
             repr.tok = bin.op_tok;
         },
         .bit_and_assign_expr => |bin| {
             repr.tag = .bit_and_assign_expr;
             repr.data[0] = @bitCast(bin.qt);
-            repr.data[1] = @intFromEnum(bin.lhs);
-            repr.data[2] = @intFromEnum(bin.rhs);
+            repr.data[1] = @backingInt(bin.lhs);
+            repr.data[2] = @backingInt(bin.rhs);
             repr.tok = bin.op_tok;
         },
         .bit_xor_assign_expr => |bin| {
             repr.tag = .bit_xor_assign_expr;
             repr.data[0] = @bitCast(bin.qt);
-            repr.data[1] = @intFromEnum(bin.lhs);
-            repr.data[2] = @intFromEnum(bin.rhs);
+            repr.data[1] = @backingInt(bin.lhs);
+            repr.data[2] = @backingInt(bin.rhs);
             repr.tok = bin.op_tok;
         },
         .bit_or_assign_expr => |bin| {
             repr.tag = .bit_or_assign_expr;
             repr.data[0] = @bitCast(bin.qt);
-            repr.data[1] = @intFromEnum(bin.lhs);
-            repr.data[2] = @intFromEnum(bin.rhs);
+            repr.data[1] = @backingInt(bin.lhs);
+            repr.data[2] = @backingInt(bin.rhs);
             repr.tok = bin.op_tok;
         },
         .compound_assign_dummy_expr => |un| {
             repr.tag = .compound_assign_dummy_expr;
             repr.data[0] = @bitCast(un.qt);
-            repr.data[1] = @intFromEnum(un.operand);
+            repr.data[1] = @backingInt(un.operand);
             repr.tok = un.op_tok;
         },
         .comma_expr => |bin| {
             repr.tag = .comma_expr;
             repr.data[0] = @bitCast(bin.qt);
-            repr.data[1] = @intFromEnum(bin.lhs);
-            repr.data[2] = @intFromEnum(bin.rhs);
+            repr.data[1] = @backingInt(bin.lhs);
+            repr.data[2] = @backingInt(bin.rhs);
             repr.tok = bin.op_tok;
         },
         .bool_or_expr => |bin| {
             repr.tag = .bool_or_expr;
             repr.data[0] = @bitCast(bin.qt);
-            repr.data[1] = @intFromEnum(bin.lhs);
-            repr.data[2] = @intFromEnum(bin.rhs);
+            repr.data[1] = @backingInt(bin.lhs);
+            repr.data[2] = @backingInt(bin.rhs);
             repr.tok = bin.op_tok;
         },
         .bool_and_expr => |bin| {
             repr.tag = .bool_and_expr;
             repr.data[0] = @bitCast(bin.qt);
-            repr.data[1] = @intFromEnum(bin.lhs);
-            repr.data[2] = @intFromEnum(bin.rhs);
+            repr.data[1] = @backingInt(bin.lhs);
+            repr.data[2] = @backingInt(bin.rhs);
             repr.tok = bin.op_tok;
         },
         .bit_or_expr => |bin| {
             repr.tag = .bit_or_expr;
             repr.data[0] = @bitCast(bin.qt);
-            repr.data[1] = @intFromEnum(bin.lhs);
-            repr.data[2] = @intFromEnum(bin.rhs);
+            repr.data[1] = @backingInt(bin.lhs);
+            repr.data[2] = @backingInt(bin.rhs);
             repr.tok = bin.op_tok;
         },
         .bit_xor_expr => |bin| {
             repr.tag = .bit_xor_expr;
             repr.data[0] = @bitCast(bin.qt);
-            repr.data[1] = @intFromEnum(bin.lhs);
-            repr.data[2] = @intFromEnum(bin.rhs);
+            repr.data[1] = @backingInt(bin.lhs);
+            repr.data[2] = @backingInt(bin.rhs);
             repr.tok = bin.op_tok;
         },
         .bit_and_expr => |bin| {
             repr.tag = .bit_and_expr;
             repr.data[0] = @bitCast(bin.qt);
-            repr.data[1] = @intFromEnum(bin.lhs);
-            repr.data[2] = @intFromEnum(bin.rhs);
+            repr.data[1] = @backingInt(bin.lhs);
+            repr.data[2] = @backingInt(bin.rhs);
             repr.tok = bin.op_tok;
         },
         .equal_expr => |bin| {
             repr.tag = .equal_expr;
             repr.data[0] = @bitCast(bin.qt);
-            repr.data[1] = @intFromEnum(bin.lhs);
-            repr.data[2] = @intFromEnum(bin.rhs);
+            repr.data[1] = @backingInt(bin.lhs);
+            repr.data[2] = @backingInt(bin.rhs);
             repr.tok = bin.op_tok;
         },
         .not_equal_expr => |bin| {
             repr.tag = .not_equal_expr;
             repr.data[0] = @bitCast(bin.qt);
-            repr.data[1] = @intFromEnum(bin.lhs);
-            repr.data[2] = @intFromEnum(bin.rhs);
+            repr.data[1] = @backingInt(bin.lhs);
+            repr.data[2] = @backingInt(bin.rhs);
             repr.tok = bin.op_tok;
         },
         .less_than_expr => |bin| {
             repr.tag = .less_than_expr;
             repr.data[0] = @bitCast(bin.qt);
-            repr.data[1] = @intFromEnum(bin.lhs);
-            repr.data[2] = @intFromEnum(bin.rhs);
+            repr.data[1] = @backingInt(bin.lhs);
+            repr.data[2] = @backingInt(bin.rhs);
             repr.tok = bin.op_tok;
         },
         .less_than_equal_expr => |bin| {
             repr.tag = .less_than_equal_expr;
             repr.data[0] = @bitCast(bin.qt);
-            repr.data[1] = @intFromEnum(bin.lhs);
-            repr.data[2] = @intFromEnum(bin.rhs);
+            repr.data[1] = @backingInt(bin.lhs);
+            repr.data[2] = @backingInt(bin.rhs);
             repr.tok = bin.op_tok;
         },
         .greater_than_expr => |bin| {
             repr.tag = .greater_than_expr;
             repr.data[0] = @bitCast(bin.qt);
-            repr.data[1] = @intFromEnum(bin.lhs);
-            repr.data[2] = @intFromEnum(bin.rhs);
+            repr.data[1] = @backingInt(bin.lhs);
+            repr.data[2] = @backingInt(bin.rhs);
             repr.tok = bin.op_tok;
         },
         .greater_than_equal_expr => |bin| {
             repr.tag = .greater_than_equal_expr;
             repr.data[0] = @bitCast(bin.qt);
-            repr.data[1] = @intFromEnum(bin.lhs);
-            repr.data[2] = @intFromEnum(bin.rhs);
+            repr.data[1] = @backingInt(bin.lhs);
+            repr.data[2] = @backingInt(bin.rhs);
             repr.tok = bin.op_tok;
         },
         .shl_expr => |bin| {
             repr.tag = .shl_expr;
             repr.data[0] = @bitCast(bin.qt);
-            repr.data[1] = @intFromEnum(bin.lhs);
-            repr.data[2] = @intFromEnum(bin.rhs);
+            repr.data[1] = @backingInt(bin.lhs);
+            repr.data[2] = @backingInt(bin.rhs);
             repr.tok = bin.op_tok;
         },
         .shr_expr => |bin| {
             repr.tag = .shr_expr;
             repr.data[0] = @bitCast(bin.qt);
-            repr.data[1] = @intFromEnum(bin.lhs);
-            repr.data[2] = @intFromEnum(bin.rhs);
+            repr.data[1] = @backingInt(bin.lhs);
+            repr.data[2] = @backingInt(bin.rhs);
             repr.tok = bin.op_tok;
         },
         .add_expr => |bin| {
             repr.tag = .add_expr;
             repr.data[0] = @bitCast(bin.qt);
-            repr.data[1] = @intFromEnum(bin.lhs);
-            repr.data[2] = @intFromEnum(bin.rhs);
+            repr.data[1] = @backingInt(bin.lhs);
+            repr.data[2] = @backingInt(bin.rhs);
             repr.tok = bin.op_tok;
         },
         .sub_expr => |bin| {
             repr.tag = .sub_expr;
             repr.data[0] = @bitCast(bin.qt);
-            repr.data[1] = @intFromEnum(bin.lhs);
-            repr.data[2] = @intFromEnum(bin.rhs);
+            repr.data[1] = @backingInt(bin.lhs);
+            repr.data[2] = @backingInt(bin.rhs);
             repr.tok = bin.op_tok;
         },
         .mul_expr => |bin| {
             repr.tag = .mul_expr;
             repr.data[0] = @bitCast(bin.qt);
-            repr.data[1] = @intFromEnum(bin.lhs);
-            repr.data[2] = @intFromEnum(bin.rhs);
+            repr.data[1] = @backingInt(bin.lhs);
+            repr.data[2] = @backingInt(bin.rhs);
             repr.tok = bin.op_tok;
         },
         .div_expr => |bin| {
             repr.tag = .div_expr;
             repr.data[0] = @bitCast(bin.qt);
-            repr.data[1] = @intFromEnum(bin.lhs);
-            repr.data[2] = @intFromEnum(bin.rhs);
+            repr.data[1] = @backingInt(bin.lhs);
+            repr.data[2] = @backingInt(bin.rhs);
             repr.tok = bin.op_tok;
         },
         .mod_expr => |bin| {
             repr.tag = .mod_expr;
             repr.data[0] = @bitCast(bin.qt);
-            repr.data[1] = @intFromEnum(bin.lhs);
-            repr.data[2] = @intFromEnum(bin.rhs);
+            repr.data[1] = @backingInt(bin.lhs);
+            repr.data[2] = @backingInt(bin.rhs);
             repr.tok = bin.op_tok;
         },
         .cast => |cast| {
             repr.tag = if (cast.implicit) .implicit_cast else .explicit_cast;
             repr.data[0] = @bitCast(cast.qt);
-            repr.data[1] = @intFromEnum(cast.kind);
-            repr.data[2] = @intFromEnum(cast.operand);
+            repr.data[1] = @backingInt(cast.kind);
+            repr.data[2] = @backingInt(cast.operand);
             repr.tok = cast.l_paren;
         },
         .addr_of_expr => |un| {
             repr.tag = .addr_of_expr;
             repr.data[0] = @bitCast(un.qt);
-            repr.data[1] = @intFromEnum(un.operand);
+            repr.data[1] = @backingInt(un.operand);
             repr.tok = un.op_tok;
         },
         .deref_expr => |un| {
             repr.tag = .deref_expr;
             repr.data[0] = @bitCast(un.qt);
-            repr.data[1] = @intFromEnum(un.operand);
+            repr.data[1] = @backingInt(un.operand);
             repr.tok = un.op_tok;
         },
         .plus_expr => |un| {
             repr.tag = .plus_expr;
             repr.data[0] = @bitCast(un.qt);
-            repr.data[1] = @intFromEnum(un.operand);
+            repr.data[1] = @backingInt(un.operand);
             repr.tok = un.op_tok;
         },
         .negate_expr => |un| {
             repr.tag = .negate_expr;
             repr.data[0] = @bitCast(un.qt);
-            repr.data[1] = @intFromEnum(un.operand);
+            repr.data[1] = @backingInt(un.operand);
             repr.tok = un.op_tok;
         },
         .bit_not_expr => |un| {
             repr.tag = .bit_not_expr;
             repr.data[0] = @bitCast(un.qt);
-            repr.data[1] = @intFromEnum(un.operand);
+            repr.data[1] = @backingInt(un.operand);
             repr.tok = un.op_tok;
         },
         .bool_not_expr => |un| {
             repr.tag = .bool_not_expr;
             repr.data[0] = @bitCast(un.qt);
-            repr.data[1] = @intFromEnum(un.operand);
+            repr.data[1] = @backingInt(un.operand);
             repr.tok = un.op_tok;
         },
         .pre_inc_expr => |un| {
             repr.tag = .pre_inc_expr;
             repr.data[0] = @bitCast(un.qt);
-            repr.data[1] = @intFromEnum(un.operand);
+            repr.data[1] = @backingInt(un.operand);
             repr.tok = un.op_tok;
         },
         .pre_dec_expr => |un| {
             repr.tag = .pre_dec_expr;
             repr.data[0] = @bitCast(un.qt);
-            repr.data[1] = @intFromEnum(un.operand);
+            repr.data[1] = @backingInt(un.operand);
             repr.tok = un.op_tok;
         },
         .imag_expr => |un| {
             repr.tag = .imag_expr;
             repr.data[0] = @bitCast(un.qt);
-            repr.data[1] = @intFromEnum(un.operand);
+            repr.data[1] = @backingInt(un.operand);
             repr.tok = un.op_tok;
         },
         .real_expr => |un| {
             repr.tag = .real_expr;
             repr.data[0] = @bitCast(un.qt);
-            repr.data[1] = @intFromEnum(un.operand);
+            repr.data[1] = @backingInt(un.operand);
             repr.tok = un.op_tok;
         },
         .post_inc_expr => |un| {
             repr.tag = .post_inc_expr;
             repr.data[0] = @bitCast(un.qt);
-            repr.data[1] = @intFromEnum(un.operand);
+            repr.data[1] = @backingInt(un.operand);
             repr.tok = un.op_tok;
         },
         .post_dec_expr => |un| {
             repr.tag = .post_dec_expr;
             repr.data[0] = @bitCast(un.qt);
-            repr.data[1] = @intFromEnum(un.operand);
+            repr.data[1] = @backingInt(un.operand);
             repr.tok = un.op_tok;
         },
         .paren_expr => |un| {
             repr.tag = .paren_expr;
             repr.data[0] = @bitCast(un.qt);
-            repr.data[1] = @intFromEnum(un.operand);
+            repr.data[1] = @backingInt(un.operand);
             repr.tok = un.op_tok;
         },
         .stmt_expr => |un| {
             repr.tag = .stmt_expr;
             repr.data[0] = @bitCast(un.qt);
-            repr.data[1] = @intFromEnum(un.operand);
+            repr.data[1] = @backingInt(un.operand);
             repr.tok = un.op_tok;
         },
         .cond_dummy_expr => |un| {
             repr.tag = .cond_dummy_expr;
             repr.data[0] = @bitCast(un.qt);
-            repr.data[1] = @intFromEnum(un.operand);
+            repr.data[1] = @backingInt(un.operand);
             repr.tok = un.op_tok;
         },
         .addr_of_label => |addr_of| {
@@ -2817,8 +2817,8 @@ pub fn setNode(tree: *Tree, node: Node, index: usize) !void {
         .array_access_expr => |access| {
             repr.tag = .array_access_expr;
             repr.data[0] = @bitCast(access.qt);
-            repr.data[1] = @intFromEnum(access.base);
-            repr.data[2] = @intFromEnum(access.index);
+            repr.data[1] = @backingInt(access.base);
+            repr.data[2] = @backingInt(access.index);
             repr.tok = access.l_bracket_tok;
         },
         .call_expr => |call| {
@@ -2829,11 +2829,11 @@ pub fn setNode(tree: *Tree, node: Node, index: usize) !void {
                 const len: u32 = @intCast(call.args.len + 1);
                 repr.data[2] = len;
                 try tree.extra.ensureUnusedCapacity(tree.comp.gpa, len);
-                tree.extra.appendAssumeCapacity(@intFromEnum(call.callee));
+                tree.extra.appendAssumeCapacity(@backingInt(call.callee));
                 tree.extra.appendSliceAssumeCapacity(@ptrCast(call.args));
             } else {
                 repr.tag = .call_expr_one;
-                repr.data[1] = @intFromEnum(call.callee);
+                repr.data[1] = @backingInt(call.callee);
                 repr.data[2] = packElem(call.args, 0);
             }
             repr.tok = call.l_paren_tok;
@@ -2853,27 +2853,27 @@ pub fn setNode(tree: *Tree, node: Node, index: usize) !void {
         .member_access_expr => |access| {
             repr.tag = .member_access_expr;
             repr.data[0] = @bitCast(access.qt);
-            repr.data[1] = @intFromEnum(access.base);
+            repr.data[1] = @backingInt(access.base);
             repr.data[2] = access.member_index;
             repr.tok = access.access_tok;
         },
         .member_access_ptr_expr => |access| {
             repr.tag = .member_access_ptr_expr;
             repr.data[0] = @bitCast(access.qt);
-            repr.data[1] = @intFromEnum(access.base);
+            repr.data[1] = @backingInt(access.base);
             repr.data[2] = access.member_index;
             repr.tok = access.access_tok;
         },
         .decl_ref_expr => |decl_ref| {
             repr.tag = .decl_ref_expr;
             repr.data[0] = @bitCast(decl_ref.qt);
-            repr.data[1] = @intFromEnum(decl_ref.decl);
+            repr.data[1] = @backingInt(decl_ref.decl);
             repr.tok = decl_ref.name_tok;
         },
         .enumeration_ref => |enumeration_ref| {
             repr.tag = .enumeration_ref;
             repr.data[0] = @bitCast(enumeration_ref.qt);
-            repr.data[1] = @intFromEnum(enumeration_ref.decl);
+            repr.data[1] = @backingInt(enumeration_ref.decl);
             repr.tok = enumeration_ref.name_tok;
         },
         .builtin_ref => |builtin_ref| {
@@ -2899,7 +2899,7 @@ pub fn setNode(tree: *Tree, node: Node, index: usize) !void {
         .char_literal => |literal| {
             repr.tag = .char_literal;
             repr.data[0] = @bitCast(literal.qt);
-            repr.data[1] = @intFromEnum(literal.kind);
+            repr.data[1] = @backingInt(literal.kind);
             repr.tok = literal.literal_tok;
         },
         .float_literal => |literal| {
@@ -2910,13 +2910,13 @@ pub fn setNode(tree: *Tree, node: Node, index: usize) !void {
         .string_literal_expr => |literal| {
             repr.tag = .string_literal_expr;
             repr.data[0] = @bitCast(literal.qt);
-            repr.data[1] = @intFromEnum(literal.kind);
+            repr.data[1] = @backingInt(literal.kind);
             repr.tok = literal.literal_tok;
         },
         .imaginary_literal => |un| {
             repr.tag = .imaginary_literal;
             repr.data[0] = @bitCast(un.qt);
-            repr.data[1] = @intFromEnum(un.operand);
+            repr.data[1] = @backingInt(un.operand);
             repr.tok = un.op_tok;
         },
         .sizeof_expr => |type_info| {
@@ -2941,45 +2941,45 @@ pub fn setNode(tree: *Tree, node: Node, index: usize) !void {
                 const len: u32 = @intCast(generic.rest.len + 2);
                 repr.data[2] = len;
                 try tree.extra.ensureUnusedCapacity(tree.comp.gpa, len);
-                tree.extra.appendAssumeCapacity(@intFromEnum(generic.controlling));
-                tree.extra.appendAssumeCapacity(@intFromEnum(generic.chosen));
+                tree.extra.appendAssumeCapacity(@backingInt(generic.controlling));
+                tree.extra.appendAssumeCapacity(@backingInt(generic.chosen));
                 tree.extra.appendSliceAssumeCapacity(@ptrCast(generic.rest));
             } else {
                 repr.tag = .generic_expr_zero;
-                repr.data[1] = @intFromEnum(generic.controlling);
-                repr.data[2] = @intFromEnum(generic.chosen);
+                repr.data[1] = @backingInt(generic.controlling);
+                repr.data[2] = @backingInt(generic.chosen);
             }
             repr.tok = generic.generic_tok;
         },
         .generic_association_expr => |association| {
             repr.tag = .generic_association_expr;
             repr.data[0] = @bitCast(association.association_qt);
-            repr.data[1] = @intFromEnum(association.expr);
+            repr.data[1] = @backingInt(association.expr);
             repr.tok = association.colon_tok;
         },
         .generic_default_expr => |default| {
             repr.tag = .generic_default_expr;
-            repr.data[0] = @intFromEnum(default.expr);
+            repr.data[0] = @backingInt(default.expr);
             repr.tok = default.default_tok;
         },
         .binary_cond_expr => |cond| {
             repr.tag = .binary_cond_expr;
             repr.data[0] = @bitCast(cond.qt);
-            repr.data[1] = @intFromEnum(cond.cond);
+            repr.data[1] = @backingInt(cond.cond);
             repr.data[2], _ = try tree.addExtra(&.{ cond.then_expr, cond.else_expr });
             repr.tok = cond.cond_tok;
         },
         .cond_expr => |cond| {
             repr.tag = .cond_expr;
             repr.data[0] = @bitCast(cond.qt);
-            repr.data[1] = @intFromEnum(cond.cond);
+            repr.data[1] = @backingInt(cond.cond);
             repr.data[2], _ = try tree.addExtra(&.{ cond.then_expr, cond.else_expr });
             repr.tok = cond.cond_tok;
         },
         .builtin_choose_expr => |cond| {
             repr.tag = .builtin_choose_expr;
             repr.data[0] = @bitCast(cond.qt);
-            repr.data[1] = @intFromEnum(cond.cond);
+            repr.data[1] = @backingInt(cond.cond);
             repr.data[2], _ = try tree.addExtra(&.{ cond.then_expr, cond.else_expr });
             repr.tok = cond.cond_tok;
         },
@@ -2992,7 +2992,7 @@ pub fn setNode(tree: *Tree, node: Node, index: usize) !void {
         .builtin_convertvector => |builtin| {
             repr.tag = .builtin_convertvector;
             repr.data[0] = @bitCast(builtin.dest_qt);
-            repr.data[1] = @intFromEnum(builtin.operand);
+            repr.data[1] = @backingInt(builtin.operand);
             repr.tok = builtin.builtin_tok;
         },
         .builtin_shufflevector => |builtin| {
@@ -3002,8 +3002,8 @@ pub fn setNode(tree: *Tree, node: Node, index: usize) !void {
             repr.data[2] = @intCast(builtin.indexes.len);
             repr.tok = builtin.builtin_tok;
             try tree.extra.ensureUnusedCapacity(tree.comp.gpa, builtin.indexes.len + 2);
-            tree.extra.appendAssumeCapacity(@intFromEnum(builtin.lhs));
-            tree.extra.appendAssumeCapacity(@intFromEnum(builtin.rhs));
+            tree.extra.appendAssumeCapacity(@backingInt(builtin.lhs));
+            tree.extra.appendAssumeCapacity(@backingInt(builtin.rhs));
             tree.extra.appendSliceAssumeCapacity(@ptrCast(builtin.indexes));
         },
         .builtin_va_arg_pack => |builtin| {
@@ -3064,7 +3064,7 @@ pub fn setNode(tree: *Tree, node: Node, index: usize) !void {
                 .register = literal.storage_class == .register,
                 .thread_local = literal.thread_local,
             });
-            repr.data[2] = @intFromEnum(literal.initializer);
+            repr.data[2] = @backingInt(literal.initializer);
             repr.tok = literal.l_paren_tok;
         },
         .codegen_diagnostic => |diagnostic| {
@@ -3097,19 +3097,19 @@ pub fn setNode(tree: *Tree, node: Node, index: usize) !void {
 }
 
 fn packOptIndex(opt: ?Node.Index) u32 {
-    return @intFromEnum(Node.OptIndex.packOpt(opt));
+    return @backingInt(Node.OptIndex.packOpt(opt));
 }
 
 fn unpackOptIndex(idx: u32) ?Node.Index {
-    return @as(Node.OptIndex, @enumFromInt(idx)).unpack();
+    return @as(Node.OptIndex, @fromBackingInt(@intCast(idx))).unpack();
 }
 
 fn packElem(nodes: []const Node.Index, index: usize) u32 {
-    return if (nodes.len > index) @intFromEnum(nodes[index]) else @intFromEnum(Node.OptIndex.null);
+    return if (nodes.len > index) @backingInt(nodes[index]) else @backingInt(Node.OptIndex.null);
 }
 
 fn unPackElems(data: []const u32) []const Node.Index {
-    const sentinel = @intFromEnum(Node.OptIndex.null);
+    const sentinel = @backingInt(Node.OptIndex.null);
     for (data, 0..) |item, i| {
         if (item == sentinel) return @ptrCast(data[0..i]);
     }
@@ -3574,7 +3574,7 @@ fn dumpNode(
                         _ = try ptr.offset.print(tree.comp.type_store.ptrdiff, tree.comp, w);
                     },
                     else => {
-                        const ptr_node: Node.Index = @enumFromInt(ptr.node);
+                        const ptr_node: Node.Index = @fromBackingInt(ptr.node);
                         const decl_name = tree.tokSlice(ptr_node.tok(tree));
                         try ptr.offset.printPointer(decl_name, tree.comp, w);
                     },
@@ -3637,7 +3637,7 @@ fn dumpNode(
                 try w.splatByteAll(' ', level + half);
                 try w.writeAll("definition: ");
                 try term.setColor(NAME);
-                try w.print("0x{X}\n", .{@intFromEnum(definition)});
+                try w.print("0x{X}\n", .{@backingInt(definition)});
                 try term.setColor(.reset);
             }
         },
@@ -3693,7 +3693,7 @@ fn dumpNode(
                 try w.splatByteAll(' ', level + half);
                 try w.writeAll("definition: ");
                 try term.setColor(NAME);
-                try w.print("0x{X}\n", .{@intFromEnum(definition)});
+                try w.print("0x{X}\n", .{@backingInt(definition)});
                 try term.setColor(.reset);
             }
         },

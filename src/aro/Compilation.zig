@@ -623,7 +623,7 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
 
                 .{ .mmx, "__MMX__" },
             }) |fs| {
-                if (features.isEnabled(@intFromEnum(fs[0]))) {
+                if (features.isEnabled(@backingInt(fs[0]))) {
                     try define(w, fs[1]);
                 }
             }
@@ -958,7 +958,7 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
                 .{ .d128, "SYSREG128" },
                 .{ .gcs, "GCS" },
             }) |fs| {
-                if (features.isEnabled(@intFromEnum(fs[0]))) {
+                if (features.isEnabled(@backingInt(fs[0]))) {
                     try w.print("#define __ARM_FEATURE_{s} 1\n", .{fs[1]});
                 }
             }
@@ -1186,7 +1186,7 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
     // TODO: clang treats __FLT_EVAL_METHOD__ as a special-cased macro because evaluating it within a scope
     // where `#pragma clang fp eval_method(X)` has been called produces an error diagnostic.
     const flt_eval_method = comp.langopts.fp_eval_method orelse target.defaultFpEvalMethod();
-    try w.print("#define __FLT_EVAL_METHOD__ {d}\n", .{@intFromEnum(flt_eval_method)});
+    try w.print("#define __FLT_EVAL_METHOD__ {d}\n", .{@backingInt(flt_eval_method)});
 
     try w.writeAll(
         \\#define __FLT_RADIX__ 2
@@ -1201,13 +1201,13 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
                 \\#define __pic__ {0d}
                 \\#define __PIC__ {0d}
                 \\
-            , .{@intFromEnum(comp.code_gen_options.pic_level)});
+            , .{@backingInt(comp.code_gen_options.pic_level)});
             if (comp.code_gen_options.is_pie) {
                 try w.print(
                     \\#define __pie__ {0d}
                     \\#define __PIE__ {0d}
                     \\
-                , .{@intFromEnum(comp.code_gen_options.pic_level)});
+                , .{@backingInt(comp.code_gen_options.pic_level)});
             }
         },
     }
@@ -1657,7 +1657,7 @@ pub fn hasClangStyleBoundsSafety(comp: *const Compilation) bool {
 
 pub fn getSource(comp: *const Compilation, id: Source.Id) Source {
     if (id.alias) {
-        return comp.source_aliases.items[@intFromEnum(id.index)];
+        return comp.source_aliases.items[@backingInt(id.index)];
     }
     if (id.index == .generated) return .{
         .path = "<scratch space>",
@@ -1666,7 +1666,7 @@ pub fn getSource(comp: *const Compilation, id: Source.Id) Source {
         .splice_locs = &.{},
         .kind = .user,
     };
-    return comp.sources.values()[@intFromEnum(id.index)];
+    return comp.sources.values()[@backingInt(id.index)];
 }
 
 /// Creates a Source from `buf` and adds it to the Compilation
@@ -1686,7 +1686,7 @@ pub fn addSourceFromOwnedBuffer(comp: *Compilation, path: []const u8, buf: []u8,
     var splice_list: std.ArrayList(u32) = .empty;
     defer splice_list.deinit(comp.gpa);
 
-    const source_id: Source.Id = .{ .index = @enumFromInt(comp.sources.count()) };
+    const source_id: Source.Id = .{ .index = @fromBackingInt(@intCast(comp.sources.count())) };
 
     var i: u32 = 0;
     var backslash_loc: u32 = undefined;
@@ -1888,7 +1888,7 @@ pub fn addSourceFromFile(comp: *Compilation, file: std.Io.File, path: []const u8
 pub fn addSourceAlias(comp: *Compilation, source: Source.Id, new_path: []const u8, new_kind: Source.Kind) !Source.Id {
     var aliased_source = comp.getSource(source);
     aliased_source.path = new_path;
-    aliased_source.id = .{ .index = @enumFromInt(comp.source_aliases.items.len), .alias = true };
+    aliased_source.id = .{ .index = @fromBackingInt(@intCast(comp.source_aliases.items.len)), .alias = true };
     aliased_source.kind = new_kind;
     try comp.source_aliases.append(comp.gpa, aliased_source);
     return aliased_source.id;
@@ -2156,7 +2156,7 @@ const FindInclude = struct {
         }, kind, false) orelse return null;
 
         // Mark the new source as an umbrella framework for subframework search within it.
-        const new_source = &find.comp.sources.values()[@intFromEnum(res.source.index)];
+        const new_source = &find.comp.sources.values()[@backingInt(res.source.index)];
         const framework_name_index = mem.find(u8, new_source.path, framework_lookup) orelse return res;
         new_source.umbrella_framework_path = new_source.path[0 .. framework_name_index + framework_lookup.len];
         return res;
@@ -2184,7 +2184,7 @@ const FindInclude = struct {
         // subframeworks (i.e. they can't be umbrella frameworks), but they
         // can reference one another, meaning that we keep the same
         // umbrella framework.
-        const new_source = &find.comp.sources.values()[@intFromEnum(res.source.index)];
+        const new_source = &find.comp.sources.values()[@backingInt(res.source.index)];
         new_source.umbrella_framework_path = new_source.path[0..umbrella_framework_path.len];
         return res;
     }

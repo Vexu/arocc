@@ -108,14 +108,14 @@ pub const SubArch = enum {
 
     pub fn toFeature(sub: SubArch, arch: Cpu.Arch) ?std.Target.Cpu.Feature.Set.Index {
         if (arch.isPowerPC()) {
-            if (sub == .powerpc_spe) return @intFromEnum(std.Target.powerpc.Feature.spe);
+            if (sub == .powerpc_spe) return @backingInt(std.Target.powerpc.Feature.spe);
         } else if (arch.isMIPS32()) {
-            return @intFromEnum(std.Target.mips.Feature.mips32r6);
+            return @backingInt(std.Target.mips.Feature.mips32r6);
         } else if (arch.isMIPS64()) {
-            return @intFromEnum(std.Target.mips.Feature.mips64r6);
+            return @backingInt(std.Target.mips.Feature.mips64r6);
         } else if (arch.isSpirV()) {
             const spirv = std.Target.spirv.Feature;
-            return @intFromEnum(switch (sub) {
+            return @backingInt(switch (sub) {
                 .spirv_v10 => spirv.v1_0,
                 .spirv_v11 => spirv.v1_1,
                 .spirv_v12 => spirv.v1_2,
@@ -127,7 +127,7 @@ pub const SubArch = enum {
             });
         } else if (arch.isAARCH64()) {
             const aarch64 = std.Target.aarch64.Feature;
-            return @intFromEnum(switch (sub) {
+            return @backingInt(switch (sub) {
                 .arm_v8_1a => aarch64.v8_1a,
                 .arm_v8_2a => aarch64.v8_2a,
                 .arm_v8_3a => aarch64.v8_3a,
@@ -154,7 +154,7 @@ pub const SubArch = enum {
             });
         } else if (arch.isArm()) {
             const arm = std.Target.arm.Feature;
-            return @intFromEnum(switch (sub) {
+            return @backingInt(switch (sub) {
                 .arm_v4t => arm.v4t,
                 .arm_v5 => arm.v5t,
                 .arm_v5te => arm.v5te,
@@ -1864,7 +1864,7 @@ pub fn armVersion(target: Target) ?struct { version: u8, string: []const u8 } {
         .{ .v2a, "2A" },
         .{ .v2, "2" },
     }) |fs| {
-        if (target.cpu.features.isEnabled(@intFromEnum(fs[0]))) {
+        if (target.cpu.features.isEnabled(@backingInt(fs[0]))) {
             return .{
                 .version = fs[1][0] - '0',
                 .string = fs[1],

@@ -425,7 +425,7 @@ pub fn effectiveKind(d: *Diagnostics, message: anytype) Message.Kind {
 
     // Use extension diagnostic behavior if not set explicitly.
     if (message.extension and !set_explicit) {
-        kind = @enumFromInt(@max(@intFromEnum(kind), @intFromEnum(d.state.extensions)));
+        kind = @fromBackingInt(@max(@backingInt(kind), @backingInt(d.state.extensions)));
     }
 
     // Make diagnostic a warning if -Weverything is set.

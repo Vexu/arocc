@@ -724,7 +724,7 @@ fn genExpr(c: *CodeGen, node_index: Node.Index) Error!Ir.Ref {
             }
 
             try c.builder.startBlock(then_label);
-            if (c.builder.instructions.items(.ty)[@intFromEnum(c.cond_dummy_ref)] == .i1) {
+            if (c.builder.instructions.items(.ty)[@backingInt(c.cond_dummy_ref)] == .i1) {
                 c.cond_dummy_ref = try c.addUn(.zext, c.cond_dummy_ref, cond_qt);
             }
             const then_val = try c.genExpr(conditional.then_expr);
@@ -909,7 +909,7 @@ fn genLval(c: *CodeGen, node_index: Node.Index) Error!Ir.Ref {
             }
 
             const duped_name = try c.builder.arena.allocator().dupeSentinel(u8, slice, 0);
-            const ref: Ir.Ref = @enumFromInt(c.builder.instructions.len);
+            const ref: Ir.Ref = @fromBackingInt(@intCast(c.builder.instructions.len));
             try c.builder.instructions.append(c.builder.gpa, .{ .tag = .symbol, .data = .{ .label = duped_name }, .ty = .ptr });
             return ref;
         },
@@ -1127,7 +1127,7 @@ fn genCall(c: *CodeGen, call: Node.Call) Error!Ir.Ref {
                 }
 
                 const duped_name = try c.builder.arena.allocator().dupeSentinel(u8, slice, 0);
-                const ref: Ir.Ref = @enumFromInt(c.builder.instructions.len);
+                const ref: Ir.Ref = @fromBackingInt(@intCast(c.builder.instructions.len));
                 try c.builder.instructions.append(c.builder.gpa, .{ .tag = .symbol, .data = .{ .label = duped_name }, .ty = .ptr });
                 break :blk ref;
             },

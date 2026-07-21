@@ -369,7 +369,7 @@ pub fn fromName(comp: *Compilation, name: []const u8) ?FromName {
 fn fromNameExtra(name: []const u8, comptime arch: std.meta.Tag(Tag)) ?FromName {
     const list = @field(@This(), @tagName(arch));
     const tag = list.tagFromName(name) orelse return null;
-    const builtin = list.data[@intFromEnum(tag)];
+    const builtin = list.data[@backingInt(tag)];
 
     return .{
         .tag = @unionInit(Tag, @tagName(arch), tag),
@@ -401,7 +401,7 @@ test "all builtins" {
                     for (features) |valid_feature| {
                         if (std.mem.eql(u8, feature, valid_feature.name)) continue :outer;
                     }
-                    std.debug.panic("unknown feature {s} on {t}\n", .{ feature, @as(list.Tag, @enumFromInt(index)) });
+                    std.debug.panic("unknown feature {s} on {t}\n", .{ feature, @as(list.Tag, @fromBackingInt(@intCast(index))) });
                 }
             }
         }

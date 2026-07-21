@@ -508,7 +508,7 @@ pub const Parser = struct {
             },
         };
         for (slice) |c| {
-            const char = std.fmt.charToDigit(c, @intFromEnum(base)) catch break;
+            const char = std.fmt.charToDigit(c, @backingInt(base)) catch break;
             val, const overflow = @shlWithOverflow(val, base.log2());
             if (overflow != 0) overflowed = true;
             val += char;

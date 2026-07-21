@@ -802,7 +802,7 @@ fn applyNonnull(wip: *Wip) !void {
             try wip.errTok(tok, .nonnull_pointer_only, .{wip.current.attr});
             continue;
         }
-        parser.list_buf.appendAssumeCapacity(@enumFromInt(position));
+        parser.list_buf.appendAssumeCapacity(@fromBackingInt(position));
     }
     try wip.add(.{ .nonnull = @ptrCast(parser.list_buf.items[list_buf_top..]) });
 }
@@ -1329,7 +1329,7 @@ fn applyCallingConvention(wip: *Wip) !void {
     // TODO this can overwrite a typedef
     // typedef void (*fn_ptr)(void);
     // __cdecl fn_ptr a;
-    try comp.type_store.set(comp.gpa, .{ .func = func }, @intFromEnum(base_qt._index));
+    try comp.type_store.set(comp.gpa, .{ .func = func }, @backingInt(base_qt._index));
 }
 
 fn applyNullability(wip: *Wip) !void {

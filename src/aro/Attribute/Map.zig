@@ -164,7 +164,7 @@ pub fn put(map: *Map, gpa: mem.Allocator, attribute: Attribute) !Ref {
             repr.tag = .cleanup;
             repr.data = @intCast(map.extra.items.len);
             try map.extra.append(gpa, attribute.tok);
-            try map.extra.append(gpa, @intFromEnum(cleanup.function));
+            try map.extra.append(gpa, @backingInt(cleanup.function));
         },
         .section => |name| {
             repr.tag = .section;
@@ -177,11 +177,11 @@ pub fn put(map: *Map, gpa: mem.Allocator, attribute: Attribute) !Ref {
 
     const index = map.attributes.len;
     try map.attributes.append(gpa, repr);
-    return @enumFromInt(index);
+    return @fromBackingInt(@intCast(index));
 }
 
 pub fn get(map: *const Map, ref: Ref) Attribute {
-    const repr = map.attributes.get(@intFromEnum(ref));
+    const repr = map.attributes.get(@backingInt(ref));
     var res: Attribute = .{
         .name = repr.name,
         .syntax = repr.syntax,
@@ -263,7 +263,7 @@ pub fn get(map: *const Map, ref: Ref) Attribute {
         .visibility_protected => res.args = .{ .visibility = .protected },
         .cleanup => {
             res.tok = map.extra.items[repr.data];
-            res.args = .{ .cleanup = .{ .function = @enumFromInt(map.extra.items[repr.data + 1]) } };
+            res.args = .{ .cleanup = .{ .function = @fromBackingInt(map.extra.items[repr.data + 1]) } };
         },
         .section => {
             res.tok = map.extra.items[repr.data];

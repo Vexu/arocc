@@ -55,9 +55,9 @@ const Iterator = struct {
 
     fn next(self: *Iterator) ?Item {
         if (self.i == .none) return null;
-        defer self.i = self.slice.items(.next)[@intFromEnum(self.i)];
-        const identifier = self.slice.items(.identifier)[@intFromEnum(self.i)];
-        const length = self.slice.items(.len)[@intFromEnum(self.i)];
+        defer self.i = self.slice.items(.next)[@backingInt(self.i)];
+        const identifier = self.slice.items(.identifier)[@backingInt(self.i)];
+        const length = self.slice.items(.len)[@backingInt(self.i)];
 
         return .{
             .identifier = identifier,
@@ -112,14 +112,14 @@ fn createNodeAssumeCapacity(self: *Hideset, identifier: Identifier, length: u32)
 fn createNodeAssumeCapacityExtra(self: *Hideset, identifier: Identifier, next: Index, length: u32) Index {
     const next_idx = self.linked_list.len;
     self.linked_list.appendAssumeCapacity(.{ .identifier = identifier, .next = next, .len = length });
-    return @enumFromInt(next_idx);
+    return @fromBackingInt(@intCast(next_idx));
 }
 
 /// Create a new list with `identifier` at the front followed by `tail`
 pub fn prepend(self: *Hideset, loc: Source.Location, length: u32, tail: Index) !Index {
     const new_idx = self.linked_list.len;
     try self.linked_list.append(self.comp.gpa, .{ .identifier = Identifier.fromLocation(loc), .next = tail, .len = length });
-    return @enumFromInt(new_idx);
+    return @fromBackingInt(@intCast(new_idx));
 }
 
 /// Attach elements of `b` to the front of `a` (if they're not in `a`)
@@ -161,7 +161,7 @@ fn len(self: *const Hideset, list: Index) usize {
     var cur = list;
     var count: usize = 0;
     while (cur != .none) : (count += 1) {
-        cur = nexts[@intFromEnum(cur)];
+        cur = nexts[@backingInt(cur)];
     }
     return count;
 }
@@ -187,7 +187,7 @@ pub fn intersection(self: *Hideset, a: Index, b: Index) !Index {
                 head = new_idx;
             }
             if (cur != .none) {
-                self.linked_list.items(.next)[@intFromEnum(cur)] = new_idx;
+                self.linked_list.items(.next)[@backingInt(cur)] = new_idx;
             }
             cur = new_idx;
         }

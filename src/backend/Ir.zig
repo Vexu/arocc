@@ -81,7 +81,7 @@ pub const Builder = struct {
     }
 
     pub fn addArg(b: *Builder, ty: Interner.Ref) Allocator.Error!Ref {
-        const ref: Ref = @enumFromInt(b.instructions.len);
+        const ref: Ref = @fromBackingInt(@intCast(b.instructions.len));
         try b.instructions.append(b.gpa, .{ .tag = .arg, .data = .{ .none = {} }, .ty = ty });
         try b.body.insert(b.gpa, b.arg_count, ref);
         b.arg_count += 1;
@@ -89,7 +89,7 @@ pub const Builder = struct {
     }
 
     pub fn addAlloc(b: *Builder, size: u32, @"align": u32) Allocator.Error!Ref {
-        const ref: Ref = @enumFromInt(b.instructions.len);
+        const ref: Ref = @fromBackingInt(@intCast(b.instructions.len));
         try b.instructions.append(b.gpa, .{
             .tag = .alloc,
             .data = .{ .alloc = .{ .size = size, .@"align" = @"align" } },
@@ -101,14 +101,14 @@ pub const Builder = struct {
     }
 
     pub fn addInst(b: *Builder, tag: Ir.Inst.Tag, data: Ir.Inst.Data, ty: Interner.Ref) Allocator.Error!Ref {
-        const ref: Ref = @enumFromInt(b.instructions.len);
+        const ref: Ref = @fromBackingInt(@intCast(b.instructions.len));
         try b.instructions.append(b.gpa, .{ .tag = tag, .data = data, .ty = ty });
         try b.body.append(b.gpa, ref);
         return ref;
     }
 
     pub fn makeLabel(b: *Builder, name: [*:0]const u8) Allocator.Error!Ref {
-        const ref: Ref = @enumFromInt(b.instructions.len);
+        const ref: Ref = @fromBackingInt(@intCast(b.instructions.len));
         try b.instructions.append(b.gpa, .{ .tag = .label, .data = .{ .label = name }, .ty = .void });
         return ref;
     }
@@ -146,7 +146,7 @@ pub const Builder = struct {
     }
 
     pub fn addConstant(b: *Builder, val: Interner.Ref, ty: Interner.Ref) Allocator.Error!Ref {
-        const ref: Ref = @enumFromInt(b.instructions.len);
+        const ref: Ref = @fromBackingInt(@intCast(b.instructions.len));
         try b.instructions.append(b.gpa, .{
             .tag = .constant,
             .data = .{ .constant = val },
@@ -158,7 +158,7 @@ pub const Builder = struct {
     pub fn addPhi(b: *Builder, inputs: []const Inst.Phi.Input, ty: Interner.Ref) Allocator.Error!Ref {
         const a = b.arena.allocator();
         const input_refs = try a.alloc(Ref, inputs.len * 2 + 1);
-        input_refs[0] = @enumFromInt(inputs.len);
+        input_refs[0] = @fromBackingInt(@intCast(inputs.len));
         @memcpy(input_refs[1..], std.mem.bytesAsSlice(Ref, std.mem.sliceAsBytes(inputs)));
 
         return b.addInst(.phi, .{ .phi = .{ .ptr = input_refs.ptr } }, ty);
@@ -359,7 +359,7 @@ pub const Inst = struct {
         };
 
         pub fn inputs(p: Phi) []Input {
-            const len = @intFromEnum(p.ptr[0]) * 2;
+            const len = @backingInt(p.ptr[0]) * 2;
             const slice = (p.ptr + 1)[0..len];
             return std.mem.bytesAsSlice(Input, std.mem.sliceAsBytes(slice));
         }
@@ -403,8 +403,8 @@ fn dumpDecl(ir: *const Ir, decl: *const Decl, gpa: Allocator, name: []const u8, 
     defer label_map.deinit(gpa);
 
     const ret_inst = decl.body.items[decl.body.items.len - 1];
-    const ret_operand = data[@intFromEnum(ret_inst)].un;
-    const ret_ty = decl.instructions.items(.ty)[@intFromEnum(ret_operand)];
+    const ret_operand = data[@backingInt(ret_inst)].un;
+    const ret_ty = decl.instructions.items(.ty)[@backingInt(ret_operand)];
     try ir.writeType(ret_ty, term);
     try term.setColor(REF);
     try w.print(" @{s}", .{name});
@@ -414,7 +414,7 @@ fn dumpDecl(ir: *const Ir, decl: *const Decl, gpa: Allocator, name: []const u8, 
     var arg_count: u32 = 0;
     while (true) : (arg_count += 1) {
         const ref = decl.body.items[arg_count];
-        if (tags[@intFromEnum(ref)] != .arg) break;
+        if (tags[@backingInt(ref)] != .arg) break;
         if (arg_count != 0) try w.writeAll(", ");
         try ref_map.put(gpa, ref, {});
         try ir.writeRef(decl, &ref_map, ref, term);
@@ -422,14 +422,14 @@ fn dumpDecl(ir: *const Ir, decl: *const Decl, gpa: Allocator, name: []const u8, 
     }
     try w.writeAll(") {\n");
     for (decl.body.items[arg_count..]) |ref| {
-        switch (tags[@intFromEnum(ref)]) {
+        switch (tags[@backingInt(ref)]) {
             .label => try label_map.put(gpa, ref, {}),
             else => {},
         }
     }
 
     for (decl.body.items[arg_count..]) |ref| {
-        const i = @intFromEnum(ref);
+        const i = @backingInt(ref);
         const tag = tags[i];
         switch (tag) {
             .arg, .constant, .symbol => unreachable,
@@ -664,7 +664,7 @@ fn writeValue(ir: Ir, val: Interner.Ref, term: std.Io.Terminal) !void {
 fn writeRef(ir: Ir, decl: *const Decl, ref_map: *RefMap, ref: Ref, term: std.Io.Terminal) !void {
     const w = term.writer;
     assert(ref != .none);
-    const index = @intFromEnum(ref);
+    const index = @backingInt(ref);
     const ty_ref = decl.instructions.items(.ty)[index];
     if (decl.instructions.items(.tag)[index] == .constant) {
         try ir.writeType(ty_ref, term);
@@ -698,7 +698,7 @@ fn writeNewRef(ir: Ir, gpa: Allocator, decl: *const Decl, ref_map: *RefMap, ref:
 fn writeLabel(decl: *const Decl, label_map: *RefMap, ref: Ref, term: std.Io.Terminal) !void {
     const w = term.writer;
     assert(ref != .none);
-    const index = @intFromEnum(ref);
+    const index = @backingInt(ref);
     const label = decl.instructions.items(.data)[index].label;
     try term.setColor(REF);
     const label_index = label_map.getIndex(ref).?;

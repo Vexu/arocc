@@ -10,12 +10,12 @@ pub const StringId = enum(u32) {
 
     pub fn lookup(id: StringId, comp: *const Compilation) []const u8 {
         if (id == .empty) return "";
-        return comp.string_interner.table.keys()[@intFromEnum(id)];
+        return comp.string_interner.table.keys()[@backingInt(id)];
     }
 
     pub fn lookupExtra(id: StringId, si: StringInterner) []const u8 {
         if (id == .empty) return "";
-        return si.table.keys()[@intFromEnum(id)];
+        return si.table.keys()[@backingInt(id)];
     }
 };
 
@@ -31,5 +31,5 @@ pub fn intern(si: *StringInterner, allocator: mem.Allocator, str: []const u8) !S
     if (str.len == 0) return .empty;
 
     const gop = try si.table.getOrPut(allocator, str);
-    return @enumFromInt(gop.index);
+    return @fromBackingInt(@intCast(gop.index));
 }

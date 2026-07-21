@@ -250,13 +250,13 @@ pub const QualType = packed struct(u32) {
             else => {},
         }
 
-        const repr = comp.type_store.types.get(@intFromEnum(qt._index));
+        const repr = comp.type_store.types.get(@backingInt(qt._index));
         return switch (repr.tag) {
             .complex => .{ .complex = @bitCast(repr.data[0]) },
             .atomic => .{ .atomic = @bitCast(repr.data[0]) },
             .bit_int => .{ .bit_int = .{
                 .bits = @intCast(repr.data[0]),
-                .signedness = @enumFromInt(repr.data[1]),
+                .signedness = @fromBackingInt(@intCast(repr.data[1])),
             } },
             .block => .{ .block = .{ .func = @bitCast(repr.data[0]) } },
             .func_zero => .{ .func = .{
@@ -363,7 +363,7 @@ pub const QualType = packed struct(u32) {
             } },
             .array_variable => .{ .array = .{
                 .elem = @bitCast(repr.data[0]),
-                .len = .{ .variable = @enumFromInt(repr.data[1]) },
+                .len = .{ .variable = @fromBackingInt(repr.data[1]) },
             } },
             .array_unspecified_variable => .{ .array = .{
                 .elem = @bitCast(repr.data[0]),
@@ -396,8 +396,8 @@ pub const QualType = packed struct(u32) {
                 const extra_fields = extra[repr.data[1] + layout_size + 2 ..][0 .. fields_len * field_size];
 
                 const record: Type.Record = .{
-                    .name = @enumFromInt(repr.data[0]),
-                    .decl_node = @enumFromInt(extra[repr.data[1]]),
+                    .name = @fromBackingInt(repr.data[0]),
+                    .decl_node = @fromBackingInt(extra[repr.data[1]]),
                     .layout = layout,
                     .fields = std.mem.bytesAsSlice(Type.Record.Field, std.mem.sliceAsBytes(extra_fields)),
                 };
@@ -408,14 +408,14 @@ pub const QualType = packed struct(u32) {
                 };
             },
             .struct_incomplete => .{ .@"struct" = .{
-                .name = @enumFromInt(repr.data[0]),
-                .decl_node = @enumFromInt(repr.data[1]),
+                .name = @fromBackingInt(repr.data[0]),
+                .decl_node = @fromBackingInt(repr.data[1]),
                 .layout = null,
                 .fields = &.{},
             } },
             .union_incomplete => .{ .@"union" = .{
-                .name = @enumFromInt(repr.data[0]),
-                .decl_node = @enumFromInt(repr.data[1]),
+                .name = @fromBackingInt(repr.data[0]),
+                .decl_node = @fromBackingInt(repr.data[1]),
                 .layout = null,
                 .fields = &.{},
             } },
@@ -428,8 +428,8 @@ pub const QualType = packed struct(u32) {
                 const extra_fields = extra[repr.data[1] + 3 ..][0 .. fields_len * field_size];
 
                 return .{ .@"enum" = .{
-                    .name = @enumFromInt(extra[repr.data[1]]),
-                    .decl_node = @enumFromInt(extra[repr.data[1] + 1]),
+                    .name = @fromBackingInt(extra[repr.data[1]]),
+                    .decl_node = @fromBackingInt(extra[repr.data[1] + 1]),
                     .tag = @bitCast(repr.data[0]),
                     .incomplete = false,
                     .fixed = repr.tag == .enum_fixed,
@@ -439,8 +439,8 @@ pub const QualType = packed struct(u32) {
             .enum_incomplete => .{
                 .@"enum" = .{
                     .tag = null,
-                    .name = @enumFromInt(repr.data[0]),
-                    .decl_node = @enumFromInt(repr.data[1]),
+                    .name = @fromBackingInt(repr.data[0]),
+                    .decl_node = @fromBackingInt(repr.data[1]),
                     .incomplete = true,
                     .fixed = false,
                     .fields = &.{},
@@ -449,8 +449,8 @@ pub const QualType = packed struct(u32) {
             .enum_incomplete_fixed => .{
                 .@"enum" = .{
                     .tag = @bitCast(repr.data[0]),
-                    .name = @enumFromInt(comp.type_store.extra.items[repr.data[1]]),
-                    .decl_node = @enumFromInt(comp.type_store.extra.items[repr.data[1] + 1]),
+                    .name = @fromBackingInt(comp.type_store.extra.items[repr.data[1]]),
+                    .decl_node = @fromBackingInt(comp.type_store.extra.items[repr.data[1] + 1]),
                     .incomplete = true,
                     .fixed = true,
                     .fields = &.{},
@@ -462,12 +462,12 @@ pub const QualType = packed struct(u32) {
             } },
             .typeof_expr => .{ .typeof = .{
                 .base = @bitCast(repr.data[0]),
-                .expr = @enumFromInt(repr.data[1]),
+                .expr = @fromBackingInt(repr.data[1]),
             } },
             .typedef => .{ .typedef = .{
                 .base = @bitCast(repr.data[0]),
-                .name = @enumFromInt(comp.type_store.extra.items[repr.data[1]]),
-                .decl_node = @enumFromInt(comp.type_store.extra.items[repr.data[1] + 1]),
+                .name = @fromBackingInt(comp.type_store.extra.items[repr.data[1]]),
+                .decl_node = @fromBackingInt(comp.type_store.extra.items[repr.data[1] + 1]),
             } },
         };
     }
@@ -1946,7 +1946,7 @@ pub const Type = union(enum) {
 
                 pub fn unpack(width: @This()) ?u32 {
                     if (width == .null) return null;
-                    return @intFromEnum(width);
+                    return @backingInt(width);
                 }
             } = .null,
             layout: Field.Layout = .{
@@ -2128,7 +2128,7 @@ pub fn putExtra(ts: *TypeStore, gpa: std.mem.Allocator, ty: Type) !Index {
     }
     const index = try ts.types.addOne(gpa);
     try ts.set(gpa, ty, index);
-    return @enumFromInt(index);
+    return @fromBackingInt(@intCast(index));
 }
 
 pub fn set(ts: *TypeStore, gpa: std.mem.Allocator, ty: Type, index: usize) !void {
@@ -2147,7 +2147,7 @@ pub fn set(ts: *TypeStore, gpa: std.mem.Allocator, ty: Type, index: usize) !void
         .bit_int => |bit_int| {
             repr.tag = .bit_int;
             repr.data[0] = bit_int.bits;
-            repr.data[1] = @intFromEnum(bit_int.signedness);
+            repr.data[1] = @backingInt(bit_int.signedness);
         },
         .atomic => |atomic| {
             repr.tag = .atomic;
@@ -2252,7 +2252,7 @@ pub fn set(ts: *TypeStore, gpa: std.mem.Allocator, ty: Type, index: usize) !void
                 },
                 .variable => |expr| {
                     repr.tag = .array_variable;
-                    repr.data[1] = @intFromEnum(expr);
+                    repr.data[1] = @backingInt(expr);
                 },
                 .unspecified_variable => {
                     repr.tag = .array_unspecified_variable;
@@ -2269,7 +2269,7 @@ pub fn set(ts: *TypeStore, gpa: std.mem.Allocator, ty: Type, index: usize) !void
             repr.data[1] = vector.len;
         },
         .@"struct", .@"union" => |record| record: {
-            repr.data[0] = @intFromEnum(record.name);
+            repr.data[0] = @backingInt(record.name);
             const layout = record.layout orelse {
                 std.debug.assert(record.fields.len == 0);
                 repr.tag = switch (ty) {
@@ -2277,7 +2277,7 @@ pub fn set(ts: *TypeStore, gpa: std.mem.Allocator, ty: Type, index: usize) !void
                     .@"union" => .union_incomplete,
                     else => unreachable,
                 };
-                repr.data[1] = @intFromEnum(record.decl_node);
+                repr.data[1] = @backingInt(record.decl_node);
                 break :record;
             };
             repr.tag = switch (ty) {
@@ -2295,7 +2295,7 @@ pub fn set(ts: *TypeStore, gpa: std.mem.Allocator, ty: Type, index: usize) !void
             comptime std.debug.assert(@sizeOf(Type.Record.Field) == @sizeOf(u32) * field_size);
             try ts.extra.ensureUnusedCapacity(gpa, record.fields.len * field_size + layout_size + 2);
 
-            ts.extra.appendAssumeCapacity(@intFromEnum(record.decl_node));
+            ts.extra.appendAssumeCapacity(@backingInt(record.decl_node));
             const casted_layout: *const [layout_size]u32 = @ptrCast(&layout);
             ts.extra.appendSliceAssumeCapacity(casted_layout);
             ts.extra.appendAssumeCapacity(@intCast(record.fields.len));
@@ -2313,13 +2313,13 @@ pub fn set(ts: *TypeStore, gpa: std.mem.Allocator, ty: Type, index: usize) !void
                     repr.data[0] = @bitCast(@"enum".tag.?);
                     repr.data[1] = @intCast(ts.extra.items.len);
                     try ts.extra.appendSlice(gpa, &.{
-                        @intFromEnum(@"enum".name),
-                        @intFromEnum(@"enum".decl_node),
+                        @backingInt(@"enum".name),
+                        @backingInt(@"enum".decl_node),
                     });
                 } else {
                     repr.tag = .enum_incomplete;
-                    repr.data[0] = @intFromEnum(@"enum".name);
-                    repr.data[1] = @intFromEnum(@"enum".decl_node);
+                    repr.data[0] = @backingInt(@"enum".name);
+                    repr.data[1] = @backingInt(@"enum".decl_node);
                 }
                 break :@"enum";
             }
@@ -2333,8 +2333,8 @@ pub fn set(ts: *TypeStore, gpa: std.mem.Allocator, ty: Type, index: usize) !void
             comptime std.debug.assert(@sizeOf(Type.Enum.Field) == @sizeOf(u32) * field_size);
             try ts.extra.ensureUnusedCapacity(gpa, @"enum".fields.len * field_size + 3);
 
-            ts.extra.appendAssumeCapacity(@intFromEnum(@"enum".name));
-            ts.extra.appendAssumeCapacity(@intFromEnum(@"enum".decl_node));
+            ts.extra.appendAssumeCapacity(@backingInt(@"enum".name));
+            ts.extra.appendAssumeCapacity(@backingInt(@"enum".decl_node));
             ts.extra.appendAssumeCapacity(@intCast(@"enum".fields.len));
 
             for (@"enum".fields) |*field| {
@@ -2346,7 +2346,7 @@ pub fn set(ts: *TypeStore, gpa: std.mem.Allocator, ty: Type, index: usize) !void
             repr.data[0] = @bitCast(typeof.base);
             if (typeof.expr) |some| {
                 repr.tag = .typeof_expr;
-                repr.data[1] = @intFromEnum(some);
+                repr.data[1] = @backingInt(some);
             } else {
                 repr.tag = .typeof;
             }
@@ -2356,8 +2356,8 @@ pub fn set(ts: *TypeStore, gpa: std.mem.Allocator, ty: Type, index: usize) !void
             repr.data[0] = @bitCast(typedef.base);
             repr.data[1] = @intCast(ts.extra.items.len);
             try ts.extra.appendSlice(gpa, &.{
-                @intFromEnum(typedef.name),
-                @intFromEnum(typedef.decl_node),
+                @backingInt(typedef.name),
+                @backingInt(typedef.decl_node),
             });
         },
     }

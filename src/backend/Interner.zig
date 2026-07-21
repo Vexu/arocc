@@ -22,7 +22,7 @@ const KeyAdapter = struct {
 
     pub fn eql(adapter: KeyAdapter, a: Key, b_void: void, b_map_index: usize) bool {
         _ = b_void;
-        return adapter.interner.get(@as(Ref, @enumFromInt(b_map_index))).eql(a);
+        return adapter.interner.get(@as(Ref, @fromBackingInt(@intCast(b_map_index)))).eql(a);
     }
 
     pub fn hash(adapter: KeyAdapter, a: Key) u32 {
@@ -582,7 +582,7 @@ pub fn put(i: *Interner, gpa: Allocator, key: Key) !Ref {
     if (key.toRef()) |some| return some;
     const adapter: KeyAdapter = .{ .interner = i };
     const gop = try i.map.getOrPutAdapted(gpa, key, adapter);
-    if (gop.found_existing) return @enumFromInt(gop.index);
+    if (gop.found_existing) return @fromBackingInt(@intCast(gop.index));
     try i.items.ensureUnusedCapacity(gpa, 1);
 
     switch (key) {
@@ -751,7 +751,7 @@ pub fn put(i: *Interner, gpa: Allocator, key: Key) !Ref {
         => unreachable,
     }
 
-    return @enumFromInt(gop.index);
+    return @fromBackingInt(@intCast(gop.index));
 }
 
 fn addExtra(i: *Interner, gpa: Allocator, extra: anytype) Allocator.Error!u32 {
@@ -765,7 +765,7 @@ fn addExtraAssumeCapacity(i: *Interner, extra: anytype) u32 {
     const info = @typeInfo(@TypeOf(extra)).@"struct";
     inline for (info.field_names, info.field_types) |field_name, field_type| {
         i.extra.appendAssumeCapacity(switch (field_type) {
-            Ref => @intFromEnum(@field(extra, field_name)),
+            Ref => @backingInt(@field(extra, field_name)),
             u32 => @field(extra, field_name),
             else => @compileError("bad field type: " ++ @typeName(field_type)),
         });
@@ -800,7 +800,7 @@ pub fn get(i: *const Interner, ref: Ref) Key {
         else => {},
     }
 
-    const item = i.items.get(@intFromEnum(ref));
+    const item = i.items.get(@backingInt(ref));
     const data = item.data;
     return switch (item.tag) {
         .int_ty => .{ .int_ty = @intCast(data) },
@@ -896,7 +896,7 @@ fn extraDataTrail(i: *const Interner, comptime T: type, index: usize) struct { d
     inline for (info.field_names, info.field_types, 0..) |field_name, field_type, field_i| {
         const int32 = i.extra.items[field_i + index];
         @field(result, field_name) = switch (field_type) {
-            Ref => @enumFromInt(int32),
+            Ref => @fromBackingInt(int32),
             u32 => int32,
             else => @compileError("bad field type: " ++ @typeName(field_type)),
         };

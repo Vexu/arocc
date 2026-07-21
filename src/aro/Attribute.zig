@@ -555,6 +555,7 @@ pub const Namespaced = union(enum) {
                 const vendor_str = normalize(vendor_str_raw);
                 const vendor = std.meta.stringToEnum(Namespaced.Standard.Vendors, vendor_str) orelse return null;
                 switch (vendor) {
+                    .aro => return null,
                     inline else => |vendor_tag| {
                         const vendor_name = @tagName(vendor_tag);
                         const tag = std.meta.stringToEnum(@FieldType(Namespaced, vendor_name), name) orelse return null;
@@ -564,7 +565,7 @@ pub const Namespaced = union(enum) {
             },
             .gnu => {
                 assert(opt_vendor == null);
-                inline for (.{ "gnu", "clang", "aro" }) |vendor_name| {
+                inline for (.{ "gnu", "clang" }) |vendor_name| { // , "aro"
                     if (std.meta.stringToEnum(@FieldType(Namespaced, vendor_name), name)) |tag| {
                         return @unionInit(Namespaced, vendor_name, tag);
                     }
