@@ -936,8 +936,6 @@ pub const Token = struct {
             .keyword_false,
             .keyword_nullptr,
             .keyword_typeof_unqual,
-            .keyword_elifdef,
-            .keyword_elifndef,
             => if (standard.atLeast(.c23)) kw else .identifier,
 
             .keyword_int64,

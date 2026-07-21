@@ -605,6 +605,9 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!TokenWithExpans
                 const directive_loc: Source.Location = .{ .id = tok.source, .byte_offset = directive.start, .line = directive.line };
                 switch (directive.id) {
                     .keyword_error, .keyword_warning => {
+                        if (directive.id == .keyword_warning and !pp.comp.langopts.standard.atLeast(.c23)) {
+                            try pp.err(directive_loc, .warning_extension, .{});
+                        }
                         // #error tokens..
                         pp.top_expansion_buf.items.len = 0;
                         const char_top = pp.char_buf.items.len;
@@ -705,6 +708,9 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!TokenWithExpans
                         }
                     },
                     .keyword_elifdef => {
+                        if (!pp.comp.langopts.standard.atLeast(.c23)) {
+                            try pp.err(directive_loc, .c23_extension, .{"#elifdef"});
+                        }
                         if (if_context.level == 0) {
                             try pp.err(directive, .elifdef_without_if, .{});
                             _ = if_context.increment();
@@ -745,6 +751,9 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!TokenWithExpans
                         }
                     },
                     .keyword_elifndef => {
+                        if (!pp.comp.langopts.standard.atLeast(.c23)) {
+                            try pp.err(directive_loc, .c23_extension, .{"#elifndef"});
+                        }
                         if (if_context.level == 0) {
                             try pp.err(directive, .elifndef_without_if, .{});
                             _ = if_context.increment();
@@ -849,7 +858,12 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!TokenWithExpans
                             try pp.include(&tokenizer, .next);
                         }
                     },
-                    .keyword_embed => try pp.embed(&tokenizer),
+                    .keyword_embed => {
+                        if (!pp.comp.langopts.standard.atLeast(.c23)) {
+                            try pp.err(directive_loc, .c23_extension, .{"#embed"});
+                        }
+                        try pp.embed(&tokenizer);
+                    },
                     .keyword_pragma => {
                         var expand_buf: ExpandBuf = .empty;
                         defer expand_buf.deinit(pp.comp.gpa);
@@ -1374,6 +1388,9 @@ fn skip(
                     return;
                 },
                 .keyword_elifdef => {
+                    if (!pp.comp.langopts.standard.atLeast(.c23)) {
+                        try pp.err(directive, .c23_extension, .{"#elifdef"});
+                    }
                     if (ifs_seen != 0 or cont == .until_endif) continue;
                     if (cont == .until_endif_seen_else) {
                         try pp.err(directive, .elifdef_after_else, .{});
@@ -1383,6 +1400,9 @@ fn skip(
                     return;
                 },
                 .keyword_elifndef => {
+                    if (!pp.comp.langopts.standard.atLeast(.c23)) {
+                        try pp.err(directive, .c23_extension, .{"#elifdef"});
+                    }
                     if (ifs_seen != 0 or cont == .until_endif) continue;
                     if (cont == .until_endif_seen_else) {
                         try pp.err(directive, .elifndef_after_else, .{});

@@ -229,6 +229,20 @@ pub const unterminated_comment: Diagnostic = .{
     .kind = .@"error",
 };
 
+pub const warning_extension: Diagnostic = .{
+    .fmt = "#warning is a C23 extension",
+    .kind = .off,
+    .opt = .@"c23-extensions",
+    .extension = true,
+};
+
+pub const c23_extension: Diagnostic = .{
+    .fmt = "{s} is a C23 extension",
+    .kind = .warning,
+    .opt = .@"c23-extensions",
+    .extension = true,
+};
+
 pub const embed_param_identifier: Diagnostic = .{
     .fmt = "expected identifier",
     .kind = .@"error",
