@@ -1472,11 +1472,6 @@ fn processSource(
     if (d.only_preprocess) {
         d.printDiagnosticsStats();
 
-        if (d.diagnostics.errors != prev_total) {
-            if (fast_exit) std.process.exit(1); // Not linking, no need for cleanup.
-            return;
-        }
-
         if (d.dependencies.m and !d.dependencies.md) {
             if (fast_exit) std.process.exit(1); // Not linking, no need for cleanup.
             return;
