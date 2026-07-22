@@ -177,7 +177,6 @@ pub const Option = enum {
     @"invalid-pp-token",
     @"deprecated-non-prototype",
     @"duplicate-embed-param",
-    @"unsupported-embed-param",
     @"unused-result",
     normalized,
     @"shift-count-negative",

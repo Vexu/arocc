@@ -16,13 +16,13 @@ const int Foo = 1 +
 _Static_assert(Foo == 1 + 'A', "");
 
 unsigned char third[] = {
-#embed "embed data" __limit__(3) prefix(0, 1,) vendor::unsupported(some toks) suffix(,3, 4) limit(4)
+#embed "embed data" __limit__(3) prefix(0, 1,) suffix(,3, 4) limit(4)
 };
 
-_Static_assert(sizeof(third) == 2 + 3 + 2, "");
+_Static_assert(sizeof(third) == 2 + 4 + 2, "");
 
 const int bar =
-#embed "embed data" limit(a) limit(1) 1
+#embed "embed data" limit(a) limit(1)
 ;
 _Static_assert(bar == 'H', "");
 
@@ -42,12 +42,30 @@ _Static_assert(bar == 'H', "");
 #error empty wasn't detected
 #endif
 
+const int expanded_byte =
+#define B limit
+#define A <embed
+#embed A data> B(1)
+;
+_Static_assert(expanded_byte == 'H', "");
+
+#embed "empty" vendor::unsupported
+#embed "empty" vendor::unsupported(2)
+#embed "empty" vendor::
+#embed "empty" limit
+#embed "empty" limit(-1)
+#embed "empty" limit(1) 1 limit(3)
+
 /** manifest:
 syntax
-args = --embed-dir=embed
+args = --embed-dir=embed -std=c23
 
-#embed.c:19:48: warning: unsupported embed parameter 'vendor::unsupported' embed parameter [-Wunsupported-embed-param]
-#embed.c:19:93: warning: duplicate embed parameter 'limit' [-Wduplicate-embed-param]
-#embed.c:25:21: error: the limit parameter expects one non-negative integer as a parameter
-#embed.c:25:39: error: unexpected token in embed parameter
+#embed.c:19:62: warning: duplicate embed parameter 'limit' [-Wduplicate-embed-param]
+#embed.c:25:30: warning: duplicate embed parameter 'limit' [-Wduplicate-embed-param]
+#embed.c:52:24: error: unknown embed parameter 'vendor::unsupported'
+#embed.c:53:24: error: unknown embed parameter 'vendor::unsupported'
+#embed.c:55:24: error: expected identifier
+#embed.c:55:16: error: expected '('
+#embed.c:56:16: error: the limit parameter expects a non-negative integer as a parameter
+#embed.c:57:25: error: expected identifier
 */

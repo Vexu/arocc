@@ -936,8 +936,6 @@ pub const Token = struct {
             .keyword_false,
             .keyword_nullptr,
             .keyword_typeof_unqual,
-            .keyword_elifdef,
-            .keyword_elifndef,
             => if (standard.atLeast(.c23)) kw else .identifier,
 
             .keyword_int64,
@@ -1990,16 +1988,6 @@ pub fn nextNoWS(self: *Tokenizer) Token {
 pub fn nextNoWSComments(self: *Tokenizer) Token {
     var tok = self.next();
     while (tok.id == .whitespace) tok = self.next();
-    return tok;
-}
-
-/// Try to tokenize a '::' even if not supported by the current language standard.
-pub fn colonColon(self: *Tokenizer) Token {
-    var tok = self.nextNoWS();
-    if (tok.id == .colon and self.index < self.buf.len and self.buf[self.index] == ':') {
-        self.index += 1;
-        tok.id = .colon_colon;
-    }
     return tok;
 }
 

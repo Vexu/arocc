@@ -78,7 +78,7 @@ expand_error
 args = --target=x86_64-apple-darwin-simulator
 
 __is_target_clang_compat.c:58:22: error: builtin feature check macro requires a parenthesized identifier
-__is_target_clang_compat.c:62:5: error: Missing '(' after built-in macro '__is_target_arch'
+__is_target_clang_compat.c:62:5: error: missing '(' after built-in macro '__is_target_arch'
 __is_target_clang_compat.c:66:5: error: unterminated function macro argument list
 __is_target_clang_compat.c:67:27: error: expected value in expression
 */
