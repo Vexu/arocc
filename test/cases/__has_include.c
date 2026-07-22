@@ -70,6 +70,8 @@ _Static_assert(THREE_SPACES_H == 1, "");
 #if __has_include(            )
 #endif
 
+int a = __has_include("a");
+
 /** manifest:
 expand_error
 args = -I include
@@ -83,4 +85,5 @@ __has_include.c:25:19: note: to match this '<'
 __has_include.c:46:19: error: empty filename
 __has_include.c:59:24: error: expected closing ')'
 __has_include.c:70:19: error: expected "FILENAME" or <FILENAME>
+__has_include.c:73:9: error: '__has_include' must be used within a preprocessing directive
 */

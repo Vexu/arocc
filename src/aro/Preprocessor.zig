@@ -1890,7 +1890,13 @@ fn reconstructIncludeString(pp: *Preprocessor, param_toks: []const TokenWithExpa
     }
 }
 
-fn handleBuiltinMacro(pp: *Preprocessor, builtin: Macro.Builtin.Func, param_toks: []const TokenWithExpansionLocs, src_loc: Source.Location) Error!bool {
+fn handleBuiltinMacro(
+    pp: *Preprocessor,
+    builtin: Macro.Builtin.Func,
+    param_toks: []const TokenWithExpansionLocs,
+    src_loc: Source.Location,
+    eval_ctx: EvalContext,
+) Error!bool {
     switch (builtin) {
         .has_attribute,
         .has_declspec_attribute,
@@ -1985,6 +1991,10 @@ fn handleBuiltinMacro(pp: *Preprocessor, builtin: Macro.Builtin.Func, param_toks
             return id == .identifier or id == .extended_identifier;
         },
         .has_include, .has_include_next => {
+            if (eval_ctx != .expr) {
+                try pp.err(src_loc, .preprocessing_directive_only, .{@tagName(builtin)});
+            }
+
             const include_str = (try pp.reconstructIncludeString(param_toks, null, param_toks[0])) orelse return false;
             const include_type: Compilation.IncludeType = switch (include_str[0]) {
                 '"' => .quotes,
@@ -2133,7 +2143,7 @@ fn expandFuncMacro(
                     const result = if (arg.len == 0) blk: {
                         try pp.err(macro_tok, .expected_arguments, .{ 1, 0 });
                         break :blk false;
-                    } else try pp.handleBuiltinMacro(kind, arg, macro_tok.loc);
+                    } else try pp.handleBuiltinMacro(kind, arg, macro_tok.loc, eval_ctx);
                     const start = pp.comp.generated_buf.items.len;
 
                     try pp.comp.generated_buf.print(gpa, "{}\n", .{@intFromBool(result)});
@@ -2213,6 +2223,10 @@ fn expandFuncMacro(
                 },
 
                 .has_embed => {
+                    if (eval_ctx != .expr) {
+                        try pp.err(macro_tok, .preprocessing_directive_only, .{"has_embed"});
+                    }
+
                     const arg = expanded_args.items[0];
                     const not_found = "0\n";
                     const result = if (arg.len == 0) blk: {
