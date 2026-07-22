@@ -86,7 +86,7 @@ _Static_assert(sizeof(struct B_extra_required_alignment) == 9, "");
 _Static_assert(_Alignof(struct B_extra_required_alignment) == 1, "");
 _Static_assert(sizeof(struct B_extra_size) == 10, "");
 _Static_assert(_Alignof(struct B_extra_size) == 1, "");
-// MAPPING|TWO|aarch64-generic-windows-msvc:Msvc|x86-i586-windows-msvc:Msvc|x86-i686-windows-msvc:Msvc|x86-i686-uefi-msvc:Msvc|thumb-baseline-windows-msvc:Msvc|x86_64-x86_64-windows-msvc:Msvc|x86_64-x86_64-uefi-msvc:Msvc|END
+// MAPPING|TWO|aarch64-generic-windows-msvc:Clang|x86-i586-windows-msvc:Clang|x86-i686-windows-msvc:Clang|x86-i686-uefi-msvc:Clang|thumb-baseline-windows-msvc:Clang|x86_64-x86_64-windows-msvc:Clang|x86_64-x86_64-uefi-msvc:Clang|END
 // repr targets Aarch64PcWindowsMsvc|Some("aarch64-generic-windows-msvc") I586PcWindowsMsvc|Some("x86-i586-windows-msvc") I686PcWindowsMsvc|Some("x86-i686-windows-msvc") I686UnknownWindows|Some("x86-i686-uefi-msvc") Thumbv7aPcWindowsMsvc|Some("thumb-baseline-windows-msvc") X86_64PcWindowsMsvc|Some("x86_64-x86_64-windows-msvc") X86_64UnknownWindows|Some("x86_64-x86_64-uefi-msvc")
 #elif defined(TWO)
 _Static_assert(sizeof(A) == 4, "");
