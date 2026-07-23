@@ -510,14 +510,6 @@ const compErr = blk: {
             .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
         .{
-            "aarch64-generic-windows-msvc:Msvc|0044",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "thumb-baseline-windows-msvc:Msvc|0044",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
             "aarch64-generic-windows-msvc:Msvc|0022",
             .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
