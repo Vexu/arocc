@@ -509,13 +509,5 @@ const compErr = blk: {
             "thumb-baseline-windows-msvc:Msvc|0046",
             .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
-        .{
-            "aarch64-generic-windows-msvc:Msvc|0022",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
-        .{
-            "thumb-baseline-windows-msvc:Msvc|0022",
-            .{ .parse = false, .layout = false, .extra = true, .offset = false },
-        },
     });
 };
