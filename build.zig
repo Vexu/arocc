@@ -38,7 +38,7 @@ fn addFuzzStep(b: *Build, target: std.Build.ResolvedTarget, afl_clang_lto_path: 
         .name = "fuzz-lib",
         .root_module = b.createModule(.{
             .root_source_file = b.path("test/fuzz/fuzz_lib.zig"),
-            .optimize = .Debug,
+            .optimize = .debug,
             .target = target,
             .single_threaded = true,
         }),
@@ -68,7 +68,7 @@ pub fn build(b: *Build) !void {
     const target = b.standardTargetOptions(.{});
 
     // Standard release options allow the person running `zig build` to select
-    // between Debug, ReleaseSafe, ReleaseFast, and ReleaseSmall.
+    // between debug, safe, fast, and small.
     const mode = b.standardOptimizeOption(.{});
 
     const afl_clang_lto_path = b.option([]const u8, "afl-clang-lto-path", "Path to afl-clang-lto") orelse "afl-clang-lto";
