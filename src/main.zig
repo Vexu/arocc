@@ -40,7 +40,7 @@ pub fn main(init: process.Init.Minimal) u8 {
     defer threaded.deinit();
     const io = threaded.io();
 
-    const fast_exit = @import("builtin").mode != .Debug;
+    const fast_exit = @import("builtin").mode != .debug;
 
     const args = init.args.toSlice(arena) catch {
         std.debug.print("out of memory\n", .{});
