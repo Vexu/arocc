@@ -1,4 +1,9 @@
+#if defined(__linux) || defined(__APPLE__)
+#include <stdio.h>
+#else
 extern int printf(const char*, ...);
+#endif
+
 static int foo(void);
 
 int main(int argc, char **argv) {
