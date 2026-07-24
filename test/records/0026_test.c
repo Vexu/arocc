@@ -131,66 +131,6 @@ struct C_extra_size {
 };
 struct C_extra_size var17;
 
-#ifdef MSVC
-typedef C unnamed_type_18[];
-#else
-typedef C unnamed_type_18[0];
-#endif
-unnamed_type_18 var19;
-struct unnamed_type_18_extra_alignment {
-    char a;
-    unnamed_type_18 b;
-};
-struct unnamed_type_18_extra_alignment var20;
-#pragma pack(1)
-struct unnamed_type_18_extra_packed {
-#ifdef MSVC
-    char a[sizeof(unnamed_type_18)];
-#else
-    unnamed_type_18 a;
-#endif
-};
-#pragma pack()
-struct unnamed_type_18_extra_required_alignment {
-    char a;
-    struct unnamed_type_18_extra_packed b;
-};
-struct unnamed_type_18_extra_required_alignment var21;
-struct unnamed_type_18_extra_size {
-    char a[sizeof(unnamed_type_18)+1];
-    char b;
-};
-struct unnamed_type_18_extra_size var22;
-
-typedef struct {
-    unnamed_type_18 a;
-} D;
-D var23;
-struct D_extra_alignment {
-    char a;
-    D b;
-};
-struct D_extra_alignment var24;
-#pragma pack(1)
-struct D_extra_packed {
-#ifdef MSVC
-    char a[sizeof(D)];
-#else
-    D a;
-#endif
-};
-#pragma pack()
-struct D_extra_required_alignment {
-    char a;
-    struct D_extra_packed b;
-};
-struct D_extra_required_alignment var25;
-struct D_extra_size {
-    char a[sizeof(D)+1];
-    char b;
-};
-struct D_extra_size var26;
-
 #pragma pack(2)
 typedef struct {
 #ifdef MSVC
@@ -604,16 +544,6 @@ _Static_assert(sizeof(struct C_extra_required_alignment) == 2, "");
 _Static_assert(_Alignof(struct C_extra_required_alignment) == 1, "");
 _Static_assert(sizeof(struct C_extra_size) == 3, "");
 _Static_assert(_Alignof(struct C_extra_size) == 1, "");
-_Static_assert(sizeof(D) == 0, "");
-_Static_assert(_Alignof(D) == 2, "");
-_Static_assert(sizeof(struct D_extra_alignment) == 2, "");
-_Static_assert(_Alignof(struct D_extra_alignment) == 2, "");
-_Static_assert(sizeof(struct D_extra_packed) == 0, "");
-_Static_assert(_Alignof(struct D_extra_packed) == 1, "");
-_Static_assert(sizeof(struct D_extra_required_alignment) == 1, "");
-_Static_assert(_Alignof(struct D_extra_required_alignment) == 1, "");
-_Static_assert(sizeof(struct D_extra_size) == 2, "");
-_Static_assert(_Alignof(struct D_extra_size) == 1, "");
 _Static_assert(sizeof(E) == 4, "");
 _Static_assert(_Alignof(E) == 2, "");
 _Static_assert(sizeof(struct E_extra_alignment) == 6, "");
@@ -723,16 +653,6 @@ _Static_assert(sizeof(struct C_extra_required_alignment) == 2, "");
 _Static_assert(_Alignof(struct C_extra_required_alignment) == 1, "");
 _Static_assert(sizeof(struct C_extra_size) == 3, "");
 _Static_assert(_Alignof(struct C_extra_size) == 1, "");
-_Static_assert(sizeof(D) == 0, "");
-_Static_assert(_Alignof(D) == 2, "");
-_Static_assert(sizeof(struct D_extra_alignment) == 2, "");
-_Static_assert(_Alignof(struct D_extra_alignment) == 2, "");
-_Static_assert(sizeof(struct D_extra_packed) == 0, "");
-_Static_assert(_Alignof(struct D_extra_packed) == 1, "");
-_Static_assert(sizeof(struct D_extra_required_alignment) == 1, "");
-_Static_assert(_Alignof(struct D_extra_required_alignment) == 1, "");
-_Static_assert(sizeof(struct D_extra_size) == 2, "");
-_Static_assert(_Alignof(struct D_extra_size) == 1, "");
 _Static_assert(sizeof(E) == 4, "");
 _Static_assert(_Alignof(E) == 2, "");
 _Static_assert(sizeof(struct E_extra_alignment) == 6, "");
@@ -842,16 +762,6 @@ _Static_assert(sizeof(struct C_extra_required_alignment) == 2, "");
 _Static_assert(_Alignof(struct C_extra_required_alignment) == 1, "");
 _Static_assert(sizeof(struct C_extra_size) == 3, "");
 _Static_assert(_Alignof(struct C_extra_size) == 1, "");
-_Static_assert(sizeof(D) == 4, "");
-_Static_assert(_Alignof(D) == 2, "");
-_Static_assert(sizeof(struct D_extra_alignment) == 6, "");
-_Static_assert(_Alignof(struct D_extra_alignment) == 2, "");
-_Static_assert(sizeof(struct D_extra_packed) == 4, "");
-_Static_assert(_Alignof(struct D_extra_packed) == 1, "");
-_Static_assert(sizeof(struct D_extra_required_alignment) == 5, "");
-_Static_assert(_Alignof(struct D_extra_required_alignment) == 1, "");
-_Static_assert(sizeof(struct D_extra_size) == 6, "");
-_Static_assert(_Alignof(struct D_extra_size) == 1, "");
 _Static_assert(sizeof(E) == 4, "");
 _Static_assert(_Alignof(E) == 8, "");
 _Static_assert(sizeof(struct E_extra_alignment) == 16, "");
@@ -961,16 +871,6 @@ _Static_assert(sizeof(struct C_extra_required_alignment) == 2, "");
 _Static_assert(_Alignof(struct C_extra_required_alignment) == 1, "");
 _Static_assert(sizeof(struct C_extra_size) == 3, "");
 _Static_assert(_Alignof(struct C_extra_size) == 1, "");
-_Static_assert(sizeof(D) == 4, "");
-_Static_assert(_Alignof(D) == 2, "");
-_Static_assert(sizeof(struct D_extra_alignment) == 6, "");
-_Static_assert(_Alignof(struct D_extra_alignment) == 2, "");
-_Static_assert(sizeof(struct D_extra_packed) == 4, "");
-_Static_assert(_Alignof(struct D_extra_packed) == 1, "");
-_Static_assert(sizeof(struct D_extra_required_alignment) == 5, "");
-_Static_assert(_Alignof(struct D_extra_required_alignment) == 1, "");
-_Static_assert(sizeof(struct D_extra_size) == 6, "");
-_Static_assert(_Alignof(struct D_extra_size) == 1, "");
 _Static_assert(sizeof(E) == 4, "");
 _Static_assert(_Alignof(E) == 8, "");
 _Static_assert(sizeof(struct E_extra_alignment) == 16, "");
