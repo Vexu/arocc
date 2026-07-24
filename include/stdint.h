@@ -7,7 +7,7 @@
 
 # include_next <stdint.h>
 
-# if defined(__APPLE__) && __ARO_EMULATE__ == __ARO_EMULATE_NO__
+# if defined(__APPLE__)
 
 #  if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 202311L
 #   define INTMAX_WIDTH   __INTMAX_WIDTH__
