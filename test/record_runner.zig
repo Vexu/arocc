@@ -501,5 +501,9 @@ const compErr = blk: {
             "thumb-baseline-windows-msvc:Msvc|0046",
             .{ .parse = false, .layout = false, .extra = true, .offset = false },
         },
+        .{
+            "avr-avr2-other-eabi:Gcc|0062",
+            .{ .parse = false, .layout = true, .extra = true, .offset = false },
+        },
     });
 };
