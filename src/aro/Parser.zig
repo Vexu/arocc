@@ -3839,6 +3839,14 @@ const Declarator = struct {
                     if (elem_qt.isQualified() and elem_qt.type(p.comp) != .typedef) {
                         try p.err(source_tok, .qualifier_non_outermost_array, .{});
                     }
+                } else if (p.comp.langopts.emulate != .msvc) {
+                    if (elem_qt.sizeofOrNull(p.comp)) |elem_size| {
+                        const elem_align = elem_qt.alignof(p.comp);
+                        if (elem_size % elem_align != 0) {
+                            try p.err(source_tok, .array_elem_size_not_multiple, .{ elem_qt, elem_size, elem_align });
+                            return .nested_invalid;
+                        }
+                    }
                 }
                 return .normal;
             },
