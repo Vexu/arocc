@@ -5,6 +5,9 @@ const Compilation = @import("Compilation.zig");
 const LangOpts = @import("LangOpts.zig");
 const Source = @import("Source.zig");
 
+pub const number_literal = @import("Tokenizer/number_literal.zig");
+pub const text_literal = @import("Tokenizer/text_literal.zig");
+
 /// Value for valid escapes indicates how many characters to consume, not counting leading backslash
 const UCNKind = enum(u8) {
     /// Just `\`
