@@ -43,11 +43,6 @@ pub const to_match_bracket: Diagnostic = .{
     .kind = .note,
 };
 
-pub const float_literal_in_pp_expr: Diagnostic = .{
-    .fmt = "floating point literal in preprocessor expression",
-    .kind = .@"error",
-};
-
 pub const expected_invalid: Diagnostic = .{
     .fmt = "expected '{tok_id}', found invalid bytes",
     .kind = .@"error",
@@ -1048,11 +1043,6 @@ pub const division_by_zero: Diagnostic = .{
     .opt = .@"division-by-zero",
 };
 
-pub const division_by_zero_macro: Diagnostic = .{
-    .fmt = "{s} by zero in preprocessor expression",
-    .kind = .@"error",
-};
-
 pub const builtin_choose_cond: Diagnostic = .{
     .fmt = "'__builtin_choose_expr' requires a constant expression",
     .kind = .@"error",
@@ -1283,11 +1273,6 @@ pub const implicitly_unsigned_literal: Diagnostic = .{
     .opt = .@"implicitly-unsigned-literal",
     .kind = .warning,
     .extension = true,
-};
-
-pub const invalid_preproc_operator: Diagnostic = .{
-    .fmt = "token is not a valid binary operator in a preprocessor subexpression",
-    .kind = .@"error",
 };
 
 pub const c99_compat: Diagnostic = .{
@@ -1863,36 +1848,6 @@ pub const main_return_type: Diagnostic = .{
     .extension = true,
 };
 
-pub const invalid_int_suffix: Diagnostic = .{
-    .fmt = "invalid suffix '{s}' on integer constant",
-    .kind = .@"error",
-};
-
-pub const invalid_float_suffix: Diagnostic = .{
-    .fmt = "invalid suffix '{s}' on floating constant",
-    .kind = .@"error",
-};
-
-pub const invalid_octal_digit: Diagnostic = .{
-    .fmt = "invalid digit '{c}' in octal constant",
-    .kind = .@"error",
-};
-
-pub const invalid_binary_digit: Diagnostic = .{
-    .fmt = "invalid digit '{c}' in binary constant",
-    .kind = .@"error",
-};
-
-pub const exponent_has_no_digits: Diagnostic = .{
-    .fmt = "exponent has no digits",
-    .kind = .@"error",
-};
-
-pub const hex_floating_constant_requires_exponent: Diagnostic = .{
-    .fmt = "hexadecimal floating constant requires an exponent",
-    .kind = .@"error",
-};
-
 pub const sizeof_returns_zero: Diagnostic = .{
     .fmt = "sizeof returns 0",
     .kind = .warning,
@@ -1989,14 +1944,6 @@ pub const invalid_object_cast: Diagnostic = .{
 pub const suggest_pointer_for_invalid_fp16: Diagnostic = .{
     .fmt = "{s} cannot have __fp16 type; did you forget * ?",
     .kind = .@"error",
-};
-
-pub const bitint_suffix: Diagnostic = .{
-    .fmt = "'_BitInt' suffix for literals is a C23 extension",
-    .opt = .@"c23-extensions",
-    .kind = .warning,
-    .suppress_version = .c23,
-    .extension = true,
 };
 
 pub const auto_type_extension: Diagnostic = .{
@@ -2188,14 +2135,6 @@ pub const gnu_label_attr: Diagnostic = .{
     .fmt = "GNU-style attribute between label and declaration applies to the label",
     .opt = .@"label-attribute",
     .kind = .warning,
-    .extension = true,
-};
-
-pub const u8_char_lit: Diagnostic = .{
-    .fmt = "UTF-8 character literal is a C23 extension",
-    .opt = .@"c23-extensions",
-    .kind = .warning,
-    .suppress_version = .c23,
     .extension = true,
 };
 

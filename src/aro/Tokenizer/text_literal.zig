@@ -184,6 +184,97 @@ pub const Parser = struct {
     /// Incorrect encoding is allowed if we are unescaping an identifier in the preprocessor
     diagnose_incorrect_encoding: bool = true,
 
+    pub const Result = union(enum) {
+        unsigned: u32,
+        signed: i32,
+    };
+
+    pub fn parse(p: *Parser) !Result {
+        if (p.kind == .utf_8 and !p.comp.langopts.standard.atLeast(.c23)) {
+            try p.warn(.u8_char_lit, .{});
+        }
+        var val: u32 = 0;
+
+        const gpa = p.comp.gpa;
+        var is_multichar = false;
+        if (p.literal.len == 1 and std.ascii.isAscii(p.literal[0])) {
+            // fast path: single unescaped ASCII char
+            val = p.literal[0];
+        } else {
+            const max_chars_expected = 4;
+            var bfa_buf: [max_chars_expected]u32 = undefined;
+            var bfa: std.heap.BufferFirstAllocator = .init(@ptrCast(&bfa_buf), gpa);
+            const allocator = bfa.allocator();
+            var chars: std.ArrayList(u32) = .empty;
+            defer chars.deinit(allocator);
+
+            chars.ensureUnusedCapacity(allocator, max_chars_expected) catch unreachable; // stack allocation already succeeded
+
+            while (try p.next()) |item| switch (item) {
+                .value => |v| try chars.append(allocator, v),
+                .codepoint => |c| try chars.append(allocator, c),
+                .improperly_encoded => |s| {
+                    try chars.ensureUnusedCapacity(allocator, s.len);
+                    for (s) |c| chars.appendAssumeCapacity(c);
+                },
+                .utf8_text => |view| {
+                    var it = view.iterator();
+                    var max_codepoint_seen: u21 = 0;
+                    try chars.ensureUnusedCapacity(allocator, view.bytes.len);
+                    while (it.nextCodepoint()) |c| {
+                        max_codepoint_seen = @max(max_codepoint_seen, c);
+                        chars.appendAssumeCapacity(c);
+                    }
+                    if (max_codepoint_seen > p.max_codepoint) {
+                        try p.err(.char_too_large, .{});
+                    }
+                },
+            };
+
+            is_multichar = chars.items.len > 1;
+            if (is_multichar) {
+                if (p.kind == .char and chars.items.len == 4) {
+                    try p.warn(.four_char_char_literal, .{});
+                } else if (p.kind == .char) {
+                    try p.warn(.multichar_literal_warning, .{});
+                } else {
+                    const kind: []const u8 = switch (p.kind) {
+                        .wide => "wide",
+                        .utf_8, .utf_16, .utf_32 => "Unicode",
+                        else => unreachable,
+                    };
+                    try p.err(.invalid_multichar_literal, .{kind});
+                }
+            }
+
+            var multichar_overflow = false;
+            if (p.kind == .char and is_multichar) {
+                for (chars.items) |item| {
+                    val, const overflowed = @shlWithOverflow(val, 8);
+                    multichar_overflow = multichar_overflow or overflowed != 0;
+                    val += @as(u8, @truncate(item));
+                }
+            } else if (chars.items.len > 0) {
+                val = chars.items[chars.items.len - 1];
+            }
+
+            if (multichar_overflow) {
+                try p.err(.char_lit_too_wide, .{});
+            }
+        }
+
+        // C99 6.4.4.4.10
+        // > If an integer character constant contains a single character or escape sequence,
+        // > its value is the one that results when an object with type char whose value is
+        // > that of the single character or escape sequence is converted to type int.
+        // This conversion only matters if `char` is signed and has a high-order bit of `1`
+        if (p.kind == .char and !is_multichar and val > 0x7F and p.comp.getCharSignedness() == .signed) {
+            const signed: i8 = @bitCast(@as(u8, @intCast(val)));
+            return .{ .signed = signed };
+        }
+        return .{ .unsigned = val };
+    }
+
     fn prefixLen(self: *const Parser) usize {
         return switch (self.kind) {
             .unterminated => unreachable,
@@ -297,6 +388,13 @@ pub const Parser = struct {
             .kind = .warning,
         };
 
+        pub const u8_char_lit: Diagnostic = .{
+            .fmt = "UTF-8 character literal is a C23 extension",
+            .opt = .@"c23-extensions",
+            .kind = .warning,
+            .extension = true,
+        };
+
         // pub const wide_multichar_literal: Diagnostic = .{
         //     .fmt = "extraneous characters in character constant ignored",
         //     .kind = .warning,
@@ -320,7 +418,7 @@ pub const Parser = struct {
         var allocating: std.Io.Writer.Allocating = .init(bfa.allocator());
         defer allocating.deinit();
 
-        formatArgs(&allocating.writer, diagnostic.fmt, args) catch return error.OutOfMemory;
+        Diagnostics.formatArgs(&allocating.writer, diagnostic.fmt, args) catch return error.OutOfMemory;
 
         var offset_location = p.loc;
         offset_location.byte_offset += p.offset;
@@ -331,23 +429,6 @@ pub const Parser = struct {
             .extension = diagnostic.extension,
             .location = offset_location.expand(p.comp),
         }, p.expansion_locs, true);
-    }
-
-    fn formatArgs(w: *std.Io.Writer, fmt: []const u8, args: anytype) !void {
-        var i: usize = 0;
-        inline for (comptime std.meta.fieldNames(@TypeOf(args))) |arg_name| {
-            const arg = @field(args, arg_name);
-            i += switch (@TypeOf(arg)) {
-                []const u8 => try Diagnostics.formatString(w, fmt[i..], arg),
-                Ascii => try arg.format(w, fmt[i..]),
-                else => switch (@typeInfo(@TypeOf(arg))) {
-                    .int, .comptime_int => try Diagnostics.formatInt(w, fmt[i..], arg),
-                    .pointer => try Diagnostics.formatString(w, fmt[i..], arg),
-                    else => comptime unreachable,
-                },
-            };
-        }
-        try w.writeAll(fmt[i..]);
     }
 
     pub fn next(p: *Parser) !?Item {

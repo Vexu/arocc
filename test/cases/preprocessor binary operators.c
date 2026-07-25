@@ -75,13 +75,13 @@ preprocessor binary operators.c:21:6: error: token is not a valid binary operato
 preprocessor binary operators.c:25:5: error: invalid token at start of a preprocessor expression
 preprocessor binary operators.c:29:10: error: token is not a valid binary operator in a preprocessor subexpression
 preprocessor binary operators.c:38:8: error: token is not a valid binary operator in a preprocessor subexpression
-preprocessor binary operators.c:42:5: error: expected expression
-preprocessor binary operators.c:46:5: error: string literal in preprocessor expression
-preprocessor binary operators.c:50:5: error: string literal in preprocessor expression
+preprocessor binary operators.c:42:5: error: expected value in expression
+preprocessor binary operators.c:46:5: error: invalid token at start of a preprocessor expression
+preprocessor binary operators.c:50:5: error: invalid token at start of a preprocessor expression
 preprocessor binary operators.c:54:7: error: token is not a valid binary operator in a preprocessor subexpression
 preprocessor binary operators.c:53:13: note: expanded from here
 preprocessor binary operators.c:58:5: error: invalid token at start of a preprocessor expression
 preprocessor binary operators.c:53:13: note: expanded from here
-preprocessor binary operators.c:62:9: error: token is not a valid binary operator in a preprocessor subexpression
+preprocessor binary operators.c:62:9: error: invalid token at start of a preprocessor expression
 preprocessor binary operators.c:65:13: error: token is not a valid binary operator in a preprocessor subexpression
 */

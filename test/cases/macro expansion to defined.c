@@ -56,6 +56,4 @@ macro expansion to defined.c:3:5: warning: macro expansion producing 'defined' h
 macro expansion to defined.c:1:24: note: expanded from here
 macro expansion to defined.c:41:6: error: macro name must be an identifier
 macro expansion to defined.c:35:35: note: expanded from here
-macro expansion to defined.c:41:6: error: expected expression
-macro expansion to defined.c:35:26: note: expanded from here
 */

@@ -12,7 +12,7 @@ const Diagnostics = @import("Diagnostics.zig");
 const DepFile = @import("DepFile.zig");
 const features = @import("features.zig");
 const Hideset = @import("Hideset.zig");
-const Parser = @import("Parser.zig");
+const Parser = @import("Preprocessor/Parser.zig");
 const Pragma = @import("Pragma.zig");
 const Source = @import("Source.zig");
 const Tokenizer = @import("Tokenizer.zig");
@@ -22,7 +22,6 @@ const SourceEpoch = Compilation.Environment.SourceEpoch;
 const Tree = @import("Tree.zig");
 const Token = Tree.Token;
 const TokenWithExpansionLocs = Tree.TokenWithExpansionLocs;
-const Value = @import("Value.zig");
 
 const DefineMap = std.StringArrayHashMapUnmanaged(Macro);
 const RawTokenList = std.ArrayList(RawToken);
@@ -285,7 +284,7 @@ path_replacements: []const struct { []const u8, []const u8 } = &.{},
 /// File used for __BASE_FILE__ macro.
 base_file: Source.Id,
 
-pub const parse = Parser.parse;
+pub const parse = @import("Parser.zig").parse;
 
 pub const Linemarkers = enum {
     /// No linemarker tokens. Required setting if parser will run
@@ -1037,7 +1036,7 @@ fn tokFromRaw(raw: RawToken) TokenWithExpansionLocs {
 
 pub const Diagnostic = @import("Preprocessor/Diagnostic.zig");
 
-fn err(pp: *Preprocessor, loc: anytype, diagnostic: Diagnostic, args: anytype) Compilation.Error!void {
+pub fn err(pp: *const Preprocessor, loc: anytype, diagnostic: Diagnostic, args: anytype) Compilation.Error!void {
     if (pp.diagnostics.effectiveKind(diagnostic) == .off) return;
     const old_suppress_system = pp.diagnostics.state.suppress_system_headers;
     defer pp.diagnostics.state.suppress_system_headers = old_suppress_system;
@@ -1168,7 +1167,6 @@ fn restoreTokenState(pp: *Preprocessor, state: TokenState) void {
 /// Consume all tokens until a newline and parse the result into a boolean.
 fn expr(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!bool {
     const gpa = pp.comp.gpa;
-    const error_count = pp.diagnostics.errors;
     defer for (pp.top_expansion_buf.items) |tok| TokenWithExpansionLocs.free(tok.expansion_locs, gpa);
 
     pp.top_expansion_buf.items.len = 0;
@@ -1178,177 +1176,36 @@ fn expr(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!bool {
             .nl, .eof => break tok,
             .whitespace => if (pp.top_expansion_buf.items.len == 0) continue,
             .comment => continue,
+            .unterminated_string_literal, .unterminated_char_literal, .empty_char_literal => |tag| {
+                try pp.err(tok, invalidTokenDiagnostic(tag), .{});
+            },
             .unterminated_comment => {
                 try pp.err(tok, .unterminated_comment, .{});
                 continue;
             },
-            else => {},
+            else => {
+                if (tok.id.isMacroIdentifier() and pp.poisoned_identifiers.get(pp.tokSlice(tok)) != null) {
+                    try pp.err(tok, .poisoned_identifier, .{});
+                }
+            },
         }
         try pp.top_expansion_buf.append(gpa, tokFromRaw(tok));
-    } else unreachable;
+    };
     if (pp.top_expansion_buf.items.len != 0) {
         pp.expansion_source_loc = pp.top_expansion_buf.items[0].loc;
         pp.hideset.clearRetainingCapacity();
         try pp.expandMacroExhaustive(null, &pp.top_expansion_buf, 0, pp.top_expansion_buf.items.len, .expr);
         removePlacemarkers(gpa, &pp.top_expansion_buf);
     }
-    const val = try pp.evalExpr(pp.top_expansion_buf.items, eof, error_count == pp.diagnostics.errors);
-    return val.toBool(pp.comp);
-}
 
-fn evalExpr(
-    pp: *Preprocessor,
-    items: []const TokenWithExpansionLocs,
-    eof: RawToken,
-    check_trailing: bool,
-) MacroError!Value {
-    const gpa = pp.comp.gpa;
-    const error_count = pp.diagnostics.errors;
-
-    for (items) |tok| {
-        if (tok.id == .macro_ws or tok.id == .whitespace) continue;
-        if (!tok.id.validPreprocessorExprStart()) {
-            try pp.err(tok, .invalid_preproc_expr_start, .{});
-            return .null;
-        }
-        break;
-    } else {
-        try pp.err(eof, .expected_value_in_expr, .{});
-        return .null;
-    }
-
-    try pp.ensureUnusedTokenCapacity(items.len + 1);
-
-    const token_state = pp.getTokenState();
-    defer pp.restoreTokenState(token_state);
-
-    // validate the tokens in the expression
-    var i: usize = 0;
-    while (i < items.len) : (i += 1) {
-        var tok = items[i];
-        switch (tok.id) {
-            .string_literal,
-            .string_literal_utf_16,
-            .string_literal_utf_8,
-            .string_literal_utf_32,
-            .string_literal_wide,
-            => {
-                try pp.err(tok, .string_literal_in_pp_expr, .{});
-                return .null;
-            },
-            .plus_plus,
-            .minus_minus,
-            .plus_equal,
-            .minus_equal,
-            .asterisk_equal,
-            .slash_equal,
-            .percent_equal,
-            .angle_bracket_angle_bracket_left_equal,
-            .angle_bracket_angle_bracket_right_equal,
-            .ampersand_equal,
-            .caret_equal,
-            .pipe_equal,
-            .l_bracket,
-            .r_bracket,
-            .l_brace,
-            .r_brace,
-            .ellipsis,
-            .semicolon,
-            .hash,
-            .hash_hash,
-            .equal,
-            .arrow,
-            .period,
-            => {
-                try pp.err(tok, .invalid_preproc_operator, .{});
-                return .null;
-            },
-            .macro_ws, .whitespace => continue,
-            .keyword_false => tok.id = .zero,
-            .keyword_true => tok.id = .one,
-            else => if (tok.id.isMacroIdentifier()) {
-                if (tok.id == .keyword_defined) {
-                    const tokens_consumed = try pp.handleKeywordDefined(&tok, items[i + 1 ..], eof);
-                    i += tokens_consumed;
-                } else {
-                    try pp.err(tok, .undefined_macro, .{pp.expandedSlice(tok)});
-
-                    if (i + 1 < items.len and items[i + 1].id == .l_paren) {
-                        try pp.err(tok, .fn_macro_undefined, .{pp.expandedSlice(tok)});
-                        return .null;
-                    }
-
-                    tok.id = .zero; // undefined macro
-                }
-            },
-        }
-        pp.addTokenAssumeCapacity(try pp.unescapeUcn(tok));
-    }
-    pp.addTokenAssumeCapacity(.{
-        .id = .eof,
-        .loc = tokFromRaw(eof).loc,
-    });
-
-    // Actually parse it.
     var parser: Parser = .{
         .pp = pp,
-        .comp = pp.comp,
-        .diagnostics = pp.diagnostics,
-        .tok_ids = pp.tokens.items(.id),
-        .tok_i = @intCast(token_state.tokens_len),
-        .in_macro = true,
-        .wip_attrs = .{},
-
-        .tree = undefined,
-        .labels = undefined,
-        .decl_buf = undefined,
-        .list_buf = undefined,
-        .param_buf = undefined,
-        .enum_buf = undefined,
-        .record_buf = undefined,
-        .string_ids = undefined,
+        .tokens = pp.top_expansion_buf.items,
+        .eof = tokFromRaw(eof),
+        .intmax_width = @intCast(pp.comp.target.intMaxType().bitSizeof(pp.comp)),
     };
-    defer parser.strings.deinit(gpa);
-    return parser.macroExpr(check_trailing and pp.diagnostics.errors == error_count);
-}
-
-/// Turns macro_tok from .keyword_defined into .zero or .one depending on whether the argument is defined
-/// Returns the number of tokens consumed
-fn handleKeywordDefined(pp: *Preprocessor, macro_tok: *TokenWithExpansionLocs, tokens: []const TokenWithExpansionLocs, eof: RawToken) !usize {
-    std.debug.assert(macro_tok.id == .keyword_defined);
-    var it = TokenIterator.init(tokens);
-    const first = it.nextNoWS() orelse {
-        try pp.err(eof, .macro_name_missing, .{});
-        return it.i;
-    };
-    switch (first.id) {
-        .l_paren => {},
-        else => {
-            if (!first.id.isMacroIdentifier()) {
-                try pp.err(first, .macro_name_must_be_identifier, .{});
-            }
-            macro_tok.id = if (pp.defines.contains(pp.expandedSlice(first))) .one else .zero;
-            return it.i;
-        },
-    }
-    const second = it.nextNoWS() orelse {
-        try pp.err(eof, .macro_name_missing, .{});
-        return it.i;
-    };
-    if (!second.id.isMacroIdentifier()) {
-        try pp.err(second, .macro_name_must_be_identifier, .{});
-        return it.i;
-    }
-    macro_tok.id = if (pp.defines.contains(pp.expandedSlice(second))) .one else .zero;
-
-    const last = it.nextNoWS();
-    if (last == null or last.?.id != .r_paren) {
-        const tok = last orelse tokFromRaw(eof);
-        try pp.err(tok, .closing_paren, .{});
-        try pp.err(first, .to_match_paren, .{});
-    }
-
-    return it.i;
+    const val = try parser.parse() orelse return false;
+    return val.toBool();
 }
 
 /// Skip until #else #elif #endif, return last directive token id.
@@ -1937,11 +1794,7 @@ fn handleBuiltinMacro(
                         false;
                 },
                 .has_feature => features.hasFeature(pp.comp, ident_str),
-                // If -pedantic-errors is given __has_extension is equivalent to __has_feature
-                .has_extension => if (pp.comp.diagnostics.state.extensions == .@"error")
-                    features.hasFeature(pp.comp, ident_str)
-                else
-                    features.hasExtension(pp.comp, ident_str),
+                .has_extension => features.hasExtension(pp.comp, ident_str),
 
                 .has_builtin => Builtins.fromName(pp.comp, ident_str) != null or
                     ((pp.comp.langopts.emulate == .no or pp.comp.langopts.emulate == .clang) and
@@ -2427,11 +2280,19 @@ fn nextBufToken(
     if (start_idx.* == buf.items.len and start_idx.* >= end_idx.*) {
         if (opt_tokenizer) |tokenizer| {
             const raw_tok = tokenizer.next();
-            if (raw_tok.id.isMacroIdentifier() and
-                pp.poisoned_identifiers.get(pp.tokSlice(raw_tok)) != null)
-                try pp.err(raw_tok, .poisoned_identifier, .{});
-
-            if (raw_tok.id == .nl) pp.add_expansion_nl += 1;
+            // FIXME these tokens may be retokenized and the diagnostics duplicated
+            switch (raw_tok.id) {
+                .nl => pp.add_expansion_nl += 1,
+                .unterminated_string_literal, .unterminated_char_literal, .empty_char_literal => |tag| {
+                    try pp.err(raw_tok, invalidTokenDiagnostic(tag), .{});
+                },
+                .unterminated_comment => try pp.err(raw_tok, .unterminated_comment, .{}),
+                else => {
+                    if (raw_tok.id.isMacroIdentifier() and pp.poisoned_identifiers.get(pp.tokSlice(raw_tok)) != null) {
+                        try pp.err(raw_tok, .poisoned_identifier, .{});
+                    }
+                },
+            }
 
             const new_tok = tokFromRaw(raw_tok);
             end_idx.* += 1;
@@ -3115,6 +2976,10 @@ fn define(pp: *Preprocessor, tokenizer: *Tokenizer, define_tok: RawToken) Error!
             },
             .unterminated_comment => try pp.err(tok, .unterminated_comment, .{}),
             else => {
+                if (tok.id.isMacroIdentifier() and pp.poisoned_identifiers.get(pp.tokSlice(tok)) != null) {
+                    try pp.err(tok, .poisoned_identifier, .{});
+                }
+
                 if (tok.id == .incomplete_ucn) {
                     @branchHint(.cold);
                     try pp.err(tok, .incomplete_ucn, .{});
@@ -3262,6 +3127,10 @@ fn defineFn(pp: *Preprocessor, tokenizer: *Tokenizer, define_tok: RawToken, macr
             },
             .unterminated_comment => try pp.err(tok, .unterminated_comment, .{}),
             else => {
+                if (tok.id.isMacroIdentifier() and pp.poisoned_identifiers.get(pp.tokSlice(tok)) != null) {
+                    try pp.err(tok, .poisoned_identifier, .{});
+                }
+
                 if (tok.id != .whitespace and need_ws) {
                     need_ws = false;
                     try pp.token_buf.append(gpa, .{ .id = .macro_ws, .source = .generated });
@@ -3376,16 +3245,18 @@ fn embed(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!void {
             if (limit != null) {
                 try pp.err(range.tok, .duplicate_embed_param, .{"limit"});
             }
-            const val = try pp.evalExpr(it.toks[range.start..range.end], .{
-                .id = eof.id,
-                .source = eof.loc.id,
-                .end = eof.loc.byte_offset,
-                .line = eof.loc.line,
-                .start = eof.loc.byte_offset,
-            }, true);
-            const int = val.toInt(u32, pp.comp) orelse {
+            var parser: Parser = .{
+                .pp = pp,
+                .tokens = it.toks[range.start..range.end],
+                .eof = it.toks[it.i - 1],
+                .intmax_width = @intCast(pp.comp.target.intMaxType().bitSizeof(pp.comp)),
+            };
+            const val = try parser.parse() orelse return;
+            const int = switch (val) {
+                inline else => |v| std.math.cast(usize, v),
+            } orelse {
                 try pp.err(range.tok, .invalid_embed_limit, .{});
-                continue;
+                return;
             };
             limit = .limited(int);
         },
@@ -3767,7 +3638,17 @@ fn findIncludeFilenameToken(
             switch (tok.id) {
                 .whitespace => tok.id = .macro_ws,
                 .nl => tok.id = .eof,
-                else => {},
+                .unterminated_string_literal, .unterminated_char_literal, .empty_char_literal => |tag| {
+                    try pp.err(tok, invalidTokenDiagnostic(tag), .{});
+                },
+                .unterminated_comment => {
+                    try pp.err(tok, .unterminated_comment, .{});
+                },
+                else => {
+                    if (tok.id.isMacroIdentifier() and pp.poisoned_identifiers.get(pp.tokSlice(tok)) != null) {
+                        try pp.err(tok, .poisoned_identifier, .{});
+                    }
+                },
             }
             try pp.top_expansion_buf.append(gpa, tokFromRaw(tok));
             if (tok.id == .eof) break;
