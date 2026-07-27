@@ -505,5 +505,13 @@ const compErr = blk: {
             "avr-avr2-other-eabi:Gcc|0062",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
+        .{
+            "x86_64-x86_64-windows-gnu:Gcc|0068",
+            .{ .parse = false, .layout = true, .extra = true, .offset = false },
+        },
+        .{
+            "x86_64-x86_64-windows-gnu:Gcc|0082",
+            .{ .parse = false, .layout = true, .extra = true, .offset = false },
+        },
     });
 };
