@@ -1473,6 +1473,13 @@ pub fn next(self: *Tokenizer) Token {
                 '\r', '\n' => {
                     id = .unterminated_char_literal;
                 },
+                0 => {
+                    if (self.index == self.buf.len) {
+                        id = .unterminated_char_literal;
+                    } else {
+                        continue :loop .char_literal;
+                    }
+                },
                 else => continue :loop .char_literal,
             }
         },
@@ -1481,6 +1488,13 @@ pub fn next(self: *Tokenizer) Token {
             switch (self.buf[self.index]) {
                 '\r', '\n' => {
                     id = .unterminated_string_literal;
+                },
+                0 => {
+                    if (self.index == self.buf.len) {
+                        id = .unterminated_string_literal;
+                    } else {
+                        continue :loop .string_literal;
+                    }
                 },
                 else => continue :loop .string_literal,
             }
@@ -1989,6 +2003,13 @@ pub fn nextNoWSComments(self: *Tokenizer) Token {
     var tok = self.next();
     while (tok.id == .whitespace) tok = self.next();
     return tok;
+}
+
+test "escaped literals at eof or with embedded NUL byte" {
+    try expectTokens("'\\", &.{.unterminated_char_literal});
+    try expectTokens("\"\\", &.{.unterminated_string_literal});
+    try expectTokens("'\\\x00", &.{.unterminated_char_literal});
+    try expectTokens("\"\\\x00", &.{.unterminated_string_literal});
 }
 
 test "operators" {
