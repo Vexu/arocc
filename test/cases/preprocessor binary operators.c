@@ -77,6 +77,39 @@ error "failed"
 #if 0 && (1 && (1 / 0))
 #endif
 
+#if (4 >> -2) != 0
+#error bad shr
+#endif
+
+#if (4 >> 250) != 0
+#error bad shr
+#endif
+
+#if (4U >> -2) != 0
+#error bad shr
+#endif
+
+#if (4U >> 250) != 0
+#error bad shr
+#endif
+
+#if (4 << -2) != 0
+#error bad shl
+#endif
+
+#if (4 << 250) != 0
+#error bad shl
+#endif
+
+#if (4U << -2) != 0
+#error bad shl
+#endif
+
+#if (4U << 250) != 0
+#error bad shl
+#endif
+
+
 /** manifest:
 syntax
 
@@ -99,4 +132,12 @@ preprocessor binary operators.c:65:13: error: token is not a valid binary operat
 preprocessor binary operators.c:68:6: warning: integer literal is too large to be represented in a signed integer type, interpreting as unsigned [-Wimplicitly-unsigned-literal]
 preprocessor binary operators.c:68:26: warning: right side of operator converted from negative value to unsigned: 18446744073709551615
 preprocessor binary operators.c:74:5: warning: integer overflow in preprocessor expression
+preprocessor binary operators.c:80:8: warning: integer overflow in preprocessor expression
+preprocessor binary operators.c:84:8: warning: integer overflow in preprocessor expression
+preprocessor binary operators.c:88:9: warning: integer overflow in preprocessor expression
+preprocessor binary operators.c:92:9: warning: integer overflow in preprocessor expression
+preprocessor binary operators.c:96:8: warning: integer overflow in preprocessor expression
+preprocessor binary operators.c:100:8: warning: integer overflow in preprocessor expression
+preprocessor binary operators.c:104:9: warning: integer overflow in preprocessor expression
+preprocessor binary operators.c:108:9: warning: integer overflow in preprocessor expression
 */

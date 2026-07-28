@@ -202,49 +202,41 @@ fn binaryExpr(p: *Parser, min_prec: i8, eval: bool) Error!?Value {
                 },
             },
             .angle_bracket_angle_bracket_left => switch (rhs) {
-                .signed => |s| if (s < 0) {
+                inline else => |amt| if (amt < 0 or amt >= p.intmax_width) {
                     overflow = 1;
-                    lhs = .{ .signed = 0 };
-                } else switch (p.intmax_width) {
-                    64 => {
-                        const shift, overflow = @shlWithOverflow(lhs.signed, @min(@as(u64, @intCast(s)), 63));
-                        lhs = .{ .signed = shift };
+                    switch (lhs) {
+                        inline else => |*v| v.* = 0,
+                    }
+                } else switch (lhs) {
+                    inline else => |v| switch (p.intmax_width) {
+                        inline 32, 64 => |t| {
+                            const T = @TypeOf(v);
+                            const ShiftT = @Int(@typeInfo(T).int.signedness, t);
+                            const res, overflow = @shlWithOverflow(
+                                @as(ShiftT, @intCast(v)),
+                                @as(std.math.Log2Int(ShiftT), @intCast(amt)),
+                            );
+                            lhs = p.value(@as(T, res));
+                        },
+                        else => unreachable,
                     },
-                    32 => {
-                        const shift, overflow = @shlWithOverflow(@as(u32, @intCast(lhs.signed)), @min(@as(u64, @intCast(s)), 31));
-                        lhs = .{ .signed = shift };
-                    },
-                    else => unreachable,
-                },
-                .unsigned => |u| switch (p.intmax_width) {
-                    64 => {
-                        const shift, overflow = @shlWithOverflow(lhs.unsigned, @min(u, 63));
-                        lhs = .{ .unsigned = shift };
-                    },
-                    32 => {
-                        const shift, overflow = @shlWithOverflow(@as(u32, @intCast(lhs.unsigned)), @min(u, 31));
-                        lhs = .{ .unsigned = shift };
-                    },
-                    else => unreachable,
                 },
             },
             .angle_bracket_angle_bracket_right => switch (rhs) {
-                .signed => |s| {
-                    if (s < 0) {
-                        overflow = 1;
-                        lhs = .{ .signed = 0 };
-                    } else if (s >= p.intmax_width) {
-                        lhs = p.value(std.math.minInt(i64));
-                    } else {
-                        lhs = p.value(lhs.signed >> @intCast(s));
+                inline else => |amt| if (amt < 0) {
+                    overflow = 1;
+                    switch (lhs) {
+                        inline else => |*v| v.* = 0,
                     }
-                },
-                .unsigned => |u| {
-                    if (u >= p.intmax_width) {
-                        lhs = .{ .unsigned = 0 };
-                    } else {
-                        lhs = p.value(lhs.unsigned >> @intCast(u));
-                    }
+                } else switch (lhs) {
+                    inline else => |v| {
+                        if (amt >= p.intmax_width) {
+                            overflow = 1;
+                            lhs = p.value(v >> @as(u6, @intCast(p.intmax_width - 1)));
+                        } else {
+                            lhs = p.value(v >> @as(u6, @intCast(amt)));
+                        }
+                    },
                 },
             },
             .angle_bracket_left_equal => switch (lhs) {
