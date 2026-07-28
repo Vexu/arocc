@@ -2381,7 +2381,11 @@ test "Universal character names" {
 test "Tokenizer fuzz test" {
     const Context = struct {
         fn testOne(_: @This(), smith: *std.testing.Smith) anyerror!void {
-            var comp = try Compilation.init(.testing);
+            const Diagnostics = @import("Diagnostics.zig");
+            var diagnostics: Diagnostics = .{ .output = .ignore };
+            var options = Compilation.InitOptions.testing;
+            options.diagnostics = &diagnostics;
+            var comp = try Compilation.init(options);
             defer comp.deinit();
 
             var buf: [256]u8 = undefined;
