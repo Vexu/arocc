@@ -3250,9 +3250,7 @@ fn embed(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!void {
                 .eof = it.toks[it.i - 1],
             };
             const val = try parser.parse() orelse return;
-            const int = switch (val) {
-                inline else => |v| std.math.cast(usize, v),
-            } orelse {
+            const int = val.toInt(usize) orelse {
                 try pp.err(range.tok, .invalid_embed_limit, .{});
                 return;
             };
