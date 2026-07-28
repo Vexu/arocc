@@ -109,6 +109,17 @@ error "failed"
 #error bad shl
 #endif
 
+#if ((-9223372036854775807 - 1) / -1) != (-9223372036854775807 - 1)
+#error bad div overflow
+#endif
+
+#if ((-9223372036854775807 - 1) % -1) != 0
+#error bad mod overflow
+#endif
+
+#if 0xFFFFFFFFFFFFFFFF != -1
+#error bad big hex int
+#endif
 
 /** manifest:
 syntax
@@ -130,7 +141,7 @@ preprocessor binary operators.c:53:13: note: expanded from here
 preprocessor binary operators.c:62:9: error: invalid token at start of a preprocessor expression
 preprocessor binary operators.c:65:13: error: token is not a valid binary operator in a preprocessor subexpression
 preprocessor binary operators.c:68:6: warning: integer literal is too large to be represented in a signed integer type, interpreting as unsigned [-Wimplicitly-unsigned-literal]
-preprocessor binary operators.c:68:26: warning: right side of operator converted from negative value to unsigned: 18446744073709551615
+preprocessor binary operators.c:68:26: warning: right side of operator converted from negative value to unsigned: -1 to 18446744073709551615
 preprocessor binary operators.c:74:5: warning: integer overflow in preprocessor expression
 preprocessor binary operators.c:80:8: warning: integer overflow in preprocessor expression
 preprocessor binary operators.c:84:8: warning: integer overflow in preprocessor expression
@@ -140,4 +151,6 @@ preprocessor binary operators.c:96:8: warning: integer overflow in preprocessor 
 preprocessor binary operators.c:100:8: warning: integer overflow in preprocessor expression
 preprocessor binary operators.c:104:9: warning: integer overflow in preprocessor expression
 preprocessor binary operators.c:108:9: warning: integer overflow in preprocessor expression
+preprocessor binary operators.c:112:33: warning: integer overflow in preprocessor expression
+preprocessor binary operators.c:120:24: warning: right side of operator converted from negative value to unsigned: -1 to 18446744073709551615
 */

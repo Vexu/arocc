@@ -368,7 +368,7 @@ pub const invalid_preproc_operator: Diagnostic = .{
 };
 
 pub const convert_to_positive: Diagnostic = .{
-    .fmt = "{s} side of operator converted from negative value to unsigned: {d}",
+    .fmt = "{s} side of operator converted from negative value to unsigned: {d} to {d}",
     .kind = .warning,
 };
 

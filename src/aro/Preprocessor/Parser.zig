@@ -45,7 +45,7 @@ pub const Value = union(enum) {
                 }
 
                 v.* = p.value(@as(u64, @bitCast(s)));
-                try p.pp.err(op_tok, .convert_to_positive, .{ side, v.unsigned });
+                try p.pp.err(op_tok, .convert_to_positive, .{ side, s, v.unsigned });
             },
         }
     }
@@ -149,12 +149,16 @@ fn binaryExpr(p: *Parser, min_prec: i8, eval: bool) Error!?Value {
         var overflow: u1 = 0;
         switch (operator.id) {
             .percent => if (!rhs.isZero()) switch (lhs) {
-                .signed => |s| {
-                    if (s == std.math.minInt(i64) and rhs.signed == -1) {
-                        lhs = p.value(0);
-                    } else {
-                        lhs = p.value(@rem(s, rhs.signed));
-                    }
+                .signed => |s| switch (p.intmax_width) {
+                    inline 32, 64 => |t| {
+                        const T = @Int(.signed, t);
+                        if (s == std.math.minInt(T) and rhs.signed == -1) {
+                            lhs = p.value(0);
+                        } else {
+                            lhs = p.value(@rem(s, rhs.signed));
+                        }
+                    },
+                    else => unreachable,
                 },
                 .unsigned => |u| {
                     lhs = p.value(u % rhs.unsigned);
@@ -164,8 +168,17 @@ fn binaryExpr(p: *Parser, min_prec: i8, eval: bool) Error!?Value {
                 return null;
             },
             .slash => if (!rhs.isZero()) switch (lhs) {
-                .signed => |s| {
-                    lhs = p.value(@divTrunc(s, rhs.signed));
+                .signed => |s| switch (p.intmax_width) {
+                    inline 32, 64 => |t| {
+                        const T = @Int(.signed, t);
+                        if (s == std.math.minInt(T) and rhs.signed == -1) {
+                            overflow = 1;
+                            lhs = p.value(std.math.minInt(T));
+                        } else {
+                            lhs = p.value(@divTrunc(s, rhs.signed));
+                        }
+                    },
+                    else => unreachable,
                 },
                 .unsigned => |u| {
                     lhs = p.value(u / rhs.unsigned);
@@ -441,12 +454,12 @@ fn primaryExpr(p: *Parser, eval: bool) Error!?Value {
             if (overflow) {
                 try p.pp.err(num, .int_literal_too_big, .{});
             }
-            if (parsed.suffix.isSignedInteger() and base == 10) {
-                const max_int = (@as(u64, 1) << @as(u6, @intCast(p.intmax_width - 1))) - 1;
-                if (val > max_int) {
+            const max_int = (@as(u64, 1) << @as(u6, @intCast(p.intmax_width - 1))) - 1;
+            if (val > max_int) {
+                if (parsed.suffix.isSignedInteger() and base == 10) {
                     try p.pp.err(num, .implicitly_unsigned_literal, .{});
-                    return .{ .unsigned = val };
                 }
+                return .{ .unsigned = val };
             }
             if (parsed.suffix.isSignedInteger()) {
                 return .{ .signed = @intCast(val) };
