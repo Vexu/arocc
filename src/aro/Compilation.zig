@@ -185,6 +185,16 @@ pub const InitOptions = struct {
         .environ_map = null,
         .add_default_pragma_handlers = false,
     };
+
+    var fuzzing_diagnostics: Diagnostics = .{ .output = .ignore };
+    pub const fuzzing: InitOptions = .{
+        .gpa = std.testing.allocator,
+        .arena = undefined,
+        .io = std.Io.failing,
+        .diagnostics = &fuzzing_diagnostics,
+        .environ_map = null,
+        .add_default_pragma_handlers = false,
+    };
 };
 
 /// Initialize Compilation with default environment,
