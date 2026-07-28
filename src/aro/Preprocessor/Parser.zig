@@ -11,17 +11,20 @@ const Tree = @import("../Tree.zig");
 const Token = Tree.Token;
 const TokenWithExpansionLocs = Tree.TokenWithExpansionLocs;
 
+const intmax_width = 64;
+const uintmax = u64;
+const intmax = i64;
+
 const Parser = @This();
 
 pp: *const Preprocessor,
-intmax_width: u8,
 tokens: []const TokenWithExpansionLocs,
 index: u32 = 0,
 eof: TokenWithExpansionLocs,
 
 pub const Value = union(enum) {
-    signed: i64,
-    unsigned: u64,
+    signed: intmax,
+    unsigned: uintmax,
 
     pub fn toBool(v: Value) bool {
         return switch (v) {
@@ -44,7 +47,7 @@ pub const Value = union(enum) {
                     return;
                 }
 
-                v.* = p.value(@as(u64, @bitCast(s)));
+                v.* = value(@as(uintmax, @bitCast(s)));
                 try p.pp.err(op_tok, .convert_to_positive, .{ side, s, v.unsigned });
             },
         }
@@ -75,6 +78,7 @@ fn peek(p: *Parser) TokenWithExpansionLocs {
 }
 
 pub fn parse(p: *Parser) Error!?Value {
+    assert(p.pp.comp.target.intMaxType().bitSizeof(p.pp.comp) == intmax_width);
     const val = (try p.binaryExpr(0, true)) orelse return null;
 
     const last = p.peek();
@@ -149,39 +153,31 @@ fn binaryExpr(p: *Parser, min_prec: i8, eval: bool) Error!?Value {
         var overflow: u1 = 0;
         switch (operator.id) {
             .percent => if (!rhs.isZero()) switch (lhs) {
-                .signed => |s| switch (p.intmax_width) {
-                    inline 32, 64 => |t| {
-                        const T = @Int(.signed, t);
-                        if (s == std.math.minInt(T) and rhs.signed == -1) {
-                            lhs = p.value(0);
-                        } else {
-                            lhs = p.value(@rem(s, rhs.signed));
-                        }
-                    },
-                    else => unreachable,
+                .signed => |s| {
+                    if (s == std.math.minInt(intmax) and rhs.signed == -1) {
+                        lhs = value(0);
+                    } else {
+                        lhs = value(@rem(s, rhs.signed));
+                    }
                 },
                 .unsigned => |u| {
-                    lhs = p.value(u % rhs.unsigned);
+                    lhs = value(u % rhs.unsigned);
                 },
             } else if (eval) {
                 try p.pp.err(operator, .division_by_zero, .{"remainder"});
                 return null;
             },
             .slash => if (!rhs.isZero()) switch (lhs) {
-                .signed => |s| switch (p.intmax_width) {
-                    inline 32, 64 => |t| {
-                        const T = @Int(.signed, t);
-                        if (s == std.math.minInt(T) and rhs.signed == -1) {
-                            overflow = 1;
-                            lhs = p.value(std.math.minInt(T));
-                        } else {
-                            lhs = p.value(@divTrunc(s, rhs.signed));
-                        }
-                    },
-                    else => unreachable,
+                .signed => |s| {
+                    if (s == std.math.minInt(intmax) and rhs.signed == -1) {
+                        overflow = 1;
+                        lhs = value(std.math.minInt(intmax));
+                    } else {
+                        lhs = value(@divTrunc(s, rhs.signed));
+                    }
                 },
                 .unsigned => |u| {
-                    lhs = p.value(u / rhs.unsigned);
+                    lhs = value(u / rhs.unsigned);
                 },
             } else if (eval) {
                 try p.pp.err(operator, .division_by_zero, .{"division"});
@@ -190,48 +186,40 @@ fn binaryExpr(p: *Parser, min_prec: i8, eval: bool) Error!?Value {
             .asterisk => switch (lhs) {
                 .signed => |s| {
                     const prod, overflow = @mulWithOverflow(s, rhs.signed);
-                    lhs = p.value(prod);
+                    lhs = value(prod);
                 },
                 .unsigned => |u| {
-                    lhs = p.value(u *% rhs.unsigned);
+                    lhs = value(u *% rhs.unsigned);
                 },
             },
             .plus => switch (lhs) {
                 .signed => |s| {
                     const sum, overflow = @addWithOverflow(s, rhs.signed);
-                    lhs = p.value(sum);
+                    lhs = value(sum);
                 },
                 .unsigned => |u| {
-                    lhs = p.value(u +% rhs.unsigned);
+                    lhs = value(u +% rhs.unsigned);
                 },
             },
             .minus => switch (lhs) {
                 .signed => |s| {
                     const diff, overflow = @subWithOverflow(s, rhs.signed);
-                    lhs = p.value(diff);
+                    lhs = value(diff);
                 },
                 .unsigned => |u| {
-                    lhs = p.value(u -% rhs.unsigned);
+                    lhs = value(u -% rhs.unsigned);
                 },
             },
             .angle_bracket_angle_bracket_left => switch (rhs) {
-                inline else => |amt| if (amt < 0 or amt >= p.intmax_width) {
+                inline else => |amt| if (amt < 0 or amt >= intmax_width) {
                     overflow = 1;
                     switch (lhs) {
                         inline else => |*v| v.* = 0,
                     }
                 } else switch (lhs) {
-                    inline else => |v| switch (p.intmax_width) {
-                        inline 32, 64 => |t| {
-                            const T = @TypeOf(v);
-                            const ShiftT = @Int(@typeInfo(T).int.signedness, t);
-                            const res, overflow = @shlWithOverflow(
-                                @as(ShiftT, @intCast(v)),
-                                @as(std.math.Log2Int(ShiftT), @intCast(amt)),
-                            );
-                            lhs = p.value(@as(T, res));
-                        },
-                        else => unreachable,
+                    inline else => |v| {
+                        const res, overflow = @shlWithOverflow(v, @as(u6, @intCast(amt)));
+                        lhs = value(res);
                     },
                 },
             },
@@ -243,92 +231,92 @@ fn binaryExpr(p: *Parser, min_prec: i8, eval: bool) Error!?Value {
                     }
                 } else switch (lhs) {
                     inline else => |v| {
-                        if (amt >= p.intmax_width) {
+                        if (amt >= intmax_width) {
                             overflow = 1;
-                            lhs = p.value(v >> @as(u6, @intCast(p.intmax_width - 1)));
+                            lhs = value(v >> @as(u6, @intCast(intmax_width - 1)));
                         } else {
-                            lhs = p.value(v >> @as(u6, @intCast(amt)));
+                            lhs = value(v >> @as(u6, @intCast(amt)));
                         }
                     },
                 },
             },
             .angle_bracket_left_equal => switch (lhs) {
                 .signed => |s| {
-                    lhs = p.value(s <= rhs.signed);
+                    lhs = value(s <= rhs.signed);
                 },
                 .unsigned => |u| {
-                    lhs = p.value(u <= rhs.unsigned);
+                    lhs = value(u <= rhs.unsigned);
                 },
             },
             .angle_bracket_left => switch (lhs) {
                 .signed => |s| {
-                    lhs = p.value(s < rhs.signed);
+                    lhs = value(s < rhs.signed);
                 },
                 .unsigned => |u| {
-                    lhs = p.value(u < rhs.unsigned);
+                    lhs = value(u < rhs.unsigned);
                 },
             },
             .angle_bracket_right_equal => switch (lhs) {
                 .signed => |s| {
-                    lhs = p.value(s >= rhs.signed);
+                    lhs = value(s >= rhs.signed);
                 },
                 .unsigned => |u| {
-                    lhs = p.value(u >= rhs.unsigned);
+                    lhs = value(u >= rhs.unsigned);
                 },
             },
             .angle_bracket_right => switch (lhs) {
                 .signed => |s| {
-                    lhs = p.value(s > rhs.signed);
+                    lhs = value(s > rhs.signed);
                 },
                 .unsigned => |u| {
-                    lhs = p.value(u > rhs.unsigned);
+                    lhs = value(u > rhs.unsigned);
                 },
             },
             .bang_equal => switch (lhs) {
                 .signed => |s| {
-                    lhs = p.value(s != rhs.signed);
+                    lhs = value(s != rhs.signed);
                 },
                 .unsigned => |u| {
-                    lhs = p.value(u != rhs.unsigned);
+                    lhs = value(u != rhs.unsigned);
                 },
             },
             .equal_equal => switch (lhs) {
                 .signed => |s| {
-                    lhs = p.value(s == rhs.signed);
+                    lhs = value(s == rhs.signed);
                 },
                 .unsigned => |u| {
-                    lhs = p.value(u == rhs.unsigned);
+                    lhs = value(u == rhs.unsigned);
                 },
             },
             .ampersand => switch (lhs) {
                 .signed => |s| {
-                    lhs = p.value(s & rhs.signed);
+                    lhs = value(s & rhs.signed);
                 },
                 .unsigned => |u| {
-                    lhs = p.value(u & rhs.unsigned);
+                    lhs = value(u & rhs.unsigned);
                 },
             },
             .caret => switch (lhs) {
                 .signed => |s| {
-                    lhs = p.value(s ^ rhs.signed);
+                    lhs = value(s ^ rhs.signed);
                 },
                 .unsigned => |u| {
-                    lhs = p.value(u ^ rhs.unsigned);
+                    lhs = value(u ^ rhs.unsigned);
                 },
             },
             .pipe => switch (lhs) {
                 .signed => |s| {
-                    lhs = p.value(s | rhs.signed);
+                    lhs = value(s | rhs.signed);
                 },
                 .unsigned => |u| {
-                    lhs = p.value(u | rhs.unsigned);
+                    lhs = value(u | rhs.unsigned);
                 },
             },
             .ampersand_ampersand => {
-                lhs = p.value(lhs.toBool() and rhs.toBool());
+                lhs = value(lhs.toBool() and rhs.toBool());
             },
             .pipe_pipe => {
-                lhs = p.value(lhs.toBool() or rhs.toBool());
+                lhs = value(lhs.toBool() or rhs.toBool());
             },
             .question_mark => {
                 const colon = p.next();
@@ -429,10 +417,10 @@ fn primaryExpr(p: *Parser, eval: bool) Error!?Value {
             }
 
             const base = @backingInt(parsed.prefix);
-            var val: u64 = 0;
+            var val: uintmax = 0;
             var overflow = false;
             for (parsed.bytes) |c| {
-                const digit: u64 = switch (c) {
+                const digit: uintmax = switch (c) {
                     '0'...'9' => c - '0',
                     'A'...'Z' => c - 'A' + 10,
                     'a'...'z' => c - 'a' + 10,
@@ -454,7 +442,7 @@ fn primaryExpr(p: *Parser, eval: bool) Error!?Value {
             if (overflow) {
                 try p.pp.err(num, .int_literal_too_big, .{});
             }
-            const max_int = (@as(u64, 1) << @as(u6, @intCast(p.intmax_width - 1))) - 1;
+            const max_int = std.math.maxInt(intmax);
             if (val > max_int) {
                 if (parsed.suffix.isSignedInteger() and base == 10) {
                     try p.pp.err(num, .implicitly_unsigned_literal, .{});
@@ -513,10 +501,10 @@ fn primaryExpr(p: *Parser, eval: bool) Error!?Value {
                     if (eval and overflow != 0) {
                         try p.pp.err(minus, .overflow, .{});
                     }
-                    return p.value(negated);
+                    return value(negated);
                 },
                 .unsigned => |u| {
-                    return p.value(0 -% u);
+                    return value(0 -% u);
                 },
             }
         },
@@ -524,17 +512,17 @@ fn primaryExpr(p: *Parser, eval: bool) Error!?Value {
             _ = p.next();
             const val = try p.primaryExpr(eval) orelse return null;
             switch (val) {
-                inline else => |i| return p.value(~i),
+                inline else => |i| return value(~i),
             }
         },
         .bang => {
             _ = p.next();
             const val = try p.primaryExpr(eval) orelse return null;
-            return p.value(!val.toBool());
+            return value(!val.toBool());
         },
         .keyword_true, .keyword_false => {
             const literal = p.next();
-            return p.value(literal.id == .keyword_true);
+            return value(literal.id == .keyword_true);
         },
         else => {
             const maybe_ident = p.next();
@@ -546,7 +534,7 @@ fn primaryExpr(p: *Parser, eval: bool) Error!?Value {
                     return null;
                 }
 
-                return p.value(0);
+                return value(0);
             }
 
             try p.pp.err(maybe_ident, .invalid_preproc_expr_start, .{});
@@ -555,20 +543,12 @@ fn primaryExpr(p: *Parser, eval: bool) Error!?Value {
     }
 }
 
-fn value(p: *Parser, val: anytype) Value {
+inline fn value(val: anytype) Value {
     return switch (@TypeOf(val)) {
         comptime_int => .{ .signed = val },
         bool => .{ .signed = @intFromBool(val) },
-        i64 => switch (p.intmax_width) {
-            64 => .{ .signed = val },
-            32 => .{ .signed = @as(i32, @truncate(val)) },
-            else => unreachable,
-        },
-        u64 => switch (p.intmax_width) {
-            64 => .{ .unsigned = val },
-            32 => .{ .unsigned = @as(u32, @truncate(val)) },
-            else => unreachable,
-        },
+        intmax => .{ .signed = val },
+        uintmax => .{ .unsigned = val },
         else => @compileError("invalid value"),
     };
 }

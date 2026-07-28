@@ -1202,7 +1202,6 @@ fn expr(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!bool {
         .pp = pp,
         .tokens = pp.top_expansion_buf.items,
         .eof = tokFromRaw(eof),
-        .intmax_width = @intCast(pp.comp.target.intMaxType().bitSizeof(pp.comp)),
     };
     const val = try parser.parse() orelse return false;
     return val.toBool();
@@ -3249,7 +3248,6 @@ fn embed(pp: *Preprocessor, tokenizer: *Tokenizer) MacroError!void {
                 .pp = pp,
                 .tokens = it.toks[range.start..range.end],
                 .eof = it.toks[it.i - 1],
-                .intmax_width = @intCast(pp.comp.target.intMaxType().bitSizeof(pp.comp)),
             };
             const val = try parser.parse() orelse return;
             const int = switch (val) {
