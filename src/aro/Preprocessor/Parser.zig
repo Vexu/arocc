@@ -120,9 +120,9 @@ fn binaryExpr(p: *Parser, min_prec: i8, eval: bool) Error!?Value {
 
         const operator = p.next();
         const eval_rhs = switch (operator.id) {
-            .ampersand_ampersand => lhs.toBool(),
-            .pipe_pipe => !lhs.toBool(),
-            .question_mark => lhs.toBool(),
+            .ampersand_ampersand => eval and lhs.toBool(),
+            .pipe_pipe => eval and !lhs.toBool(),
+            .question_mark => eval and lhs.toBool(),
             else => eval,
         };
         var rhs = try p.binaryExpr(op_prec + 1, eval_rhs) orelse return null;
@@ -136,9 +136,14 @@ fn binaryExpr(p: *Parser, min_prec: i8, eval: bool) Error!?Value {
             .pipe_pipe,
             .ampersand_ampersand,
             => {},
-            else => if (eval and (lhs == .unsigned or rhs == .unsigned)) {
-                try lhs.toUnsigned(p, operator, "left");
-                try rhs.toUnsigned(p, operator, "right");
+            else => if (lhs == .unsigned or rhs == .unsigned) {
+                if (eval) {
+                    try lhs.toUnsigned(p, operator, "left");
+                    try rhs.toUnsigned(p, operator, "right");
+                } else {
+                    lhs = .{ .unsigned = 0 };
+                    rhs = .{ .unsigned = 0 };
+                }
             },
         }
         var overflow: u1 = 0;
@@ -445,7 +450,7 @@ fn primaryExpr(p: *Parser, eval: bool) Error!?Value {
                 try p.pp.err(num, .int_literal_too_big, .{});
             }
             if (parsed.suffix.isSignedInteger() and base == 10) {
-                const max_int = @as(u64, 1) << @as(u6, @intCast(p.intmax_width - 1));
+                const max_int = (@as(u64, 1) << @as(u6, @intCast(p.intmax_width - 1))) - 1;
                 if (val > max_int) {
                     try p.pp.err(num, .implicitly_unsigned_literal, .{});
                     return .{ .unsigned = val };
@@ -495,10 +500,19 @@ fn primaryExpr(p: *Parser, eval: bool) Error!?Value {
             continue :loop p.peek().id;
         },
         .minus => {
-            _ = p.next();
+            const minus = p.next();
             const val = try p.primaryExpr(eval) orelse return null;
             switch (val) {
-                inline else => |i| return p.value(0 -% i),
+                .signed => |s| {
+                    const negated, const overflow = @subWithOverflow(0, s);
+                    if (eval and overflow != 0) {
+                        try p.pp.err(minus, .overflow, .{});
+                    }
+                    return p.value(negated);
+                },
+                .unsigned => |u| {
+                    return p.value(0 -% u);
+                },
             }
         },
         .tilde => {
