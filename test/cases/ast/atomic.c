@@ -96,7 +96,7 @@ function: 'fn () void'
         implicit cast: (lval_to_rval) '_Atomic(int)'
           implicit compound_assign_dummy_expr: '_Atomic(int)' lvalue
        rhs:
-        implicit cast: (int_cast) '_Atomic(int)' (value: 1)
+        implicit cast: (int_cast) '_Atomic(int)'
           int_literal: 'int' (value: 1)
 
     variable: '_Atomic(float)'

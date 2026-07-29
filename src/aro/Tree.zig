@@ -17,6 +17,73 @@ pub const Token = struct {
 
     pub const List = std.MultiArrayList(Token);
     pub const Id = Tokenizer.Token.Id;
+
+    pub const Precedence = enum(i8) {
+        comma = 1,
+        assign,
+        binary_conditional,
+        conditional,
+        bool_or,
+        bool_and,
+        bit_or,
+        bit_xor,
+        bit_and,
+        equality,
+        comparison,
+        shift,
+        additive,
+        multiplicative,
+        _,
+
+        pub const any: Precedence = @fromBackingInt(0);
+        pub const invalid: Precedence = @fromBackingInt(-1);
+
+        pub fn next(p: Precedence, min: Precedence) Precedence {
+            return switch (p) {
+                .assign => .assign, // Right associative.
+                .conditional => min, // Right associative.
+                else => @fromBackingInt(@backingInt(p) + 1),
+            };
+        }
+
+        pub fn lt(a: Precedence, b: Precedence) bool {
+            return std.math.compare(@backingInt(a), .lt, @backingInt(b));
+        }
+    };
+
+    pub const precedence = std.enums.directEnumArrayDefault(Tree.Token.Id, Precedence, .invalid, 0, .{
+        .comma = .comma,
+        .equal = .assign,
+        .asterisk_equal = .assign,
+        .slash_equal = .assign,
+        .percent_equal = .assign,
+        .plus_equal = .assign,
+        .minus_equal = .assign,
+        .angle_bracket_angle_bracket_left_equal = .assign,
+        .angle_bracket_angle_bracket_right_equal = .assign,
+        .ampersand_equal = .assign,
+        .caret_equal = .assign,
+        .pipe_equal = .assign,
+        .question_mark = .conditional,
+        .pipe_pipe = .bool_or,
+        .ampersand_ampersand = .bool_and,
+        .pipe = .bit_or,
+        .caret = .bit_xor,
+        .ampersand = .bit_and,
+        .equal_equal = .equality,
+        .bang_equal = .equality,
+        .angle_bracket_right = .comparison,
+        .angle_bracket_right_equal = .comparison,
+        .angle_bracket_left = .comparison,
+        .angle_bracket_left_equal = .comparison,
+        .angle_bracket_angle_bracket_right = .shift,
+        .angle_bracket_angle_bracket_left = .shift,
+        .plus = .additive,
+        .minus = .additive,
+        .asterisk = .multiplicative,
+        .slash = .multiplicative,
+        .percent = .multiplicative,
+    });
 };
 
 pub const TokenWithExpansionLocs = struct {

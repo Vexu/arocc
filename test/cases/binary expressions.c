@@ -116,7 +116,7 @@ binary expressions.c:56:9: error: invalid operands to binary expression ('double
 binary expressions.c:57:12: error: cannot take the address of an rvalue
 binary expressions.c:57:9: error: invalid operands to binary expression ('double' and 'int *')
 binary expressions.c:62:7: error: invalid operands to binary expression ('int' and 'float')
-binary expressions.c:67:5: error: used type 'void' where arithmetic or pointer type is required
+binary expressions.c:67:15: error: used type 'void' where arithmetic or pointer type is required
 binary expressions.c:72:16: error: arithmetic on a pointer to an incomplete type 'struct Foo'
 binary expressions.c:77:18: error: invalid operands to binary expression ('char *' and 'char *')
 */
