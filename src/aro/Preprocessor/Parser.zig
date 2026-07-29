@@ -384,6 +384,7 @@ fn primaryExpr(p: *Parser, eval: bool) Error!?Value {
             if (r_paren.id != .r_paren) {
                 try p.pp.err(r_paren, .closing_paren, .{});
                 try p.pp.err(l_paren, .to_match_paren, .{});
+                return null;
             }
             return res;
         },
@@ -409,6 +410,7 @@ fn primaryExpr(p: *Parser, eval: bool) Error!?Value {
                 if (r_paren.id != .r_paren) {
                     try p.pp.err(r_paren, .closing_paren, .{});
                     try p.pp.err(l_paren, .to_match_paren, .{});
+                    return null;
                 }
             }
 

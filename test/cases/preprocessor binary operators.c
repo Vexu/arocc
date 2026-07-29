@@ -121,6 +121,14 @@ error "failed"
 #error bad big hex int
 #endif
 
+#if defined(FOO foo
+#error bad
+#endif
+
+#if (1 foo
+#error bad
+#endif
+
 /** manifest:
 syntax
 
@@ -153,4 +161,8 @@ preprocessor binary operators.c:104:9: warning: integer overflow in preprocessor
 preprocessor binary operators.c:108:9: warning: integer overflow in preprocessor expression
 preprocessor binary operators.c:112:33: warning: integer overflow in preprocessor expression
 preprocessor binary operators.c:120:24: warning: right side of operator converted from negative value to unsigned: -1 to 18446744073709551615
+preprocessor binary operators.c:124:17: error: expected closing ')'
+preprocessor binary operators.c:124:12: note: to match this '('
+preprocessor binary operators.c:128:8: error: expected closing ')'
+preprocessor binary operators.c:128:5: note: to match this '('
 */
