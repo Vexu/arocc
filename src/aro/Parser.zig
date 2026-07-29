@@ -18,12 +18,11 @@ const Source = @import("Source.zig");
 const StringId = @import("StringInterner.zig").StringId;
 const SymbolStack = @import("SymbolStack.zig");
 const Symbol = SymbolStack.Symbol;
-const text_literal = @import("text_literal.zig");
 const Tokenizer = @import("Tokenizer.zig");
+const number_literal = Tokenizer.number_literal;
+const text_literal = Tokenizer.text_literal;
 const Tree = @import("Tree.zig");
 const Token = Tree.Token;
-const NumberPrefix = Token.NumberPrefix;
-const NumberSuffix = Token.NumberSuffix;
 const TokenIndex = Tree.TokenIndex;
 const Node = Tree.Node;
 const TypeStore = @import("TypeStore.zig");
@@ -147,7 +146,6 @@ local_unused_err_count: u32 = 0,
 
 // configuration and miscellaneous info
 no_eval: bool = false,
-in_macro: bool = false,
 extension_suppressed: bool = false,
 contains_address_of_label: bool = false,
 label_count: u32 = 0,
@@ -765,7 +763,6 @@ fn errDeprecated(p: *Parser, tok_i: TokenIndex, diagnostic: Diagnostic, msg: ?[]
 }
 
 fn addNode(p: *Parser, node: Tree.Node) Allocator.Error!Node.Index {
-    if (p.in_macro) return undefined;
     return p.tree.addNode(node);
 }
 
@@ -779,7 +776,6 @@ fn errExpectedToken(p: *Parser, expected: Token.Id, actual: Token.Id) Error {
 }
 
 fn addList(p: *Parser, nodes: []const Node.Index) Allocator.Error!Tree.Node.Range {
-    if (p.in_macro) return Tree.Node.Range{ .start = 0, .end = 0 };
     const start: u32 = @intCast(p.data.items.len);
     try p.data.appendSlice(nodes);
     const end: u32 = @intCast(p.data.items.len);
@@ -6159,19 +6155,6 @@ fn returnStmt(p: *Parser) Error!?Node.Index {
 
 // ====== expressions ======
 
-pub fn macroExpr(p: *Parser, check_trailing: bool) Compilation.Error!Value {
-    const res = p.expect(condExpr) catch |e| switch (e) {
-        error.OutOfMemory => return error.OutOfMemory,
-        error.FatalError => return error.FatalError,
-        error.ParsingFailed => return .null,
-    };
-    if (check_trailing and p.tok_ids[p.tok_i] != .eof) {
-        try p.err(p.tok_i, .invalid_preproc_operator, .{});
-        return .null;
-    }
-    return res.val;
-}
-
 const CallExpr = union(enum) {
     standard: Node.Index,
     builtin: struct {
@@ -7118,7 +7101,7 @@ pub const Result = struct {
 
             res.qt = try res.qt.decay(p.comp);
             try res.implicitCast(p, .array_to_pointer, tok);
-        } else if (!p.in_macro and p.tree.isLval(res.node)) {
+        } else if (p.tree.isLval(res.node)) {
             res.qt = res.qt.unqualified();
             try res.implicitCast(p, .lval_to_rval, tok);
         }
@@ -7396,7 +7379,7 @@ pub const Result = struct {
             }
         }
 
-        if (res.qt.isInt(p.comp) and !p.in_macro) {
+        if (res.qt.isInt(p.comp)) {
             if (p.tree.bitfieldWidth(res.node, true)) |width| {
                 if (res.qt.promoteBitfield(p.comp, width)) |promotion_ty| {
                     return res.castToInt(p, promotion_ty, tok);
@@ -7514,7 +7497,6 @@ pub const Result = struct {
 
     /// Saves value and replaces it with `.unavailable`.
     fn saveValue(res: *Result, p: *Parser) !void {
-        assert(!p.in_macro);
         try res.putValue(p);
         res.val = .{};
     }
@@ -7522,7 +7504,7 @@ pub const Result = struct {
     /// Saves value without altering the result.
     fn putValue(res: *const Result, p: *Parser) !void {
         if (res.val.opt_ref == .none or res.val.opt_ref == .null) return;
-        if (!p.in_macro) try p.tree.value_map.put(p.comp.gpa, res.node, res.val);
+        try p.tree.value_map.put(p.comp.gpa, res.node, res.val);
     }
 
     fn castType(res: *Result, p: *Parser, dest_qt: QualType, operand_tok: TokenIndex, l_paren: TokenIndex) !void {
@@ -8601,8 +8583,7 @@ fn mulExpr(p: *Parser) Error!?Result {
 
         if (rhs.val.isZero(p.comp) and tag != .mul_expr and !p.no_eval and lhs.qt.isInt(p.comp) and rhs.qt.isInt(p.comp)) {
             lhs.val = .{};
-            try p.err(tok, if (p.in_macro) .division_by_zero_macro else .division_by_zero, if (tag == .div_expr) .{"division"} else .{"remainder"});
-            if (p.in_macro) return error.ParsingFailed;
+            try p.err(tok, .division_by_zero, if (tag == .div_expr) .{"division"} else .{"remainder"});
         }
 
         if (try lhs.adjustTypes(tok, &rhs, p, if (tag == .mod_expr) .integer else .arithmetic)) {
@@ -8612,15 +8593,10 @@ fn mulExpr(p: *Parser) Error!?Result {
                 .div_expr => if (try lhs.val.div(lhs.val, rhs.val, lhs.qt, p.comp) and
                     lhs.qt.signedness(p.comp) != .unsigned) try p.err(tok, .overflow, .{lhs}),
                 .mod_expr => {
-                    var res = try Value.rem(lhs.val, rhs.val, lhs.qt, p.comp);
+                    const res = try Value.rem(lhs.val, rhs.val, lhs.qt, p.comp);
                     if (res.opt_ref == .none) {
-                        if (p.in_macro) {
-                            // match clang behavior by defining invalid remainder to be zero in macros
-                            res = .zero;
-                        } else {
-                            try lhs.saveValue(p);
-                            try rhs.saveValue(p);
-                        }
+                        try lhs.saveValue(p);
+                        try rhs.saveValue(p);
                     }
                     lhs.val = res;
                 },
@@ -9189,10 +9165,6 @@ fn unExpr(p: *Parser) Error!?Result {
             };
         },
         .ampersand => {
-            if (p.in_macro) {
-                try p.err(p.tok_i, .invalid_preproc_operator, .{});
-                return error.ParsingFailed;
-            }
             const orig_tok_i = p.tok_i;
             p.tok_i += 1;
             var operand = try p.expect(castExpr);
@@ -10644,7 +10616,6 @@ fn primaryExpr(p: *Parser) Error!?Result {
                     },
                 }),
             };
-            std.debug.assert(!p.in_macro); // Should have been replaced with .one / .zero
             try res.putValue(p);
             return res;
         },
@@ -10751,31 +10722,8 @@ fn primaryExpr(p: *Parser) Error!?Result {
         .empty_char_literal,
         .unterminated_char_literal,
         => return try p.charLiteral(),
-        .zero => {
-            defer p.tok_i += 1;
-            const int_qt: QualType = if (p.in_macro) p.comp.type_store.intmax else .int;
-            const res: Result = .{
-                .val = .zero,
-                .qt = int_qt,
-                .node = try p.addNode(.{ .int_literal = .{ .qt = int_qt, .literal_tok = p.tok_i } }),
-            };
-            try res.putValue(p);
-            return res;
-        },
-        .one => {
-            defer p.tok_i += 1;
-            const int_qt: QualType = if (p.in_macro) p.comp.type_store.intmax else .int;
-            const res: Result = .{
-                .val = .one,
-                .qt = int_qt,
-                .node = try p.addNode(.{ .int_literal = .{ .qt = int_qt, .literal_tok = p.tok_i } }),
-            };
-            try res.putValue(p);
-            return res;
-        },
         .pp_num => return try p.ppNum(),
         .embed_byte => {
-            assert(!p.in_macro);
             const loc = p.pp.tokens.items(.loc)[p.tok_i];
             defer p.tok_i += 1;
             const buf = p.comp.getSource(.generated).buf[loc.byte_offset..];
@@ -10808,7 +10756,7 @@ fn makePredefinedIdentifier(p: *Parser, slice: []const u8) !Result {
     const val = try Value.intern(p.comp, .{ .bytes = slice });
 
     const str_lit = try p.addNode(.{ .string_literal_expr = .{ .qt = array_qt, .literal_tok = p.tok_i, .kind = .ascii } });
-    if (!p.in_macro) try p.tree.value_map.put(gpa, str_lit, val);
+    try p.tree.value_map.put(gpa, str_lit, val);
 
     return .{ .qt = array_qt, .node = try p.addNode(.{
         .variable = .{
@@ -10962,127 +10910,42 @@ fn stringLiteral(p: *Parser) Error!Result {
 }
 
 fn charLiteral(p: *Parser) Error!?Result {
-    defer p.tok_i += 1;
-    const tok_id = p.tok_ids[p.tok_i];
+    const literal = p.tok_i;
+    p.tok_i += 1;
+
+    const tok_id = p.tok_ids[literal];
     const char_kind = text_literal.Kind.classify(tok_id, .char_literal) orelse {
         if (tok_id == .empty_char_literal) {
-            try p.err(p.tok_i, .empty_char_literal_error, .{});
+            try p.err(literal, .empty_char_literal_error, .{});
         } else if (tok_id == .unterminated_char_literal) {
-            try p.err(p.tok_i, .unterminated_char_literal_error, .{});
+            try p.err(literal, .unterminated_char_literal_error, .{});
         } else unreachable;
         return .{
             .qt = .int,
             .val = .zero,
-            .node = try p.addNode(.{ .char_literal = .{ .qt = .int, .literal_tok = p.tok_i, .kind = .ascii } }),
+            .node = try p.addNode(.{ .char_literal = .{ .qt = .int, .literal_tok = literal, .kind = .ascii } }),
         };
     };
-    if (char_kind == .utf_8) try p.err(p.tok_i, .u8_char_lit, .{});
-    var val: u32 = 0;
 
-    const gpa = p.comp.gpa;
-    const slice = char_kind.contentSlice(p.tokSlice(p.tok_i));
-
-    var is_multichar = false;
-    if (slice.len == 1 and std.ascii.isAscii(slice[0])) {
-        // fast path: single unescaped ASCII char
-        val = slice[0];
-    } else {
-        const max_codepoint = char_kind.maxCodepoint(p.comp);
-        var char_literal_parser: text_literal.Parser = .{
-            .comp = p.comp,
-            .literal = slice,
-            .kind = char_kind,
-            .max_codepoint = max_codepoint,
-            .loc = p.pp.tokens.items(.loc)[p.tok_i],
-            .expansion_locs = p.pp.expansionSlice(p.tok_i),
-        };
-
-        const max_chars_expected = 4;
-        var bfa_buf: [max_chars_expected]u32 = undefined;
-        var bfa: std.heap.BufferFirstAllocator = .init(@ptrCast(&bfa_buf), gpa);
-        const allocator = bfa.allocator();
-        var chars: std.ArrayList(u32) = .empty;
-        defer chars.deinit(allocator);
-
-        chars.ensureUnusedCapacity(allocator, max_chars_expected) catch unreachable; // stack allocation already succeeded
-
-        while (try char_literal_parser.next()) |item| switch (item) {
-            .value => |v| try chars.append(allocator, v),
-            .codepoint => |c| try chars.append(allocator, c),
-            .improperly_encoded => |s| {
-                try chars.ensureUnusedCapacity(allocator, s.len);
-                for (s) |c| chars.appendAssumeCapacity(c);
-            },
-            .utf8_text => |view| {
-                var it = view.iterator();
-                var max_codepoint_seen: u21 = 0;
-                try chars.ensureUnusedCapacity(allocator, view.bytes.len);
-                while (it.nextCodepoint()) |c| {
-                    max_codepoint_seen = @max(max_codepoint_seen, c);
-                    chars.appendAssumeCapacity(c);
-                }
-                if (max_codepoint_seen > max_codepoint) {
-                    try char_literal_parser.err(.char_too_large, .{});
-                }
-            },
-        };
-
-        is_multichar = chars.items.len > 1;
-        if (is_multichar) {
-            if (char_kind == .char and chars.items.len == 4) {
-                try char_literal_parser.warn(.four_char_char_literal, .{});
-            } else if (char_kind == .char) {
-                try char_literal_parser.warn(.multichar_literal_warning, .{});
-            } else {
-                const kind: []const u8 = switch (char_kind) {
-                    .wide => "wide",
-                    .utf_8, .utf_16, .utf_32 => "Unicode",
-                    else => unreachable,
-                };
-                try char_literal_parser.err(.invalid_multichar_literal, .{kind});
-            }
-        }
-
-        var multichar_overflow = false;
-        if (char_kind == .char and is_multichar) {
-            for (chars.items) |item| {
-                val, const overflowed = @shlWithOverflow(val, 8);
-                multichar_overflow = multichar_overflow or overflowed != 0;
-                val += @as(u8, @truncate(item));
-            }
-        } else if (chars.items.len > 0) {
-            val = chars.items[chars.items.len - 1];
-        }
-
-        if (multichar_overflow) {
-            try char_literal_parser.err(.char_lit_too_wide, .{});
-        }
-    }
+    var char_literal_parser: text_literal.Parser = .{
+        .comp = p.comp,
+        .literal = char_kind.contentSlice(p.tokSlice(literal)),
+        .kind = char_kind,
+        .max_codepoint = char_kind.maxCodepoint(p.comp),
+        .loc = p.pp.tokens.items(.loc)[literal],
+        .expansion_locs = p.pp.expansionSlice(literal),
+    };
+    const parsed = try char_literal_parser.parse();
 
     const char_literal_qt = char_kind.charLiteralType(p.comp);
-    // This is the type the literal will have if we're in a macro; macros always operate on intmax_t/uintmax_t values
-    const macro_qt = if (char_literal_qt.signedness(p.comp) == .unsigned or
-        (char_kind == .char and p.comp.getCharSignedness() == .unsigned))
-        try p.comp.type_store.intmax.makeIntUnsigned(p.comp)
-    else
-        p.comp.type_store.intmax;
-
-    var value = try Value.int(val, p.comp);
-    // C99 6.4.4.4.10
-    // > If an integer character constant contains a single character or escape sequence,
-    // > its value is the one that results when an object with type char whose value is
-    // > that of the single character or escape sequence is converted to type int.
-    // This conversion only matters if `char` is signed and has a high-order bit of `1`
-    if (char_kind == .char and !is_multichar and val > 0x7F and p.comp.getCharSignedness() == .signed) {
-        _ = try value.intCast(.char, p.comp);
-    }
-
     const res: Result = .{
-        .qt = if (p.in_macro) macro_qt else char_literal_qt,
-        .val = value,
+        .qt = char_literal_qt,
+        .val = switch (parsed) {
+            inline else => |v| try Value.int(v, p.comp),
+        },
         .node = try p.addNode(.{ .char_literal = .{
             .qt = char_literal_qt,
-            .literal_tok = p.tok_i,
+            .literal_tok = literal,
             .kind = switch (char_kind) {
                 .char, .unterminated => .ascii,
                 .wide => .wide,
@@ -11092,11 +10955,11 @@ fn charLiteral(p: *Parser) Error!?Result {
             },
         } }),
     };
-    if (!p.in_macro) try p.tree.value_map.put(gpa, res.node, res.val);
+    try p.tree.value_map.put(p.comp.gpa, res.node, res.val);
     return res;
 }
 
-fn parseFloat(p: *Parser, buf: []const u8, suffix: NumberSuffix, tok_i: TokenIndex) !Result {
+fn parseFloat(p: *Parser, buf: []const u8, suffix: number_literal.Suffix, tok_i: TokenIndex) !Result {
     const qt: QualType = switch (suffix) {
         .None, .I => .double,
         .F, .IF => .float,
@@ -11134,13 +10997,13 @@ fn parseFloat(p: *Parser, buf: []const u8, suffix: NumberSuffix, tok_i: TokenInd
             else => unreachable,
         };
     });
-    var res = Result{
+    var res: Result = .{
         .qt = qt,
         .node = try p.addNode(.{ .float_literal = .{ .qt = qt, .literal_tok = tok_i } }),
         .val = val,
     };
     if (suffix.isImaginary()) {
-        try p.err(p.tok_i, .gnu_imaginary_constant, .{});
+        try p.err(tok_i, .gnu_imaginary_constant, .{});
         res.qt = try qt.toComplex(p.comp);
 
         res.val = try Value.intern(p.comp, switch (qt.bitSizeof(p.comp)) {
@@ -11156,54 +11019,7 @@ fn parseFloat(p: *Parser, buf: []const u8, suffix: NumberSuffix, tok_i: TokenInd
     return res;
 }
 
-fn getIntegerPart(p: *Parser, buf: []const u8, prefix: NumberPrefix, tok_i: TokenIndex) ![]const u8 {
-    if (buf[0] == '.') return "";
-
-    if (!prefix.digitAllowed(buf[0])) {
-        switch (prefix) {
-            .binary => try p.err(tok_i, .invalid_binary_digit, .{text_literal.Ascii.init(buf[0])}),
-            .octal => try p.err(tok_i, .invalid_octal_digit, .{text_literal.Ascii.init(buf[0])}),
-            .hex => try p.err(tok_i, .invalid_int_suffix, .{buf}),
-            .decimal => unreachable,
-        }
-        return error.ParsingFailed;
-    }
-
-    for (buf, 0..) |c, idx| {
-        if (idx == 0) continue;
-        switch (c) {
-            '.' => return buf[0..idx],
-            'p', 'P' => return if (prefix == .hex) buf[0..idx] else {
-                try p.err(tok_i, .invalid_int_suffix, .{buf[idx..]});
-                return error.ParsingFailed;
-            },
-            'e', 'E' => {
-                switch (prefix) {
-                    .hex => continue,
-                    .decimal => return buf[0..idx],
-                    .binary => try p.err(tok_i, .invalid_binary_digit, .{text_literal.Ascii.init(c)}),
-                    .octal => try p.err(tok_i, .invalid_octal_digit, .{text_literal.Ascii.init(c)}),
-                }
-                return error.ParsingFailed;
-            },
-            '0'...'9', 'a'...'d', 'A'...'D', 'f', 'F' => {
-                if (!prefix.digitAllowed(c)) {
-                    switch (prefix) {
-                        .binary => try p.err(tok_i, .invalid_binary_digit, .{text_literal.Ascii.init(c)}),
-                        .octal => try p.err(tok_i, .invalid_octal_digit, .{text_literal.Ascii.init(c)}),
-                        .decimal, .hex => try p.err(tok_i, .invalid_int_suffix, .{buf[idx..]}),
-                    }
-                    return error.ParsingFailed;
-                }
-            },
-            '\'' => {},
-            else => return buf[0..idx],
-        }
-    }
-    return buf;
-}
-
-fn fixedSizeInt(p: *Parser, base: u8, buf: []const u8, suffix: NumberSuffix, tok_i: TokenIndex) !Result {
+fn fixedSizeInt(p: *Parser, base: u8, buf: []const u8, suffix: number_literal.Suffix, tok_i: TokenIndex) !Result {
     var val: u64 = 0;
     var overflow = false;
     for (buf) |c| {
@@ -11294,10 +11110,7 @@ fn fixedSizeInt(p: *Parser, base: u8, buf: []const u8, suffix: NumberSuffix, tok
     return res;
 }
 
-fn parseInt(p: *Parser, prefix: NumberPrefix, buf: []const u8, suffix: NumberSuffix, tok_i: TokenIndex) !Result {
-    if (prefix == .binary) {
-        try p.err(tok_i, .binary_integer_literal, .{});
-    }
+fn parseInt(p: *Parser, prefix: number_literal.Prefix, buf: []const u8, suffix: number_literal.Suffix, tok_i: TokenIndex) !Result {
     const base = @backingInt(prefix);
     var res = if (suffix.isBitInt())
         try p.bitInt(base, buf, suffix, tok_i)
@@ -11313,10 +11126,8 @@ fn parseInt(p: *Parser, prefix: NumberPrefix, buf: []const u8, suffix: NumberSuf
     return res;
 }
 
-fn bitInt(p: *Parser, base: u8, buf: []const u8, suffix: NumberSuffix, tok_i: TokenIndex) Error!Result {
+fn bitInt(p: *Parser, base: u8, buf: []const u8, suffix: number_literal.Suffix, tok_i: TokenIndex) Error!Result {
     const gpa = p.comp.gpa;
-    try p.err(tok_i, .pre_c23_compat, .{"'_BitInt' suffix for literals"});
-    try p.err(tok_i, .bitint_suffix, .{});
 
     var managed = try big.int.Managed.init(gpa);
     defer managed.deinit();
@@ -11360,109 +11171,29 @@ fn bitInt(p: *Parser, base: u8, buf: []const u8, suffix: NumberSuffix, tok_i: To
     return res;
 }
 
-fn getFracPart(p: *Parser, buf: []const u8, prefix: NumberPrefix, tok_i: TokenIndex) ![]const u8 {
-    if (buf.len == 0 or buf[0] != '.') return "";
-    assert(prefix != .octal);
-    if (prefix == .binary) {
-        try p.err(tok_i, .invalid_int_suffix, .{buf});
-        return error.ParsingFailed;
-    }
-    for (buf, 0..) |c, idx| {
-        if (idx == 0) continue;
-        if (c == '\'') continue;
-        if (!prefix.digitAllowed(c)) return buf[0..idx];
-    }
-    return buf;
-}
-
-fn getExponent(p: *Parser, buf: []const u8, prefix: NumberPrefix, tok_i: TokenIndex) ![]const u8 {
-    if (buf.len == 0) return "";
-
-    switch (buf[0]) {
-        'e', 'E' => assert(prefix == .decimal),
-        'p', 'P' => if (prefix != .hex) {
-            try p.err(tok_i, .invalid_float_suffix, .{buf});
-            return error.ParsingFailed;
-        },
-        else => return "",
-    }
-    const end = for (buf, 0..) |c, idx| {
-        if (idx == 0) continue;
-        if (idx == 1 and (c == '+' or c == '-')) continue;
-        switch (c) {
-            '0'...'9' => {},
-            '\'' => continue,
-            else => break idx,
-        }
-    } else buf.len;
-    const exponent = buf[0..end];
-    if (std.mem.findAny(u8, exponent, "0123456789") == null) {
-        try p.err(tok_i, .exponent_has_no_digits, .{});
-        return error.ParsingFailed;
-    }
-    return exponent;
-}
-
 /// Using an explicit `tok_i` parameter instead of `p.tok_i` makes it easier
 /// to parse numbers in pragma handlers.
-pub fn parseNumberToken(p: *Parser, tok_i: TokenIndex) !Result {
-    const buf = p.tokSlice(tok_i);
-    const allow_fixed_size_int_suffixes = p.comp.langopts.allowFixedSizedIntSuffixes();
-    const prefix = NumberPrefix.fromString(buf, allow_fixed_size_int_suffixes);
-    const after_prefix = buf[prefix.stringLen()..];
-
-    const int_part = try p.getIntegerPart(after_prefix, prefix, tok_i);
-
-    const after_int = after_prefix[int_part.len..];
-
-    const frac = try p.getFracPart(after_int, prefix, tok_i);
-    const after_frac = after_int[frac.len..];
-
-    const exponent = try p.getExponent(after_frac, prefix, tok_i);
-    const suffix_str = after_frac[exponent.len..];
-    const is_float = (exponent.len > 0 or frac.len > 0);
-    const suffix = NumberSuffix.fromString(suffix_str, if (is_float) .float else .int, allow_fixed_size_int_suffixes) orelse {
-        if (is_float) {
-            try p.err(tok_i, .invalid_float_suffix, .{suffix_str});
-        } else {
-            try p.err(tok_i, .invalid_int_suffix, .{suffix_str});
-        }
-        return error.ParsingFailed;
+pub fn parseNumberToken(p: *Parser, num: TokenIndex) !Result {
+    var number_literal_parser: number_literal.Parser = .{
+        .comp = p.comp,
+        .literal = p.tokSlice(num),
+        .loc = p.pp.tokens.items(.loc)[num],
+        .expansion_locs = p.pp.expansionSlice(num),
     };
-    if (suffix.isFloat80() and p.comp.float80Type() == null) {
-        try p.err(tok_i, .invalid_float_suffix, .{suffix_str});
-        return error.ParsingFailed;
-    }
+    const parsed = try number_literal_parser.parse();
 
-    if (is_float) {
-        assert(prefix == .hex or prefix == .decimal);
-        if (prefix == .hex and exponent.len == 0) {
-            try p.err(tok_i, .hex_floating_constant_requires_exponent, .{});
-            return error.ParsingFailed;
-        }
-        const number = buf[0 .. buf.len - suffix_str.len];
-        return p.parseFloat(number, suffix, tok_i);
+    if (parsed.is_float) {
+        return p.parseFloat(parsed.bytes, parsed.suffix, num);
     } else {
-        return p.parseInt(prefix, int_part, suffix, tok_i);
+        return p.parseInt(parsed.prefix, parsed.bytes, parsed.suffix, num);
     }
 }
 
 fn ppNum(p: *Parser) Error!Result {
-    defer p.tok_i += 1;
-    var res = try p.parseNumberToken(p.tok_i);
-    if (p.in_macro) {
-        const res_sk = res.qt.scalarKind(p.comp);
-        if (res_sk.isFloat() or !res_sk.isReal()) {
-            try p.err(p.tok_i, .float_literal_in_pp_expr, .{});
-            return error.ParsingFailed;
-        }
-        res.qt = if (res.qt.signedness(p.comp) == .unsigned)
-            try p.comp.type_store.intmax.makeIntUnsigned(p.comp)
-        else
-            p.comp.type_store.intmax;
-    } else if (res.val.opt_ref != .none) {
-        try res.putValue(p);
-    }
+    const num = p.tok_i;
+    p.tok_i += 1;
+    var res = try p.parseNumberToken(num);
+    try res.putValue(p);
     return res;
 }
 

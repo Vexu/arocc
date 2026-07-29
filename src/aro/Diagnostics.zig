@@ -518,8 +518,9 @@ pub fn formatArgs(w: *std.Io.Writer, fmt: []const u8, args: anytype) std.Io.Writ
         i += switch (@TypeOf(arg)) {
             []const u8 => try formatString(w, fmt[i..], arg),
             else => switch (@typeInfo(@TypeOf(arg))) {
-                .int, .comptime_int => try Diagnostics.formatInt(w, fmt[i..], arg),
-                .pointer => try Diagnostics.formatString(w, fmt[i..], arg),
+                .int, .comptime_int => try formatInt(w, fmt[i..], arg),
+                .pointer => try formatString(w, fmt[i..], arg),
+                .@"struct" => try arg.format(w, fmt[i..]),
                 else => comptime unreachable,
             },
         };

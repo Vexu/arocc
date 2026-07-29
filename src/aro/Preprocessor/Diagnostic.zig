@@ -116,11 +116,6 @@ pub const extra_tokens_directive_end: Diagnostic = .{
     .opt = .@"extra-tokens",
 };
 
-pub const expected_value_in_expr: Diagnostic = .{
-    .fmt = "expected value in expression",
-    .kind = .@"error",
-};
-
 pub const defined_as_macro_name: Diagnostic = .{
     .fmt = "'defined' cannot be used as a macro name",
     .kind = .@"error",
@@ -196,11 +191,6 @@ pub const header_str_closing: Diagnostic = .{
 pub const header_str_match: Diagnostic = .{
     .fmt = "to match this '<'",
     .kind = .note,
-};
-
-pub const string_literal_in_pp_expr: Diagnostic = .{
-    .fmt = "string literal in preprocessor expression",
-    .kind = .@"error",
 };
 
 pub const empty_char_literal_warning: Diagnostic = .{
@@ -367,6 +357,64 @@ pub const invalid_preproc_expr_start: Diagnostic = .{
     .kind = .@"error",
 };
 
+pub const expected_value_in_expr: Diagnostic = .{
+    .fmt = "expected value in expression",
+    .kind = .@"error",
+};
+
+pub const invalid_preproc_operator: Diagnostic = .{
+    .fmt = "token is not a valid binary operator in a preprocessor subexpression",
+    .kind = .@"error",
+};
+
+pub const convert_to_positive: Diagnostic = .{
+    .fmt = "{s} side of operator converted from negative value to unsigned: {d} to {d}",
+    .kind = .warning,
+};
+
+pub const division_by_zero: Diagnostic = .{
+    .fmt = "{s} by zero in preprocessor expression",
+    .kind = .@"error",
+};
+
+pub const comma_operator: Diagnostic = .{
+    .fmt = "comma operator in operand of #if",
+    .kind = .warning,
+    .extension = true,
+};
+
+pub const overflow: Diagnostic = .{
+    .fmt = "integer overflow in preprocessor expression",
+    .kind = .warning,
+};
+
+pub const expected_colon: Diagnostic = .{
+    .fmt = "expected ':'",
+    .kind = .@"error",
+};
+
+pub const to_match_question: Diagnostic = .{
+    .fmt = "to match this '?'",
+    .kind = .note,
+};
+
+pub const float_literal_in_expr: Diagnostic = .{
+    .fmt = "floating point literal in preprocessor expression",
+    .kind = .@"error",
+};
+
+pub const int_literal_too_big: Diagnostic = .{
+    .fmt = "integer literal is too large to be represented in any integer type",
+    .kind = .@"error",
+};
+
+pub const implicitly_unsigned_literal: Diagnostic = .{
+    .fmt = "integer literal is too large to be represented in a signed integer type, interpreting as unsigned",
+    .opt = .@"implicitly-unsigned-literal",
+    .kind = .warning,
+    .extension = true,
+};
+
 pub const newline_eof: Diagnostic = .{
     .fmt = "no newline at end of file",
     .opt = .@"newline-eof",
@@ -433,11 +481,6 @@ pub const expected_arguments: Diagnostic = .{
 pub const expected_at_least_arguments: Diagnostic = .{
     .fmt = "expected at least {d} argument(s) got {d}",
     .kind = .warning,
-};
-
-pub const invalid_preproc_operator: Diagnostic = .{
-    .fmt = "token is not a valid binary operator in a preprocessor subexpression",
-    .kind = .@"error",
 };
 
 pub const expected_str_literal_in: Diagnostic = .{
