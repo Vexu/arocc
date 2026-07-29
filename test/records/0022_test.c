@@ -233,8 +233,8 @@ _Static_assert(sizeof(struct S32_extra_required_alignment) == 2, "");
 _Static_assert(_Alignof(struct S32_extra_required_alignment) == 1, "");
 _Static_assert(sizeof(struct S32_extra_size) == 3, "");
 _Static_assert(_Alignof(struct S32_extra_size) == 1, "");
-// MAPPING|TWO|aarch64-generic-windows-msvc:Msvc|x86-i586-windows-msvc:Msvc|x86-i686-windows-msvc:Msvc|x86-i686-uefi-msvc:Msvc|thumb-baseline-windows-msvc:Msvc|x86_64-x86_64-windows-msvc:Msvc|x86_64-x86_64-uefi-msvc:Msvc|END
-// repr targets Aarch64PcWindowsMsvc|Some("aarch64-generic-windows-msvc") I586PcWindowsMsvc|Some("x86-i586-windows-msvc") I686PcWindowsMsvc|Some("x86-i686-windows-msvc") I686UnknownWindows|Some("x86-i686-uefi-msvc") Thumbv7aPcWindowsMsvc|Some("thumb-baseline-windows-msvc") X86_64PcWindowsMsvc|Some("x86_64-x86_64-windows-msvc") X86_64UnknownWindows|Some("x86_64-x86_64-uefi-msvc")
+// MAPPING|TWO|x86-i586-windows-msvc:Msvc|x86-i686-windows-msvc:Msvc|x86-i686-uefi-msvc:Msvc|x86_64-x86_64-windows-msvc:Msvc|x86_64-x86_64-uefi-msvc:Msvc|END
+// repr targets I586PcWindowsMsvc|Some("x86-i586-windows-msvc") I686PcWindowsMsvc|Some("x86-i686-windows-msvc") I686UnknownWindows|Some("x86-i686-uefi-msvc") X86_64PcWindowsMsvc|Some("x86_64-x86_64-windows-msvc") X86_64UnknownWindows|Some("x86_64-x86_64-uefi-msvc")
 #elif defined(TWO)
 _Static_assert(sizeof(S2) == 1, "");
 _Static_assert(_Alignof(S2) == 2, "");
@@ -280,6 +280,59 @@ _Static_assert(sizeof(S32) == 1, "");
 _Static_assert(_Alignof(S32) == 32, "");
 _Static_assert(sizeof(struct S32_extra_alignment) == 64, "");
 _Static_assert(_Alignof(struct S32_extra_alignment) == 32, "");
+_Static_assert(sizeof(struct S32_extra_packed) == 1, "");
+_Static_assert(_Alignof(struct S32_extra_packed) == 1, "");
+_Static_assert(sizeof(struct S32_extra_required_alignment) == 2, "");
+_Static_assert(_Alignof(struct S32_extra_required_alignment) == 1, "");
+_Static_assert(sizeof(struct S32_extra_size) == 3, "");
+_Static_assert(_Alignof(struct S32_extra_size) == 1, "");
+// MAPPING|THREE|aarch64-generic-windows-msvc:Msvc|thumb-baseline-windows-msvc:Msvc|END
+// repr targets Aarch64PcWindowsMsvc|Some("aarch64-generic-windows-msvc") Thumbv7aPcWindowsMsvc|Some("thumb-baseline-windows-msvc")
+#elif defined(THREE)
+_Static_assert(sizeof(S2) == 1, "");
+_Static_assert(_Alignof(S2) == 2, "");
+_Static_assert(sizeof(struct S2_extra_alignment) == 4, "");
+_Static_assert(_Alignof(struct S2_extra_alignment) == 2, "");
+_Static_assert(sizeof(struct S2_extra_packed) == 1, "");
+_Static_assert(_Alignof(struct S2_extra_packed) == 1, "");
+_Static_assert(sizeof(struct S2_extra_required_alignment) == 2, "");
+_Static_assert(_Alignof(struct S2_extra_required_alignment) == 1, "");
+_Static_assert(sizeof(struct S2_extra_size) == 3, "");
+_Static_assert(_Alignof(struct S2_extra_size) == 1, "");
+_Static_assert(sizeof(S4) == 1, "");
+_Static_assert(_Alignof(S4) == 4, "");
+_Static_assert(sizeof(struct S4_extra_alignment) == 8, "");
+_Static_assert(_Alignof(struct S4_extra_alignment) == 4, "");
+_Static_assert(sizeof(struct S4_extra_packed) == 1, "");
+_Static_assert(_Alignof(struct S4_extra_packed) == 1, "");
+_Static_assert(sizeof(struct S4_extra_required_alignment) == 2, "");
+_Static_assert(_Alignof(struct S4_extra_required_alignment) == 1, "");
+_Static_assert(sizeof(struct S4_extra_size) == 3, "");
+_Static_assert(_Alignof(struct S4_extra_size) == 1, "");
+_Static_assert(sizeof(S8) == 1, "");
+_Static_assert(_Alignof(S8) == 8, "");
+_Static_assert(sizeof(struct S8_extra_alignment) == 16, "");
+_Static_assert(_Alignof(struct S8_extra_alignment) == 8, "");
+_Static_assert(sizeof(struct S8_extra_packed) == 1, "");
+_Static_assert(_Alignof(struct S8_extra_packed) == 1, "");
+_Static_assert(sizeof(struct S8_extra_required_alignment) == 2, "");
+_Static_assert(_Alignof(struct S8_extra_required_alignment) == 1, "");
+_Static_assert(sizeof(struct S8_extra_size) == 3, "");
+_Static_assert(_Alignof(struct S8_extra_size) == 1, "");
+_Static_assert(sizeof(S16) == 1, "");
+_Static_assert(_Alignof(S16) == 16, "");
+_Static_assert(sizeof(struct S16_extra_alignment) == 16, "");
+_Static_assert(_Alignof(struct S16_extra_alignment) == 8, "");
+_Static_assert(sizeof(struct S16_extra_packed) == 1, "");
+_Static_assert(_Alignof(struct S16_extra_packed) == 1, "");
+_Static_assert(sizeof(struct S16_extra_required_alignment) == 2, "");
+_Static_assert(_Alignof(struct S16_extra_required_alignment) == 1, "");
+_Static_assert(sizeof(struct S16_extra_size) == 3, "");
+_Static_assert(_Alignof(struct S16_extra_size) == 1, "");
+_Static_assert(sizeof(S32) == 1, "");
+_Static_assert(_Alignof(S32) == 32, "");
+_Static_assert(sizeof(struct S32_extra_alignment) == 16, "");
+_Static_assert(_Alignof(struct S32_extra_alignment) == 8, "");
 _Static_assert(sizeof(struct S32_extra_packed) == 1, "");
 _Static_assert(_Alignof(struct S32_extra_packed) == 1, "");
 _Static_assert(sizeof(struct S32_extra_required_alignment) == 2, "");
