@@ -25,7 +25,7 @@ const Type = TypeStore.Type;
 const QualType = TypeStore.QualType;
 
 pub const Error = error{
-    /// A fatal error has ocurred and compilation has stopped.
+    /// A fatal error has occurred and compilation has stopped.
     FatalError,
 } || Allocator.Error;
 pub const AddSourceError = Error || error{FileTooBig};

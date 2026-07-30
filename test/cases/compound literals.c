@@ -47,5 +47,5 @@ compound literals.c:20:32: warning: array index 10 is past the end of the array 
 compound literals.c:29:5: error: address of register variable requested
 compound literals.c:30:5: warning: expression result unused [-Wunused-value]
 compound literals.c:31:7: error: compound literal cannot have extern storage class
-compound literals.c:40:33: error: file scope compound literal specifies 'register'
+compound literals.c:40:37: error: file scope compound literal specifies 'register'
 */

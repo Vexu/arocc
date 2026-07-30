@@ -95,7 +95,7 @@ fn peek(p: *Parser) TokenWithExpansionLocs {
 
 pub fn parse(p: *Parser) Error!?Value {
     assert(p.pp.comp.target.intMaxType().bitSizeof(p.pp.comp) == intmax_width);
-    const val = (try p.binaryExpr(0, true)) orelse return null;
+    const val = (try p.binaryExpr(.any, true)) orelse return null;
 
     const last = p.peek();
     if (last.id != .eof) {
@@ -104,38 +104,14 @@ pub fn parse(p: *Parser) Error!?Value {
     return val;
 }
 
-const precedence = std.enums.directEnumArrayDefault(Tree.Token.Id, i8, -1, 0, .{
-    .percent = 12,
-    .slash = 12,
-    .asterisk = 12,
-    .plus = 11,
-    .minus = 11,
-    .angle_bracket_angle_bracket_left = 10,
-    .angle_bracket_angle_bracket_right = 10,
-    .angle_bracket_left_equal = 9,
-    .angle_bracket_left = 9,
-    .angle_bracket_right_equal = 9,
-    .angle_bracket_right = 9,
-    .bang_equal = 8,
-    .equal_equal = 8,
-    .ampersand = 7,
-    .caret = 6,
-    .pipe = 5,
-    .ampersand_ampersand = 4,
-    .pipe_pipe = 3,
-    .question_mark = 2,
-    .comma = 1,
-});
-
-fn binaryExpr(p: *Parser, min_prec: i8, eval: bool) Error!?Value {
-    assert(min_prec >= 0);
+fn binaryExpr(p: *Parser, min_prec: Token.Precedence, eval: bool) Error!?Value {
     var lhs = try p.primaryExpr(eval) orelse return null;
 
     while (true) {
         const tok = p.peek();
-        const op_prec = precedence[@backingInt(tok.id)];
-        if (op_prec < min_prec) {
-            break;
+        const op_prec = Token.precedence[@backingInt(tok.id)];
+        if (op_prec.lt(min_prec) or op_prec == .assign) {
+            return lhs;
         }
 
         const operator = p.next();
@@ -145,7 +121,7 @@ fn binaryExpr(p: *Parser, min_prec: i8, eval: bool) Error!?Value {
             .question_mark => eval and lhs.toBool(),
             else => eval,
         };
-        var rhs = try p.binaryExpr(op_prec + 1, eval_rhs) orelse return null;
+        var rhs = try p.binaryExpr(op_prec.next(min_prec), eval_rhs) orelse return null;
 
         // Usual arithmetic conversion
         switch (operator.id) {
@@ -343,6 +319,7 @@ fn binaryExpr(p: *Parser, min_prec: i8, eval: bool) Error!?Value {
                 }
 
                 const eval_else = eval and lhs.isZero();
+                // Conditional operator is right associative.
                 const else_res = try p.binaryExpr(op_prec, eval_else) orelse return null;
 
                 lhs = if (lhs.toBool()) rhs else else_res;
@@ -365,8 +342,6 @@ fn binaryExpr(p: *Parser, min_prec: i8, eval: bool) Error!?Value {
             try p.pp.err(operator, .overflow, .{});
         }
     }
-
-    return lhs;
 }
 
 fn primaryExpr(p: *Parser, eval: bool) Error!?Value {
@@ -378,7 +353,7 @@ fn primaryExpr(p: *Parser, eval: bool) Error!?Value {
         },
         .l_paren => {
             const l_paren = p.next();
-            const res = try p.binaryExpr(0, eval) orelse return null;
+            const res = try p.binaryExpr(.any, eval) orelse return null;
             const r_paren = p.next();
 
             if (r_paren.id != .r_paren) {

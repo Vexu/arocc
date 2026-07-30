@@ -163,6 +163,11 @@ fn arg(wip: *Wip, comptime WantedBase: type) !?WantedBase {
             return null;
         }
 
+        if (Wanted == []const u8) {
+            try wip.errTok(tok, .arg_requires_string, .{wip.current.attr});
+            return null;
+        }
+
         try wip.errTok(tok, .arg_type, .{ expected, wip.current.attr, expression });
         return null;
     }
