@@ -573,50 +573,53 @@ pub fn compute(
     const packed_attr = am.hasAttribute(opt_decl, .@"packed");
     const requested_align = am.requestedAlignment(opt_decl, comp);
 
-    switch (comp.langopts.emulate) {
-        .no, .gcc, .clang => {
-            var context: SysVContext = .{
-                .attr_packed = packed_attr,
-                .max_field_align_bits = if (pragma_pack) |pak| @as(u64, pak) * BITS_PER_BYTE else null,
-                .aligned_bits = (requested_align orelse 1) * BITS_PER_BYTE,
-                .is_union = is_union,
-                .size_bits = 0,
-                .comp = comp,
-                .am = am,
-                .ongoing_bitfield = null,
-            };
+    const use_sysv_layout = switch (comp.langopts.emulate) {
+        .msvc => false,
+        .clang, .no => comp.target.abi != .msvc,
+        .gcc => true,
+    };
 
-            try context.layoutFields(fields);
+    if (use_sysv_layout) {
+        var context: SysVContext = .{
+            .attr_packed = packed_attr,
+            .max_field_align_bits = if (pragma_pack) |pak| @as(u64, pak) * BITS_PER_BYTE else null,
+            .aligned_bits = (requested_align orelse 1) * BITS_PER_BYTE,
+            .is_union = is_union,
+            .size_bits = 0,
+            .comp = comp,
+            .am = am,
+            .ongoing_bitfield = null,
+        };
 
-            context.size_bits = try alignForward(context.size_bits, context.aligned_bits);
+        try context.layoutFields(fields);
 
-            return .{
-                .size_bits = context.size_bits,
-                .field_alignment_bits = context.aligned_bits,
-                .pointer_alignment_bits = context.aligned_bits,
-                .required_alignment_bits = BITS_PER_BYTE,
-            };
-        },
-        .msvc => {
-            var context = MsvcContext.init(packed_attr, requested_align, is_union, comp, am, pragma_pack);
-            for (fields) |*field| {
-                if (field.qt.isInvalid()) continue;
-                field.layout = try context.layoutField(field);
-            }
-            if (context.size_bits == 0) {
-                // As an extension, MSVC allows records that only contain zero-sized bitfields and empty
-                // arrays. Such records would be zero-sized but this case is handled here separately to
-                // ensure that there are no zero-sized records.
-                context.handleZeroSizedRecord();
-            }
-            context.size_bits = try alignForward(context.size_bits, context.pointer_align_bits);
-            return .{
-                .size_bits = context.size_bits,
-                .field_alignment_bits = context.field_align_bits,
-                .pointer_alignment_bits = context.pointer_align_bits,
-                .required_alignment_bits = context.req_align_bits,
-            };
-        },
+        context.size_bits = try alignForward(context.size_bits, context.aligned_bits);
+
+        return .{
+            .size_bits = context.size_bits,
+            .field_alignment_bits = context.aligned_bits,
+            .pointer_alignment_bits = context.aligned_bits,
+            .required_alignment_bits = BITS_PER_BYTE,
+        };
+    } else {
+        var context = MsvcContext.init(packed_attr, requested_align, is_union, comp, am, pragma_pack);
+        for (fields) |*field| {
+            if (field.qt.isInvalid()) continue;
+            field.layout = try context.layoutField(field);
+        }
+        if (context.size_bits == 0) {
+            // As an extension, MSVC allows records that only contain zero-sized bitfields and empty
+            // arrays. Such records would be zero-sized but this case is handled here separately to
+            // ensure that there are no zero-sized records.
+            context.handleZeroSizedRecord();
+        }
+        context.size_bits = try alignForward(context.size_bits, context.pointer_align_bits);
+        return .{
+            .size_bits = context.size_bits,
+            .field_alignment_bits = context.field_align_bits,
+            .pointer_alignment_bits = context.pointer_align_bits,
+            .required_alignment_bits = context.req_align_bits,
+        };
     }
 }
 
