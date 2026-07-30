@@ -10,7 +10,7 @@ void foo(void *a, void *b) {
 
 /** manifest:
 syntax
-args = -Wgnu-pointer-arith
+args = -Wgnu-pointer-arith -Wno-unused-value
 
 gnu pointer arith.c:2:7: warning: arithmetic on pointers to void is a GNU extension [-Wgnu-pointer-arith]
 gnu pointer arith.c:3:7: warning: arithmetic on pointers to void is a GNU extension [-Wgnu-pointer-arith]

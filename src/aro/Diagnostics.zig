@@ -212,6 +212,7 @@ pub const Option = enum {
     @"unused-parameter",
     @"unused-local-typedef",
     @"unused-label",
+    @"unused-comparison",
 
     /// GNU extensions
     pub const gnu = [_]Option{
@@ -270,6 +271,7 @@ pub const Option = enum {
         // .@"unused-parameter", // Matches gcc and clang
         .@"unused-local-typedef",
         .@"unused-label",
+        .@"unused-comparison",
     };
 
     pub const most = implicit ++ unused ++ [_]Option{

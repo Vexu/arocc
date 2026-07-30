@@ -1009,7 +1009,7 @@ fn markUsed(p: *Parser, decl_node: Node.Index) void {
     }
 }
 
-fn checkIgnoredAttrs(p: *Parser) !void {
+fn diagnoseIgnoredAttrs(p: *Parser) !void {
     for (p.wip_attrs.attrs.items[p.wip_attrs.top..]) |*attr| {
         if (attr.used_as_type_attr) continue;
         if (attr.syntax == .standard) {
@@ -1017,6 +1017,68 @@ fn checkIgnoredAttrs(p: *Parser) !void {
             continue;
         }
         try p.err(attr.tok, .ignored_on_types, .{attr});
+    }
+}
+
+fn diagnoseUnusedValue(p: *Parser, node: Node.Index, prev_total: usize) Error!void {
+    const qt = node.qt(&p.tree);
+    if (qt.is(p.comp, .void)) return;
+    if (qt.isInvalid()) return;
+    // Don't warn about unused result if the expression contained errors.
+    if (p.diagnostics.errors != prev_total) return;
+
+    var cur = node;
+    loop: switch (cur.get(&p.tree)) {
+        .assign_expr,
+        .mul_assign_expr,
+        .div_assign_expr,
+        .mod_assign_expr,
+        .add_assign_expr,
+        .sub_assign_expr,
+        .shl_assign_expr,
+        .shr_assign_expr,
+        .bit_and_assign_expr,
+        .bit_xor_assign_expr,
+        .bit_or_assign_expr,
+        .pre_inc_expr,
+        .pre_dec_expr,
+        .post_inc_expr,
+        .post_dec_expr,
+        => {},
+        .equal_expr => try p.err(cur.tok(&p.tree), .unused_comparison, .{"equality"}),
+        .not_equal_expr => try p.err(cur.tok(&p.tree), .unused_comparison, .{"inequality"}),
+        .less_than_expr,
+        .less_than_equal_expr,
+        .greater_than_expr,
+        .greater_than_equal_expr,
+        => try p.err(cur.tok(&p.tree), .unused_comparison, .{"relational"}),
+        .call_expr => |call| {
+            const call_info = p.tree.calledFunctionAttr(call.callee, .warn_unused_result) orelse return;
+            if (call_info.attr) |attr| {
+                const msg = attr.args.warn_unused_result;
+                const colon_str: []const u8 = if (msg != null) ": " else "";
+                try p.err(call.callee.tok(&p.tree), .warn_unused_result, .{ p.tokSlice(call_info.tok), attr, colon_str, Escaped.init(msg orelse "") });
+            }
+        },
+        .builtin_call_expr => |call| {
+            const expanded = p.comp.builtins.lookup(p.tokSlice(call.builtin_tok));
+            if (expanded.attributes.pure) try p.err(call.builtin_tok, .builtin_unused, .{"pure"});
+            if (expanded.attributes.@"const") try p.err(call.builtin_tok, .builtin_unused, .{"const"});
+        },
+        .stmt_expr => |stmt_expr| {
+            const compound = stmt_expr.operand.get(&p.tree).compound_stmt;
+            cur = compound.body[compound.body.len - 1];
+            continue :loop cur.get(&p.tree);
+        },
+        .comma_expr => |comma| {
+            cur = comma.rhs;
+            continue :loop cur.get(&p.tree);
+        },
+        .paren_expr => |grouped| {
+            cur = grouped.operand;
+            continue :loop cur.get(&p.tree);
+        },
+        else => try p.err(cur.tok(&p.tree), .unused_value, .{}),
     }
 }
 
@@ -3232,7 +3294,7 @@ fn enumSpec(p: *Parser) Error!QualType {
         };
 
         var final = try p.wip_attrs.applyTypeAttrs(p, fixed);
-        try p.checkIgnoredAttrs();
+        try p.diagnoseIgnoredAttrs();
         while (true) {
             switch (final.base(p.comp).type) {
                 .int => {
@@ -4351,7 +4413,7 @@ fn typeNameExtra(p: *Parser, start_with_type_spec: bool) Error!?QualType {
         if (abstract_d.old_style_func) |tok_i| try p.err(tok_i, .invalid_old_style_params, .{});
         qt = try p.wip_attrs.applyTypeAttrs(p, abstract_d.qt);
     }
-    try p.checkIgnoredAttrs();
+    try p.diagnoseIgnoredAttrs();
     return qt;
 }
 
@@ -5457,20 +5519,20 @@ fn asmStr(p: *Parser) Error!Result {
 ///  | keyword_return expr? ';'
 ///  | assembly ';'
 ///  | expr? ';'
-fn stmt(p: *Parser) Error!Node.Index {
+fn stmt(p: *Parser, check_unused: bool) Error!Node.Index {
     const bare_stmt = blk: {
         const attr_state = p.wip_attrs.state(true);
         defer p.wip_attrs.restore(attr_state);
 
         try p.attributeSpecifier();
 
-        break :blk try p.attributedStmt();
+        break :blk try p.attributedStmt(check_unused);
     };
     try p.wip_attrs.applyStmtAttrs(p, bare_stmt);
     return bare_stmt;
 }
 
-fn attributedStmt(p: *Parser) Error!Node.Index {
+fn attributedStmt(p: *Parser, check_unused: bool) Error!Node.Index {
     if (try p.labeledStmt()) |some| return some;
     if (try p.compoundStmt(false, null)) |some| return some;
     const gpa = p.comp.gpa;
@@ -5487,8 +5549,8 @@ fn attributedStmt(p: *Parser) Error!Node.Index {
 
         try p.expectClosing(l_paren, .r_paren);
 
-        const then_body = try p.stmt();
-        const else_body = if (p.eatToken(.keyword_else)) |_| try p.stmt() else null;
+        const then_body = try p.stmt(true);
+        const else_body = if (p.eatToken(.keyword_else)) |_| try p.stmt(true) else null;
 
         if (p.nodeIs(then_body, .null_stmt) and else_body == null) {
             const semicolon_tok = then_body.get(&p.tree).null_stmt.semicolon_or_r_brace_tok;
@@ -5534,7 +5596,7 @@ fn attributedStmt(p: *Parser) Error!Node.Index {
             p.@"switch" = old_switch;
         }
 
-        const body = try p.stmt();
+        const body = try p.stmt(true);
 
         return p.addNode(.{ .switch_stmt = .{
             .switch_tok = kw_switch,
@@ -5559,7 +5621,7 @@ fn attributedStmt(p: *Parser) Error!Node.Index {
             const old_loop = p.in_loop;
             p.in_loop = true;
             defer p.in_loop = old_loop;
-            break :body try p.stmt();
+            break :body try p.stmt(true);
         };
 
         return p.addNode(.{ .while_stmt = .{
@@ -5573,7 +5635,7 @@ fn attributedStmt(p: *Parser) Error!Node.Index {
             const old_loop = p.in_loop;
             p.in_loop = true;
             defer p.in_loop = old_loop;
-            break :body try p.stmt();
+            break :body try p.stmt(true);
         };
 
         _ = try p.expectToken(.keyword_while);
@@ -5606,8 +5668,7 @@ fn attributedStmt(p: *Parser) Error!Node.Index {
         const l_paren = try p.expectToken(.l_paren);
 
         // for (init
-        const init_start = p.tok_i;
-        var prev_total = p.diagnostics.total;
+        var prev_errors = p.diagnostics.errors;
         const init = init: {
             if (try p.declStmt()) |decl_stmt| break :init decl_stmt;
             const opt_init = try p.expr();
@@ -5615,7 +5676,7 @@ fn attributedStmt(p: *Parser) Error!Node.Index {
             var init = opt_init orelse break :init null;
 
             try init.saveValue(p);
-            try init.maybeWarnUnused(p, init_start, prev_total);
+            try p.diagnoseUnusedValue(init.node, prev_errors);
             break :init init.node;
         };
 
@@ -5634,12 +5695,11 @@ fn attributedStmt(p: *Parser) Error!Node.Index {
         _ = try p.expectToken(.semicolon);
 
         // for (init; cond; incr
-        const incr_start = p.tok_i;
-        prev_total = p.diagnostics.total;
+        prev_errors = p.diagnostics.errors;
         const incr = incr: {
             var incr = (try p.expr()) orelse break :incr null;
 
-            try incr.maybeWarnUnused(p, incr_start, prev_total);
+            try p.diagnoseUnusedValue(incr.node, prev_errors);
             try incr.saveValue(p);
             break :incr incr.node;
         };
@@ -5649,7 +5709,7 @@ fn attributedStmt(p: *Parser) Error!Node.Index {
             const old_loop = p.in_loop;
             p.in_loop = true;
             defer p.in_loop = old_loop;
-            break :body try p.stmt();
+            break :body try p.stmt(true);
         };
 
         return p.addNode(.{ .for_stmt = .{
@@ -5706,12 +5766,10 @@ fn attributedStmt(p: *Parser) Error!Node.Index {
     if (try p.returnStmt()) |some| return some;
     if (try p.assembly(.stmt)) |some| return some;
 
-    const expr_start = p.tok_i;
-    const prev_total = p.diagnostics.total;
-
+    const prev_errors = p.diagnostics.errors;
     if (try p.expr()) |some| {
         _ = try p.expectToken(.semicolon);
-        try some.maybeWarnUnused(p, expr_start, prev_total);
+        if (check_unused) try p.diagnoseUnusedValue(some.node, prev_errors);
         return some.node;
     }
 
@@ -5875,16 +5933,11 @@ fn labelableStmt(p: *Parser) Error!Node.Index {
         try p.err(start, .label_decl, .{});
         return decl_stmt;
     }
-    return p.stmt();
+    return p.stmt(true);
 }
 
-const StmtExprState = struct {
-    last_expr_tok: TokenIndex = 0,
-    last_expr_qt: QualType = .void,
-};
-
 /// compoundStmt : '{' ( decl | keyword_extension decl | staticAssert | stmt)* '}'
-fn compoundStmt(p: *Parser, is_fn_body: bool, stmt_expr_state: ?*StmtExprState) Error!?Node.Index {
+fn compoundStmt(p: *Parser, is_fn_body: bool, stmt_expr_state: ?*?Node.Index) Error!?Node.Index {
     const l_brace = p.eatToken(.l_brace) orelse return null;
 
     const gpa = p.comp.gpa;
@@ -5897,13 +5950,18 @@ fn compoundStmt(p: *Parser, is_fn_body: bool, stmt_expr_state: ?*StmtExprState) 
 
     var noreturn_index: ?TokenIndex = null;
     var noreturn_label_count: u32 = 0;
+    var prev_errors = p.diagnostics.errors;
 
     while (p.eatToken(.r_brace) == null) : (_ = try p.pragma()) {
         const attr_state = p.wip_attrs.state(true);
         defer p.wip_attrs.restore(attr_state);
         try p.attributeSpecifier();
 
-        if (stmt_expr_state) |state| state.* = .{};
+        if (stmt_expr_state) |opt_node| {
+            if (opt_node.*) |node| try p.diagnoseUnusedValue(node, prev_errors);
+            opt_node.* = null;
+        }
+        prev_errors = p.diagnostics.errors;
         if (try p.parseOrNextStmt(staticAssert, l_brace)) continue;
         // TODO use declStmt?
         if (try p.parseOrNextStmt(decl, l_brace)) continue;
@@ -5915,19 +5973,15 @@ fn compoundStmt(p: *Parser, is_fn_body: bool, stmt_expr_state: ?*StmtExprState) 
             if (try p.parseOrNextStmt(decl, l_brace)) continue;
             p.tok_i = ext;
         }
-        const stmt_tok = p.tok_i;
-        const s = p.stmt() catch |er| switch (er) {
+        const s = p.stmt(stmt_expr_state == null) catch |er| switch (er) {
             error.ParsingFailed => {
                 try p.nextStmt(l_brace);
                 continue;
             },
             else => |e| return e,
         };
-        if (stmt_expr_state) |state| {
-            state.* = .{
-                .last_expr_tok = stmt_tok,
-                .last_expr_qt = s.qt(&p.tree),
-            };
+        if (stmt_expr_state) |opt_node| {
+            opt_node.* = s;
         }
         try p.decl_buf.append(gpa, s);
 
@@ -6696,54 +6750,6 @@ pub const Result = struct {
     node: Node.Index,
     qt: QualType = .int,
     val: Value = .{},
-
-    fn maybeWarnUnused(res: Result, p: *Parser, expr_start: TokenIndex, prev_total: usize) Error!void {
-        if (res.qt.is(p.comp, .void)) return;
-        if (res.qt.isInvalid()) return;
-        // // don't warn about unused result if the expression contained errors besides other unused results
-        if (p.diagnostics.total != prev_total) return; // TODO improve
-        // for (p.diagnostics.list.items[err_start..]) |err_item| {
-        //     if (err_item.tag != .unused_value) return;
-        // }
-        loop: switch (res.node.get(&p.tree)) {
-            .assign_expr,
-            .mul_assign_expr,
-            .div_assign_expr,
-            .mod_assign_expr,
-            .add_assign_expr,
-            .sub_assign_expr,
-            .shl_assign_expr,
-            .shr_assign_expr,
-            .bit_and_assign_expr,
-            .bit_xor_assign_expr,
-            .bit_or_assign_expr,
-            .pre_inc_expr,
-            .pre_dec_expr,
-            .post_inc_expr,
-            .post_dec_expr,
-            => {},
-            .call_expr => |call| {
-                const call_info = p.tree.calledFunctionAttr(call.callee, .warn_unused_result) orelse return;
-                if (call_info.attr) |attr| {
-                    const msg = attr.args.warn_unused_result;
-                    const colon_str: []const u8 = if (msg != null) ": " else "";
-                    try p.err(expr_start, .warn_unused_result, .{ p.tokSlice(call_info.tok), attr, colon_str, Escaped.init(msg orelse "") });
-                }
-            },
-            .builtin_call_expr => |call| {
-                const expanded = p.comp.builtins.lookup(p.tokSlice(call.builtin_tok));
-                if (expanded.attributes.pure) try p.err(call.builtin_tok, .builtin_unused, .{"pure"});
-                if (expanded.attributes.@"const") try p.err(call.builtin_tok, .builtin_unused, .{"const"});
-            },
-            .stmt_expr => |stmt_expr| {
-                const compound = stmt_expr.operand.get(&p.tree).compound_stmt;
-                continue :loop compound.body[compound.body.len - 1].get(&p.tree);
-            },
-            .comma_expr => |comma| continue :loop comma.rhs.get(&p.tree),
-            .paren_expr => |grouped| continue :loop grouped.operand.get(&p.tree),
-            else => try p.err(expr_start, .unused_value, .{}),
-        }
-    }
 
     fn boolRes(lhs: *Result, p: *Parser, tag: std.meta.Tag(Node), rhs: Result, tok_i: TokenIndex) !void {
         if (lhs.val.opt_ref == .null) {
@@ -8121,8 +8127,7 @@ fn issueConstAssignmentDiagnostics(p: *Parser, node_idx: Node.Index, tok: TokenI
 /// addExpr : mulExpr (('+' | '-') mulExpr)*
 /// mulExpr : unExpr (('*' | '/' | '%') unExpr)*´
 fn binaryExpr(p: *Parser, min_prec: Token.Precedence, eval: bool) Error!?Result {
-    var expr_start = p.tok_i;
-    var prev_total = p.diagnostics.total;
+    var prev_errors = p.diagnostics.errors;
 
     var lhs = try p.unExpr(eval) orelse {
         if (min_prec.lt(.comma) and p.tok_ids[p.tok_i] == .comma) {
@@ -8154,9 +8159,8 @@ fn binaryExpr(p: *Parser, min_prec: Token.Precedence, eval: bool) Error!?Result 
         switch (op_prec) {
             _ => unreachable,
             .comma => {
-                try lhs.maybeWarnUnused(p, expr_start, prev_total);
-                prev_total = p.diagnostics.total;
-                expr_start = operator + 1;
+                try p.diagnoseUnusedValue(lhs.node, prev_errors);
+                prev_errors = p.diagnostics.total;
 
                 try lhs.lvalConversion(p);
                 try rhs.lvalConversion(p);
@@ -10282,12 +10286,12 @@ fn primaryExpr(p: *Parser, eval: bool) Error!?Result {
                     try p.err(l_brace, .stmt_expr_not_allowed_file_scope, .{});
                     return error.ParsingFailed;
                 }
-                var stmt_expr_state: StmtExprState = .{};
-                const body_node = (try p.compoundStmt(false, &stmt_expr_state)).?; // compoundStmt only returns null if .l_brace isn't the first token
+                var opt_node: ?Node.Index = null;
+                const body_node = (try p.compoundStmt(false, &opt_node)).?; // compoundStmt only returns null if .l_brace isn't the first token
 
                 var res: Result = .{
                     .node = body_node,
-                    .qt = stmt_expr_state.last_expr_qt,
+                    .qt = if (opt_node) |node| node.qt(&p.tree) else .void,
                 };
                 try p.expectClosing(l_paren, .r_paren);
                 try res.un(p, .stmt_expr, l_brace);

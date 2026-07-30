@@ -13,10 +13,10 @@ void foo(void) {
     int y = ({
         int z = 5;
         z += 10;
-        z; // TODO should be no error
+        z;
     });
     z++;
-    ({foo;})(); // TODO should be no error
+    ({foo;})();
 }
 
 void self_referential_initializer(void) {
@@ -27,7 +27,6 @@ void self_referential_initializer(void) {
 
 /** manifest:
 syntax
-skip = incorrect unused warning when statement expresssion result used
 
 statement expressions.c:3:10: warning: use of GNU statement expression extension [-Wgnu-statement-expression]
 statement expressions.c:3:10: error: statement expression not allowed at file scope
@@ -35,7 +34,5 @@ statement expressions.c:10:13: error: initializing 'int' from incompatible type 
 statement expressions.c:11:8: warning: expression result unused [-Wunused-value]
 statement expressions.c:12:8: warning: expression result unused [-Wunused-value]
 statement expressions.c:12:11: warning: expression result unused [-Wunused-value]
-statement expressions.c:16:9: warning: expression result unused [-Wunused-value]
 statement expressions.c:18:5: error: use of undeclared identifier 'z'
-statement expressions.c:19:7: warning: expression result unused [-Wunused-value]
 */

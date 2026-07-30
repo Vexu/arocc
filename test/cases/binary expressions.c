@@ -103,6 +103,7 @@ _Static_assert((int){1} = 0, "");
 
 /** manifest:
 syntax
+args = -Wno-unused
 
 binary expressions.c:3:7: error: invalid operands to binary expression ('_Atomic(long)' and 'float')
 binary expressions.c:6:13: error: invalid operands to binary expression ('char' and 'int *')
