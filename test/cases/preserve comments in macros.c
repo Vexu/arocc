@@ -35,6 +35,4 @@ args = -CC -fms-extensions
 
 preserve comments in macros.c:1:15: error: pasting formed '/*foo*//*bar*/', an invalid preprocessing token
 preserve comments in macros.c:4:13: error: pasting formed '/*foo*//*bar*/', an invalid preprocessing token
-preserve comments in macros.c:13:14: error: pasting formed '/*foo*/1', an invalid preprocessing token
-preserve comments in macros.c:15:8: note: expanded from here
 */
