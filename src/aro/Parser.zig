@@ -775,13 +775,6 @@ fn errExpectedToken(p: *Parser, expected: Token.Id, actual: Token.Id) Error {
     return error.ParsingFailed;
 }
 
-fn addList(p: *Parser, nodes: []const Node.Index) Allocator.Error!Tree.Node.Range {
-    const start: u32 = @intCast(p.data.items.len);
-    try p.data.appendSlice(nodes);
-    const end: u32 = @intCast(p.data.items.len);
-    return Tree.Node.Range{ .start = start, .end = end };
-}
-
 /// Recursively sets the defintion field of `tentative_decl` to `definition`.
 pub fn setTentativeDeclDefinition(p: *Parser, tentative_decl: Node.Index, definition: Node.Index) void {
     const node_data = &p.tree.nodes.items(.data)[@backingInt(tentative_decl)];
@@ -3416,7 +3409,7 @@ fn enumSpec(p: *Parser) Error!QualType {
 
             if (new_field_node.enum_field.init) |some| {
                 res.node = some;
-                try res.implicitCast(p, .int_cast, some.tok(&p.tree));
+                try res.implicitCast(p, .int_cast);
                 new_field_node.enum_field.init = res.node;
             }
 
@@ -3534,7 +3527,7 @@ const Enumerator = struct {
                 return error.ParsingFailed;
             }
             res.qt = e.qt;
-            try res.implicitCast(p, .int_cast, tok);
+            try res.implicitCast(p, .int_cast);
             e.val = res.val;
         } else {
             try res.castToInt(p, res.qt.promoteInt(p.comp), tok);
@@ -4925,7 +4918,7 @@ fn coerceInit(p: *Parser, item: *Result, tok: TokenIndex, target: QualType) !voi
         if (p.getNode(node, .member_access_expr) orelse p.getNode(node, .member_access_ptr_expr)) |access| {
             if (access.isBitFieldWidth(&p.tree) != null) try p.err(tok, .auto_type_from_bitfield, .{});
         }
-        try item.lvalConversion(p, tok);
+        try item.lvalConversion(p);
         return;
     }
 
@@ -5195,7 +5188,7 @@ fn asmOperand(p: *Parser, kind: enum { output, input }) Error!Tree.Node.AsmStmt.
     if (kind == .output and !p.tree.isLval(res.node)) {
         try p.err(l_paren + 1, .invalid_asm_output, .{});
     } else if (kind == .input) {
-        try res.lvalConversion(p, l_paren + 1);
+        try res.lvalConversion(p);
     }
     return .{
         .name = name,
@@ -5486,7 +5479,7 @@ fn attributedStmt(p: *Parser) Error!Node.Index {
 
         const cond_tok = p.tok_i;
         var cond = try p.expect(expr);
-        try cond.lvalConversion(p, cond_tok);
+        try cond.lvalConversion(p);
         try cond.usualUnaryConversion(p, cond_tok);
         if (!cond.qt.isInvalid() and cond.qt.scalarKind(p.comp) == .none)
             try p.err(l_paren + 1, .statement_scalar, .{cond.qt});
@@ -5519,7 +5512,7 @@ fn attributedStmt(p: *Parser) Error!Node.Index {
         const l_paren = try p.expectToken(.l_paren);
         const cond_tok = p.tok_i;
         var cond = try p.expect(expr);
-        try cond.lvalConversion(p, cond_tok);
+        try cond.lvalConversion(p);
         try cond.usualUnaryConversion(p, cond_tok);
 
         // Switch condition can't be complex.
@@ -5554,7 +5547,7 @@ fn attributedStmt(p: *Parser) Error!Node.Index {
 
         const cond_tok = p.tok_i;
         var cond = try p.expect(expr);
-        try cond.lvalConversion(p, cond_tok);
+        try cond.lvalConversion(p);
         try cond.usualUnaryConversion(p, cond_tok);
         if (!cond.qt.isInvalid() and cond.qt.scalarKind(p.comp) == .none)
             try p.err(l_paren + 1, .statement_scalar, .{cond.qt});
@@ -5588,7 +5581,7 @@ fn attributedStmt(p: *Parser) Error!Node.Index {
 
         const cond_tok = p.tok_i;
         var cond = try p.expect(expr);
-        try cond.lvalConversion(p, cond_tok);
+        try cond.lvalConversion(p);
         try cond.usualUnaryConversion(p, cond_tok);
 
         if (!cond.qt.isInvalid() and cond.qt.scalarKind(p.comp) == .none)
@@ -5631,7 +5624,7 @@ fn attributedStmt(p: *Parser) Error!Node.Index {
             const cond_tok = p.tok_i;
             var cond = (try p.expr()) orelse break :cond null;
 
-            try cond.lvalConversion(p, cond_tok);
+            try cond.lvalConversion(p);
             try cond.usualUnaryConversion(p, cond_tok);
             if (!cond.qt.isInvalid() and cond.qt.scalarKind(p.comp) == .none)
                 try p.err(l_paren + 1, .statement_scalar, .{cond.qt});
@@ -5671,7 +5664,7 @@ fn attributedStmt(p: *Parser) Error!Node.Index {
         if (p.eatToken(.asterisk)) |_| {
             const expr_tok = p.tok_i;
             var goto_expr = try p.expect(expr);
-            try goto_expr.lvalConversion(p, expr_tok);
+            try goto_expr.lvalConversion(p);
             p.computed_goto_tok = p.computed_goto_tok orelse goto_tok;
 
             if (!goto_expr.qt.isInvalid() and !goto_expr.qt.isPointer(p.comp)) {
@@ -5683,10 +5676,10 @@ fn attributedStmt(p: *Parser) Error!Node.Index {
                     return error.ParsingFailed;
                 }
                 if (goto_expr.val.isZero(p.comp)) {
-                    try goto_expr.nullToPointer(p, result_qt, expr_tok);
+                    try goto_expr.nullToPointer(p, result_qt);
                 } else {
                     try p.err(expr_tok, .implicit_int_to_ptr, .{ goto_expr.qt, result_qt });
-                    try goto_expr.castToPointer(p, result_qt, expr_tok);
+                    try goto_expr.castToPointer(p, result_qt);
                 }
             }
 
@@ -6815,10 +6808,10 @@ pub const Result = struct {
         }
     }
 
-    fn implicitCast(operand: *Result, p: *Parser, kind: Node.Cast.Kind, tok: TokenIndex) Error!void {
+    fn implicitCast(operand: *Result, p: *Parser, kind: Node.Cast.Kind) Error!void {
         operand.node = try p.addNode(.{
             .cast = .{
-                .l_paren = tok,
+                .l_paren = operand.node.tok(&p.tree),
                 .kind = kind,
                 .operand = operand.node,
                 .qt = operand.qt,
@@ -6859,13 +6852,13 @@ pub const Result = struct {
             a.qt = try p.comp.type_store.put(gpa, .{ .pointer = .{
                 .child = adjusted_elem_qt,
             } });
-            try a.implicitCast(p, .bitcast, tok);
+            try a.implicitCast(p, .bitcast);
         }
         if (!adjusted_elem_qt.eqlQualified(b_elem, p.comp)) {
             b.qt = try p.comp.type_store.put(gpa, .{ .pointer = .{
                 .child = adjusted_elem_qt,
             } });
-            try b.implicitCast(p, .bitcast, tok);
+            try b.implicitCast(p, .bitcast);
         }
     }
 
@@ -6887,8 +6880,8 @@ pub const Result = struct {
         if (a.qt.isInvalid()) {
             return;
         }
-        try a.lvalConversion(p, tok);
-        try b.lvalConversion(p, tok);
+        try a.lvalConversion(p);
+        try b.lvalConversion(p);
 
         const opt_a_vec = a.qt.get(p.comp, .vector);
         const opt_b_vec = b.qt.get(p.comp, .vector);
@@ -6903,7 +6896,7 @@ pub const Result = struct {
             }
             if (a.qt.sizeCompare(b.qt, p.comp) == .eq) {
                 b.qt = a.qt;
-                try b.implicitCast(p, .bitcast, tok);
+                try b.implicitCast(p, .bitcast);
                 return;
             }
             try p.err(tok, .incompatible_vec_types, .{ a.qt, b.qt });
@@ -6915,7 +6908,7 @@ pub const Result = struct {
             if (b.coerceExtra(p, a_vec.elem, tok, .test_coerce)) {
                 try b.saveValue(p);
                 b.qt = a.qt;
-                try b.implicitCast(p, .vector_splat, tok);
+                try b.implicitCast(p, .vector_splat);
                 return;
             } else |er| switch (er) {
                 error.CoercionFailed => return a.invalidBinTy(tok, b, p),
@@ -6925,7 +6918,7 @@ pub const Result = struct {
             if (a.coerceExtra(p, b_vec.elem, tok, .test_coerce)) {
                 try a.saveValue(p);
                 a.qt = b.qt;
-                try a.implicitCast(p, .vector_splat, tok);
+                try a.implicitCast(p, .vector_splat);
                 return;
             } else |er| switch (er) {
                 error.CoercionFailed => return a.invalidBinTy(tok, b, p),
@@ -6972,11 +6965,11 @@ pub const Result = struct {
                     const other_res = if (a_sk == .nullptr_t) b else a;
 
                     if (other_res.qt.isPointer(p.comp)) {
-                        try nullptr_res.nullToPointer(p, other_res.qt, tok);
+                        try nullptr_res.nullToPointer(p, other_res.qt);
                         return;
                     } else if (other_res.val.isZero(p.comp)) {
                         other_res.val = .null;
-                        try other_res.nullToPointer(p, nullptr_res.qt, tok);
+                        try other_res.nullToPointer(p, nullptr_res.qt);
                         return;
                     }
                     return a.invalidBinTy(tok, b, p);
@@ -6995,25 +6988,25 @@ pub const Result = struct {
                         const b_elem = b.qt.childType(p.comp);
                         if (!a_elem.eql(b_elem, p.comp)) {
                             try p.err(tok, .comparison_distinct_ptr, .{ a.qt, b.qt });
-                            try b.castToPointer(p, a.qt, tok);
+                            try b.castToPointer(p, a.qt);
                         }
                     } else if (a_sk == .void_pointer) {
-                        try b.castToPointer(p, a.qt, tok);
+                        try b.castToPointer(p, a.qt);
                     } else if (b_sk == .void_pointer) {
-                        try a.castToPointer(p, b.qt, tok);
+                        try a.castToPointer(p, b.qt);
                     }
                 } else if (a_sk.isPointer()) {
-                    try b.castToPointer(p, a.qt, tok);
+                    try b.castToPointer(p, a.qt);
                 } else {
                     assert(b_sk.isPointer());
-                    try a.castToPointer(p, b.qt, tok);
+                    try a.castToPointer(p, b.qt);
                 }
             },
             .conditional => {
                 // doesn't matter what we return here, as the result is ignored
                 if (a.qt.is(p.comp, .void) or b.qt.is(p.comp, .void)) {
-                    try a.castToVoid(p, tok);
-                    try b.castToVoid(p, tok);
+                    try a.castToVoid(p);
+                    try b.castToVoid(p);
                     return;
                 }
 
@@ -7021,21 +7014,21 @@ pub const Result = struct {
 
                 if ((a_sk.isPointer() and b_sk.isInt()) or (a_sk.isInt() and b_sk.isPointer())) {
                     if (a.val.isZero(p.comp) or b.val.isZero(p.comp)) {
-                        try a.nullToPointer(p, b.qt, tok);
-                        try b.nullToPointer(p, a.qt, tok);
+                        try a.nullToPointer(p, b.qt);
+                        try b.nullToPointer(p, a.qt);
                         return;
                     }
                     const int_ty = if (a_sk.isInt()) a else b;
                     const ptr_ty = if (a_sk.isPointer()) a else b;
                     try p.err(tok, .implicit_int_to_ptr, .{ int_ty.qt, ptr_ty.qt });
-                    try int_ty.castToPointer(p, ptr_ty.qt, tok);
+                    try int_ty.castToPointer(p, ptr_ty.qt);
 
                     return;
                 }
                 if ((a_sk.isPointer() and b_sk == .nullptr_t) or (a_sk == .nullptr_t and b_sk.isPointer())) {
                     const nullptr_res = if (a_sk == .nullptr_t) a else b;
                     const ptr_res = if (a_sk == .nullptr_t) b else a;
-                    try nullptr_res.nullToPointer(p, ptr_res.qt, tok);
+                    try nullptr_res.nullToPointer(p, ptr_res.qt);
                     return;
                 }
                 if (a_sk.isPointer() and b_sk.isPointer()) return a.adjustCondExprPtrs(tok, b, p);
@@ -7055,8 +7048,8 @@ pub const Result = struct {
                 if (a_sk == .void_pointer or b_sk == .void_pointer)
                     try p.err(tok, .gnu_pointer_arith, .{});
 
-                if (a_sk == .nullptr_t) try a.nullToPointer(p, .void_pointer, tok);
-                if (b_sk == .nullptr_t) try b.nullToPointer(p, .void_pointer, tok);
+                if (a_sk == .nullptr_t) try a.nullToPointer(p, .void_pointer);
+                if (b_sk == .nullptr_t) try b.nullToPointer(p, .void_pointer);
 
                 // Do integer promotions but nothing else
                 if (a_sk.isInt()) try a.castToInt(p, a.qt.promoteInt(p.comp), tok);
@@ -7073,8 +7066,8 @@ pub const Result = struct {
                 if (a_sk == .void_pointer)
                     try p.err(tok, .gnu_pointer_arith, .{});
 
-                if (a_sk == .nullptr_t) try a.nullToPointer(p, .void_pointer, tok);
-                if (b_sk == .nullptr_t) try b.nullToPointer(p, .void_pointer, tok);
+                if (a_sk == .nullptr_t) try a.nullToPointer(p, .void_pointer);
+                if (b_sk == .nullptr_t) try b.nullToPointer(p, .void_pointer);
 
                 if (a_sk.isPointer() and b_sk.isPointer()) {
                     const a_child_qt = a.qt.get(p.comp, .pointer).?.child;
@@ -7092,20 +7085,20 @@ pub const Result = struct {
         }
     }
 
-    fn lvalConversion(res: *Result, p: *Parser, tok: TokenIndex) Error!void {
+    fn lvalConversion(res: *Result, p: *Parser) Error!void {
         if (res.qt.is(p.comp, .func)) {
             res.val = try p.pointerValue(res.node, .zero);
 
             res.qt = try res.qt.decay(p.comp);
-            try res.implicitCast(p, .function_to_pointer, tok);
+            try res.implicitCast(p, .function_to_pointer);
         } else if (res.qt.is(p.comp, .array)) {
             res.val = try p.pointerValue(res.node, .zero);
 
             res.qt = try res.qt.decay(p.comp);
-            try res.implicitCast(p, .array_to_pointer, tok);
+            try res.implicitCast(p, .array_to_pointer);
         } else if (p.tree.isLval(res.node)) {
             res.qt = res.qt.unqualified();
-            try res.implicitCast(p, .lval_to_rval, tok);
+            try res.implicitCast(p, .lval_to_rval);
         }
     }
 
@@ -7120,32 +7113,32 @@ pub const Result = struct {
             } else {
                 try p.err(tok, .array_address_to_bool, .{p.tokSlice(tok)});
             }
-            try res.lvalConversion(p, tok);
+            try res.lvalConversion(p);
             res.val = .one;
             res.qt = bool_qt;
-            try res.implicitCast(p, .pointer_to_bool, tok);
+            try res.implicitCast(p, .pointer_to_bool);
         } else if (src_sk.isPointer()) {
             res.val.boolCast(p.comp);
             res.qt = bool_qt;
-            try res.implicitCast(p, .pointer_to_bool, tok);
+            try res.implicitCast(p, .pointer_to_bool);
         } else if (src_sk.isInt() and src_sk != .bool) {
             res.val.boolCast(p.comp);
             if (!src_sk.isReal()) {
                 res.qt = res.qt.toReal(p.comp);
-                try res.implicitCast(p, .complex_int_to_real, tok);
+                try res.implicitCast(p, .complex_int_to_real);
             }
             res.qt = bool_qt;
-            try res.implicitCast(p, .int_to_bool, tok);
+            try res.implicitCast(p, .int_to_bool);
         } else if (src_sk.isFloat()) {
             const old_val = res.val;
             const value_change_kind = try res.val.floatToInt(bool_qt, p.comp);
             try res.floatToIntWarning(p, bool_qt, old_val, value_change_kind, tok);
             if (!src_sk.isReal()) {
                 res.qt = res.qt.toReal(p.comp);
-                try res.implicitCast(p, .complex_float_to_real, tok);
+                try res.implicitCast(p, .complex_float_to_real);
             }
             res.qt = bool_qt;
-            try res.implicitCast(p, .float_to_bool, tok);
+            try res.implicitCast(p, .float_to_bool);
         }
     }
 
@@ -7161,18 +7154,18 @@ pub const Result = struct {
 
         if (src_sk == .bool) {
             res.qt = int_qt.toReal(p.comp);
-            try res.implicitCast(p, .bool_to_int, tok);
+            try res.implicitCast(p, .bool_to_int);
             if (!dest_sk.isReal()) {
                 res.qt = int_qt;
-                try res.implicitCast(p, .real_to_complex_int, tok);
+                try res.implicitCast(p, .real_to_complex_int);
             }
         } else if (src_sk.isPointer()) {
             res.val = .{};
             res.qt = int_qt.toReal(p.comp);
-            try res.implicitCast(p, .pointer_to_int, tok);
+            try res.implicitCast(p, .pointer_to_int);
             if (!dest_sk.isReal()) {
                 res.qt = int_qt;
-                try res.implicitCast(p, .real_to_complex_int, tok);
+                try res.implicitCast(p, .real_to_complex_int);
             }
         } else if (res.qt.isFloat(p.comp)) {
             const old_val = res.val;
@@ -7180,20 +7173,20 @@ pub const Result = struct {
             try res.floatToIntWarning(p, int_qt, old_val, value_change_kind, tok);
             if (src_sk.isReal() and dest_sk.isReal()) {
                 res.qt = int_qt;
-                try res.implicitCast(p, .float_to_int, tok);
+                try res.implicitCast(p, .float_to_int);
             } else if (src_sk.isReal()) {
                 res.qt = int_qt.toReal(p.comp);
-                try res.implicitCast(p, .float_to_int, tok);
+                try res.implicitCast(p, .float_to_int);
                 res.qt = int_qt;
-                try res.implicitCast(p, .real_to_complex_int, tok);
+                try res.implicitCast(p, .real_to_complex_int);
             } else if (dest_sk.isReal()) {
                 res.qt = res.qt.toReal(p.comp);
-                try res.implicitCast(p, .complex_float_to_real, tok);
+                try res.implicitCast(p, .complex_float_to_real);
                 res.qt = int_qt;
-                try res.implicitCast(p, .float_to_int, tok);
+                try res.implicitCast(p, .float_to_int);
             } else {
                 res.qt = int_qt;
-                try res.implicitCast(p, .complex_float_to_complex_int, tok);
+                try res.implicitCast(p, .complex_float_to_complex_int);
             }
         } else if (!res.qt.eql(int_qt, p.comp)) {
             const old_val = res.val;
@@ -7206,23 +7199,23 @@ pub const Result = struct {
 
             if (src_sk.isReal() and dest_sk.isReal()) {
                 res.qt = int_qt;
-                try res.implicitCast(p, .int_cast, tok);
+                try res.implicitCast(p, .int_cast);
             } else if (src_sk.isReal()) {
                 const real_int_qt = int_qt.toReal(p.comp);
                 if (!res.qt.eql(real_int_qt, p.comp)) {
                     res.qt = real_int_qt;
-                    try res.implicitCast(p, .int_cast, tok);
+                    try res.implicitCast(p, .int_cast);
                 }
                 res.qt = int_qt;
-                try res.implicitCast(p, .real_to_complex_int, tok);
+                try res.implicitCast(p, .real_to_complex_int);
             } else if (dest_sk.isReal()) {
                 res.qt = res.qt.toReal(p.comp);
-                try res.implicitCast(p, .complex_int_to_real, tok);
+                try res.implicitCast(p, .complex_int_to_real);
                 res.qt = int_qt;
-                try res.implicitCast(p, .int_cast, tok);
+                try res.implicitCast(p, .int_cast);
             } else {
                 res.qt = int_qt;
-                try res.implicitCast(p, .complex_int_cast, tok);
+                try res.implicitCast(p, .complex_int_cast);
             }
         }
     }
@@ -7244,75 +7237,75 @@ pub const Result = struct {
         }
     }
 
-    fn castToFloat(res: *Result, p: *Parser, float_qt: QualType, tok: TokenIndex) Error!void {
+    fn castToFloat(res: *Result, p: *Parser, float_qt: QualType) Error!void {
         const src_sk = res.qt.scalarKind(p.comp);
         const dest_sk = float_qt.scalarKind(p.comp);
 
         if (src_sk == .bool) {
             try res.val.intToFloat(float_qt, p.comp);
             res.qt = float_qt.toReal(p.comp);
-            try res.implicitCast(p, .bool_to_float, tok);
+            try res.implicitCast(p, .bool_to_float);
             if (!dest_sk.isReal()) {
                 res.qt = float_qt;
-                try res.implicitCast(p, .real_to_complex_float, tok);
+                try res.implicitCast(p, .real_to_complex_float);
             }
         } else if (src_sk.isInt()) {
             try res.val.intToFloat(float_qt, p.comp);
             if (src_sk.isReal() and dest_sk.isReal()) {
                 res.qt = float_qt;
-                try res.implicitCast(p, .int_to_float, tok);
+                try res.implicitCast(p, .int_to_float);
             } else if (src_sk.isReal()) {
                 res.qt = float_qt.toReal(p.comp);
-                try res.implicitCast(p, .int_to_float, tok);
+                try res.implicitCast(p, .int_to_float);
                 res.qt = float_qt;
-                try res.implicitCast(p, .real_to_complex_float, tok);
+                try res.implicitCast(p, .real_to_complex_float);
             } else if (dest_sk.isReal()) {
                 res.qt = res.qt.toReal(p.comp);
-                try res.implicitCast(p, .complex_int_to_real, tok);
+                try res.implicitCast(p, .complex_int_to_real);
                 res.qt = float_qt;
-                try res.implicitCast(p, .int_to_float, tok);
+                try res.implicitCast(p, .int_to_float);
             } else {
                 res.qt = float_qt;
-                try res.implicitCast(p, .complex_int_to_complex_float, tok);
+                try res.implicitCast(p, .complex_int_to_complex_float);
             }
         } else if (!res.qt.eql(float_qt, p.comp)) {
             try res.val.floatCast(float_qt, p.comp);
             if (src_sk.isReal() and dest_sk.isReal()) {
                 res.qt = float_qt;
-                try res.implicitCast(p, .float_cast, tok);
+                try res.implicitCast(p, .float_cast);
             } else if (src_sk.isReal()) {
                 if (res.qt.floatRank(p.comp) != float_qt.floatRank(p.comp)) {
                     res.qt = float_qt.toReal(p.comp);
-                    try res.implicitCast(p, .float_cast, tok);
+                    try res.implicitCast(p, .float_cast);
                 }
                 res.qt = float_qt;
-                try res.implicitCast(p, .real_to_complex_float, tok);
+                try res.implicitCast(p, .real_to_complex_float);
             } else if (dest_sk.isReal()) {
                 res.qt = res.qt.toReal(p.comp);
-                try res.implicitCast(p, .complex_float_to_real, tok);
+                try res.implicitCast(p, .complex_float_to_real);
                 if (res.qt.floatRank(p.comp) != float_qt.floatRank(p.comp)) {
                     res.qt = float_qt;
-                    try res.implicitCast(p, .float_cast, tok);
+                    try res.implicitCast(p, .float_cast);
                 }
             } else {
                 res.qt = float_qt;
-                try res.implicitCast(p, .complex_float_cast, tok);
+                try res.implicitCast(p, .complex_float_cast);
             }
         }
     }
 
     /// Converts a bool or integer to a pointer
-    fn castToPointer(res: *Result, p: *Parser, ptr_qt: QualType, tok: TokenIndex) Error!void {
+    fn castToPointer(res: *Result, p: *Parser, ptr_qt: QualType) Error!void {
         const src_sk = res.qt.scalarKind(p.comp);
         if (src_sk == .bool) {
             res.qt = ptr_qt;
-            try res.implicitCast(p, .bool_to_pointer, tok);
+            try res.implicitCast(p, .bool_to_pointer);
         } else if (src_sk.isInt()) {
             _ = try res.val.intCast(ptr_qt, p.comp);
             res.qt = ptr_qt;
-            try res.implicitCast(p, .int_to_pointer, tok);
+            try res.implicitCast(p, .int_to_pointer);
         } else if (src_sk == .nullptr_t) {
-            try res.nullToPointer(p, ptr_qt, tok);
+            try res.nullToPointer(p, ptr_qt);
         } else if (src_sk.isPointer() and !res.qt.eql(ptr_qt, p.comp)) {
             if (ptr_qt.is(p.comp, .nullptr_t)) {
                 res.qt = .invalid;
@@ -7328,25 +7321,25 @@ pub const Result = struct {
                 (dest_elem.@"volatile" == src_elem.@"volatile" or dest_elem.@"volatile"))
             {
                 // Gaining qualifiers is a no-op.
-                try res.implicitCast(p, .no_op, tok);
+                try res.implicitCast(p, .no_op);
             } else {
-                try res.implicitCast(p, .bitcast, tok);
+                try res.implicitCast(p, .bitcast);
             }
         }
     }
 
-    fn castToVoid(res: *Result, p: *Parser, tok: TokenIndex) Error!void {
+    fn castToVoid(res: *Result, p: *Parser) Error!void {
         if (!res.qt.is(p.comp, .void)) {
             res.qt = .void;
-            try res.implicitCast(p, .to_void, tok);
+            try res.implicitCast(p, .to_void);
         }
     }
 
-    fn nullToPointer(res: *Result, p: *Parser, ptr_ty: QualType, tok: TokenIndex) Error!void {
+    fn nullToPointer(res: *Result, p: *Parser, ptr_ty: QualType) Error!void {
         if (!res.qt.is(p.comp, .nullptr_t) and !res.val.isZero(p.comp)) return;
         res.val = .null;
         res.qt = ptr_ty;
-        try res.implicitCast(p, .null_to_pointer, tok);
+        try res.implicitCast(p, .null_to_pointer);
     }
 
     fn usualUnaryConversion(res: *Result, p: *Parser, tok: TokenIndex) Error!void {
@@ -7360,14 +7353,14 @@ pub const Result = struct {
                     if (res.qt.floatRank(p.comp) < QualType.double.floatRank(p.comp)) {
                         var res_qt: QualType = .double;
                         if (res.qt.is(p.comp, .complex)) res_qt = try res_qt.toComplex(p.comp);
-                        return res.castToFloat(p, res_qt, tok);
+                        return res.castToFloat(p, res_qt);
                     }
                 },
                 .extended => {
                     if (res.qt.floatRank(p.comp) < QualType.long_double.floatRank(p.comp)) {
                         var res_qt: QualType = .long_double;
                         if (res.qt.is(p.comp, .complex)) res_qt = try res_qt.toComplex(p.comp);
-                        return res.castToFloat(p, res_qt, tok);
+                        return res.castToFloat(p, res_qt);
                     }
                 },
             }
@@ -7376,7 +7369,7 @@ pub const Result = struct {
         if (!p.comp.langopts.use_native_half_type) {
             if (res.qt.get(p.comp, .float)) |float_ty| {
                 if (float_ty == .fp16) {
-                    return res.castToFloat(p, .float, tok);
+                    return res.castToFloat(p, .float);
                 }
             }
         }
@@ -7419,14 +7412,14 @@ pub const Result = struct {
                 else
                     b.qt);
 
-            try a.castToFloat(p, res_qt, tok);
-            try b.castToFloat(p, res_qt, tok);
+            try a.castToFloat(p, res_qt);
+            try b.castToFloat(p, res_qt);
             return;
         } else if (a_float) {
-            try b.castToFloat(p, a.qt, tok);
+            try b.castToFloat(p, a.qt);
             return;
         } else if (b_float) {
-            try a.castToFloat(p, b.qt, tok);
+            try a.castToFloat(p, b.qt);
             return;
         }
 
@@ -7578,13 +7571,13 @@ pub const Result = struct {
             }
         } else if (src_sk == .nullptr_t) {
             if (dest_sk == .bool) {
-                try res.nullToPointer(p, res.qt, l_paren);
+                try res.nullToPointer(p, res.qt);
                 res.val.boolCast(p.comp);
                 res.qt = .bool;
-                try res.implicitCast(p, .pointer_to_bool, l_paren);
+                try res.implicitCast(p, .pointer_to_bool);
                 try res.saveValue(p);
             } else if (dest_sk.isPointer()) {
-                try res.nullToPointer(p, dest_qt, l_paren);
+                try res.nullToPointer(p, dest_qt);
             } else {
                 try p.err(l_paren, .invalid_object_cast, .{ res.qt, dest_qt });
                 return error.ParsingFailed;
@@ -7609,13 +7602,13 @@ pub const Result = struct {
                 } else if (src_sk.isInt()) {
                     if (!src_sk.isReal()) {
                         res.qt = res.qt.toReal(p.comp);
-                        try res.implicitCast(p, .complex_int_to_real, l_paren);
+                        try res.implicitCast(p, .complex_int_to_real);
                     }
                     cast_kind = .int_to_bool;
                 } else if (src_sk.isFloat()) {
                     if (!src_sk.isReal()) {
                         res.qt = res.qt.toReal(p.comp);
-                        try res.implicitCast(p, .complex_float_to_real, l_paren);
+                        try res.implicitCast(p, .complex_float_to_real);
                     }
                     cast_kind = .float_to_bool;
                 }
@@ -7623,7 +7616,7 @@ pub const Result = struct {
                 if (src_sk == .bool) {
                     if (!dest_sk.isReal()) {
                         res.qt = dest_qt.toReal(p.comp);
-                        try res.implicitCast(p, .bool_to_int, l_paren);
+                        try res.implicitCast(p, .bool_to_int);
                         cast_kind = .real_to_complex_int;
                     } else {
                         cast_kind = .bool_to_int;
@@ -7633,11 +7626,11 @@ pub const Result = struct {
                         cast_kind = .int_cast;
                     } else if (src_sk.isReal()) {
                         res.qt = dest_qt.toReal(p.comp);
-                        try res.implicitCast(p, .int_cast, l_paren);
+                        try res.implicitCast(p, .int_cast);
                         cast_kind = .real_to_complex_int;
                     } else if (dest_sk.isReal()) {
                         res.qt = res.qt.toReal(p.comp);
-                        try res.implicitCast(p, .complex_int_to_real, l_paren);
+                        try res.implicitCast(p, .complex_int_to_real);
                         cast_kind = .int_cast;
                     } else {
                         cast_kind = .complex_int_cast;
@@ -7646,7 +7639,7 @@ pub const Result = struct {
                     res.val = .{};
                     if (!dest_sk.isReal()) {
                         res.qt = dest_qt.toReal(p.comp);
-                        try res.implicitCast(p, .pointer_to_int, l_paren);
+                        try res.implicitCast(p, .pointer_to_int);
                         cast_kind = .real_to_complex_int;
                     } else {
                         cast_kind = .pointer_to_int;
@@ -7655,11 +7648,11 @@ pub const Result = struct {
                     cast_kind = .float_to_int;
                 } else if (src_sk.isReal()) {
                     res.qt = dest_qt.toReal(p.comp);
-                    try res.implicitCast(p, .float_to_int, l_paren);
+                    try res.implicitCast(p, .float_to_int);
                     cast_kind = .real_to_complex_int;
                 } else if (dest_sk.isReal()) {
                     res.qt = res.qt.toReal(p.comp);
-                    try res.implicitCast(p, .complex_float_to_real, l_paren);
+                    try res.implicitCast(p, .complex_float_to_real);
                     cast_kind = .float_to_int;
                 } else {
                     cast_kind = .complex_float_to_complex_int;
@@ -7672,7 +7665,7 @@ pub const Result = struct {
                 } else if (src_sk.isInt()) {
                     if (!src_sk.isReal()) {
                         res.qt = res.qt.toReal(p.comp);
-                        try res.implicitCast(p, .complex_int_to_real, l_paren);
+                        try res.implicitCast(p, .complex_int_to_real);
                     }
                     cast_kind = .int_to_pointer;
                 } else if (res.qt.is(p.comp, .array)) {
@@ -7687,7 +7680,7 @@ pub const Result = struct {
                 if (src_sk == .bool) {
                     if (!dest_sk.isReal()) {
                         res.qt = dest_qt.toReal(p.comp);
-                        try res.implicitCast(p, .bool_to_float, l_paren);
+                        try res.implicitCast(p, .bool_to_float);
                         cast_kind = .real_to_complex_float;
                     } else {
                         cast_kind = .bool_to_float;
@@ -7697,11 +7690,11 @@ pub const Result = struct {
                         cast_kind = .int_to_float;
                     } else if (src_sk.isReal()) {
                         res.qt = dest_qt.toReal(p.comp);
-                        try res.implicitCast(p, .int_to_float, l_paren);
+                        try res.implicitCast(p, .int_to_float);
                         cast_kind = .real_to_complex_float;
                     } else if (dest_sk.isReal()) {
                         res.qt = res.qt.toReal(p.comp);
-                        try res.implicitCast(p, .complex_int_to_real, l_paren);
+                        try res.implicitCast(p, .complex_int_to_real);
                         cast_kind = .int_to_float;
                     } else {
                         cast_kind = .complex_int_to_complex_float;
@@ -7710,11 +7703,11 @@ pub const Result = struct {
                     cast_kind = .float_cast;
                 } else if (src_sk.isReal()) {
                     res.qt = dest_qt.toReal(p.comp);
-                    try res.implicitCast(p, .float_cast, l_paren);
+                    try res.implicitCast(p, .float_cast);
                     cast_kind = .real_to_complex_float;
                 } else if (dest_sk.isReal()) {
                     res.qt = res.qt.toReal(p.comp);
-                    try res.implicitCast(p, .complex_float_to_real, l_paren);
+                    try res.implicitCast(p, .complex_float_to_real);
                     cast_kind = .float_cast;
                 } else {
                     cast_kind = .complex_float_cast;
@@ -7830,7 +7823,7 @@ pub const Result = struct {
         // Subject of the coercion does not need to be qualified.
         const src_original_qt = res.qt;
         switch (c) {
-            .init, .ret, .assign => try res.lvalConversion(p, tok),
+            .init, .ret, .assign => try res.lvalConversion(p),
             else => {},
         }
         if (res.qt.isInvalid()) return;
@@ -7862,7 +7855,7 @@ pub const Result = struct {
             if (dest_vector.eql(res_vector, p.comp, true)) return;
             if (dest_unqual.sizeCompare(res.qt, p.comp) == .eq) {
                 res.qt = dest_unqual;
-                return res.implicitCast(p, .bitcast, tok);
+                return res.implicitCast(p, .bitcast);
             }
         } else if (dest_sk == .nullptr_t) {
             if (src_sk == .nullptr_t) return;
@@ -7885,7 +7878,7 @@ pub const Result = struct {
             }
         } else if (dest_sk.isFloat()) {
             if (src_sk.isInt() or src_sk.isFloat()) {
-                try res.castToFloat(p, dest_unqual, tok);
+                try res.castToFloat(p, dest_unqual);
                 return;
             }
         } else if (dest_unqual.is(p.comp, .storage_float)) {
@@ -7894,18 +7887,18 @@ pub const Result = struct {
             // large if/else block
         } else if (dest_sk.isPointer() and dest_sk != .block_pointer) {
             if (src_sk == .nullptr_t or res.val.isZero(p.comp)) {
-                try res.nullToPointer(p, dest_unqual, tok);
+                try res.nullToPointer(p, dest_unqual);
                 return;
             } else if (src_sk.isInt() and src_sk.isReal()) {
                 if (c == .test_coerce) return error.CoercionFailed;
                 try p.err(tok, .implicit_int_to_ptr, .{ src_original_qt, dest_unqual });
                 try c.note(p);
-                try res.castToPointer(p, dest_unqual, tok);
+                try res.castToPointer(p, dest_unqual);
                 return;
             } else if (src_sk == .void_pointer or dest_unqual.eql(res.qt, p.comp)) {
-                return res.castToPointer(p, dest_unqual, tok);
+                return res.castToPointer(p, dest_unqual);
             } else if (dest_sk == .void_pointer and src_sk.isPointer()) {
-                return res.castToPointer(p, dest_unqual, tok);
+                return res.castToPointer(p, dest_unqual);
             } else if (src_sk.isPointer() and src_sk != .block_pointer) {
                 const src_child = res.qt.childType(p.comp);
                 const dest_child = dest_unqual.childType(p.comp);
@@ -7923,7 +7916,7 @@ pub const Result = struct {
                         };
                         try p.err(tok, data.diag, .{ data.qts[0], data.qts[1] });
                     }
-                    try res.castToPointer(p, dest_unqual, tok);
+                    try res.castToPointer(p, dest_unqual);
                     return;
                 }
 
@@ -7938,7 +7931,7 @@ pub const Result = struct {
                 try c.note(p);
 
                 res.qt = dest_unqual;
-                return res.implicitCast(p, .bitcast, tok);
+                return res.implicitCast(p, .bitcast);
             } else if (src_sk == .block_pointer) {
                 try p.err(tok, .incompatible_assign, .{ dest_qt, src_original_qt });
                 try c.note(p);
@@ -7971,10 +7964,10 @@ pub const Result = struct {
             }
         } else if (dest_sk == .block_pointer) {
             if (src_sk == .nullptr_t or res.val.isZero(p.comp)) {
-                try res.nullToPointer(p, dest_unqual, tok);
+                try res.nullToPointer(p, dest_unqual);
                 return; // ok
             } else if (src_sk == .void_pointer) {
-                try res.implicitCast(p, .bitcast, tok);
+                try res.implicitCast(p, .bitcast);
                 return; // ok
             } else if (dest_unqual.eql(res.qt, p.comp)) {
                 return; // ok
@@ -8165,8 +8158,8 @@ fn binaryExpr(p: *Parser, min_prec: Token.Precedence, eval: bool) Error!?Result 
                 prev_total = p.diagnostics.total;
                 expr_start = operator + 1;
 
-                try lhs.lvalConversion(p, operator);
-                try rhs.lvalConversion(p, operator);
+                try lhs.lvalConversion(p);
+                try rhs.lvalConversion(p);
                 lhs.val = rhs.val;
                 lhs.qt = rhs.qt;
                 try lhs.bin(p, .comma_expr, rhs, operator);
@@ -8203,7 +8196,7 @@ fn binaryExpr(p: *Parser, min_prec: Token.Precedence, eval: bool) Error!?Result 
 
                 var lhs_dummy = lhs;
                 try lhs_dummy.un(p, .compound_assign_dummy_expr, operator);
-                try lhs_dummy.lvalConversion(p, operator);
+                try lhs_dummy.lvalConversion(p);
 
                 switch (tag) {
                     .mul_assign_expr,
@@ -8249,7 +8242,7 @@ fn binaryExpr(p: *Parser, min_prec: Token.Precedence, eval: bool) Error!?Result 
                 try lhs.bin(p, tag, lhs_dummy, operator);
             },
             .binary_conditional => {
-                try lhs.lvalConversion(p, operator);
+                try lhs.lvalConversion(p);
                 const cond_known = lhs.val.opt_ref != .none;
                 const cond_true = cond_known and lhs.val.toBool(p.comp);
 
@@ -8283,7 +8276,7 @@ fn binaryExpr(p: *Parser, min_prec: Token.Precedence, eval: bool) Error!?Result 
                 });
             },
             .conditional => {
-                try lhs.lvalConversion(p, operator);
+                try lhs.lvalConversion(p);
                 const cond_known = lhs.val.opt_ref != .none;
                 const cond_true = cond_known and lhs.val.toBool(p.comp);
 
@@ -8530,9 +8523,8 @@ fn builtinBitCast(p: *Parser, builtin_tok: TokenIndex) Error!Result {
     const res_qt = try p.expectTypeName(.comma);
     _ = try p.expectToken(.comma);
 
-    const operand_tok = p.tok_i;
     var operand = try p.expectWithClosing(assignExpr, .r_paren);
-    try operand.lvalConversion(p, operand_tok);
+    try operand.lvalConversion(p);
 
     try p.expectClosing(l_paren, .r_paren);
 
@@ -8724,7 +8716,7 @@ fn builtinVaArg(p: *Parser, builtin_tok: TokenIndex) Error!Result {
     const l_paren = try p.expectToken(.l_paren);
     const va_list_tok = p.tok_i;
     var va_list = try p.expect(assignExpr);
-    try va_list.lvalConversion(p, va_list_tok);
+    try va_list.lvalConversion(p);
 
     _ = try p.expectToken(.comma);
 
@@ -8910,8 +8902,8 @@ fn offsetofMemberDesignator(
                 return error.ParsingFailed;
             };
             var ptr = lhs;
-            try ptr.lvalConversion(p, l_bracket_tok);
-            try index.lvalConversion(p, l_bracket_tok);
+            try ptr.lvalConversion(p);
+            try index.lvalConversion(p);
 
             if (!index.qt.isInvalid() and index.qt.isRealInt(p.comp)) {
                 try p.checkArrayBounds(index, lhs, l_bracket_tok);
@@ -9073,7 +9065,7 @@ fn unExpr(p: *Parser, eval: bool) Error!?Result {
 
             switch (operand.qt.base(p.comp).type) {
                 .array, .func, .pointer => {
-                    try operand.lvalConversion(p, tok);
+                    try operand.lvalConversion(p);
                     operand.qt = operand.qt.childType(p.comp);
                     operand.val = .{};
                 },
@@ -9094,7 +9086,7 @@ fn unExpr(p: *Parser, eval: bool) Error!?Result {
             p.tok_i += 1;
 
             var operand = try p.expectResult(try p.unExpr(eval));
-            try operand.lvalConversion(p, tok);
+            try operand.lvalConversion(p);
             const scalar_qt = if (operand.qt.get(p.comp, .vector)) |vec| vec.elem else operand.qt;
             if (!scalar_qt.isInt(p.comp) and !scalar_qt.isFloat(p.comp))
                 try p.err(tok, .invalid_argument_un, .{operand.qt});
@@ -9107,7 +9099,7 @@ fn unExpr(p: *Parser, eval: bool) Error!?Result {
             p.tok_i += 1;
 
             var operand = try p.expectResult(try p.unExpr(eval));
-            try operand.lvalConversion(p, tok);
+            try operand.lvalConversion(p);
             const scalar_qt = if (operand.qt.get(p.comp, .vector)) |vec| vec.elem else operand.qt;
             if (!scalar_qt.isInt(p.comp) and !scalar_qt.isFloat(p.comp))
                 try p.err(tok, .invalid_argument_un, .{operand.qt});
@@ -9185,7 +9177,7 @@ fn unExpr(p: *Parser, eval: bool) Error!?Result {
             p.tok_i += 1;
 
             var operand = try p.expectResult(try p.unExpr(eval));
-            try operand.lvalConversion(p, tok);
+            try operand.lvalConversion(p);
             try operand.usualUnaryConversion(p, tok);
 
             const scalar_qt = if (operand.qt.get(p.comp, .vector)) |vec| vec.elem else operand.qt;
@@ -9210,7 +9202,7 @@ fn unExpr(p: *Parser, eval: bool) Error!?Result {
             p.tok_i += 1;
 
             var operand = try p.expectResult(try p.unExpr(eval));
-            try operand.lvalConversion(p, tok);
+            try operand.lvalConversion(p);
             if (operand.qt.scalarKind(p.comp) == .none)
                 try p.err(tok, .invalid_argument_un, .{operand.qt});
 
@@ -9363,7 +9355,7 @@ fn unExpr(p: *Parser, eval: bool) Error!?Result {
             p.tok_i += 1;
 
             var operand = try p.expectResult(try p.unExpr(eval));
-            try operand.lvalConversion(p, tok);
+            try operand.lvalConversion(p);
             if (operand.qt.isInvalid()) return operand;
 
             const scalar_kind = operand.qt.scalarKind(p.comp);
@@ -9393,7 +9385,7 @@ fn unExpr(p: *Parser, eval: bool) Error!?Result {
             p.tok_i += 1;
 
             var operand = try p.expectResult(try p.unExpr(eval));
-            try operand.lvalConversion(p, tok);
+            try operand.lvalConversion(p);
             if (operand.qt.isInvalid()) return operand;
             if (!operand.qt.isInt(p.comp) and !operand.qt.isFloat(p.comp)) {
                 try p.err(real_tok, .invalid_real, .{operand.qt});
@@ -9533,8 +9525,8 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!?Result {
             const index_before_conversion = index;
             var ptr = lhs;
 
-            try ptr.lvalConversion(p, l_bracket);
-            try index.lvalConversion(p, l_bracket);
+            try ptr.lvalConversion(p);
+            try index.lvalConversion(p);
             if (ptr.qt.get(p.comp, .pointer)) |pointer_ty| {
                 ptr.qt = pointer_ty.child;
                 if (index.qt.isRealInt(p.comp)) {
@@ -9586,7 +9578,7 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!?Result {
             if (lhs.qt.is(p.comp, .array)) {
                 var copy = lhs;
                 copy.qt = try copy.qt.decay(p.comp);
-                try copy.implicitCast(p, .array_to_pointer, arrow);
+                try copy.implicitCast(p, .array_to_pointer);
                 return try p.fieldAccess(copy, name, true, arrow);
             }
             return try p.fieldAccess(lhs, name, true, arrow);
@@ -10018,7 +10010,7 @@ fn callExpr(p: *Parser, lhs: Result) Error!Result {
     };
 
     var func = lhs;
-    try func.lvalConversion(p, l_paren);
+    try func.lvalConversion(p);
 
     const list_buf_top = p.list_buf.items.len;
     defer p.list_buf.items.len = list_buf_top;
@@ -10068,14 +10060,14 @@ fn callExpr(p: *Parser, lhs: Result) Error!Result {
         var arg = try p.expect(assignExpr);
 
         if (call_expr.shouldPerformLvalConversion(arg_count)) {
-            try arg.lvalConversion(p, param_tok);
+            try arg.lvalConversion(p);
         }
         if ((arg.qt.hasIncompleteSize(p.comp) and !arg.qt.is(p.comp, .void)) or arg.qt.isInvalid()) return error.ParsingFailed;
 
         if (arg_count >= typed_params_len) {
             if (call_expr.shouldPromoteVarArg(arg_count)) switch (arg.qt.base(p.comp).type) {
                 .int => |int_ty| if (int_ty == .int) try arg.castToInt(p, arg.qt.promoteInt(p.comp), param_tok),
-                .float => |float_ty| if (float_ty == .double) try arg.castToFloat(p, .double, param_tok),
+                .float => |float_ty| if (float_ty == .double) try arg.castToFloat(p, .double),
                 else => {},
             };
 
@@ -10323,7 +10315,7 @@ fn primaryExpr(p: *Parser, eval: bool) Error!?Result {
                 // Cast (type)unExpr
                 const operand_tok = p.tok_i;
                 var operand = try p.expectResult(try p.unExpr(eval));
-                try operand.lvalConversion(p, operand_tok);
+                try operand.lvalConversion(p);
                 try operand.castType(p, ty, operand_tok, l_paren);
                 return operand;
             } else if (any) {
