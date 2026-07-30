@@ -2794,6 +2794,20 @@ fn pasteTokens(pp: *Preprocessor, lhs_toks: *ExpandBuf, rhs_toks: []const TokenW
         return bufCopyTokens(gpa, lhs_toks, rhs_toks, &.{});
     };
 
+    // preserved comments (via -CC) inhibit pasting
+    if (lhs.id == .comment and lhs.flags.is_macro_arg) {
+        if (lhs_toks.items.len != 0 and rhs_toks.len != 0) {
+            switch (lhs_toks.items[lhs_toks.items.len - 1].id) {
+                .macro_ws, .comment => {},
+                else => switch (rhs_toks[0].id) {
+                    .macro_ws, .comment => {},
+                    else => try lhs_toks.append(gpa, .{ .id = .macro_ws, .loc = lhs.loc }),
+                },
+            }
+        }
+        return bufCopyTokens(gpa, lhs_toks, rhs_toks, &.{});
+    }
+
     var rhs_rest: u32 = 1;
     const rhs = for (rhs_toks) |rhs| {
         if ((pp.comp.langopts.preserve_comments_in_macros and rhs.id == .comment) or
