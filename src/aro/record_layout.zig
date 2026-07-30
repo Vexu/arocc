@@ -575,8 +575,8 @@ pub fn compute(
 
     const use_sysv_layout = switch (comp.langopts.emulate) {
         .msvc => false,
-        .clang => comp.target.abi != .msvc,
-        .gcc, .no => true,
+        .clang, .no => comp.target.abi != .msvc,
+        .gcc => true,
     };
 
     if (use_sysv_layout) {
