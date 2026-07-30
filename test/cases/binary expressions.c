@@ -89,6 +89,18 @@ _Static_assert(2.0||(2.0 && 2.0), "");
 
 _Static_assert((-10 & -1) == -10, "");
 
+int invalid_conditional = sizeof(struct A) ? 1 : 2;
+int invalid_bin_conditional = sizeof(struct B) ? : 1;
+int invalid_div_by_zero = sizeof(struct C) / 0;
+
+void div_by_zero_assign(void) {
+    int a = 1;
+    a /= 0;
+    (void)(0 && (a /= 0));
+}
+
+_Static_assert((int){1} = 0, "");
+
 /** manifest:
 syntax
 
@@ -119,4 +131,9 @@ binary expressions.c:62:7: error: invalid operands to binary expression ('int' a
 binary expressions.c:67:15: error: used type 'void' where arithmetic or pointer type is required
 binary expressions.c:72:16: error: arithmetic on a pointer to an incomplete type 'struct Foo'
 binary expressions.c:77:18: error: invalid operands to binary expression ('char *' and 'char *')
+binary expressions.c:92:27: error: invalid application of 'sizeof' to an incomplete type 'struct A'
+binary expressions.c:93:31: error: invalid application of 'sizeof' to an incomplete type 'struct B'
+binary expressions.c:94:27: error: invalid application of 'sizeof' to an incomplete type 'struct C'
+binary expressions.c:98:7: warning: division by zero is undefined [-Wdivision-by-zero]
+binary expressions.c:102:16: error: static assertion expression is not an integral constant expression
 */

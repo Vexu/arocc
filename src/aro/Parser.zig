@@ -8210,14 +8210,14 @@ fn binaryExpr(p: *Parser, min_prec: Token.Precedence, eval: bool) Error!?Result 
                     .div_assign_expr,
                     .mod_assign_expr,
                     => {
-                        if (!lhs.qt.isInvalid() and rhs.val.isZero(p.comp) and lhs.qt.isInt(p.comp) and rhs.qt.isInt(p.comp)) {
+                        try lhs_dummy.adjustTypes(operator, &rhs, p, if (tag == .mod_assign_expr) .integer else .arithmetic);
+                        if (eval and !lhs.qt.isInvalid() and rhs.val.isZero(p.comp) and lhs_dummy.qt.isInt(p.comp)) {
                             switch (tag) {
                                 .div_assign_expr => try p.err(operator, .division_by_zero, .{"division"}),
                                 .mod_assign_expr => try p.err(operator, .division_by_zero, .{"remainder"}),
                                 else => {},
                             }
                         }
-                        try lhs_dummy.adjustTypes(operator, &rhs, p, if (tag == .mod_assign_expr) .integer else .arithmetic);
                     },
                     .sub_assign_expr => try lhs_dummy.adjustTypes(operator, &rhs, p, .sub),
                     .add_assign_expr => try lhs_dummy.adjustTypes(operator, &rhs, p, .add),
@@ -8253,7 +8253,7 @@ fn binaryExpr(p: *Parser, min_prec: Token.Precedence, eval: bool) Error!?Result 
                 const cond_known = lhs.val.opt_ref != .none;
                 const cond_true = cond_known and lhs.val.toBool(p.comp);
 
-                if (lhs.qt.scalarKind(p.comp) == .none) {
+                if (!lhs.qt.isInvalid() and lhs.qt.scalarKind(p.comp) == .none) {
                     try p.err(operator, .cond_expr_type, .{lhs.qt});
                     lhs.qt = .invalid;
                 }
@@ -8287,7 +8287,7 @@ fn binaryExpr(p: *Parser, min_prec: Token.Precedence, eval: bool) Error!?Result 
                 const cond_known = lhs.val.opt_ref != .none;
                 const cond_true = cond_known and lhs.val.toBool(p.comp);
 
-                if (lhs.qt.scalarKind(p.comp) == .none) {
+                if (!lhs.qt.isInvalid() and lhs.qt.scalarKind(p.comp) == .none) {
                     try p.err(operator, .cond_expr_type, .{lhs.qt});
                 }
 
@@ -8494,7 +8494,7 @@ fn binaryExpr(p: *Parser, min_prec: Token.Precedence, eval: bool) Error!?Result 
                 };
 
                 try lhs.adjustTypes(operator, &rhs, p, if (tag == .mod_expr) .integer else .arithmetic);
-                if (rhs.val.isZero(p.comp) and tag != .mul_expr and eval and lhs.qt.isInt(p.comp)) {
+                if (eval and tag != .mul_expr and !lhs.qt.isInvalid() and lhs.qt.isInt(p.comp) and rhs.val.isZero(p.comp)) {
                     lhs.val = .{};
                     try p.err(operator, .division_by_zero, if (tag == .div_expr) .{"division"} else .{"remainder"});
                 }
