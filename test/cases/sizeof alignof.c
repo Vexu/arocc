@@ -31,8 +31,16 @@ void array_params(int x, int y[5], int z[x]) {
     _Static_assert(sizeof(z) == sizeof(int *), "");
 }
 
+void sizeof_compound_literal(void) {
+    sizeof (int){2};
+    _Alignof (int){2};
+    sizeof (static int){2};
+    alignof (static int){2};
+}
+
 /** manifest:
 syntax
+args = -Wno-unused -std=c23
 
 sizeof alignof.c:10:19: error: expected parentheses around type name
 sizeof alignof.c:10:37: error: expected parentheses around type name
@@ -43,4 +51,6 @@ sizeof alignof.c:27:16: warning: invalid application of 'sizeof' to a void type 
 sizeof alignof.c:28:16: warning: invalid application of 'alignof' to a void type [-Wpointer-arith]
 sizeof alignof.c:30:20: warning: sizeof on array function parameter will return size of 'int *' instead of 'int [5]' [-Wsizeof-array-argument]
 sizeof alignof.c:31:20: warning: sizeof on array function parameter will return size of 'int *' instead of 'int [<expr>]' [-Wsizeof-array-argument]
+sizeof alignof.c:36:14: warning: '_Alignof' applied to an expression is a GNU extension [-Wgnu-alignof-expression]
+sizeof alignof.c:38:13: warning: 'alignof' applied to an expression is a GNU extension [-Wgnu-alignof-expression]
 */

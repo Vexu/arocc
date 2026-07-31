@@ -9241,9 +9241,13 @@ fn unExpr(p: *Parser, eval: bool) Error!?Result {
                 res.qt = qt;
                 try p.err(expected_paren, .expected_parens_around_typename, .{});
             } else if (p.eatToken(.l_paren)) |l_paren| {
-                if (try p.typeName()) |ty| {
-                    res.qt = ty;
+                if (try p.typeName()) |qt| {
+                    res.qt = qt;
                     try p.expectClosing(l_paren, .r_paren);
+                    if (p.tok_ids[p.tok_i] == .l_brace) {
+                        res = try p.compoundLiteral(l_paren, .{ .qt = qt });
+                        has_expr = true;
+                    }
                 } else {
                     p.tok_i = expected_paren;
                     res = try p.expectResult(try p.unExpr(false));
@@ -9311,19 +9315,20 @@ fn unExpr(p: *Parser, eval: bool) Error!?Result {
                 if (try p.typeName()) |qt| {
                     res.qt = qt;
                     try p.expectClosing(l_paren, .r_paren);
+                    if (p.tok_ids[p.tok_i] == .l_brace) {
+                        res = try p.compoundLiteral(l_paren, .{ .qt = qt });
+                        has_expr = true;
+                    }
                 } else {
                     p.tok_i = expected_paren;
                     res = try p.expectResult(try p.unExpr(false));
                     has_expr = true;
-
-                    try p.err(expected_paren, .alignof_expr, .{});
                 }
             } else {
                 res = try p.expectResult(try p.unExpr(false));
                 has_expr = true;
-
-                try p.err(expected_paren, .alignof_expr, .{});
             }
+            if (has_expr) try p.err(expected_paren, .alignof_expr, .{p.tokSlice(tok)});
             const operand_qt = res.qt;
 
             if (res.qt.is(p.comp, .void)) {
@@ -9417,7 +9422,8 @@ fn unExpr(p: *Parser, eval: bool) Error!?Result {
 /// compoundLiteral
 ///  : '(' storageClassSpec* type_name ')' '{' initializer_list '}'
 ///  | '(' storageClassSpec* type_name ')' '{' initializer_list ',' '}'
-fn compoundLiteral(p: *Parser, l_paren: TokenIndex, d: *DeclSpec) Error!Result {
+fn compoundLiteral(p: *Parser, l_paren: TokenIndex, decl_spec: DeclSpec) Error!Result {
+    var d = decl_spec;
     switch (d.storage_class) {
         .auto, .@"extern", .typedef => |tok| {
             try p.err(tok, .invalid_compound_literal_storage_class, .{@tagName(d.storage_class)});
@@ -10314,7 +10320,7 @@ fn primaryExpr(p: *Parser, eval: bool) Error!?Result {
                 // Compound literal (type){ ... }
                 if (p.tok_ids[p.tok_i] == .l_brace) {
                     decl_spec.qt = ty;
-                    return try p.compoundLiteral(l_paren, &decl_spec);
+                    return try p.compoundLiteral(l_paren, decl_spec);
                 } else if (any) {
                     try p.err(l_paren + 1, .expected_expr, .{});
                     return error.ParsingFailed;

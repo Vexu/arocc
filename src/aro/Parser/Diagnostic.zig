@@ -569,7 +569,7 @@ pub const expected_parens_around_typename: Diagnostic = .{
 };
 
 pub const alignof_expr: Diagnostic = .{
-    .fmt = "'_Alignof' applied to an expression is a GNU extension",
+    .fmt = "'{s}' applied to an expression is a GNU extension",
     .opt = .@"gnu-alignof-expression",
     .kind = .warning,
     .extension = true,
