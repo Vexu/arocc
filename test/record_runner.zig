@@ -338,14 +338,6 @@ const compErr = blk: {
     @setEvalBranchQuota(100_000);
     break :blk std.StaticStringMap(ExpectedFailure).initComptime(&[_]struct { []const u8, ExpectedFailure }{
         .{
-            "x86-i686-uefi-msvc:Clang|0055",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
-            "x86_64-x86_64-uefi-msvc:Clang|0055",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
             "aarch64-generic-windows-msvc:Msvc|0026",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
