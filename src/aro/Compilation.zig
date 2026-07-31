@@ -675,6 +675,110 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
         => {
             try define(w, "__mips__");
             try define(w, "_mips");
+            if (is_gnu) try define(w, "mips");
+            switch (target.cpu.arch) {
+                .mips, .mips64 => {
+                    try define(w, "_MIPSEB");
+                    try define(w, "__MIPSEB");
+                    try define(w, "__MIPSEB__");
+                    if (is_gnu) try define(w, "MIPSEB");
+                },
+                .mipsel,
+                .mips64el,
+                => {
+                    try define(w, "_MIPSEL");
+                    try define(w, "__MIPSEL");
+                    try define(w, "__MIPSEL__");
+                    if (is_gnu) try define(w, "MIPSEL");
+                },
+                else => unreachable,
+            }
+
+            switch (target.mipsAbi()) {
+                .o32 => {
+                    try define(w, "__mips_o32");
+                    try define(w, "_ABIO32");
+                    try w.writeAll("#define _MIPS_SIM _ABIO32\n");
+                    try w.writeAll("#define __mips 32\n");
+                    try w.writeAll("#define _MIPS_ISA _MIPS_ISA_MIPS32\n");
+                },
+                .n32 => {
+                    try define(w, "__mips_n32");
+                    try w.writeAll("#define _ABIN32 2\n");
+                    try w.writeAll("#define _MIPS_SIM _ABIN32\n");
+                    try w.writeAll("#define __mips 64\n");
+                    try define(w, "__mips64");
+                    try define(w, "__mips64__");
+                    try w.writeAll("#define _MIPS_ISA _MIPS_ISA_MIPS64\n");
+                },
+                .n64 => {
+                    try define(w, "__mips_n64");
+                    try w.writeAll("#define _ABI64 3\n");
+                    try w.writeAll("#define _MIPS_SIM _ABI64\n");
+                    try w.writeAll("#define __mips 64\n");
+                    try define(w, "__mips64");
+                    try define(w, "__mips64__");
+                    try w.writeAll("#define _MIPS_ISA _MIPS_ISA_MIPS64\n");
+                },
+            }
+            if (target.mipsCpuName()) |name| {
+                try w.print("#define _MIPS_ARCH \"{s}\"\n", .{name});
+                var buf: [16]u8 = undefined;
+                const upper = std.ascii.upperString(&buf, name);
+                try w.print("#define _MIPS_ARCH_{s} 1\n", .{upper});
+            }
+
+            if (!target.cpu.has(.mips, .noabicalls)) {
+                try define(w, "__mips_abicalls");
+                if (target.os.tag.isBSD()) {
+                    try define(w, "__ABICALLS__");
+                }
+            }
+
+            if (target.cpu.has(.mips, .soft_float)) {
+                try define(w, "__mips_soft_float");
+            } else {
+                try define(w, "__mips_hard_float");
+            }
+            if (target.cpu.has(.mips, .single_float)) {
+                try define(w, "__mips_single_float");
+            }
+            {
+                const fpr: u8 = switch (target.defaultMipsFpMode()) {
+                    .fp32 => 32,
+                    .fp64 => 64,
+                    .fpxx => 0,
+                };
+                try w.print("#define __mips_fpr {d}\n", .{fpr});
+                const fpset: u8 = if (target.defaultMipsFpMode() == .fp64 or
+                    target.cpu.has(.mips, .single_float)) 32 else 16;
+                try w.print("#define _MIPS_FPSET {d}\n", .{fpset});
+                const spfpset: u8 = if (target.cpu.has(.mips, .nooddspreg) or
+                    target.defaultMipsFpMode() == .fpxx) 16 else 32;
+                try w.print("#define _MIPS_SPFPSET {d}\n", .{spfpset});
+            }
+            if (target.cpu.has(.mips, .mips16)) try define(w, "__mips16");
+            if (target.cpu.has(.mips, .micromips)) try define(w, "__mips_micromips");
+            if (target.cpu.has(.mips, .nan2008)) try define(w, "__mips_nan2008");
+            if (target.cpu.has(.mips, .abs2008)) try define(w, "__mips_abs2008");
+            if (target.cpu.has(.mips, .dspr3)) {
+                try w.print("#define __mips_dsp_rev 3\n", .{});
+                try w.print("#define __mips_dsp 3\n", .{});
+                try define(w, "__mips_dspr3");
+            } else if (target.cpu.has(.mips, .dspr2)) {
+                try w.print("#define __mips_dsp_rev 2\n", .{});
+                try w.print("#define __mips_dsp 2\n", .{});
+                try define(w, "__mips_dspr2");
+            } else if (target.cpu.has(.mips, .dsp)) {
+                try w.print("#define __mips_dsp_rev 1\n", .{});
+                try w.print("#define __mips_dsp 1\n", .{});
+            }
+            if (target.cpu.has(.mips, .msa)) try define(w, "__mips_msa");
+            if (target.cpu.has(.mips, .nomadd4)) try define(w, "__mips_no_madd4");
+            try w.print("#define _MIPS_SZPTR {d}\n", .{target.ptrBitWidth()});
+            try w.print("#define _MIPS_SZINT {d}\n", .{target.cTypeBitSize(.int)});
+            try w.print("#define _MIPS_SZLONG {d}\n", .{target.cTypeBitSize(.long)});
+            try w.print("#define __mips_isa_rev {d}\n", .{target.mipsIsaRev()});
         },
         .powerpc,
         .powerpcle,
