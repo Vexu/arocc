@@ -16,7 +16,7 @@ int quux(void) {
 
 int quuux(void) {
     (void)sizeof(0/0);
-    return _Alignof(0/0);
+    return __alignof(0/0);
 }
 
 _Static_assert(sizeof((void)1, (int*)0) == sizeof(int*), "sizeof");
@@ -44,13 +44,12 @@ args = -Wno-unused -std=c23
 
 sizeof alignof.c:10:19: error: expected parentheses around type name
 sizeof alignof.c:10:37: error: expected parentheses around type name
-sizeof alignof.c:14:32: warning: '_Alignof' applied to an expression is a GNU extension [-Wgnu-alignof-expression]
-sizeof alignof.c:19:20: warning: '_Alignof' applied to an expression is a GNU extension [-Wgnu-alignof-expression]
-sizeof alignof.c:24:24: error: invalid application of 'alignof' to an incomplete type 'struct does_not_exist'
+sizeof alignof.c:14:23: warning: '_Alignof' applied to an expression is a GNU extension [-Wgnu-alignof-expression]
+sizeof alignof.c:24:16: error: invalid application of 'alignof' to an incomplete type 'struct does_not_exist'
 sizeof alignof.c:27:16: warning: invalid application of 'sizeof' to a void type [-Wpointer-arith]
-sizeof alignof.c:28:16: warning: invalid application of 'alignof' to a void type [-Wpointer-arith]
-sizeof alignof.c:30:20: warning: sizeof on array function parameter will return size of 'int *' instead of 'int [5]' [-Wsizeof-array-argument]
-sizeof alignof.c:31:20: warning: sizeof on array function parameter will return size of 'int *' instead of 'int [<expr>]' [-Wsizeof-array-argument]
-sizeof alignof.c:36:14: warning: '_Alignof' applied to an expression is a GNU extension [-Wgnu-alignof-expression]
-sizeof alignof.c:38:13: warning: 'alignof' applied to an expression is a GNU extension [-Wgnu-alignof-expression]
+sizeof alignof.c:28:16: warning: invalid application of '_Alignof' to a void type [-Wpointer-arith]
+sizeof alignof.c:30:26: warning: sizeof on array function parameter will return size of 'int *' instead of 'int [5]' [-Wsizeof-array-argument]
+sizeof alignof.c:31:26: warning: sizeof on array function parameter will return size of 'int *' instead of 'int [<expr>]' [-Wsizeof-array-argument]
+sizeof alignof.c:36:5: warning: '_Alignof' applied to an expression is a GNU extension [-Wgnu-alignof-expression]
+sizeof alignof.c:38:5: warning: 'alignof' applied to an expression is a GNU extension [-Wgnu-alignof-expression]
 */

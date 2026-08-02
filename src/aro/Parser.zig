@@ -5770,6 +5770,7 @@ fn attributedStmt(p: *Parser, check_unused: bool) Error!Node.Index {
     if (try p.expr()) |some| {
         _ = try p.expectToken(.semicolon);
         if (check_unused) try p.diagnoseUnusedValue(some.node, prev_errors);
+        try some.putValue(p);
         return some.node;
     }
 
@@ -9227,129 +9228,88 @@ fn unExpr(p: *Parser, eval: bool) Error!?Result {
         },
         .keyword_sizeof => {
             p.tok_i += 1;
-            const expected_paren = p.tok_i;
+            const operand_tok = p.tok_i;
 
-            var has_expr = false;
-            var res: Result = .{
-                .node = undefined, // check has_expr
-            };
-            if (try p.typeName()) |qt| {
-                res.qt = qt;
-                try p.err(expected_paren, .expected_parens_around_typename, .{});
-            } else if (p.eatToken(.l_paren)) |l_paren| {
-                if (try p.typeName()) |qt| {
-                    res.qt = qt;
-                    try p.expectClosing(l_paren, .r_paren);
-                    if (p.tok_ids[p.tok_i] == .l_brace) {
-                        res = try p.compoundLiteral(l_paren, .{ .qt = qt });
-                        has_expr = true;
-                    }
-                } else {
-                    p.tok_i = expected_paren;
-                    res = try p.expectResult(try p.unExpr(false));
-                    has_expr = true;
-                }
-            } else {
-                res = try p.expectResult(try p.unExpr(false));
-                has_expr = true;
-            }
-            const operand_qt = res.qt;
+            const operand_qt, const opt_node = try p.nonCastUnExpr();
+            var qt: QualType = .invalid;
+            var val: Value = .{};
 
-            if (res.qt.isInvalid()) {
-                res.val = .{};
-            } else {
-                const base_type = res.qt.base(p.comp);
+            if (!operand_qt.isInvalid()) {
+                const base_type = operand_qt.base(p.comp);
                 switch (base_type.type) {
                     .void => try p.err(tok, .pointer_arith_void, .{"sizeof"}),
                     .pointer => |pointer_ty| if (pointer_ty.decayed) |decayed_qt| {
-                        try p.err(tok, .sizeof_array_arg, .{ res.qt, decayed_qt });
+                        try p.err(operand_tok, .sizeof_array_arg, .{ operand_qt, decayed_qt });
                     },
                     else => {},
                 }
 
-                if (res.qt.sizeofOrNull(p.comp)) |size| {
+                if (operand_qt.sizeofOrNull(p.comp)) |size| {
                     if (size == 0 and p.comp.langopts.emulate == .msvc) {
                         try p.err(tok, .sizeof_returns_zero, .{});
                     }
-                    res.val = try Value.int(size, p.comp);
-                    res.qt = p.comp.type_store.size;
+                    val = try Value.int(size, p.comp);
+                    qt = p.comp.type_store.size;
+                } else if (!operand_qt.hasIncompleteSize(p.comp)) {
+                    // sizeof variable lenght array
+                    qt = p.comp.type_store.size;
                 } else {
-                    res.val = .{};
-                    if (res.qt.hasIncompleteSize(p.comp)) {
-                        try p.err(expected_paren - 1, .invalid_sizeof, .{res.qt});
-                        res.qt = .invalid;
-                    } else {
-                        res.qt = p.comp.type_store.size;
-                    }
+                    try p.err(tok, .invalid_sizeof, .{operand_qt});
                 }
             }
 
-            res.node = try p.addNode(.{ .sizeof_expr = .{
-                .op_tok = tok,
-                .qt = res.qt,
-                .expr = if (has_expr) res.node else null,
-                .operand_qt = operand_qt,
-            } });
-            return res;
+            return .{
+                .qt = qt,
+                .node = try p.addNode(.{ .sizeof_expr = .{
+                    .op_tok = tok,
+                    .qt = qt,
+                    .expr = opt_node,
+                    .operand_qt = operand_qt,
+                } }),
+                .val = val,
+            };
         },
         .keyword_alignof,
         .keyword_alignof1,
         .keyword_alignof2,
         .keyword_c23_alignof,
-        => {
-            p.tok_i += 1;
-            const expected_paren = p.tok_i;
-
-            var has_expr = false;
-            var res: Result = .{
-                .node = undefined, // check has_expr
+        => |id| {
+            const gnu_keyword = switch (id) {
+                .keyword_alignof1, .keyword_alignof2 => true,
+                else => false,
             };
-            if (try p.typeName()) |qt| {
-                res.qt = qt;
-                try p.err(expected_paren, .expected_parens_around_typename, .{});
-            } else if (p.eatToken(.l_paren)) |l_paren| {
-                if (try p.typeName()) |qt| {
-                    res.qt = qt;
-                    try p.expectClosing(l_paren, .r_paren);
-                    if (p.tok_ids[p.tok_i] == .l_brace) {
-                        res = try p.compoundLiteral(l_paren, .{ .qt = qt });
-                        has_expr = true;
-                    }
-                } else {
-                    p.tok_i = expected_paren;
-                    res = try p.expectResult(try p.unExpr(false));
-                    has_expr = true;
-                }
-            } else {
-                res = try p.expectResult(try p.unExpr(false));
-                has_expr = true;
-            }
-            if (has_expr) try p.err(expected_paren, .alignof_expr, .{p.tokSlice(tok)});
-            const operand_qt = res.qt;
+            p.tok_i += 1;
 
-            if (res.qt.is(p.comp, .void)) {
-                try p.err(tok, .pointer_arith_void, .{"alignof"});
+            const operand_qt, const opt_node = try p.nonCastUnExpr();
+            if (opt_node != null and !gnu_keyword) try p.err(tok, .gnu_alignof_expr, .{p.tokSlice(tok)});
+            var qt: QualType = .invalid;
+            var val: Value = .{};
+
+            if (operand_qt.is(p.comp, .void)) {
+                try p.err(tok, .pointer_arith_void, .{p.tokSlice(tok)});
             }
 
-            if (res.qt.sizeofOrNull(p.comp) != null) {
+            if (operand_qt.sizeofOrNull(p.comp) != null) {
                 var requested_align: ?u32 = null;
-                if (has_expr) if (p.getNode(res.node, .decl_ref_expr)) |decl_ref| {
+                if (opt_node) |node| if (p.getNode(node, .decl_ref_expr)) |decl_ref| {
                     requested_align = p.tree.attr_map.requestedAlignment(decl_ref.decl, p.comp);
                 };
-                res.val = try Value.int(requested_align orelse res.qt.alignof(p.comp), p.comp);
-                res.qt = p.comp.type_store.size;
-            } else if (!res.qt.isInvalid()) {
-                try p.err(expected_paren, .invalid_alignof, .{res.qt});
-                res.qt = .invalid;
+                val = try Value.int(requested_align orelse operand_qt.alignof(p.comp), p.comp);
+                qt = p.comp.type_store.size;
+            } else if (!operand_qt.isInvalid()) {
+                try p.err(tok, .invalid_alignof, .{operand_qt});
             }
 
-            res.node = try p.addNode(.{ .alignof_expr = .{
-                .op_tok = tok,
-                .qt = res.qt,
-                .expr = if (has_expr) res.node else null,
-                .operand_qt = operand_qt,
-            } });
-            return res;
+            return .{
+                .qt = qt,
+                .node = try p.addNode(.{ .alignof_expr = .{
+                    .op_tok = tok,
+                    .qt = qt,
+                    .expr = opt_node,
+                    .operand_qt = operand_qt,
+                } }),
+                .val = val,
+            };
         },
         .keyword_extension => {
             p.tok_i += 1;
@@ -9413,6 +9373,32 @@ fn unExpr(p: *Parser, eval: bool) Error!?Result {
             return lhs;
         },
     }
+}
+
+/// The operand of a sizeof/alignof expression is any non-cast unary expression.
+fn nonCastUnExpr(p: *Parser) !struct { QualType, ?Node.Index } {
+    const expected_paren = p.tok_i;
+
+    if (try p.typeName()) |qt| {
+        try p.err(expected_paren, .expected_parens_around_typename, .{});
+        return .{ qt, null };
+    }
+
+    if (p.eatToken(.l_paren)) |l_paren| {
+        if (try p.typeName()) |qt| {
+            try p.expectClosing(l_paren, .r_paren);
+            if (p.tok_ids[p.tok_i] == .l_brace) {
+                const res = try p.compoundLiteral(l_paren, .{ .qt = qt });
+                return .{ res.qt, res.node };
+            }
+            return .{ qt, null };
+        }
+
+        p.tok_i = expected_paren;
+    }
+
+    const res = try p.expectResult(try p.unExpr(false));
+    return .{ res.qt, res.node };
 }
 
 /// compoundLiteral

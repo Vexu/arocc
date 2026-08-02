@@ -173,7 +173,7 @@ function: 'fn (a: f2v: vector(2, float), b: i2v: vector(2, int), c: i3v: vector(
       record_field: 'long'
        name: a
 
-    cast: (bitcast) 'f2v: vector(2, float)'
+    cast: (bitcast) 'f2v: vector(2, float)' (value: 1)
       int_literal: 'long' (value: 1)
 
     implicit return_stmt: 'void'

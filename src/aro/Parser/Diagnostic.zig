@@ -568,7 +568,7 @@ pub const expected_parens_around_typename: Diagnostic = .{
     .kind = .@"error",
 };
 
-pub const alignof_expr: Diagnostic = .{
+pub const gnu_alignof_expr: Diagnostic = .{
     .fmt = "'{s}' applied to an expression is a GNU extension",
     .opt = .@"gnu-alignof-expression",
     .kind = .warning,
