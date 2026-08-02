@@ -13,6 +13,7 @@ void foo(void) {
 
 /** manifest:
 syntax
+args = -Wno-unused-value
 
 generic.c:2:15: error: expected ',', found ')'
 generic.c:3:16: error: expected a type

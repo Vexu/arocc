@@ -1823,6 +1823,12 @@ pub const unused_label: Diagnostic = .{
     .opt = .@"unused-label",
 };
 
+pub const unused_comparison: Diagnostic = .{
+    .fmt = "{s} comparison result unused",
+    .kind = .warning,
+    .opt = .@"unused-comparison",
+};
+
 pub const invalid_imag: Diagnostic = .{
     .fmt = "invalid type {qt} to __imag operator",
     .kind = .@"error",
