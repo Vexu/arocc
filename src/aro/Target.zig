@@ -1930,3 +1930,58 @@ test parseOs {
     try testing.expect(query.os_tag == .macos);
     try testing.expectEqual(query.os_version_min, V{ .semver = .{ .major = 26, .minor = 0, .patch = 0 } });
 }
+
+pub const MipsAbi = enum { o32, n32, n64 };
+
+pub fn mipsAbi(target: *const Target) MipsAbi {
+    return switch (target.abi) {
+        .gnuabin32, .muslabin32, .abin32 => .n32,
+        else => switch (target.cpu.arch) {
+            .mips, .mipsel => .o32,
+            .mips64, .mips64el => .n64,
+            else => unreachable,
+        },
+    };
+}
+
+pub const MipsFpMode = enum { fp32, fp64, fpxx };
+
+/// Returns the CPU name for a MIPS target, if known. For some sub-architectures,
+/// the CPU name is inferred if it is not available from the target's model.
+pub fn mipsCpuName(target: *const Target) ?[]const u8 {
+    // Clang overwrites the CPU name for BSD. See `mips::getMipsCPUAndABI`.
+    switch (target.os.tag) {
+        .freebsd => return if (target.cpu.arch.isMIPS32()) "mips2" else "mips3",
+        .openbsd => if (target.cpu.arch.isMIPS64()) return "mips3",
+        else => {},
+    }
+    if (target.cpu.model.llvm_name) |name| return name;
+    if (target.cpu.arch.isMIPS64() and target.cpu.has(.mips, .mips64r6)) return "mips64r6";
+    if (target.cpu.arch.isMIPS32() and target.cpu.has(.mips, .mips32r6)) return "mips32r6";
+    return null;
+}
+
+/// Returns the default MIPS floating-point mode for the target.
+pub fn defaultMipsFpMode(target: *const Target) MipsFpMode {
+    const cpu = mipsCpuName(target) orelse "";
+    if (std.mem.eql(u8, cpu, "mips32r6") or
+        target.mipsAbi() == .n32 or target.mipsAbi() == .n64) return .fp64;
+    if (std.mem.eql(u8, cpu, "mips1")) return .fp32;
+    return .fpxx;
+}
+
+const mips_isa_revs = std.StaticStringMap(u8).initComptime(.{
+    .{ "mips32", 1 },   .{ "mips64", 1 },
+    .{ "mips32r2", 2 }, .{ "mips64r2", 2 },
+    .{ "octeon", 2 },   .{ "octeon+", 2 },
+    .{ "mips32r3", 3 }, .{ "mips64r3", 3 },
+    .{ "mips32r5", 5 }, .{ "mips64r5", 5 },
+    .{ "p5600", 5 },    .{ "mips32r6", 6 },
+    .{ "mips64r6", 6 }, .{ "i6400", 6 },
+    .{ "i6500", 6 },
+});
+
+pub fn mipsIsaRev(target: *const Target) u8 {
+    const cpu = mipsCpuName(target) orelse return 0;
+    return mips_isa_revs.get(cpu) orelse 0;
+}
