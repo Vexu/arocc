@@ -679,17 +679,13 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
             switch (target.cpu.arch) {
                 .mips, .mips64 => {
                     try define(w, "_MIPSEB");
-                    try define(w, "__MIPSEB");
-                    try define(w, "__MIPSEB__");
-                    if (is_gnu) try define(w, "MIPSEB");
+                    try defineStd(w, "MIPSEB", is_gnu);
                 },
                 .mipsel,
                 .mips64el,
                 => {
                     try define(w, "_MIPSEL");
-                    try define(w, "__MIPSEL");
-                    try define(w, "__MIPSEL__");
-                    if (is_gnu) try define(w, "MIPSEL");
+                    try defineStd(w, "MIPSEL", is_gnu);
                 },
                 else => unreachable,
             }
