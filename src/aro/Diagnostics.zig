@@ -74,7 +74,6 @@ pub const Message = struct {
 
 pub const Option = enum {
     @"unsupported-pragma",
-    @"c99-extensions",
     @"implicit-int",
     @"duplicate-decl-specifier",
     @"missing-declaration",
@@ -95,7 +94,6 @@ pub const Option = enum {
     @"array-bounds",
     @"int-conversion",
     @"pointer-type-mismatch",
-    @"c23-extensions",
     @"incompatible-pointer-types",
     @"excess-initializers",
     @"division-by-zero",
@@ -110,7 +108,6 @@ pub const Option = enum {
     @"newline-eof",
     @"empty-translation-unit",
     @"implicitly-unsigned-literal",
-    @"c99-compat",
     @"unicode-zero-width",
     @"unicode-homoglyph",
     unicode,
@@ -159,7 +156,6 @@ pub const Option = enum {
     @"keyword-macro",
     @"pointer-arith",
     @"sizeof-array-argument",
-    @"pre-c23-compat",
     @"pointer-bool-conversion",
     @"string-conversion",
     @"gnu-auto-type",
@@ -213,6 +209,14 @@ pub const Option = enum {
     @"unused-local-typedef",
     @"unused-label",
     @"unused-comparison",
+    @"deprecated-octal-literals",
+
+    @"c99-extensions",
+    @"c99-compat",
+    @"c23-extensions",
+    @"pre-c23-compat",
+    @"c2y-extensions",
+    @"pre-c2y-compat",
 
     /// GNU extensions
     pub const gnu = [_]Option{
@@ -272,6 +276,13 @@ pub const Option = enum {
         .@"unused-local-typedef",
         .@"unused-label",
         .@"unused-comparison",
+    };
+
+    pub const deprecated = [_]Option{
+        .@"deprecated-declarations",
+        .@"deprecated-non-prototype",
+        .@"deprecated-attributes",
+        .@"deprecated-octal-literals",
     };
 
     pub const most = implicit ++ unused ++ [_]Option{
