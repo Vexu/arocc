@@ -2403,3 +2403,21 @@ pub const c11_extension: Diagnostic = .{
     .opt = .@"c11-extensions",
     .extension = true,
 };
+
+pub const c2y_countof: Diagnostic = .{
+    .fmt = "'_Countof' is a C2y extension",
+    .kind = .off,
+    .opt = .@"c2y-extensions",
+    .extension = true,
+};
+
+pub const pre_c2y_countof: Diagnostic = .{
+    .fmt = "'_Countof' is incompatible with C standards before C2y",
+    .kind = .off,
+    .opt = .@"pre-c2y-compat",
+};
+
+pub const invalid_countof: Diagnostic = .{
+    .fmt = "'_Countof' requires an argument of array type; {qt} is invalid",
+    .kind = .@"error",
+};
