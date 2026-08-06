@@ -348,6 +348,7 @@ pub const Node = union(enum) {
 
     sizeof_expr: TypeInfo,
     alignof_expr: TypeInfo,
+    countof_expr: TypeInfo,
 
     generic_expr: Generic,
     generic_association_expr: Generic.Association,
@@ -1784,7 +1785,14 @@ pub const Node = union(enum) {
                         .operand_qt = @bitCast(node_data[2]),
                     },
                 },
-
+                .countof_expr => .{
+                    .countof_expr = .{
+                        .op_tok = node_tok,
+                        .qt = @bitCast(node_data[0]),
+                        .expr = unpackOptIndex(node_data[1]),
+                        .operand_qt = @bitCast(node_data[2]),
+                    },
+                },
                 .generic_expr_zero => .{
                     .generic_expr = .{
                         .generic_tok = node_tok,
@@ -2205,6 +2213,7 @@ pub const Node = union(enum) {
             imaginary_literal,
             sizeof_expr,
             alignof_expr,
+            countof_expr,
             generic_expr,
             generic_expr_zero,
             generic_association_expr,
@@ -2997,6 +3006,13 @@ pub fn setNode(tree: *Tree, node: Node, index: usize) !void {
             repr.data[2] = @bitCast(type_info.operand_qt);
             repr.tok = type_info.op_tok;
         },
+        .countof_expr => |type_info| {
+            repr.tag = .countof_expr;
+            repr.data[0] = @bitCast(type_info.qt);
+            repr.data[1] = packOptIndex(type_info.expr);
+            repr.data[2] = @bitCast(type_info.operand_qt);
+            repr.tok = type_info.op_tok;
+        },
         .generic_expr => |generic| {
             repr.data[0] = @bitCast(generic.qt);
             if (generic.rest.len > 0) {
@@ -3411,6 +3427,7 @@ pub fn write(tree: *const Tree, node: Node.Index, w: *std.Io.Writer) std.Io.Writ
         .imaginary_literal => |un| try tree.write(un.operand, w),
         .sizeof_expr,
         .alignof_expr,
+        .countof_expr,
         => |type_info| {
             try w.writeAll(tree.tokSlice(type_info.op_tok));
             if (type_info.expr) |expr| {
@@ -4223,7 +4240,7 @@ fn dumpNode(
             try w.writeAll("index:\n");
             try tree.dumpNode(access.index, level + delta, term);
         },
-        .sizeof_expr, .alignof_expr => |type_info| {
+        .sizeof_expr, .alignof_expr, .countof_expr => |type_info| {
             if (type_info.expr) |some| {
                 try w.splatByteAll(' ', level + 1);
                 try w.writeAll("expr:\n");

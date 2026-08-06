@@ -9371,6 +9371,38 @@ fn unExpr(p: *Parser, eval: bool) Error!?Result {
                 .val = val,
             };
         },
+        .keyword_countof => {
+            const c2y = p.comp.langopts.standard.atLeast(.c11);
+            try p.err(p.tok_i, if (c2y) .pre_c2y_countof else .c2y_countof, .{});
+            p.tok_i += 1;
+            const operand_tok = p.tok_i;
+
+            const operand_qt, const opt_node = try p.nonCastUnExpr();
+            var qt: QualType = .invalid;
+            var val: Value = .{};
+
+            if (operand_qt.get(p.comp, .array)) |array| {
+                qt = p.comp.type_store.size;
+                switch (array.len) {
+                    .fixed, .static => |size| val = try .int(size, p.comp),
+                    .variable => {},
+                    .unspecified_variable, .incomplete => try p.err(operand_tok, .invalid_countof, .{operand_qt}),
+                }
+            } else if (!operand_qt.isInvalid()) {
+                try p.err(operand_tok, .invalid_countof, .{operand_qt});
+            }
+
+            return .{
+                .qt = qt,
+                .node = try p.addNode(.{ .countof_expr = .{
+                    .op_tok = tok,
+                    .qt = qt,
+                    .expr = opt_node,
+                    .operand_qt = operand_qt,
+                } }),
+                .val = val,
+            };
+        },
         .keyword_extension => {
             p.tok_i += 1;
             const saved_extension = p.extension_suppressed;
