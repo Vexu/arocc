@@ -58,10 +58,14 @@ pub const Standard = enum {
     default,
     /// ISO C 2017 with GNU extensions
     gnu17,
-    /// Working Draft for ISO C23
+    /// ISO C 2023
     c23,
-    /// Working Draft for ISO C23 with GNU extensions
+    /// ISO C 2023 with GNU extensions
     gnu23,
+    /// Working Draft for ISO C2Y
+    c2y,
+    /// Working Draft for ISO C2Y with GNU extensions
+    gnu2y,
 
     const NameMap = std.StaticStringMap(Standard).initComptime(.{
         .{ "c89", .c89 },                .{ "c90", .c89 },          .{ "iso9899:1990", .c89 },
@@ -72,7 +76,8 @@ pub const Standard = enum {
         .{ "iso9899:201x", .c11 },       .{ "gnu11", .gnu11 },      .{ "c17", .c17 },
         .{ "iso9899:2017", .c17 },       .{ "c18", .c17 },          .{ "iso9899:2018", .c17 },
         .{ "gnu17", .gnu17 },            .{ "gnu18", .gnu17 },      .{ "c23", .c23 },
-        .{ "gnu23", .gnu23 },            .{ "c2x", .c23 },          .{ "gnu2x", .gnu23 },
+        .{ "iso9899:2024", .c23 },       .{ "gnu23", .gnu23 },      .{ "c2x", .c23 },
+        .{ "gnu2x", .gnu23 },            .{ "c2y", .c2y },          .{ "gnu2y", .gnu23 },
     });
 
     pub fn atLeast(self: Standard, other: Standard) bool {
@@ -81,7 +86,7 @@ pub const Standard = enum {
 
     pub fn isGNU(standard: Standard) bool {
         return switch (standard) {
-            .gnu89, .gnu99, .gnu11, .default, .gnu17, .gnu23 => true,
+            .gnu89, .gnu99, .gnu11, .default, .gnu17, .gnu23, .gnu2y => true,
             else => false,
         };
     }
@@ -99,6 +104,7 @@ pub const Standard = enum {
             .c11, .gnu11 => "201112L",
             .default, .c17, .gnu17 => "201710L",
             .c23, .gnu23 => "202311L",
+            .c2y, .gnu2y => "202400L",
         };
     }
 
