@@ -921,14 +921,18 @@ pub const static_assert_missing_message: Diagnostic = .{
     .fmt = "'_Static_assert' with no message is a C23 extension",
     .opt = .@"c23-extensions",
     .kind = .warning,
-    .suppress_version = .c23,
     .extension = true,
 };
 
-pub const pre_c23_compat: Diagnostic = .{
-    .fmt = "{s} is incompatible with C standards before C23",
+pub const static_assert_missing_message_compat: Diagnostic = .{
+    .fmt = "'_Static_assert' with no message is incompatible with C standards before C23",
     .kind = .off,
-    .suppress_unless_version = .c23,
+    .opt = .@"pre-c23-compat",
+};
+
+pub const pre_c23_compat: Diagnostic = .{
+    .fmt = "'{s}' is incompatible with C standards before C23",
+    .kind = .off,
     .opt = .@"pre-c23-compat",
 };
 
@@ -1469,14 +1473,6 @@ pub const duplicate_member: Diagnostic = .{
     .kind = .@"error",
 };
 
-pub const binary_integer_literal: Diagnostic = .{
-    .fmt = "binary integer literals are a C23 extension",
-    .opt = .@"c23-extensions",
-    .kind = .off,
-    .suppress_version = .c23,
-    .extension = true,
-};
-
 pub const builtin_must_be_called: Diagnostic = .{
     .fmt = "builtin function must be directly called",
     .kind = .@"error",
@@ -1872,6 +1868,11 @@ pub const declspec_not_allowed_after_declarator: Diagnostic = .{
 pub const declarator_name_tok: Diagnostic = .{
     .fmt = "this declarator",
     .kind = .note,
+};
+
+pub const imaginary_unsupported: Diagnostic = .{
+    .fmt = "imaginary types are not supported",
+    .kind = .@"error",
 };
 
 pub const type_not_supported_on_target: Diagnostic = .{
@@ -2375,4 +2376,24 @@ pub const builtin_arm_ldrex_strex_unsupported_size: Diagnostic = .{
 pub const typename_invalid_specifier: Diagnostic = .{
     .fmt = "type name does not allow {s} specifier to be specified",
     .kind = .@"error",
+};
+
+pub const c99_extension: Diagnostic = .{
+    .fmt = "'{s}' is a C99 extension",
+    .kind = .off,
+    .opt = .@"c99-extensions",
+    .extension = true,
+};
+
+pub const pre_c11_compat: Diagnostic = .{
+    .fmt = "'{s}' is incompatible with C standards before C11",
+    .kind = .off,
+    .opt = .@"pre-c11-compat",
+};
+
+pub const c11_extension: Diagnostic = .{
+    .fmt = "'{s}' is a C11 extension",
+    .kind = .off,
+    .opt = .@"c11-extensions",
+    .extension = true,
 };
