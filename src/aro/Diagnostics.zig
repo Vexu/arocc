@@ -213,6 +213,8 @@ pub const Option = enum {
 
     @"c99-extensions",
     @"c99-compat",
+    @"c11-extensions",
+    @"pre-c11-compat",
     @"c23-extensions",
     @"pre-c23-compat",
     @"c2y-extensions",
