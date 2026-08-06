@@ -1584,11 +1584,17 @@ pub const cast_to_smaller_int: Diagnostic = .{
     .opt = .@"pointer-to-int-cast",
 };
 
-pub const gnu_switch_range: Diagnostic = .{
-    .fmt = "use of GNU case range extension",
-    .opt = .@"gnu-case-range",
+pub const c2y_switch_range: Diagnostic = .{
+    .fmt = "case ranges are a C2y extension",
     .kind = .off,
+    .opt = .@"c2y-extensions",
     .extension = true,
+};
+
+pub const pre_c2y_switch_range: Diagnostic = .{
+    .fmt = "case ranges are incompatible with C standards before C2y",
+    .kind = .off,
+    .opt = .@"pre-c2y-compat",
 };
 
 pub const empty_case_range: Diagnostic = .{

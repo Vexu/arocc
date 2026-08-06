@@ -5910,7 +5910,8 @@ fn labeledStmt(p: *Parser) Error!?Node.Index {
         var first_item = try p.integerConstExpr(.gnu_folding_extension);
         const ellipsis = p.tok_i;
         var second_item = if (p.eatToken(.ellipsis) != null) blk: {
-            try p.err(ellipsis, .gnu_switch_range, .{});
+            const c2y = p.comp.langopts.standard.atLeast(.c2y);
+            try p.err(ellipsis, if (c2y) .pre_c2y_switch_range else .c2y_switch_range, .{});
             break :blk try p.integerConstExpr(.gnu_folding_extension);
         } else null;
         _ = try p.expectToken(.colon);
