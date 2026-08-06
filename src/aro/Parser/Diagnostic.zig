@@ -2421,3 +2421,26 @@ pub const invalid_countof: Diagnostic = .{
     .fmt = "'_Countof' requires an argument of array type; {qt} is invalid",
     .kind = .@"error",
 };
+
+pub const pre_c2y_named_break: Diagnostic = .{
+    .fmt = "named '{s}' is incompatible with C standards before C2y",
+    .kind = .@"error",
+    .opt = .@"pre-c2y-compat",
+};
+
+pub const c2y_named_break: Diagnostic = .{
+    .fmt = "named '{s}' is a C2y extension",
+    .kind = .off,
+    .opt = .@"c2y-extensions",
+    .extension = true,
+};
+
+pub const named_break_not_enclosing: Diagnostic = .{
+    .fmt = "'{s}' label does not name an enclosing loop or switch",
+    .kind = .@"error",
+};
+
+pub const named_continue_switch: Diagnostic = .{
+    .fmt = "'continue' label refers to a switch statement",
+    .kind = .@"error",
+};

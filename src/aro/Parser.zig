@@ -81,6 +81,7 @@ const Switch = struct {
 const Label = union(enum) {
     unresolved_goto: TokenIndex,
     label: Node.Index,
+    named_break: TokenIndex,
 };
 
 const InitContext = enum {
@@ -866,6 +867,7 @@ fn findLabel(p: *Parser, name: []const u8) ?TokenIndex {
                 }
             },
             .unresolved_goto => {},
+            .named_break => {},
         }
     }
     return null;
@@ -1656,10 +1658,11 @@ fn decl(p: *Parser) Error!bool {
 
         // check gotos
         if (func.qt == null) {
-            for (p.labels.items) |item| {
-                if (item == .unresolved_goto)
-                    try p.err(item.unresolved_goto, .undeclared_label, .{p.tokSlice(item.unresolved_goto)});
-            }
+            for (p.labels.items) |item| switch (item) {
+                .label => {},
+                .unresolved_goto => |tok| try p.err(tok, .undeclared_label, .{p.tokSlice(tok)}),
+                .named_break => |tok| try p.err(tok, .named_break_not_enclosing, .{p.tokSlice(tok - 1)}),
+            };
             if (p.computed_goto_tok) |goto_tok| {
                 if (!p.contains_address_of_label) try p.err(goto_tok, .invalid_computed_goto, .{});
             }
@@ -5808,14 +5811,24 @@ fn attributedStmt(p: *Parser, check_unused: bool) Error!Node.Index {
         return p.addNode(.{ .goto_stmt = .{ .label_tok = name_tok } });
     }
     if (p.eatToken(.keyword_continue)) |cont| {
-        if (!p.in_loop) try p.err(cont, .continue_not_in_loop, .{});
+        const opt_label = try p.eatIdentifier();
+        if (opt_label) |label| {
+            const c2y = p.comp.langopts.standard.atLeast(.c2y);
+            try p.err(label, if (c2y) .c2y_named_break else .pre_c2y_named_break, .{"continue"});
+            try p.labels.append(gpa, .{ .named_break = label });
+        } else if (!p.in_loop) try p.err(cont, .continue_not_in_loop, .{});
         _ = try p.expectToken(.semicolon);
-        return p.addNode(.{ .continue_stmt = .{ .continue_tok = cont } });
+        return p.addNode(.{ .continue_stmt = .{ .continue_tok = cont, .label = opt_label } });
     }
     if (p.eatToken(.keyword_break)) |br| {
-        if (!p.in_loop and p.@"switch" == null) try p.err(br, .break_not_in_loop_or_switch, .{});
+        const opt_label = try p.eatIdentifier();
+        if (opt_label) |label| {
+            const c2y = p.comp.langopts.standard.atLeast(.c2y);
+            try p.err(label, if (c2y) .c2y_named_break else .pre_c2y_named_break, .{"break"});
+            try p.labels.append(gpa, .{ .named_break = label });
+        } else if (!p.in_loop and p.@"switch" == null) try p.err(br, .break_not_in_loop_or_switch, .{});
         _ = try p.expectToken(.semicolon);
-        return p.addNode(.{ .break_stmt = .{ .break_tok = br } });
+        return p.addNode(.{ .break_stmt = .{ .break_tok = br, .label = opt_label } });
     }
     if (try p.returnStmt()) |some| return some;
     if (try p.assembly(.stmt)) |some| return some;
@@ -5900,6 +5913,29 @@ fn labeledStmt(p: *Parser) Error!?Node.Index {
 
         node.labeled_stmt.body = try p.labelableStmt();
         try p.tree.setNode(node, @backingInt(labeled_stmt));
+
+        {
+            const body_node = node.labeled_stmt.body.get(&p.tree);
+            const enclosing = switch (body_node) {
+                .switch_stmt, .for_stmt, .while_stmt, .do_while_stmt => true,
+                else => false,
+            };
+            var i: u32 = 0;
+            for (p.labels.items) |label| switch (label) {
+                .label, .unresolved_goto => {
+                    p.labels.items[i] = label;
+                    i += 1;
+                },
+                .named_break => |tok| {
+                    if (!mem.eql(u8, p.tokSlice(tok), str) or !enclosing) {
+                        try p.err(tok, .named_break_not_enclosing, .{p.tokSlice(tok - 1)});
+                    } else if (p.tok_ids[tok - 1] == .keyword_continue and body_node == .switch_stmt) {
+                        try p.err(tok, .named_continue_switch, .{});
+                    }
+                },
+            };
+            p.labels.items.len = i;
+        }
 
         if (applied_any and node.labeled_stmt.body.get(&p.tree) == .decl_stmt) {
             try p.err(attr_tok, .gnu_label_attr, .{});

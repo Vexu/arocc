@@ -524,10 +524,12 @@ pub const Node = union(enum) {
 
     pub const ContinueStmt = struct {
         continue_tok: TokenIndex,
+        label: ?TokenIndex,
     };
 
     pub const BreakStmt = struct {
         break_tok: TokenIndex,
+        label: ?TokenIndex,
     };
 
     pub const NullStmt = struct {
@@ -1173,11 +1175,13 @@ pub const Node = union(enum) {
                 .continue_stmt => .{
                     .continue_stmt = .{
                         .continue_tok = node_tok,
+                        .label = if (node_data[0] != 0) node_data[1] else null,
                     },
                 },
                 .break_stmt => .{
                     .break_stmt = .{
                         .break_tok = node_tok,
+                        .label = if (node_data[0] != 0) node_data[1] else null,
                     },
                 },
                 .null_stmt => .{
@@ -2498,10 +2502,14 @@ pub fn setNode(tree: *Tree, node: Node, index: usize) !void {
         .continue_stmt => |@"continue"| {
             repr.tag = .continue_stmt;
             repr.tok = @"continue".continue_tok;
+            repr.data[0] = @intFromBool(@"continue".label != null);
+            if (@"continue".label) |label| repr.data[1] = label;
         },
         .break_stmt => |@"break"| {
             repr.tag = .break_stmt;
             repr.tok = @"break".break_tok;
+            repr.data[0] = @intFromBool(@"break".label != null);
+            if (@"break".label) |label| repr.data[1] = label;
         },
         .null_stmt => |@"null"| {
             repr.tag = .null_stmt;
@@ -4023,7 +4031,16 @@ fn dumpNode(
             try w.writeAll("expr:\n");
             try tree.dumpNode(goto.expr, level + delta, term);
         },
-        .continue_stmt, .break_stmt, .null_stmt => {},
+        .null_stmt => {},
+        inline .continue_stmt, .break_stmt => |stmt| {
+            if (stmt.label) |label| {
+                try w.splatByteAll(' ', level + half);
+                try w.writeAll("label: ");
+                try term.setColor(LITERAL);
+                try w.writeAll(tree.tokSlice(label));
+                try w.writeByte('\n');
+            }
+        },
         .return_stmt => |ret| {
             switch (ret.operand) {
                 .expr => |expr| {
