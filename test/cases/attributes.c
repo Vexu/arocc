@@ -131,7 +131,7 @@ args = -Wno-deprecated-non-prototype -Wc23-extensions -std=gnu17
 skip = TODO: implement 'mode' attribute
 skip = TODO: implement 'format' attribute
 
-attributes.c:8:26: warning: 'noreturn' attribute only applies to functions [-Wignored-attributes]
+attributes.c:8:26: warning: 'noreturn' attribute only applies to functions and block literals [-Wignored-attributes]
 attributes.c:9:26: warning: unknown attribute 'does_not_exist' ignored [-Wunknown-attributes]
 attributes.c:19:40: warning: unknown attribute 'uninitialized' ignored [-Wunknown-attributes]
 attributes.c:20:20: warning: TODO: implement 'mode' attribute
