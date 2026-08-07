@@ -1274,12 +1274,19 @@ pub const QualType = packed struct(u32) {
 
     pub fn requestedAlignment(qt: QualType, comp: *const Compilation) ?u32 {
         if (qt.isInvalid()) return null;
-        if (comp.type_store.requested_aligns.get(qt)) |alignment| return alignment;
-        loop: switch (qt.type(comp)) {
-            .typeof => |typeof| continue :loop typeof.base.type(comp),
-            .typedef => |typedef| return typedef.base.requestedAlignment(comp),
-            else => return null,
-        }
+        const own_alignment = comp.type_store.requested_aligns.get(qt);
+        const base_alignment = switch (qt.type(comp)) {
+            .typeof => |typeof| typeof.base.requestedAlignment(comp),
+            .typedef => |typedef| typedef.base.requestedAlignment(comp),
+            else => null,
+        };
+        return if (own_alignment) |own|
+            if (comp.langopts.emulate == .msvc and base_alignment != null)
+                @max(own, base_alignment.?)
+            else
+                own
+        else
+            base_alignment;
     }
 
     pub fn shouldDesugar(qt: QualType, comp: *const Compilation) bool {
