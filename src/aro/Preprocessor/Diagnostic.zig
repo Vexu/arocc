@@ -554,3 +554,21 @@ pub const include_level_is_clang_extension: Diagnostic = .{
     .kind = .off,
     .extension = true,
 };
+
+pub const pre_c2y_counter: Diagnostic = .{
+    .fmt = "'__COUNTER__' is incompatible with C standards before C2y",
+    .kind = .off,
+    .opt = .@"pre-c2y-compat",
+};
+
+pub const c2y_counter: Diagnostic = .{
+    .fmt = "'__COUNTER__' is a C2y extension",
+    .kind = .off,
+    .opt = .@"c2y-extensions",
+    .extension = true,
+};
+
+pub const counter_overflow: Diagnostic = .{
+    .fmt = "'__COUNTER__' value cannot exceed 2'147'483'647",
+    .kind = .@"error",
+};
