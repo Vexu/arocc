@@ -624,14 +624,17 @@ pub fn compute(
 }
 
 fn computeLayout(qt: QualType, comp: *const Compilation) RecordLayout {
+    const requested = BITS_PER_BYTE * (if (comp.langopts.emulate == .msvc)
+        msvcRequiredAlignment(qt, comp) orelse 0
+    else
+        qt.requestedAlignment(comp) orelse 0);
     switch (qt.base(comp).type) {
         .@"struct", .@"union" => |record| {
-            const requested = BITS_PER_BYTE * (qt.requestedAlignment(comp) orelse 0);
             return .{
                 .size_bits = record.layout.?.size_bits,
                 .pointer_alignment_bits = @max(requested, record.layout.?.pointer_alignment_bits),
                 .field_alignment_bits = @max(requested, record.layout.?.field_alignment_bits),
-                .required_alignment_bits = record.layout.?.required_alignment_bits,
+                .required_alignment_bits = @max(requested, record.layout.?.required_alignment_bits),
             };
         },
         else => {
@@ -640,10 +643,27 @@ fn computeLayout(qt: QualType, comp: *const Compilation) RecordLayout {
                 .size_bits = BITS_PER_BYTE * (qt.sizeofOrNull(comp) orelse 0),
                 .pointer_alignment_bits = type_align,
                 .field_alignment_bits = type_align,
-                .required_alignment_bits = BITS_PER_BYTE,
+                .required_alignment_bits = @max(requested, BITS_PER_BYTE),
             };
         },
     }
+}
+
+fn msvcRequiredAlignment(qt: QualType, comp: *const Compilation) ?u32 {
+    const child = switch (qt.type(comp)) {
+        .array => |array| msvcRequiredAlignment(array.elem, comp),
+        .typedef => |typedef| msvcRequiredAlignment(typedef.base, comp),
+        .typeof => |typeof| msvcRequiredAlignment(typeof.base, comp),
+        .@"struct", .@"union" => |record| if (record.layout) |layout|
+            layout.required_alignment_bits / BITS_PER_BYTE
+        else
+            null,
+        else => null,
+    };
+    return if (qt.requestedAlignment(comp)) |own|
+        if (child) |child_alignment| @max(own, child_alignment) else own
+    else
+        child;
 }
 
 // The effect of #pragma pack(N) depends on the target.
