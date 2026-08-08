@@ -16,6 +16,7 @@ void foo(void) {
     _Bool j = 0.0;
     _Bool k = 1.0f;
     _Bool l = 1.5f;
+    unsigned m = -0.5;
 }
 
 /** manifest:
@@ -33,4 +34,5 @@ float to int.c:15:18: warning: implicit conversion of out of range value from 'd
 float to int.c:16:15: warning: implicit conversion turns floating-point number into integer: 'double' to '_Bool' [-Wliteral-conversion]
 float to int.c:17:15: warning: implicit conversion turns floating-point number into integer: 'float' to '_Bool' [-Wliteral-conversion]
 float to int.c:18:15: warning: implicit conversion from 'float' to '_Bool' changes value from 1.5 to true [-Wfloat-conversion]
+float to int.c:19:18: warning: implicit conversion from 'double' to 'unsigned int' changes non-zero value from -0.5 to 0 [-Wfloat-zero-conversion]
 */
