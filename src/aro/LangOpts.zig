@@ -184,6 +184,8 @@ blocks: bool = false,
 
 /// If non-null, contains ARM LDREX/STREX mask. Only populated on ARM targets.
 arm_ldrex: ?ArmLdrex = null,
+/// Whether the target supports AVR's non-standard 24-bit integer types.
+has_int24: bool = false,
 
 pthread: bool = false,
 
@@ -227,6 +229,7 @@ pub fn allowFixedSizedIntSuffixes(self: *const LangOpts) bool {
 
 pub fn setTargetOptions(self: *LangOpts, target: Target) void {
     // TODO: Move more stuff here :)
+    self.has_int24 = target.cpu.arch == .avr;
     switch (target.cpu.arch) {
         .arm, .armeb, .thumb, .thumbeb => {
             {
