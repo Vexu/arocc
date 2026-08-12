@@ -332,3 +332,9 @@ pub const invalid_selectany: Diagnostic = .{
     .fmt = "{at} can only be applied to data items with external linkage",
     .kind = .@"error",
 };
+
+// blocks
+pub const blocks_only_local_variables: Diagnostic = .{
+    .fmt = "'blocks' attribute only applies to local variables",
+    .kind = .@"error",
+};

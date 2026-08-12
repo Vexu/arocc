@@ -874,6 +874,7 @@ fn genExpr(c: *CodeGen, node_index: Node.Index) Error!Ir.Ref {
         .sizeof_expr,
         .builtin_va_arg_pack,
         .builtin_va_arg_pack_len,
+        .block_literal,
         => return c.fail("TODO CodeGen.genExpr {t}\n", .{node}),
         .codegen_diagnostic => |diagnostic| {
             try c.comp.diagnostics.addWithLocation(c.comp, .{

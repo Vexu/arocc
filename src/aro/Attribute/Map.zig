@@ -47,6 +47,7 @@ const Repr = struct {
         unsequenced,
         reproducible,
         unused,
+        blocks,
     };
 };
 
@@ -172,6 +173,11 @@ pub fn put(map: *Map, gpa: mem.Allocator, attribute: Attribute) !Ref {
             try map.extra.append(gpa, attribute.tok);
             try map.putString(gpa, name);
         },
+        .blocks => |byref| {
+            repr.tag = .blocks;
+            repr.data = attribute.tok;
+            comptime std.debug.assert(byref == .byref);
+        },
         else => @panic("TODO"),
     }
 
@@ -269,6 +275,10 @@ pub fn get(map: *const Map, ref: Ref) Attribute {
             res.tok = map.extra.items[repr.data];
             const name, _ = map.getString(repr.data + 1);
             res.args = .{ .section = name };
+        },
+        .blocks => {
+            res.tok = repr.data;
+            res.args = .{ .blocks = .byref };
         },
     }
     return res;
