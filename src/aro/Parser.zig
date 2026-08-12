@@ -2609,7 +2609,6 @@ fn typeSpec(p: *Parser, builder: *TypeStore.Builder) Error!bool {
 
             .keyword_int128 => try builder.combine(.int128, p.tok_i),
             .keyword_int24 => try builder.combine(.int24, p.tok_i),
-            .keyword_uint24 => try builder.combine(.uint24, p.tok_i),
             .keyword_signed, .keyword_signed1, .keyword_signed2 => try builder.combine(.signed, p.tok_i),
             .keyword_unsigned => try builder.combine(.unsigned, p.tok_i),
             .keyword_fp16 => try builder.combine(.fp16, p.tok_i),

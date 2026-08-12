@@ -286,7 +286,6 @@ pub const Token = struct {
         /// __float128
         keyword_float128_1,
         keyword_int24,
-        keyword_uint24,
         keyword_int128,
         keyword_imag1,
         keyword_imag2,
@@ -462,7 +461,6 @@ pub const Token = struct {
                 .keyword_asm2,
                 .keyword_float128_1,
                 .keyword_int24,
-                .keyword_uint24,
                 .keyword_int128,
                 .keyword_imag1,
                 .keyword_imag2,
@@ -771,7 +769,6 @@ pub const Token = struct {
                 .keyword_asm2 => "__asm__",
                 .keyword_float128_1 => "__float128",
                 .keyword_int24 => "__int24",
-                .keyword_uint24 => "__uint24",
                 .keyword_int128 => "__int128",
                 .keyword_imag1 => "__imag",
                 .keyword_imag2 => "__imag__",
@@ -928,7 +925,7 @@ pub const Token = struct {
             .keyword_asm => if (standard.isGNU()) kw else .identifier,
             .keyword_declspec => if (langopts.declspec_attrs) kw else .identifier,
 
-            .keyword_int24, .keyword_uint24 => if (langopts.has_int24) kw else .identifier,
+            .keyword_int24 => if (langopts.has_int24) kw else .identifier,
 
             .keyword_c23_alignas,
             .keyword_c23_alignof,
@@ -1102,7 +1099,6 @@ pub const Token = struct {
         .{ "__asm__", .keyword_asm2 },
         .{ "__float128", .keyword_float128_1 },
         .{ "__int24", .keyword_int24 },
-        .{ "__uint24", .keyword_uint24 },
         .{ "__int128", .keyword_int128 },
         .{ "__imag", .keyword_imag1 },
         .{ "__imag__", .keyword_imag2 },
@@ -2372,8 +2368,8 @@ test "C23 keywords" {
 }
 
 test "GCC integer keywords" {
-    try expectTokens("__int24 __uint24", &.{ .identifier, .identifier });
-    try expectTokensExtra("__int24 __uint24", &.{ .keyword_int24, .keyword_uint24 }, .{ .has_int24 = true });
+    try expectTokens("__int24", &.{.identifier});
+    try expectTokensExtra("__int24", &.{.keyword_int24}, .{ .has_int24 = true });
 }
 
 test "Universal character names" {
