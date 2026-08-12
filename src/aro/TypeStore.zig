@@ -119,6 +119,8 @@ const Index = enum(u29) {
     float_dfloat128 = std.math.maxInt(u29) - 37,
     float_dfloat64x = std.math.maxInt(u29) - 38,
     mfp8 = std.math.maxInt(u29) - 39,
+    int_int24 = std.math.maxInt(u29) - 40,
+    int_uint24 = std.math.maxInt(u29) - 41,
     _,
 };
 
@@ -150,6 +152,8 @@ pub const QualType = packed struct(u32) {
     pub const ulong_long: QualType = .{ ._index = .int_ulong_long };
     pub const int128: QualType = .{ ._index = .int_int128 };
     pub const uint128: QualType = .{ ._index = .int_uint128 };
+    pub const int24: QualType = .{ ._index = .int_int24 };
+    pub const uint24: QualType = .{ ._index = .int_uint24 };
     pub const bf16: QualType = .{ ._index = .float_bf16 };
     pub const fp16: QualType = .{ ._index = .float_fp16 };
     pub const float16: QualType = .{ ._index = .float_float16 };
@@ -226,6 +230,8 @@ pub const QualType = packed struct(u32) {
             .int_ulong_long => return .{ .int = .ulong_long },
             .int_int128 => return .{ .int = .int128 },
             .int_uint128 => return .{ .int = .uint128 },
+            .int_int24 => return .{ .int = .int24 },
+            .int_uint24 => return .{ .int = .uint24 },
             .float_bf16 => return .{ .float = .bf16 },
             .float_fp16 => return .{ .float = .fp16 },
             .float_float16 => return .{ .float = .float16 },
@@ -684,8 +690,8 @@ pub const QualType = packed struct(u32) {
             .bit_int => |bit_int| bit_int.signedness,
             .int => |int_ty| switch (int_ty) {
                 .char => comp.getCharSignedness(),
-                .schar, .short, .int, .long, .long_long, .int128 => .signed,
-                .uchar, .ushort, .uint, .ulong, .ulong_long, .uint128 => .unsigned,
+                .schar, .short, .int, .int24, .long, .long_long, .int128 => .signed,
+                .uchar, .ushort, .uint, .uint24, .ulong, .ulong_long, .uint128 => .unsigned,
             },
             // Pointer values are signed.
             .pointer, .nullptr_t, .block => .signed,
@@ -731,6 +737,7 @@ pub const QualType = packed struct(u32) {
                 .ulong => comp.target.cTypeAlignment(.ulong),
                 .long_long => comp.target.cTypeAlignment(.longlong),
                 .ulong_long => comp.target.cTypeAlignment(.ulonglong),
+                .int24, .uint24 => 1,
                 .int128, .uint128 => if (comp.target.cpu.arch == .s390x and comp.target.os.tag == .linux and comp.target.abi.isGnu()) 8 else 16,
             },
             .float => |float_ty| switch (float_ty) {
@@ -839,6 +846,8 @@ pub const QualType = packed struct(u32) {
                 .ulong_long => return .ulong_long,
                 .int128 => return .uint128,
                 .uint128 => return .uint128,
+                .int24 => return .uint24,
+                .uint24 => return .uint24,
             },
             .bit_int => |bit_int| {
                 return try comp.type_store.put(comp.gpa, .{ .bit_int = .{
@@ -946,9 +955,10 @@ pub const QualType = packed struct(u32) {
                 .char, .schar, .uchar => 2 + (int_ty.bits(comp) * 8),
                 .short, .ushort => 3 + (int_ty.bits(comp) * 8),
                 .int, .uint => 4 + (int_ty.bits(comp) * 8),
-                .long, .ulong => 5 + (int_ty.bits(comp) * 8),
-                .long_long, .ulong_long => 6 + (int_ty.bits(comp) * 8),
-                .int128, .uint128 => 7 + (int_ty.bits(comp) * 8),
+                .int24, .uint24 => 5 + (int_ty.bits(comp) * 8),
+                .long, .ulong => 6 + (int_ty.bits(comp) * 8),
+                .long_long, .ulong_long => 7 + (int_ty.bits(comp) * 8),
+                .int128, .uint128 => 8 + (int_ty.bits(comp) * 8),
             },
             .complex => |complex| continue :loop complex.base(comp).type,
             .atomic => |atomic| continue :loop atomic.base(comp).type,
@@ -1456,6 +1466,8 @@ pub const QualType = packed struct(u32) {
                 .ulong_long => try w.writeAll("unsigned long long"),
                 .int128 => try w.writeAll("__int128"),
                 .uint128 => try w.writeAll("unsigned __int128"),
+                .int24 => try w.writeAll("__int24"),
+                .uint24 => try w.writeAll("__uint24"),
             },
             .bit_int => |bit_int| try w.print("{t} _BitInt({d})", .{ bit_int.signedness, bit_int.bits }),
             .float => |float_ty| switch (float_ty) {
@@ -1713,6 +1725,8 @@ pub const Type = union(enum) {
         ulong_long,
         int128,
         uint128,
+        int24,
+        uint24,
 
         pub fn bits(int: Int, comp: *const Compilation) u16 {
             return switch (int) {
@@ -1729,6 +1743,7 @@ pub const Type = union(enum) {
                 .ulong_long => comp.target.cTypeBitSize(.ulonglong),
                 .int128 => 128,
                 .uint128 => 128,
+                .int24, .uint24 => 24,
             };
         }
     };
@@ -2109,6 +2124,8 @@ pub fn putExtra(ts: *TypeStore, gpa: std.mem.Allocator, ty: Type) !Index {
             .ulong_long => return .int_ulong_long,
             .int128 => return .int_int128,
             .uint128 => return .int_uint128,
+            .int24 => return .int_int24,
+            .uint24 => return .int_uint24,
         },
         .float => |float| switch (float) {
             .bf16 => return .float_bf16,
@@ -2738,6 +2755,9 @@ pub const Builder = struct {
         int128,
         sint128,
         uint128,
+        int24,
+        sint24,
+        uint24,
         complex_unsigned,
         complex_signed,
         complex_short,
@@ -2764,6 +2784,9 @@ pub const Builder = struct {
         complex_int128,
         complex_sint128,
         complex_uint128,
+        complex_int24,
+        complex_sint24,
+        complex_uint24,
         bit_int: u64,
         sbit_int: u64,
         ubit_int: u64,
@@ -2840,6 +2863,9 @@ pub const Builder = struct {
                 .int128 => "__int128",
                 .sint128 => "signed __int128",
                 .uint128 => "unsigned __int128",
+                .int24 => "__int24",
+                .sint24 => "signed __int24",
+                .uint24 => "__uint24",
                 .complex_char => "_Complex char",
                 .complex_schar => "_Complex signed char",
                 .complex_uchar => "_Complex unsigned char",
@@ -2869,6 +2895,9 @@ pub const Builder = struct {
                 .complex_int128 => "_Complex __int128",
                 .complex_sint128 => "_Complex signed __int128",
                 .complex_uint128 => "_Complex unsigned __int128",
+                .complex_int24 => "_Complex __int24",
+                .complex_sint24 => "_Complex signed __int24",
+                .complex_uint24 => "_Complex __uint24",
 
                 .bf16 => "__bf16",
                 .fp16 => "__fp16",
@@ -2921,6 +2950,8 @@ pub const Builder = struct {
             .ulong_long, .ulong_long_int => .ulong_long,
             .int128, .sint128 => .int128,
             .uint128 => .uint128,
+            .int24, .sint24 => .int24,
+            .uint24 => .uint24,
 
             .complex_char,
             .complex_schar,
@@ -2951,6 +2982,9 @@ pub const Builder = struct {
             .complex_int128,
             .complex_sint128,
             .complex_uint128,
+            .complex_int24,
+            .complex_sint24,
+            .complex_uint24,
             => blk: {
                 const base_qt: QualType = switch (b.type) {
                     .complex_char => .char,
@@ -2968,6 +3002,8 @@ pub const Builder = struct {
                     .complex_ulong_long, .complex_ulong_long_int => .ulong_long,
                     .complex_int128, .complex_sint128 => .int128,
                     .complex_uint128 => .uint128,
+                    .complex_int24, .complex_sint24 => .int24,
+                    .complex_uint24 => .uint24,
                     else => unreachable,
                 };
                 if (b.complex_tok) |tok| try b.parser.err(tok, .complex_int, .{});
@@ -3211,6 +3247,7 @@ pub const Builder = struct {
                 .long_long => .slong_long,
                 .long_long_int => .slong_long_int,
                 .int128 => .sint128,
+                .int24 => .sint24,
                 .bit_int => |bits| .{ .sbit_int = bits },
                 .complex => .complex_signed,
                 .complex_char => .complex_schar,
@@ -3222,6 +3259,7 @@ pub const Builder = struct {
                 .complex_long_long => .complex_slong_long,
                 .complex_long_long_int => .complex_slong_long_int,
                 .complex_int128 => .sint128,
+                .complex_int24 => .complex_sint24,
                 .complex_bit_int => |bits| .{ .complex_sbit_int = bits },
                 .signed,
                 .sshort,
@@ -3232,6 +3270,7 @@ pub const Builder = struct {
                 .slong_long,
                 .slong_long_int,
                 .sint128,
+                .sint24,
                 .sbit_int,
                 .complex_schar,
                 .complex_signed,
@@ -3243,6 +3282,7 @@ pub const Builder = struct {
                 .complex_slong_long,
                 .complex_slong_long_int,
                 .complex_sint128,
+                .complex_sint24,
                 .complex_sbit_int,
                 => return b.duplicateSpec(source_tok, "signed"),
                 else => return b.cannotCombine(source_tok),
@@ -3258,6 +3298,7 @@ pub const Builder = struct {
                 .long_long => .ulong_long,
                 .long_long_int => .ulong_long_int,
                 .int128 => .uint128,
+                .int24 => .uint24,
                 .bit_int => |bits| .{ .ubit_int = bits },
                 .complex => .complex_unsigned,
                 .complex_char => .complex_uchar,
@@ -3269,6 +3310,7 @@ pub const Builder = struct {
                 .complex_long_long => .complex_ulong_long,
                 .complex_long_long_int => .complex_ulong_long_int,
                 .complex_int128 => .complex_uint128,
+                .complex_int24 => .complex_uint24,
                 .complex_bit_int => |bits| .{ .complex_ubit_int = bits },
                 .unsigned,
                 .ushort,
@@ -3279,6 +3321,7 @@ pub const Builder = struct {
                 .ulong_long,
                 .ulong_long_int,
                 .uint128,
+                .uint24,
                 .ubit_int,
                 .complex_uchar,
                 .complex_unsigned,
@@ -3290,6 +3333,7 @@ pub const Builder = struct {
                 .complex_ulong_long,
                 .complex_ulong_long_int,
                 .complex_uint128,
+                .complex_uint24,
                 .complex_ubit_int,
                 => return b.duplicateSpec(source_tok, "unsigned"),
                 else => return b.cannotCombine(source_tok),
@@ -3396,6 +3440,15 @@ pub const Builder = struct {
                 .complex => .complex_int128,
                 .complex_signed => .complex_sint128,
                 .complex_unsigned => .complex_uint128,
+                else => return b.cannotCombine(source_tok),
+            },
+            .int24 => switch (b.type) {
+                .none => .int24,
+                .unsigned => .uint24,
+                .signed => .sint24,
+                .complex => .complex_int24,
+                .complex_signed => .complex_sint24,
+                .complex_unsigned => .complex_uint24,
                 else => return b.cannotCombine(source_tok),
             },
             .bit_int => switch (b.type) {
@@ -3527,6 +3580,9 @@ pub const Builder = struct {
                 .int128 => .complex_int128,
                 .sint128 => .complex_sint128,
                 .uint128 => .complex_uint128,
+                .int24 => .complex_int24,
+                .sint24 => .complex_sint24,
+                .uint24 => .complex_uint24,
                 .bit_int => |bits| .{ .complex_bit_int = bits },
                 .sbit_int => |bits| .{ .complex_sbit_int = bits },
                 .ubit_int => |bits| .{ .complex_ubit_int = bits },
@@ -3564,6 +3620,9 @@ pub const Builder = struct {
                 .complex_int128,
                 .complex_sint128,
                 .complex_uint128,
+                .complex_int24,
+                .complex_sint24,
+                .complex_uint24,
                 .complex_bit_int,
                 .complex_sbit_int,
                 .complex_ubit_int,
@@ -3597,6 +3656,8 @@ pub const Builder = struct {
                 .ulong_long => .ulong_long,
                 .int128 => .int128,
                 .uint128 => .uint128,
+                .int24 => .int24,
+                .uint24 => .uint24,
             },
             .bit_int => |bit_int| if (bit_int.signedness == .unsigned) {
                 return .{ .ubit_int = bit_int.bits };
@@ -3639,6 +3700,8 @@ pub const Builder = struct {
                     .ulong_long => .complex_ulong_long,
                     .int128 => .complex_int128,
                     .uint128 => .complex_uint128,
+                    .int24 => .complex_int24,
+                    .uint24 => .complex_uint24,
                 },
                 .bit_int => |bit_int| if (bit_int.signedness == .unsigned) {
                     return .{ .complex_ubit_int = bit_int.bits };

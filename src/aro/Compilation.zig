@@ -1235,6 +1235,13 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
     try comp.generateIntMaxAndWidth(w, "INT", .int);
     try comp.generateIntMaxAndWidth(w, "LONG", .long);
     try comp.generateIntMaxAndWidth(w, "LONG_LONG", .long_long);
+    if (comp.langopts.has_int24) {
+        const suffix = if (Type.Int.int.bits(comp) == 8) "LL" else "L";
+        const unsigned_suffix = if (Type.Int.int.bits(comp) == 8) "ULL" else "UL";
+        try w.print("#define __INT24_MAX__ 8388607{s}\n", .{suffix});
+        try w.writeAll("#define __INT24_MIN__ (-__INT24_MAX__-1)\n");
+        try w.print("#define __UINT24_MAX__ 16777215{s}\n", .{unsigned_suffix});
+    }
     try comp.generateIntMaxAndWidth(w, "WCHAR", comp.type_store.wchar);
     try comp.generateIntMaxAndWidth(w, "WINT", comp.type_store.wint);
     try comp.generateIntMaxAndWidth(w, "INTMAX", comp.type_store.intmax);
@@ -1505,6 +1512,9 @@ pub fn smallestNBitIntTargetIndependent(comp: *const Compilation, bits: usize, s
 
 /// Lowest-rank integer type with at least N bits; subject to platform idiosyncrasies
 pub fn intLeastN(comp: *const Compilation, bits: usize, signedness: std.builtin.Signedness) QualType {
+    if (bits <= 24 and bits > Type.Int.int.bits(comp) and comp.langopts.has_int24) {
+        return if (signedness == .signed) .int24 else .uint24;
+    }
     if (bits == 64 and (comp.target.os.tag.isDarwin() or comp.target.cpu.arch.isWasm())) {
         // WebAssembly and Darwin use `long long` for `int_least64_t` and `int_fast64_t`.
         return if (signedness == .signed) .long_long else .ulong_long;
@@ -1726,10 +1736,12 @@ fn generateSizeofType(comp: *Compilation, w: *Io.Writer, name: []const u8, qt: Q
 
 pub fn nextLargestIntSameSign(comp: *const Compilation, qt: QualType) ?QualType {
     assert(qt.isInt(comp));
-    const candidates: [4]QualType = if (qt.signedness(comp) == .signed)
-        .{ .short, .int, .long, .long_long }
+    const candidates: []const QualType = if (qt.signedness(comp) == .signed)
+        if (comp.langopts.has_int24) &.{ .short, .int, .int24, .long, .long_long } else &.{ .short, .int, .long, .long_long }
+    else if (comp.langopts.has_int24)
+        &.{ .ushort, .uint, .uint24, .ulong, .ulong_long }
     else
-        .{ .ushort, .uint, .ulong, .ulong_long };
+        &.{ .ushort, .uint, .ulong, .ulong_long };
 
     const size = qt.sizeof(comp);
     for (candidates) |candidate| {

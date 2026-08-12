@@ -1134,6 +1134,10 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
         }
         try p.addImplicitTypedef("__int128_t", .int128);
         try p.addImplicitTypedef("__uint128_t", .uint128);
+        if (p.comp.langopts.has_int24) {
+            try p.addImplicitTypedef("__int24_t", .int24);
+            try p.addImplicitTypedef("__uint24_t", .uint24);
+        }
 
         try p.addImplicitTypedef("__builtin_ms_va_list", .char_pointer);
 
@@ -2604,6 +2608,8 @@ fn typeSpec(p: *Parser, builder: *TypeStore.Builder) Error!bool {
             => |tok_id| try builder.combine(exactTypeKeywordToSpecMSVC(tok_id), p.tok_i),
 
             .keyword_int128 => try builder.combine(.int128, p.tok_i),
+            .keyword_int24 => try builder.combine(.int24, p.tok_i),
+            .keyword_uint24 => try builder.combine(.uint24, p.tok_i),
             .keyword_signed, .keyword_signed1, .keyword_signed2 => try builder.combine(.signed, p.tok_i),
             .keyword_unsigned => try builder.combine(.unsigned, p.tok_i),
             .keyword_fp16 => try builder.combine(.fp16, p.tok_i),
@@ -3613,6 +3619,9 @@ const Enumerator = struct {
                 return .int;
             }
             const long_width = Type.Int.long.bits(p.comp);
+            if (e.num_negative_bits == 24 and e.num_positive_bits < 24 and p.comp.langopts.has_int24) {
+                return .int24;
+            }
             if (e.num_negative_bits <= long_width and e.num_positive_bits < long_width) {
                 return .long;
             }
@@ -3628,6 +3637,8 @@ const Enumerator = struct {
             return .ushort;
         } else if (e.num_positive_bits <= int_width) {
             return .uint;
+        } else if (e.num_positive_bits == 24 and p.comp.langopts.has_int24) {
+            return .uint24;
         } else if (e.num_positive_bits <= Type.Int.long.bits(p.comp)) {
             return .ulong;
         }
