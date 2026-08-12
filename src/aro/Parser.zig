@@ -1135,8 +1135,8 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
         try p.addImplicitTypedef("__int128_t", .int128);
         try p.addImplicitTypedef("__uint128_t", .uint128);
         if (p.comp.langopts.has_int24) {
-            try p.addImplicitTypedef("__int24_t", .int24);
-            try p.addImplicitTypedef("__uint24_t", .uint24);
+            try p.addImplicitTypedef("__int24", .int24);
+            try p.addImplicitTypedef("__uint24", .uint24);
         }
 
         try p.addImplicitTypedef("__builtin_ms_va_list", .char_pointer);
