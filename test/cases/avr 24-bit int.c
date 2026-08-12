@@ -14,6 +14,8 @@ typedef enum {
 } __attribute__((packed)) A028;
 _Static_assert(sizeof(A028) == 3, "");
 
+_Static_assert(sizeof(_Complex __int24) == 6, "");
+
 /** manifest:
 syntax
 args = --target=avr-freestanding-none
