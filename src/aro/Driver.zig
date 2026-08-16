@@ -1138,10 +1138,16 @@ fn parseTarget(
                 return d.fatal("unknown CPU feature: '{s}'", .{feature_name});
             }
         }
-    } else if (opt_sub_arch) |sub_arch| {
-        if (sub_arch.toFeature(arch)) |feature| {
-            query.cpu_model = .{ .explicit = &.{ .name = "empty", .llvm_name = null, .features = .empty } };
-            query.cpu_features_add.addFeature(feature);
+    } else if (!arch_is_native) {
+        if (Target.cpuModelForTargetQuadruple(arch, query.os_tag, query.abi, vendor, opt_sub_arch)) |model| {
+            query.cpu_model = .{ .explicit = model };
+        } else if (opt_sub_arch) |sub_arch| {
+            if (sub_arch.toCpuModel(arch)) |model| {
+                query.cpu_model = .{ .explicit = model };
+            } else if (sub_arch.toFeature(arch)) |feature| {
+                query.cpu_model = .{ .explicit = &.{ .name = "empty", .llvm_name = null, .features = .empty } };
+                query.cpu_features_add.addFeature(feature);
+            }
         }
     }
 

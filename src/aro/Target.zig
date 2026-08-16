@@ -196,6 +196,36 @@ pub const SubArch = enum {
         }
         return null;
     }
+
+    pub fn toCpuModel(sub: SubArch, arch: Cpu.Arch) ?*const Cpu.Model {
+        if (arch.isArm()) {
+            const cpu = std.Target.arm.cpu;
+            return switch (sub) {
+                .arm_v4t => &cpu.arm7tdmi,
+                .arm_v5 => &cpu.arm10tdmi,
+                .arm_v5te => &cpu.arm1022e,
+                .arm_v6 => &cpu.arm1136jf_s,
+                .arm_v6k => &cpu.mpcore,
+                .arm_v6t2 => &cpu.arm1156t2_s,
+                .arm_v6m => &cpu.cortex_m0,
+                .arm_v7r => &cpu.cortex_r4,
+                .arm_v7m => &cpu.cortex_m3,
+                .arm_v7em => &cpu.cortex_m4,
+                else => null,
+            };
+        } else if (arch.isMIPS32()) {
+            return switch (sub) {
+                .mips_r6 => &std.Target.mips.cpu.mips32r6,
+                else => null,
+            };
+        } else if (arch.isMIPS64()) {
+            return switch (sub) {
+                .mips_r6 => &std.Target.mips.cpu.mips64r6,
+                else => null,
+            };
+        }
+        return null;
+    }
 };
 
 const Target = @This();
@@ -1946,42 +1976,125 @@ pub fn mipsAbi(target: *const Target) MipsAbi {
 
 pub const MipsFpMode = enum { fp32, fp64, fpxx };
 
-/// Returns the CPU name for a MIPS target, if known. For some sub-architectures,
-/// the CPU name is inferred if it is not available from the target's model.
-pub fn mipsCpuName(target: *const Target) ?[]const u8 {
-    // Clang overwrites the CPU name for BSD. See `mips::getMipsCPUAndABI`.
-    switch (target.os.tag) {
-        .freebsd => return if (target.cpu.arch.isMIPS32()) "mips2" else "mips3",
-        .openbsd => if (target.cpu.arch.isMIPS64()) return "mips3",
-        else => {},
-    }
-    if (target.cpu.model.llvm_name) |name| return name;
-    if (target.cpu.arch.isMIPS64() and target.cpu.has(.mips, .mips64r6)) return "mips64r6";
-    if (target.cpu.arch.isMIPS32() and target.cpu.has(.mips, .mips32r6)) return "mips32r6";
-    return null;
-}
-
 /// Returns the default MIPS floating-point mode for the target.
 pub fn defaultMipsFpMode(target: *const Target) MipsFpMode {
-    const cpu = mipsCpuName(target) orelse "";
-    if (std.mem.eql(u8, cpu, "mips32r6") or
+    const cpu = std.Target.mips.cpu;
+    if (target.cpu.model == &cpu.mips32r6 or
         target.mipsAbi() == .n32 or target.mipsAbi() == .n64) return .fp64;
-    if (std.mem.eql(u8, cpu, "mips1")) return .fp32;
+    if (target.cpu.model == &cpu.mips1) return .fp32;
     return .fpxx;
 }
 
-const mips_isa_revs = std.StaticStringMap(u8).initComptime(.{
-    .{ "mips32", 1 },   .{ "mips64", 1 },
-    .{ "mips32r2", 2 }, .{ "mips64r2", 2 },
-    .{ "octeon", 2 },   .{ "octeon+", 2 },
-    .{ "mips32r3", 3 }, .{ "mips64r3", 3 },
-    .{ "mips32r5", 5 }, .{ "mips64r5", 5 },
-    .{ "p5600", 5 },    .{ "mips32r6", 6 },
-    .{ "mips64r6", 6 }, .{ "i6400", 6 },
-    .{ "i6500", 6 },
-});
-
 pub fn mipsIsaRev(target: *const Target) u8 {
-    const cpu = mipsCpuName(target) orelse return 0;
-    return mips_isa_revs.get(cpu) orelse 0;
+    const cpu = std.Target.mips.cpu;
+    const model = target.cpu.model;
+    // clang: MipsTargetInfo::getISARev, clang/lib/Basic/Targets/Mips.cpp
+    if (model == &cpu.mips32 or model == &cpu.mips64) return 1;
+    if (model == &cpu.mips32r2 or model == &cpu.mips64r2 or
+        model == &cpu.octeon or model == &cpu.@"octeon+") return 2;
+    if (model == &cpu.mips32r3 or model == &cpu.mips64r3) return 3;
+    if (model == &cpu.mips32r5 or model == &cpu.mips64r5 or model == &cpu.p5600) return 5;
+    if (model == &cpu.mips32r6 or model == &cpu.mips64r6 or
+        model == &cpu.i6400 or model == &cpu.i6500) return 6;
+    return 0;
+}
+
+/// Returns the CPU model based on arch, os, abi and vendor
+pub fn cpuModelForTargetQuadruple(
+    arch: Cpu.Arch,
+    opt_os_tag: ?Os.Tag,
+    opt_abi: ?Abi,
+    vendor: Vendor,
+    sub_arch: ?SubArch,
+) ?*const Cpu.Model {
+    const os_tag = opt_os_tag orelse builtin.os.tag;
+    const abi = opt_abi orelse builtin.abi;
+
+    switch (arch) {
+        .arm, .armeb, .thumb, .thumbeb => {
+            const cpu = std.Target.arm.cpu;
+
+            if (sub_arch) |sub| {
+                switch (os_tag) {
+                    .freebsd, .netbsd, .openbsd, .haiku => switch (sub) {
+                        .arm_v6 => return &cpu.arm1176jzf_s,
+                        .arm_v7 => return &cpu.cortex_a8,
+                        else => {},
+                    },
+                    // clang: `parseArchVersion(MArch) <= 7`
+                    .windows => switch (sub) {
+                        .arm_v4t,
+                        .arm_v5,
+                        .arm_v5te,
+                        .arm_v6,
+                        .arm_v6k,
+                        .arm_v6m,
+                        .arm_v6t2,
+                        .arm_v7,
+                        .arm_v7a,
+                        .arm_v7r,
+                        .arm_v7em,
+                        .arm_v7k,
+                        .arm_v7m,
+                        .arm_v7s,
+                        .arm_v7ve,
+                        => return &cpu.cortex_a9,
+                        else => {},
+                    },
+                    .ios, .macos, .tvos, .watchos, .driverkit, .visionos => switch (sub) {
+                        .arm_v7k => return &cpu.cortex_a7,
+                        else => {},
+                    },
+                    else => {},
+                }
+                return null;
+            }
+
+            return switch (os_tag) {
+                .windows => &cpu.cortex_a9,
+                .haiku => &cpu.arm1176jzf_s,
+                .netbsd => switch (abi) {
+                    .eabi, .eabihf, .gnueabi, .gnueabihf => &cpu.arm926ej_s,
+                    else => &cpu.strongarm,
+                },
+                .openbsd => &cpu.cortex_a8,
+                .fuchsia => &cpu.cortex_a53,
+                else => switch (abi) {
+                    .eabihf, .gnueabihf, .musleabihf => &cpu.arm1176jzf_s,
+                    else => &cpu.arm7tdmi,
+                },
+            };
+        },
+        .mips, .mipsel, .mips64, .mips64el => {
+            const cpu = std.Target.mips.cpu;
+            const is_64 = arch.isMIPS64();
+
+            // see clang: `mips::getMipsCPUAndABI`,
+            var model: *const Cpu.Model = if (is_64) &cpu.mips64r2 else &cpu.mips32r2;
+
+            if (vendor == .imagination_technologies and abi.isGnu())
+                model = if (is_64) &cpu.mips64r6 else &cpu.mips32r6;
+
+            if (sub_arch == .mips_r6)
+                model = if (is_64) &cpu.mips64r6 else &cpu.mips32r6;
+
+            if (os_tag == .openbsd and is_64)
+                model = &cpu.mips3;
+
+            if (os_tag == .freebsd)
+                model = if (is_64) &cpu.mips3 else &cpu.mips2;
+
+            return model;
+        },
+        else => return null,
+    }
+}
+
+pub fn armHasDsp(target: *const Target) bool {
+    assert(target.cpu.arch.isArm());
+
+    if (target.cpu.has(.arm, .mclass)) return target.cpu.has(.arm, .dsp);
+
+    const v = target.armVersion() orelse return false;
+    return v.version >= 6 or mem.startsWith(u8, v.string, "5TE");
 }
