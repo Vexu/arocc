@@ -717,7 +717,7 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
                     try w.writeAll("#define _MIPS_ISA _MIPS_ISA_MIPS64\n");
                 },
             }
-            if (target.mipsCpuName()) |name| {
+            if (target.cpu.model.llvm_name) |name| {
                 try w.print("#define _MIPS_ARCH \"{s}\"\n", .{name});
                 var buf: [16]u8 = undefined;
                 const upper = std.ascii.upperString(&buf, name);
@@ -821,6 +821,11 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
             try define(w, "__arm__");
             try define(w, "__arm");
             try define(w, "__ARM_32BIT_STATE");
+            try define(w, "__APCS_32__");
+            try define(w, "__VFP_FP__");
+            try define(w, "__ARM_FP16_ARGS");
+            try define(w, "__ARM_FP16_FORMAT_IEEE");
+
             try w.writeAll("#define __ARM_ACLE 200\n");
 
             // see https://clang.llvm.org/doxygen/Basic_2Targets_2ARM_8cpp_source.html
@@ -862,7 +867,7 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
                 try define(w, "__ARM_FEATURE_CLZ");
             }
 
-            if (target.cpu.has(.arm, .dsp)) {
+            if (target.armHasDsp()) {
                 try define(w, "__ARM_FEATURE_DSP");
             }
 
@@ -879,7 +884,7 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
                 sat = true;
             }
 
-            if (target.cpu.has(.arm, .dsp) or sat) {
+            if (target.armHasDsp() or sat) {
                 try define(w, "__ARM_FEATURE_QBIT");
             }
 
