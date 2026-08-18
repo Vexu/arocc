@@ -1467,7 +1467,7 @@ pub const QualType = packed struct(u32) {
                 .int128 => try w.writeAll("__int128"),
                 .uint128 => try w.writeAll("unsigned __int128"),
                 .int24 => try w.writeAll("__int24"),
-                .uint24 => try w.writeAll("__uint24"),
+                .uint24 => try w.writeAll("unsigned __int24"),
             },
             .bit_int => |bit_int| try w.print("{t} _BitInt({d})", .{ bit_int.signedness, bit_int.bits }),
             .float => |float_ty| switch (float_ty) {
@@ -2865,7 +2865,7 @@ pub const Builder = struct {
                 .uint128 => "unsigned __int128",
                 .int24 => "__int24",
                 .sint24 => "signed __int24",
-                .uint24 => "__uint24",
+                .uint24 => "unsigned __int24",
                 .complex_char => "_Complex char",
                 .complex_schar => "_Complex signed char",
                 .complex_uchar => "_Complex unsigned char",
@@ -2897,7 +2897,7 @@ pub const Builder = struct {
                 .complex_uint128 => "_Complex unsigned __int128",
                 .complex_int24 => "_Complex __int24",
                 .complex_sint24 => "_Complex signed __int24",
-                .complex_uint24 => "_Complex __uint24",
+                .complex_uint24 => "_Complex unsigned __int24",
 
                 .bf16 => "__bf16",
                 .fp16 => "__fp16",
