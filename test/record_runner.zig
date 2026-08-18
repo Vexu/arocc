@@ -338,10 +338,6 @@ const compErr = blk: {
     @setEvalBranchQuota(100_000);
     break :blk std.StaticStringMap(ExpectedFailure).initComptime(&[_]struct { []const u8, ExpectedFailure }{
         .{
-            "avr-avr2-other-eabi:Gcc|0062",
-            .{ .parse = false, .layout = true, .extra = true, .offset = false },
-        },
-        .{
             "x86_64-x86_64-windows-gnu:Gcc|0068",
             .{ .parse = false, .layout = true, .extra = true, .offset = false },
         },
