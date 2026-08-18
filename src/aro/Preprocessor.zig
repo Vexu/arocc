@@ -1398,9 +1398,15 @@ fn expandObjMacro(pp: *Preprocessor, simple_macro: *const Macro) Error!ExpandBuf
                     buf.appendAssumeCapacity(try pp.makeGeneratedToken(start, .pp_num, tok));
                 },
                 .counter => {
-                    defer pp.counter += 1;
+                    const c2y = pp.comp.langopts.standard.atLeast(.c2y);
+                    try pp.err(tok, if (c2y) .pre_c2y_counter else .c2y_counter, .{});
+
+                    const val = pp.counter;
+                    if (val > std.math.maxInt(i32)) try pp.err(tok, .counter_overflow, .{});
+                    pp.counter +%= 1;
+
                     const start = pp.comp.generated_buf.items.len;
-                    try pp.comp.generated_buf.print(gpa, "{d}\n", .{pp.counter});
+                    try pp.comp.generated_buf.print(gpa, "{d}\n", .{val});
 
                     buf.appendAssumeCapacity(try pp.makeGeneratedToken(start, .pp_num, tok));
                 },
