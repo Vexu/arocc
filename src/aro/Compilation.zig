@@ -436,6 +436,7 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
         .serenity => try define(w, "__serenity__"),
         .@"switch" => try define(w, "__SWITCH__"),
         .@"3ds" => try define(w, "__3DS__"),
+        .gba => try define(w, "__GBA__"),
         .psp => try define(w, "__PSP__"),
         .psx => try define(w, "__psx__"),
         .vita => try define(w, "__vita__"),
@@ -1924,6 +1925,7 @@ pub fn addSourceFromOwnedBuffer(comp: *Compilation, path: []const u8, buf: [:0]u
 
     if (i != contents.len) {
         var list: std.ArrayList(u8) = .{
+            .pointer_stability = .{},
             .items = contents[0..i],
             .capacity = contents.len + 1, // +1 for sentinel
         };

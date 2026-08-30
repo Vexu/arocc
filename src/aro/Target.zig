@@ -1083,6 +1083,7 @@ pub fn get32BitArchVariant(target: *const Target) ?Target {
         .kvx,
         .msp430,
         .s390x,
+        .spork8,
         .ve,
         => return null,
 
@@ -1162,6 +1163,7 @@ pub fn get64BitArchVariant(target: *const Target) ?Target {
         .propeller,
         .sh,
         .sheb,
+        .spork8,
         .xcore,
         .xtensa,
         .xtensaeb,
@@ -1281,6 +1283,7 @@ pub fn toLLVMTriple(target: *const Target, buf: []u8) []const u8 {
         .propeller => "propeller",
         .sh => "sh",
         .sheb => "sheb",
+        .spork8 => "spork8",
         .x86_16 => "i86",
         .xtensaeb => "xtensaeb",
     };
@@ -1324,6 +1327,8 @@ pub fn toLLVMTriple(target: *const Target, buf: []u8) []const u8 {
         .windows => "windows",
 
         .@"3ds",
+        .ashetos,
+        .gba,
         .wiiu,
         .@"switch",
         .opencl,
@@ -1333,7 +1338,6 @@ pub fn toLLVMTriple(target: *const Target, buf: []u8) []const u8 {
         .psp,
         .psx,
         .tios,
-        .ashetos,
         .vita,
         => "unknown",
     };
