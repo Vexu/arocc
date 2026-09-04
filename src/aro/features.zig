@@ -92,7 +92,7 @@ pub fn hasExtension(comp: *Compilation, ext_raw: []const u8) bool {
         .gnu_asm_goto_with_outputs = comp.langopts.gnu_asm,
         .matrix_types = false, // TODO
         .matrix_types_scalar_division = false, // TODO
-        .define_target_os_macros = comp.langopts.emulate == .no or comp.langopts.emulate == .clang,
+        .define_target_os_macros = comp.langopts.hasTargetOsMacros(),
     };
     inline for (@typeInfo(@TypeOf(list)).@"struct".field_names) |f_name| {
         if (std.mem.eql(u8, f_name, ext)) return @field(list, f_name);

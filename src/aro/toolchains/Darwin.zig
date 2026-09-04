@@ -50,6 +50,7 @@ const Sdk = union(enum) {
             .maccatalyst => .{ .macosx = .{ .catalyst = true } },
             .macos => .{ .macosx = .{ .catalyst = false } },
             .tvos => if (target.abi == .simulator) .appletvsimulator else .appletvos,
+            .visionos => if (target.abi == .simulator) .xrsimulator else .xros,
             .watchos => if (target.abi == .simulator) .watchsimulator else .watchos,
             else => {
                 std.debug.assert(!target.os.tag.isDarwin());

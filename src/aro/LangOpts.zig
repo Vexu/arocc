@@ -206,6 +206,10 @@ pub fn hasDigraphs(self: *const LangOpts) bool {
     return self.digraphs orelse self.standard.atLeast(.gnu89);
 }
 
+pub fn hasTargetOsMacros(self: *const LangOpts) bool {
+    return self.emulate == .no or self.emulate == .clang;
+}
+
 pub fn setEmulatedCompiler(self: *LangOpts, compiler: Compiler) void {
     self.emulate = compiler;
     self.setMSExtensions(compiler == .msvc);
