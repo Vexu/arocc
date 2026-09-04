@@ -275,6 +275,11 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
             , .{ name, name });
         }
     }.defineStd;
+    const defineBool = struct {
+        fn defineBool(_w: *Io.Writer, name: []const u8, value: bool) !void {
+            try _w.print("#define {s} {d}\n", .{ name, @intFromBool(value) });
+        }
+    }.defineBool;
     const target = &comp.target;
     const ptr_width = target.ptrBitWidth();
     const is_gnu = comp.langopts.standard.isGNU();
@@ -335,6 +340,68 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
         .emscripten => try define(w, "__EMSCRIPTEN_PTHREADS__"),
         else => {},
     };
+
+    // Target OS macros, transcribed from LLVM TargetOSMacros.def
+    if (comp.langopts.hasTargetOsMacros()) {
+        // Windows
+        try defineBool(w, "TARGET_OS_WIN32", target.os.tag == .windows);
+        try defineBool(w, "TARGET_OS_WINDOWS", target.os.tag == .windows);
+
+        // Linux
+        try defineBool(w, "TARGET_OS_LINUX", target.os.tag == .linux);
+
+        // Unix
+        try defineBool(
+            w,
+            "TARGET_OS_UNIX",
+            switch (target.os.tag) {
+                .freebsd, .openbsd, .netbsd, .illumos => true,
+                else => false,
+            },
+        );
+
+        // Apple Targets
+        try defineBool(w, "TARGET_OS_MAC", target.os.tag.isDarwin());
+        // NOTE: LLVM checks the triple for "Triple::Darwin" as well, but this
+        // is different from "isOSDarwin()" and would be like if Zig had a
+        // ".darwin" OS tag, but it doesn't.
+        try defineBool(w, "TARGET_OS_OSX", target.os.tag == .macos);
+        try defineBool(
+            w,
+            "TARGET_OS_IPHONE",
+            switch (target.os.tag) {
+                .ios, .tvos, .watchos => true,
+                else => false,
+            },
+        );
+        try defineBool(w, "TARGET_OS_IOS", target.os.tag == .ios);
+        try defineBool(w, "TARGET_OS_TV", target.os.tag == .tvos);
+        try defineBool(w, "TARGET_OS_WATCH", target.os.tag == .watchos);
+        try defineBool(w, "TARGET_OS_VISION", target.os.tag == .visionos);
+        try defineBool(w, "TARGET_OS_DRIVERKIT", target.os.tag == .driverkit);
+        // Note that LLVM has this as an actual target environment (ABI). Zig
+        // doesn't, so just doing a best effort here and assuming that all
+        // catalyst apps will be tagged as such in the OS.
+        try defineBool(w, "TARGET_OS_MACCATALYST", target.os.tag == .maccatalyst);
+        // Note that there are no other guards for this macro in LLVM either -
+        // running under the assumption that the only things that uses the
+        // ".simulator" ABI are the appropriate Apple device simulators.
+        try defineBool(w, "TARGET_OS_SIMULATOR", target.abi == .simulator);
+        try defineBool(
+            w,
+            "TARGET_OS_EMBEDDED",
+            switch (target.os.tag) {
+                .ios, .tvos, .visionos, .watchos => true,
+                else => false,
+            } and target.abi != .simulator,
+        );
+        try defineBool(w, "TARGET_OS_NANO", target.os.tag == .watchos);
+        try defineBool(w, "TARGET_IPHONE_SIMULATOR", target.abi == .simulator);
+        try defineBool(w, "TARGET_OS_UIKITFORMAC", target.os.tag == .maccatalyst);
+
+        // UEFI
+        try defineBool(w, "TARGET_OS_UEFI", target.os.tag == .uefi);
+    }
 
     // os macros
     switch (target.os.tag) {
@@ -420,14 +487,23 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
             else
                 mem.print(&version_buf, "{d:0>2}{d:0>2}{d:0>2}", .{ version.major, @min(version.minor, 99), @min(version.patch, 99) }) catch unreachable;
 
-            try w.print("#define {s} {s}\n", .{ switch (target.os.tag) {
-                .tvos => "__ENVIRONMENT_TV_OS_VERSION_MIN_REQUIRED__",
-                .ios, .maccatalyst => "__ENVIRONMENT_IPHONE_OS_VERSION_MIN_REQUIRED__",
-                .watchos => "__ENVIRONMENT_WATCH_OS_VERSION_MIN_REQUIRED__",
-                .driverkit => "__ENVIRONMENT_DRIVERKIT_VERSION_MIN_REQUIRED__",
-                .macos => "__ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__",
-                else => unreachable,
-            }, version_str });
+            platform_os_version_define: {
+                try w.print("#define {s} {s}\n", .{
+                    switch (target.os.tag) {
+                        .tvos => "__ENVIRONMENT_TV_OS_VERSION_MIN_REQUIRED__",
+                        .ios, .maccatalyst => "__ENVIRONMENT_IPHONE_OS_VERSION_MIN_REQUIRED__",
+                        .watchos => "__ENVIRONMENT_WATCH_OS_VERSION_MIN_REQUIRED__",
+                        .driverkit => "__ENVIRONMENT_DRIVERKIT_VERSION_MIN_REQUIRED__",
+                        .macos => "__ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__",
+                        .visionos => {
+                            // No platform-specific OS version define for visionOS
+                            break :platform_os_version_define;
+                        },
+                        else => unreachable,
+                    },
+                    version_str,
+                });
+            }
 
             try w.print("#define __ENVIRONMENT_OS_VERSION_MIN_REQUIRED__ {s}\n", .{version_str});
         },
