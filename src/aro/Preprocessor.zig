@@ -6,6 +6,7 @@ const assert = std.debug.assert;
 
 const Attribute = @import("Attribute.zig");
 const Builtins = @import("Builtins.zig");
+const char_info = @import("char_info.zig");
 const Compilation = @import("Compilation.zig");
 const Error = Compilation.Error;
 const Diagnostics = @import("Diagnostics.zig");
@@ -2902,6 +2903,21 @@ fn defineMacro(pp: *Preprocessor, define_tok: RawToken, name_tok: TokenWithExpan
     gop.value_ptr.* = macro;
 }
 
+/// Return true if an extended-identifier macro name consists only of codepoints
+/// allowed in an identifier for the active language standard.
+fn validExtendedMacroName(pp: *Preprocessor, tok: RawToken) bool {
+    const slice = pp.comp.getSource(tok.source).buf[tok.start..tok.end];
+    const view = std.unicode.Utf8View.init(slice) catch return false;
+    var it = view.iterator();
+    const standard = pp.comp.langopts.standard;
+    var first = true;
+    while (it.nextCodepoint()) |codepoint| : (first = false) {
+        if (codepoint <= 0x7F) continue;
+        if (!standard.codepointAllowedInIdentifier(codepoint, first)) return false;
+    }
+    return true;
+}
+
 /// Handle a #define directive.
 fn define(pp: *Preprocessor, tokenizer: *Tokenizer, define_tok: RawToken) Error!void {
     // Get macro name and validate it.
@@ -2911,6 +2927,10 @@ fn define(pp: *Preprocessor, tokenizer: *Tokenizer, define_tok: RawToken) Error!
         return skipToNl(tokenizer);
     }
     if (!escaped_macro_name.id.isMacroIdentifier()) {
+        try pp.err(escaped_macro_name, .macro_name_must_be_identifier, .{});
+        return skipToNl(tokenizer);
+    }
+    if (escaped_macro_name.id == .extended_identifier and !pp.validExtendedMacroName(escaped_macro_name)) {
         try pp.err(escaped_macro_name, .macro_name_must_be_identifier, .{});
         return skipToNl(tokenizer);
     }
