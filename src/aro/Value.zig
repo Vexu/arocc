@@ -152,7 +152,11 @@ pub fn floatToInt(v: *Value, dest_ty: QualType, comp: *Compilation) !FloatToIntC
         v.* = fromBool(!was_zero);
         if (was_zero or was_one) return .none;
         return .value_changed;
-    } else if (dest_ty.signedness(comp) == .unsigned and float_val < 0) {
+    } else if (dest_ty.signedness(comp) == .unsigned and float_val <= -1) {
+        // A negative float is only out of range for an unsigned type once its
+        // truncated-toward-zero value is <= -1. Values in (-1, 0) truncate to 0,
+        // which is representable, so they fall through to the general path and are
+        // reported as a nonzero-to-zero conversion (matching signed destinations).
         v.* = zero;
         return .out_of_range;
     } else if (!std.math.isFinite(float_val)) {
