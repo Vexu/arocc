@@ -244,6 +244,9 @@ pub const Token = struct {
         keyword_dfloat128,
         keyword_dfloat64x,
 
+        // ISO C2y
+        keyword_countof,
+
         // Preprocessor directives
         keyword_include,
         keyword_include_next,
@@ -522,6 +525,7 @@ pub const Token = struct {
                 .keyword_dfloat64,
                 .keyword_dfloat128,
                 .keyword_dfloat64x,
+                .keyword_countof,
                 => return true,
                 else => return false,
             }
@@ -731,6 +735,7 @@ pub const Token = struct {
                 .keyword_dfloat64 => "_Decimal64",
                 .keyword_dfloat128 => "_Decimal128",
                 .keyword_dfloat64x => "_Decimal64x",
+                .keyword_countof => "_Countof",
                 .keyword_include => "include",
                 .keyword_include_next => "include_next",
                 .keyword_embed => "embed",
@@ -1054,6 +1059,9 @@ pub const Token = struct {
         .{ "_Decimal64", .keyword_dfloat64 },
         .{ "_Decimal128", .keyword_dfloat128 },
         .{ "_Decimal64x", .keyword_dfloat64x },
+
+        // ISO C2y
+        .{ "_Countof", .keyword_countof },
 
         // Preprocessor directives
         .{ "include", .keyword_include },

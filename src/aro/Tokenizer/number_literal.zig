@@ -34,6 +34,7 @@ pub const Prefix = enum(u8) {
         switch (buf[1]) {
             'x', 'X' => return if (buf.len == 2) .decimal else .hex,
             'b', 'B' => return if (buf.len == 2) .decimal else .binary,
+            'o', 'O' => return if (buf.len == 2) .decimal else .octal,
             else => {
                 if (mem.findAny(u8, buf, "eE.")) |_| {
                     // This is a decimal floating point number that happens to start with zero
@@ -49,10 +50,10 @@ pub const Prefix = enum(u8) {
     }
 
     /// Length of this prefix as a string
-    pub fn stringLen(prefix: Prefix) usize {
+    pub fn stringLen(prefix: Prefix, buf: []const u8) usize {
         return switch (prefix) {
             .binary => 2,
-            .octal => 1,
+            .octal => if (buf.len > 2 and buf[1] == 'o') 2 else 1,
             .decimal => 0,
             .hex => 2,
         };
@@ -321,7 +322,8 @@ pub const Parser = struct {
         const buf = p.literal;
         const allow_fixed_size_int_suffixes = p.comp.langopts.allowFixedSizedIntSuffixes();
         const prefix = Prefix.fromString(buf, allow_fixed_size_int_suffixes);
-        const after_prefix = buf[prefix.stringLen()..];
+        const prefix_len = prefix.stringLen(buf);
+        const after_prefix = buf[prefix_len..];
 
         const int_part = try p.getIntegerPart(after_prefix, prefix);
         const after_int = after_prefix[int_part.len..];
@@ -359,14 +361,19 @@ pub const Parser = struct {
                 .suffix = suffix,
             };
         } else {
-            if (prefix == .binary and !p.comp.langopts.standard.atLeast(.c23)) {
-                try p.err(.binary_integer_literal, .{});
+            const c23 = p.comp.langopts.standard.atLeast(.c23);
+            if (prefix == .binary and !c23) {
+                try p.err(if (c23) .pre_c23_binary else .c23_binary, .{});
             }
             if (suffix.isBitInt()) {
-                if (p.comp.langopts.standard.atLeast(.c23)) {
-                    try p.err(.pre_c23_bitint, .{});
-                } else {
-                    try p.err(.bitint_suffix, .{});
+                try p.err(if (c23) .pre_c23_bitint else .bitint_suffix, .{});
+            }
+            if (prefix == .octal) {
+                const c2y = p.comp.langopts.standard.atLeast(.c2y);
+                if (prefix_len == 2) {
+                    try p.err(if (c2y) .pre_c2y_octal else .c2y_octal, .{});
+                } else if (c2y) {
+                    try p.err(.c2y_deprecated_octal, .{});
                 }
             }
             return .{
@@ -414,11 +421,17 @@ pub const Parser = struct {
             .kind = .@"error",
         };
 
-        pub const binary_integer_literal: Diagnostic = .{
+        pub const c23_binary: Diagnostic = .{
             .fmt = "binary integer literals are a C23 extension",
             .opt = .@"c23-extensions",
             .kind = .off,
             .extension = true,
+        };
+
+        pub const pre_c23_binary: Diagnostic = .{
+            .fmt = "octal integer literals are incompatible with C standards before C23",
+            .kind = .off,
+            .opt = .@"pre-c23-compat",
         };
 
         pub const bitint_suffix: Diagnostic = .{
@@ -432,6 +445,25 @@ pub const Parser = struct {
             .fmt = "'_BitInt' suffix for literals is incompatible with C standards before C23",
             .kind = .off,
             .opt = .@"pre-c23-compat",
+        };
+
+        pub const c2y_octal: Diagnostic = .{
+            .fmt = "octal integer literals are a C2y extension",
+            .opt = .@"c2y-extensions",
+            .kind = .off,
+            .extension = true,
+        };
+
+        pub const pre_c2y_octal: Diagnostic = .{
+            .fmt = "octal integer literals are incompatible with C standards before C2y",
+            .kind = .off,
+            .opt = .@"pre-c2y-compat",
+        };
+
+        pub const c2y_deprecated_octal: Diagnostic = .{
+            .fmt = "octal literals without a '0o' prefix are deprecated",
+            .kind = .warning,
+            .opt = .@"deprecated-octal-literals",
         };
     };
 
