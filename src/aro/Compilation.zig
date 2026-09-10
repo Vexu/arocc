@@ -832,12 +832,19 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
             // https://developer.arm.com/documentation/dui0774/g/chr1383660321827
 
             // __ARM_ARCH_ISA_THUMB is defined to 2 if the core supports the Thumb-2 ISA.
-            if (target.cpu.has(.arm, .thumb2) or target.cpu.has(.arm, .thumb_mode)) {
-                try define(w, "__thumb__");
-                const num = if (target.cpu.has(.arm, .thumb2)) "2" else "1";
-                try w.print("#define __ARM_ARCH_ISA_THUMB {s}\n", .{num});
+            if (target.armVersion()) |v| {
+                const supports_thumb2 = mem.eql(u8, v.string, "6T2") or
+                    (v.version >= 7 and !mem.eql(u8, v.string, "8M_BASE"));
+                if (supports_thumb2) {
+                    try w.writeAll("#define __ARM_ARCH_ISA_THUMB 2\n");
+                } else if (mem.indexOfScalar(u8, v.string, 'T') != null or v.version >= 6) {
+                    try w.writeAll("#define __ARM_ARCH_ISA_THUMB 1\n");
+                }
             }
 
+            if (target.cpu.has(.arm, .thumb2) or target.cpu.has(.arm, .thumb_mode)) {
+                try define(w, "__thumb__");
+            }
             // ARM ISA means we are not M profile
             if (!target.cpu.has(.arm, .mclass)) {
                 try define(w, "__ARM_ARCH_ISA_ARM");
