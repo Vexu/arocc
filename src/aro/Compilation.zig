@@ -933,6 +933,10 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
             };
             try w.print("#define __ARM_FEATURE_COPROC 0x{x}\n", .{coproc_bf});
 
+            if (arm_version >= 5 and arm_version <= 8 and target.os.tag != .windows) {
+                try define(w, "__THUMB_INTERWORK__");
+            }
+
             if (comp.langopts.arm_ldrex) |ldrex| {
                 try w.print("#define __ARM_FEATURE_LDREX 0x{x}\n", .{@as(u4, @bitCast(ldrex))});
             }
