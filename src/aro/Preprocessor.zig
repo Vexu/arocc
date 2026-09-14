@@ -1275,6 +1275,9 @@ fn skip(
                     ifs_seen -= 1;
                 },
                 .keyword_if, .keyword_ifdef, .keyword_ifndef => ifs_seen += 1,
+                .nl => {
+                    line_start = true;
+                },
                 else => {},
             }
         } else if (tokenizer.buf[tokenizer.index] == '\n') {
