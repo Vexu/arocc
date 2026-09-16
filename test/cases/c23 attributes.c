@@ -12,6 +12,10 @@ int main(void) {
     (void) distance((double[]) {1., 2.});
 }
 
+void param_declarator_attr(int a [[maybe_unused]]);
+
+auto abstract_declarator_attr = sizeof (int [[gnu::vector_size(8)]]);
+
 /** manifest:
 syntax
 args = -std=c23

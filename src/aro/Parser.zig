@@ -4107,15 +4107,8 @@ fn directDeclarator(
     if (p.eatToken(.l_bracket)) |l_bracket| {
         // Check for C23 attribute
         if (p.tok_ids[p.tok_i] == .l_bracket) {
-            switch (kind) {
-                .normal, .record => {
-                    p.tok_i -= 1;
-                    return base_declarator.qt;
-                },
-                .param, .abstract => {},
-            }
-            try p.err(p.tok_i, .expected_expr, .{});
-            return error.ParsingFailed;
+            p.tok_i -= 1;
+            return base_declarator.qt;
         }
 
         var builder: TypeStore.Builder = .{ .parser = p };
