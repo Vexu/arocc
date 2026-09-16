@@ -909,12 +909,19 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
             // https://developer.arm.com/documentation/dui0774/g/chr1383660321827
 
             // __ARM_ARCH_ISA_THUMB is defined to 2 if the core supports the Thumb-2 ISA.
-            if (target.cpu.has(.arm, .thumb2) or target.cpu.has(.arm, .thumb_mode)) {
-                try define(w, "__thumb__");
-                const num = if (target.cpu.has(.arm, .thumb2)) "2" else "1";
-                try w.print("#define __ARM_ARCH_ISA_THUMB {s}\n", .{num});
+            if (target.armVersion()) |v| {
+                const supports_thumb2 = mem.eql(u8, v.string, "6T2") or
+                    (v.version >= 7 and !mem.eql(u8, v.string, "8M_BASE"));
+                if (supports_thumb2) {
+                    try w.writeAll("#define __ARM_ARCH_ISA_THUMB 2\n");
+                } else if (mem.indexOfScalar(u8, v.string, 'T') != null or v.version >= 6) {
+                    try w.writeAll("#define __ARM_ARCH_ISA_THUMB 1\n");
+                }
             }
 
+            if (target.cpu.has(.arm, .thumb2) or target.cpu.has(.arm, .thumb_mode)) {
+                try define(w, "__thumb__");
+            }
             // ARM ISA means we are not M profile
             if (!target.cpu.has(.arm, .mclass)) {
                 try define(w, "__ARM_ARCH_ISA_ARM");
@@ -969,6 +976,42 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
                 (target.cpu.has(.arm, .mclass) and target.cpu.has(.arm, .dsp)))
             {
                 try define(w, "__ARM_FEATURE_SIMD32");
+            }
+
+            // Which co-processor intrinsics in arm_acle.h are available.
+            // See https://arm-software.github.io/acle/main/acle.html#coprocessor-intrinsics
+            const coproc = struct {
+                /// __arm_cdp __arm_ldc, __arm_ldcl, __arm_stc,
+                /// __arm_stcl, __arm_mcr and __arm_mrc
+                const b1: u4 = 1 << 0;
+                /// __arm_cdp2, __arm_ldc2, __arm_stc2, __arm_ldc2l,
+                /// __arm_stc2l, __arm_mcr2 and __arm_mrc2
+                const b2: u4 = 1 << 1;
+                /// __arm_mcrr, __arm_mrrc
+                const b3: u4 = 1 << 2;
+                /// __arm_mcrr2, __arm_mrrc2
+                const b4: u4 = 1 << 3;
+
+                const all: u4 = b1 | b2 | b3 | b4;
+            };
+
+            const coproc_bf: u4 = blk: {
+                const v = target.armVersion() orelse break :blk 0;
+                if (mem.eql(u8, v.string, "6M") or mem.eql(u8, v.string, "6SM") or
+                    mem.eql(u8, v.string, "8M_BASE")) break :blk 0;
+                if (mem.eql(u8, v.string, "8M_MAIN") or mem.eql(u8, v.string, "8_1M_MAIN")) break :blk coproc.all;
+                break :blk switch (v.version) {
+                    4 => coproc.b1,
+                    5 => if (mem.eql(u8, v.string, "5T")) coproc.b1 | coproc.b2 else coproc.b1 | coproc.b2 | coproc.b3,
+                    6, 7 => coproc.all,
+                    8, 9 => coproc.b1 | coproc.b3,
+                    else => 0,
+                };
+            };
+            try w.print("#define __ARM_FEATURE_COPROC 0x{x}\n", .{coproc_bf});
+
+            if (arm_version >= 5 and arm_version <= 8 and target.os.tag != .windows) {
+                try define(w, "__THUMB_INTERWORK__");
             }
 
             if (comp.langopts.arm_ldrex) |ldrex| {
