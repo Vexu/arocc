@@ -1689,7 +1689,7 @@ pub fn cTypeAlignment(target: *const Target, c_type: std.Target.CType) u16 {
 }
 
 pub fn standardDynamicLinkerPath(target: *const Target) std.Target.DynamicLinker {
-    return .standard(target.cpu, target.os, target.abi);
+    return .standard(target.cpu, target.os.tag, target.abi);
 }
 
 /// Parse ABI string in `<abi>(.?<version>)?` format.
