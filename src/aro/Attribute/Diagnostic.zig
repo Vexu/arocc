@@ -129,6 +129,11 @@ pub const alignas_on_param: Diagnostic = .{
     .kind = .@"error",
 };
 
+pub const alignas_on_register: Diagnostic = .{
+    .fmt = "{at} attribute cannot be applied to a variable with 'register' storage class",
+    .kind = .@"error",
+};
+
 pub const alignas_bitfield: Diagnostic = .{
     .fmt = "{at} attribute cannot be applied to a bit-field",
     .kind = .@"error",
