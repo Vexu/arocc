@@ -316,6 +316,7 @@ pub fn build(b: *Build) !void {
         const integration_test_runner = b.addRunArtifact(integration_tests);
         integration_test_runner.addArtifactArg(exe);
         integration_test_runner.addDirectoryArg(b.path("test/cases"));
+        integration_test_runner.step.dependOn(b.getInstallStep());
 
         const integration_tests_step = b.step("test-integration", "Run integration tests");
         integration_tests_step.dependOn(&integration_test_runner.step);
@@ -333,6 +334,7 @@ pub fn build(b: *Build) !void {
         record_tests.root_module.addImport("aro", aro_module);
         const record_tests_runner = b.addRunArtifact(record_tests);
         record_tests_runner.addArtifactArg(exe);
+        record_tests_runner.step.dependOn(b.getInstallStep());
 
         const record_tests_step = b.step("test-record", "Run record layout tests");
         record_tests_step.dependOn(&record_tests_runner.step);
