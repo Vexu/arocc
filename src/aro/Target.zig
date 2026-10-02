@@ -162,7 +162,7 @@ pub const SubArch = enum {
                 .arm_v6k => arm.v6k,
                 .arm_v6m => arm.v6m,
                 .arm_v6t2 => arm.v6t2,
-                .arm_v7 => arm.has_v7,
+                .arm_v7 => arm.v7a,
                 .arm_v7a => arm.v7a,
                 .arm_v7r => arm.v7r,
                 .arm_v7em => arm.v7em,
@@ -2101,4 +2101,46 @@ pub fn armHasDsp(target: *const Target) bool {
 
     const v = target.armVersion() orelse return false;
     return v.version >= 6 or mem.startsWith(u8, v.string, "5TE");
+}
+
+pub const ArmFloatAbi = enum {
+    soft,
+    soft_fp,
+    hard,
+};
+
+pub fn armFloatAbi(target: *const Target, explicit_abi: ?Abi) ArmFloatAbi {
+    assert(target.cpu.arch.isArm());
+
+    if (target.cpu.has(.arm, .soft_float)) return .soft;
+
+    const abi = explicit_abi orelse .none;
+    return switch (target.os.tag) {
+        .watchos => .hard,
+        // Darwin defaults to softfp for v6 and v7, soft otherwise.
+        .ios, .macos, .tvos, .driverkit, .visionos => blk: {
+            const v = target.armVersion() orelse break :blk .soft;
+            break :blk if (v.version == 6 or v.version == 7) .soft_fp else .soft;
+        },
+        .windows => .hard,
+        .netbsd => switch (abi) {
+            .eabihf, .gnueabihf => .hard,
+            else => .soft,
+        },
+        // FreeBSD honours only `gnueabihf`, not `eabihf`.
+        .freebsd => switch (abi) {
+            .gnueabihf => .hard,
+            else => .soft,
+        },
+        .openbsd, .haiku => .soft_fp,
+        .fuchsia => .hard,
+        else => switch (abi) {
+            // clang checks `Triple.isOHOSFamily()` ahead of the environment switch.
+            .ohos, .ohoseabi => .soft,
+            .eabihf, .gnueabihf, .musleabihf => .hard,
+            // EABI is always AAPCS, and if it was not marked 'hard', it's softfp.
+            .eabi, .gnueabi, .musleabi, .android, .androideabi => .soft_fp,
+            else => .soft,
+        },
+    };
 }
