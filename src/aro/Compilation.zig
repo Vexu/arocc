@@ -627,6 +627,7 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
                 .{ .avx512fp16, "__AVX512FP16__" },
                 .{ .avx512dq, "__AVX512DQ__" },
                 .{ .avx512bitalg, "__AVX512BITALG__" },
+                .{ .avx512bmm, "__AVX512BMM__" },
                 .{ .avx512bw, "__AVX512BW__" },
 
                 .{ .avx512vl, "__AVX512VL__" },
@@ -675,7 +676,6 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
                 .{ .amx_fp8, "__AMX_FP8__" },
                 .{ .amx_movrs, "__AMX_MOVRS__" },
                 .{ .amx_avx512, "__AMX_AVX512__" },
-                .{ .amx_tf32, "__AMX_TF32__" },
                 .{ .cmpccxadd, "__CMPCCXADD__" },
                 .{ .raoint, "__RAOINT__" },
                 .{ .avxifma, "__AVXIFMA__" },
