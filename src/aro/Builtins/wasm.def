@@ -295,17 +295,17 @@ __builtin_wasm_q15mulr_sat_s_i16x8
     .features = "simd128"
 
 __builtin_wasm_ref_is_null_extern
-    .param_str = "ii"
+    .param_str = "iv*1"
     .attributes = .{ .@"const" = true, .custom_typecheck = true }
     .features = "reference_types"
 
 __builtin_wasm_ref_null_extern
-    .param_str = "i"
+    .param_str = "v*1"
     .attributes = .{ .@"const" = true, .custom_typecheck = true }
     .features = "reference_types"
 
 __builtin_wasm_ref_null_func
-    .param_str = "i"
+    .param_str = "v*1"
     .attributes = .{ .@"const" = true, .custom_typecheck = true }
     .features = "reference_types"
 
@@ -469,32 +469,32 @@ __builtin_wasm_swizzle_i8x16
     .features = "simd128"
 
 __builtin_wasm_table_copy
-    .param_str = "viiiii"
+    .param_str = "vv*v*iii"
     .attributes = .{ .custom_typecheck = true }
     .features = "reference_types"
 
 __builtin_wasm_table_fill
-    .param_str = "viiii"
+    .param_str = "vv*iv*1i"
     .attributes = .{ .custom_typecheck = true }
     .features = "reference_types"
 
 __builtin_wasm_table_get
-    .param_str = "iii"
+    .param_str = "v*1v*i"
     .attributes = .{ .custom_typecheck = true }
     .features = "reference_types"
 
 __builtin_wasm_table_grow
-    .param_str = "iiii"
+    .param_str = "iv*v*1i"
     .attributes = .{ .custom_typecheck = true }
     .features = "reference_types"
 
 __builtin_wasm_table_set
-    .param_str = "viii"
+    .param_str = "vv*iv*1"
     .attributes = .{ .custom_typecheck = true }
     .features = "reference_types"
 
 __builtin_wasm_table_size
-    .param_str = "zi"
+    .param_str = "zv*"
     .attributes = .{ .custom_typecheck = true }
     .features = "reference_types"
 

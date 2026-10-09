@@ -628,9 +628,17 @@ __builtin_altivec_vmuleuw
     .param_str = "V2ULLiV4UiV4Ui"
     .features = "power8_vector"
 
+__builtin_altivec_vmulhsh
+    .param_str = "V8SsV8SsV8Ss"
+    .features = "future_vector"
+
 __builtin_altivec_vmulhsw
     .param_str = "V4SiV4SiV4Si"
     .features = "power10_vector"
+
+__builtin_altivec_vmulhuh
+    .param_str = "V8UsV8UsV8Us"
+    .features = "future_vector"
 
 __builtin_altivec_vmulhuw
     .param_str = "V4UiV4UiV4Ui"
@@ -908,6 +916,22 @@ __builtin_amo_ldat
     .param_str = "ULiULi*ULiIi"
     .features = "isa_v30_instructions"
 
+__builtin_amo_ldat_cond
+    .param_str = "ULiULi*Ii"
+    .features = "isa_v30_instructions"
+
+__builtin_amo_ldat_cond_s
+    .param_str = "SLiSLi*Ii"
+    .features = "isa_v30_instructions"
+
+__builtin_amo_ldat_csne
+    .param_str = "ULiULi*ULiULi"
+    .features = "isa_v30_instructions"
+
+__builtin_amo_ldat_csne_s
+    .param_str = "SLiSLi*SLiSLi"
+    .features = "isa_v30_instructions"
+
 __builtin_amo_ldat_s
     .param_str = "SLiSLi*SLiIi"
     .features = "isa_v30_instructions"
@@ -916,8 +940,40 @@ __builtin_amo_lwat
     .param_str = "UiUi*UiIi"
     .features = "isa_v30_instructions"
 
+__builtin_amo_lwat_cond
+    .param_str = "UiUi*Ii"
+    .features = "isa_v30_instructions"
+
+__builtin_amo_lwat_cond_s
+    .param_str = "SiSi*Ii"
+    .features = "isa_v30_instructions"
+
+__builtin_amo_lwat_csne
+    .param_str = "UiUi*UiUi"
+    .features = "isa_v30_instructions"
+
+__builtin_amo_lwat_csne_s
+    .param_str = "SiSi*SiSi"
+    .features = "isa_v30_instructions"
+
 __builtin_amo_lwat_s
     .param_str = "SiSi*SiIi"
+    .features = "isa_v30_instructions"
+
+__builtin_amo_stdat
+    .param_str = "vULi*ULiIi"
+    .features = "isa_v30_instructions"
+
+__builtin_amo_stdat_s
+    .param_str = "vSLi*SLiIi"
+    .features = "isa_v30_instructions"
+
+__builtin_amo_stwat
+    .param_str = "vUi*UiIi"
+    .features = "isa_v30_instructions"
+
+__builtin_amo_stwat_s
+    .param_str = "vSi*SiIi"
     .features = "isa_v30_instructions"
 
 __builtin_bpermd
@@ -1041,6 +1097,29 @@ __builtin_ppc_bcdcopysign
 __builtin_ppc_bcdsetsign
     .param_str = "V16UcV16UcUc"
     .attributes = .{ .custom_typecheck = true }
+    .features = "power9_vector"
+
+__builtin_ppc_bcdshift
+    .param_str = "V16UcV16UciUc"
+    .attributes = .{ .custom_typecheck = true }
+    .features = "power9_vector"
+
+__builtin_ppc_bcdshiftround
+    .param_str = "V16UcV16UciUc"
+    .attributes = .{ .custom_typecheck = true }
+    .features = "power9_vector"
+
+__builtin_ppc_bcdtruncate
+    .param_str = "V16UcV16UciUc"
+    .attributes = .{ .custom_typecheck = true }
+    .features = "power9_vector"
+
+__builtin_ppc_bcdunsignedshift
+    .param_str = "V16UcV16Uci"
+    .features = "power9_vector"
+
+__builtin_ppc_bcdunsignedtruncate
+    .param_str = "V16UcV16Uci"
     .features = "power9_vector"
 
 __builtin_ppc_cbcdtd
@@ -2009,3 +2088,4 @@ __builtin_vsx_xxsldwi
     .param_str = "v."
     .attributes = .{ .custom_typecheck = true }
     .features = "vsx"
+

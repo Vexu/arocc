@@ -45,6 +45,8 @@ pub const Header = enum {
     mmintrin,
     /// arm_acle.h
     arm_acle,
+    /// stdbit.h
+    stdbit,
 };
 
 /// Languages in which a builtin is available
