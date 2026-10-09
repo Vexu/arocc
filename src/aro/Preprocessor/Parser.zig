@@ -323,7 +323,8 @@ fn binaryExpr(p: *Parser, min_prec: Token.Precedence, eval: bool) Error!?Value {
                 const else_res = try p.binaryExpr(op_prec, eval_else) orelse return null;
 
                 lhs = if (lhs.toBool()) rhs else else_res;
-                if (eval and rhs == .unsigned or else_res == .unsigned) {
+                // Usual arithmetic conversion
+                if (rhs == .unsigned or else_res == .unsigned) {
                     try lhs.toUnsigned(p, operator, "right");
                 }
             },
