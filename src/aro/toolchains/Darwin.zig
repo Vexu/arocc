@@ -93,7 +93,7 @@ const Sdk = union(enum) {
             try tc.driver.err("{s} stderr:\n{s}", .{ pretty_cmd, result.stderr });
         }
 
-        const nl = std.mem.indexOfScalar(u8, result.stdout, '\n');
+        const nl = std.mem.findScalar(u8, result.stdout, '\n');
         if (nl == null or nl.? == 0) {
             try tc.driver.err("{s} had no output", .{pretty_cmd});
             return null;

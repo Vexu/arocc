@@ -914,7 +914,7 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
                     (v.version >= 7 and !mem.eql(u8, v.string, "8M_BASE"));
                 if (supports_thumb2) {
                     try w.writeAll("#define __ARM_ARCH_ISA_THUMB 2\n");
-                } else if (mem.indexOfScalar(u8, v.string, 'T') != null or v.version >= 6) {
+                } else if (mem.findScalar(u8, v.string, 'T') != null or v.version >= 6) {
                     try w.writeAll("#define __ARM_ARCH_ISA_THUMB 1\n");
                 }
             }
