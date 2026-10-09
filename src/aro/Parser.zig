@@ -6818,6 +6818,19 @@ pub const Result = struct {
         }
     }
 
+    fn checkInvalidUn(
+        operand: *Result,
+        p: *Parser,
+        rt_tag: std.meta.Tag(Node),
+        tok: TokenIndex,
+    ) !bool {
+        if (!operand.qt.isInvalid()) return false;
+
+        operand.val = .{};
+        try operand.un(p, rt_tag, tok);
+        return true;
+    }
+
     fn implicitCast(operand: *Result, p: *Parser, kind: Node.Cast.Kind) Error!void {
         operand.node = try p.addNode(.{
             .cast = .{
@@ -7096,6 +7109,7 @@ pub const Result = struct {
     }
 
     fn lvalConversion(res: *Result, p: *Parser) Error!void {
+        if (res.qt.isInvalid()) return;
         if (res.qt.is(p.comp, .func)) {
             res.val = try p.pointerValue(res.node, .zero);
 
@@ -9070,6 +9084,7 @@ fn unExpr(p: *Parser, eval: bool) Error!?Result {
         .asterisk => {
             p.tok_i += 1;
             var operand = try p.expectResult(try p.unExpr(eval));
+            if (try operand.checkInvalidUn(p, .deref_expr, tok)) return operand;
 
             switch (operand.qt.base(p.comp).type) {
                 .array, .func, .pointer => {
@@ -9095,6 +9110,8 @@ fn unExpr(p: *Parser, eval: bool) Error!?Result {
 
             var operand = try p.expectResult(try p.unExpr(eval));
             try operand.lvalConversion(p);
+            if (operand.qt.isInvalid()) return operand;
+
             const scalar_qt = if (operand.qt.get(p.comp, .vector)) |vec| vec.elem else operand.qt;
             if (!scalar_qt.isInt(p.comp) and !scalar_qt.isFloat(p.comp))
                 try p.err(tok, .invalid_argument_un, .{operand.qt});
@@ -9107,6 +9124,8 @@ fn unExpr(p: *Parser, eval: bool) Error!?Result {
             p.tok_i += 1;
 
             var operand = try p.expectResult(try p.unExpr(eval));
+            if (try operand.checkInvalidUn(p, .negate_expr, tok)) return operand;
+
             try operand.lvalConversion(p);
             const scalar_qt = if (operand.qt.get(p.comp, .vector)) |vec| vec.elem else operand.qt;
             if (!scalar_qt.isInt(p.comp) and !scalar_qt.isFloat(p.comp))
@@ -9125,6 +9144,8 @@ fn unExpr(p: *Parser, eval: bool) Error!?Result {
             p.tok_i += 1;
 
             var operand = try p.expectResult(try p.unExpr(eval));
+            if (try operand.checkInvalidUn(p, .pre_inc_expr, tok)) return operand;
+
             const scalar_kind = operand.qt.scalarKind(p.comp);
             if (scalar_kind == .void_pointer)
                 try p.err(tok, .gnu_pointer_arith, .{});
@@ -9155,6 +9176,8 @@ fn unExpr(p: *Parser, eval: bool) Error!?Result {
             p.tok_i += 1;
 
             var operand = try p.expectResult(try p.unExpr(eval));
+            if (try operand.checkInvalidUn(p, .pre_dec_expr, tok)) return operand;
+
             const scalar_kind = operand.qt.scalarKind(p.comp);
             if (scalar_kind == .void_pointer)
                 try p.err(tok, .gnu_pointer_arith, .{});
@@ -9185,6 +9208,8 @@ fn unExpr(p: *Parser, eval: bool) Error!?Result {
             p.tok_i += 1;
 
             var operand = try p.expectResult(try p.unExpr(eval));
+            if (try operand.checkInvalidUn(p, .bit_not_expr, tok)) return operand;
+
             try operand.lvalConversion(p);
             try operand.usualUnaryConversion(p, tok);
 
@@ -9210,6 +9235,8 @@ fn unExpr(p: *Parser, eval: bool) Error!?Result {
             p.tok_i += 1;
 
             var operand = try p.expectResult(try p.unExpr(eval));
+            if (try operand.checkInvalidUn(p, .bool_not_expr, tok)) return operand;
+
             try operand.lvalConversion(p);
             if (operand.qt.scalarKind(p.comp) == .none)
                 try p.err(tok, .invalid_argument_un, .{operand.qt});
@@ -9327,9 +9354,9 @@ fn unExpr(p: *Parser, eval: bool) Error!?Result {
             p.tok_i += 1;
 
             var operand = try p.expectResult(try p.unExpr(eval));
-            try operand.lvalConversion(p);
-            if (operand.qt.isInvalid()) return operand;
+            if (try operand.checkInvalidUn(p, .imag_expr, tok)) return operand;
 
+            try operand.lvalConversion(p);
             const scalar_kind = operand.qt.scalarKind(p.comp);
             if (!scalar_kind.isArithmetic()) {
                 try p.err(imag_tok, .invalid_imag, .{operand.qt});
@@ -9357,8 +9384,9 @@ fn unExpr(p: *Parser, eval: bool) Error!?Result {
             p.tok_i += 1;
 
             var operand = try p.expectResult(try p.unExpr(eval));
+            if (try operand.checkInvalidUn(p, .real_expr, tok)) return operand;
+
             try operand.lvalConversion(p);
-            if (operand.qt.isInvalid()) return operand;
             if (!operand.qt.isInt(p.comp) and !operand.qt.isFloat(p.comp)) {
                 try p.err(real_tok, .invalid_real, .{operand.qt});
             }
@@ -9472,6 +9500,8 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!?Result {
             defer p.tok_i += 1;
 
             var operand = lhs;
+            if (try operand.checkInvalidUn(p, .real_expr, p.tok_i)) return operand;
+
             const scalar_kind = operand.qt.scalarKind(p.comp);
             if (scalar_kind == .void_pointer)
                 try p.err(p.tok_i, .gnu_pointer_arith, .{});
@@ -9495,6 +9525,8 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!?Result {
             defer p.tok_i += 1;
 
             var operand = lhs;
+            if (try operand.checkInvalidUn(p, .real_expr, p.tok_i)) return operand;
+
             const scalar_kind = operand.qt.scalarKind(p.comp);
             if (scalar_kind == .void_pointer)
                 try p.err(p.tok_i, .gnu_pointer_arith, .{});

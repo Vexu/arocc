@@ -32,6 +32,21 @@ void foo(void) {
     (void)&(s.x);
 }
 
+typedef struct Hmm {
+    inl n; // invalid type
+} Hmm;
+
+static int explode1 = &((Hmm *)1337)->n;
+static int explode2 = *((Hmm *)1337)->n;
+static int explode3 = +((Hmm *)1337)->n;
+static int explode4 = -((Hmm *)1337)->n;
+static int explode5 = ++((Hmm *)1337)->n;
+static int explode6 = --((Hmm *)1337)->n;
+static int explode7 = ~((Hmm *)1337)->n;
+static int explode8 = !((Hmm *)1337)->n;
+static int explode9 = ((Hmm *)1337)->n--;
+static int explode10 = ((Hmm *)1337)->n++;
+
 /** manifest:
 syntax
 
@@ -48,4 +63,5 @@ unary expressions.c:22:11: error: expected expression
 unary expressions.c:24:5: error: address of register variable requested
 unary expressions.c:28:12: error: invalid type 'int *' to __real operator
 unary expressions.c:32:11: error: address of bit-field requested
+unary expressions.c:36:5: error: unknown type name 'inl'
 */
