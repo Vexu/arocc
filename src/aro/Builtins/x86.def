@@ -465,6 +465,26 @@ __builtin_ia32_blendvps256
     .features = "avx"
     .attributes = .{ .@"const" = true, .const_evaluable = true }
 
+__builtin_ia32_bmacor16x16x16_v16hi
+    .param_str = "V16sV16sV16sV16s"
+    .features = "avx512bmm,avx512vl"
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
+
+__builtin_ia32_bmacor16x16x16_v32hi
+    .param_str = "V32sV32sV32sV32s"
+    .features = "avx512bmm"
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
+
+__builtin_ia32_bmacxor16x16x16_v16hi
+    .param_str = "V16sV16sV16sV16s"
+    .features = "avx512bmm,avx512vl"
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
+
+__builtin_ia32_bmacxor16x16x16_v32hi
+    .param_str = "V32sV32sV32sV32s"
+    .features = "avx512bmm"
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
+
 __builtin_ia32_bzhi_si
     .param_str = "UiUiUi"
     .features = "bmi2"
@@ -867,92 +887,92 @@ __builtin_ia32_comisdneq
 __builtin_ia32_compressdf128_mask
     .param_str = "V2dV2dV2dUc"
     .features = "avx512vl"
-    .attributes = .{ .@"const" = true }
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
 
 __builtin_ia32_compressdf256_mask
     .param_str = "V4dV4dV4dUc"
     .features = "avx512vl"
-    .attributes = .{ .@"const" = true }
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
 
 __builtin_ia32_compressdf512_mask
     .param_str = "V8dV8dV8dUc"
     .features = "avx512f"
-    .attributes = .{ .@"const" = true }
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
 
 __builtin_ia32_compressdi128_mask
     .param_str = "V2OiV2OiV2OiUc"
     .features = "avx512vl"
-    .attributes = .{ .@"const" = true }
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
 
 __builtin_ia32_compressdi256_mask
     .param_str = "V4OiV4OiV4OiUc"
     .features = "avx512vl"
-    .attributes = .{ .@"const" = true }
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
 
 __builtin_ia32_compressdi512_mask
     .param_str = "V8OiV8OiV8OiUc"
     .features = "avx512f"
-    .attributes = .{ .@"const" = true }
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
 
 __builtin_ia32_compresshi128_mask
     .param_str = "V8sV8sV8sUc"
     .features = "avx512vl,avx512vbmi2"
-    .attributes = .{ .@"const" = true }
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
 
 __builtin_ia32_compresshi256_mask
     .param_str = "V16sV16sV16sUs"
     .features = "avx512vl,avx512vbmi2"
-    .attributes = .{ .@"const" = true }
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
 
 __builtin_ia32_compresshi512_mask
     .param_str = "V32sV32sV32sUi"
     .features = "avx512vbmi2"
-    .attributes = .{ .@"const" = true }
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
 
 __builtin_ia32_compressqi128_mask
     .param_str = "V16cV16cV16cUs"
     .features = "avx512vl,avx512vbmi2"
-    .attributes = .{ .@"const" = true }
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
 
 __builtin_ia32_compressqi256_mask
     .param_str = "V32cV32cV32cUi"
     .features = "avx512vl,avx512vbmi2"
-    .attributes = .{ .@"const" = true }
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
 
 __builtin_ia32_compressqi512_mask
     .param_str = "V64cV64cV64cUOi"
     .features = "avx512vbmi2"
-    .attributes = .{ .@"const" = true }
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
 
 __builtin_ia32_compresssf128_mask
     .param_str = "V4fV4fV4fUc"
     .features = "avx512vl"
-    .attributes = .{ .@"const" = true }
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
 
 __builtin_ia32_compresssf256_mask
     .param_str = "V8fV8fV8fUc"
     .features = "avx512vl"
-    .attributes = .{ .@"const" = true }
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
 
 __builtin_ia32_compresssf512_mask
     .param_str = "V16fV16fV16fUs"
     .features = "avx512f"
-    .attributes = .{ .@"const" = true }
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
 
 __builtin_ia32_compresssi128_mask
     .param_str = "V4iV4iV4iUc"
     .features = "avx512vl"
-    .attributes = .{ .@"const" = true }
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
 
 __builtin_ia32_compresssi256_mask
     .param_str = "V8iV8iV8iUc"
     .features = "avx512vl"
-    .attributes = .{ .@"const" = true }
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
 
 __builtin_ia32_compresssi512_mask
     .param_str = "V16iV16iV16iUs"
     .features = "avx512f"
-    .attributes = .{ .@"const" = true }
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
 
 __builtin_ia32_compressstoredf128_mask
     .param_str = "vV2d*V2dUc"
@@ -1029,17 +1049,17 @@ __builtin_ia32_compressstoresi512_mask
 __builtin_ia32_crc32hi
     .param_str = "UiUiUs"
     .features = "crc32"
-    .attributes = .{ .@"const" = true }
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
 
 __builtin_ia32_crc32qi
     .param_str = "UiUiUc"
     .features = "crc32"
-    .attributes = .{ .@"const" = true }
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
 
 __builtin_ia32_crc32si
     .param_str = "UiUiUi"
     .features = "crc32"
-    .attributes = .{ .@"const" = true }
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
 
 __builtin_ia32_cvtb2mask128
     .param_str = "UsV16c"
@@ -1167,7 +1187,7 @@ __builtin_ia32_cvtneps2bf16_512_mask
     .attributes = .{ .@"const" = true }
 
 __builtin_ia32_cvtpd2dq
-    .param_str = "V2OiV2d"
+    .param_str = "V4iV2d"
     .features = "sse2"
     .attributes = .{ .@"const" = true }
 
@@ -1554,17 +1574,17 @@ __builtin_ia32_cvtw2mask512
 __builtin_ia32_dbpsadbw128
     .param_str = "V8sV16cV16cIi"
     .features = "avx512bw,avx512vl"
-    .attributes = .{ .@"const" = true }
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
 
 __builtin_ia32_dbpsadbw256
     .param_str = "V16sV32cV32cIi"
     .features = "avx512bw,avx512vl"
-    .attributes = .{ .@"const" = true }
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
 
 __builtin_ia32_dbpsadbw512
     .param_str = "V32sV64cV64cIi"
     .features = "avx512bw"
-    .attributes = .{ .@"const" = true }
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
 
 __builtin_ia32_directstore_u32
     .param_str = "vUi*Ui"
@@ -1653,47 +1673,47 @@ __builtin_ia32_enqcmds
 __builtin_ia32_expanddf128_mask
     .param_str = "V2dV2dV2dUc"
     .features = "avx512vl"
-    .attributes = .{ .@"const" = true }
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
 
 __builtin_ia32_expanddf256_mask
     .param_str = "V4dV4dV4dUc"
     .features = "avx512vl"
-    .attributes = .{ .@"const" = true }
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
 
 __builtin_ia32_expanddf512_mask
     .param_str = "V8dV8dV8dUc"
     .features = "avx512f"
-    .attributes = .{ .@"const" = true }
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
 
 __builtin_ia32_expanddi128_mask
     .param_str = "V2OiV2OiV2OiUc"
     .features = "avx512vl"
-    .attributes = .{ .@"const" = true }
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
 
 __builtin_ia32_expanddi256_mask
     .param_str = "V4OiV4OiV4OiUc"
     .features = "avx512vl"
-    .attributes = .{ .@"const" = true }
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
 
 __builtin_ia32_expanddi512_mask
     .param_str = "V8OiV8OiV8OiUc"
     .features = "avx512f"
-    .attributes = .{ .@"const" = true }
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
 
 __builtin_ia32_expandhi128_mask
     .param_str = "V8sV8sV8sUc"
     .features = "avx512vl,avx512vbmi2"
-    .attributes = .{ .@"const" = true }
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
 
 __builtin_ia32_expandhi256_mask
     .param_str = "V16sV16sV16sUs"
     .features = "avx512vl,avx512vbmi2"
-    .attributes = .{ .@"const" = true }
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
 
 __builtin_ia32_expandhi512_mask
     .param_str = "V32sV32sV32sUi"
     .features = "avx512vbmi2"
-    .attributes = .{ .@"const" = true }
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
 
 __builtin_ia32_expandloaddf128_mask
     .param_str = "V2dV2dC*V2dUc"
@@ -1770,47 +1790,47 @@ __builtin_ia32_expandloadsi512_mask
 __builtin_ia32_expandqi128_mask
     .param_str = "V16cV16cV16cUs"
     .features = "avx512vl,avx512vbmi2"
-    .attributes = .{ .@"const" = true }
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
 
 __builtin_ia32_expandqi256_mask
     .param_str = "V32cV32cV32cUi"
     .features = "avx512vl,avx512vbmi2"
-    .attributes = .{ .@"const" = true }
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
 
 __builtin_ia32_expandqi512_mask
     .param_str = "V64cV64cV64cUOi"
     .features = "avx512vbmi2"
-    .attributes = .{ .@"const" = true }
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
 
 __builtin_ia32_expandsf128_mask
     .param_str = "V4fV4fV4fUc"
     .features = "avx512vl"
-    .attributes = .{ .@"const" = true }
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
 
 __builtin_ia32_expandsf256_mask
     .param_str = "V8fV8fV8fUc"
     .features = "avx512vl"
-    .attributes = .{ .@"const" = true }
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
 
 __builtin_ia32_expandsf512_mask
     .param_str = "V16fV16fV16fUs"
     .features = "avx512f"
-    .attributes = .{ .@"const" = true }
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
 
 __builtin_ia32_expandsi128_mask
     .param_str = "V4iV4iV4iUc"
     .features = "avx512vl"
-    .attributes = .{ .@"const" = true }
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
 
 __builtin_ia32_expandsi256_mask
     .param_str = "V8iV8iV8iUc"
     .features = "avx512vl"
-    .attributes = .{ .@"const" = true }
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
 
 __builtin_ia32_expandsi512_mask
     .param_str = "V16iV16iV16iUs"
     .features = "avx512f"
-    .attributes = .{ .@"const" = true }
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
 
 __builtin_ia32_extract128i256
     .param_str = "V2OiV4OiIi"
@@ -3007,27 +3027,27 @@ __builtin_ia32_maxps512
 __builtin_ia32_maxsd
     .param_str = "V2dV2dV2d"
     .features = "sse2"
-    .attributes = .{ .@"const" = true }
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
 
 __builtin_ia32_maxsd_round_mask
     .param_str = "V2dV2dV2dV2dUcIi"
     .features = "avx512f"
-    .attributes = .{ .@"const" = true }
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
 
 __builtin_ia32_maxsh_round_mask
     .param_str = "V8xV8xV8xV8xUcIi"
     .features = "avx512fp16"
-    .attributes = .{ .@"const" = true }
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
 
 __builtin_ia32_maxss
     .param_str = "V4fV4fV4f"
     .features = "sse"
-    .attributes = .{ .@"const" = true }
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
 
 __builtin_ia32_maxss_round_mask
     .param_str = "V4fV4fV4fV4fUcIi"
     .features = "avx512f"
-    .attributes = .{ .@"const" = true }
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
 
 __builtin_ia32_mfence
     .param_str = "v"
@@ -3081,27 +3101,27 @@ __builtin_ia32_minps512
 __builtin_ia32_minsd
     .param_str = "V2dV2dV2d"
     .features = "sse2"
-    .attributes = .{ .@"const" = true }
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
 
 __builtin_ia32_minsd_round_mask
     .param_str = "V2dV2dV2dV2dUcIi"
     .features = "avx512f"
-    .attributes = .{ .@"const" = true }
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
 
 __builtin_ia32_minsh_round_mask
     .param_str = "V8xV8xV8xV8xUcIi"
     .features = "avx512fp16"
-    .attributes = .{ .@"const" = true }
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
 
 __builtin_ia32_minss
     .param_str = "V4fV4fV4f"
     .features = "sse"
-    .attributes = .{ .@"const" = true }
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
 
 __builtin_ia32_minss_round_mask
     .param_str = "V4fV4fV4fV4fUcIi"
     .features = "avx512f"
-    .attributes = .{ .@"const" = true }
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
 
 __builtin_ia32_monitor
     .param_str = "vvC*UiUi"
@@ -3196,14 +3216,14 @@ __builtin_ia32_movntss
     .features = "sse4a"
 
 __builtin_ia32_mpsadbw128
-    .param_str = "V16cV16cV16cIc"
+    .param_str = "V8sV16cV16cIc"
     .features = "sse4_1"
-    .attributes = .{ .@"const" = true }
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
 
 __builtin_ia32_mpsadbw256
-    .param_str = "V32cV32cV32cIc"
+    .param_str = "V16sV32cV32cIc"
     .features = "avx2"
-    .attributes = .{ .@"const" = true }
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
 
 __builtin_ia32_mpsadbw512
     .param_str = "V32sV64cV64cIc"
@@ -4298,19 +4318,19 @@ __builtin_ia32_prorq512
     .attributes = .{ .@"const" = true, .const_evaluable = true }
 
 __builtin_ia32_psadbw128
-    .param_str = "V2OiV16cV16c"
+    .param_str = "V2OiV16UcV16Uc"
     .features = "sse2"
-    .attributes = .{ .@"const" = true }
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
 
 __builtin_ia32_psadbw256
-    .param_str = "V4OiV32cV32c"
+    .param_str = "V4OiV32UcV32Uc"
     .features = "avx2"
-    .attributes = .{ .@"const" = true }
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
 
 __builtin_ia32_psadbw512
-    .param_str = "V8OiV64cV64c"
+    .param_str = "V8OiV64UcV64Uc"
     .features = "avx512bw"
-    .attributes = .{ .@"const" = true }
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
 
 __builtin_ia32_pshufb128
     .param_str = "V16cV16cV16c"
@@ -8076,32 +8096,32 @@ __builtin_ia32_vpdpbsuds512
 __builtin_ia32_vpdpbusd128
     .param_str = "V4iV4iV16UcV16c"
     .features = "avx512vl,avx512vnni|avxvnni"
-    .attributes = .{ .@"const" = true }
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
 
 __builtin_ia32_vpdpbusd256
     .param_str = "V8iV8iV32UcV32c"
     .features = "avx512vl,avx512vnni|avxvnni"
-    .attributes = .{ .@"const" = true }
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
 
 __builtin_ia32_vpdpbusd512
     .param_str = "V16iV16iV64UcV64c"
     .features = "avx512vnni"
-    .attributes = .{ .@"const" = true }
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
 
 __builtin_ia32_vpdpbusds128
     .param_str = "V4iV4iV16UcV16c"
     .features = "avx512vl,avx512vnni|avxvnni"
-    .attributes = .{ .@"const" = true }
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
 
 __builtin_ia32_vpdpbusds256
     .param_str = "V8iV8iV32UcV32c"
     .features = "avx512vl,avx512vnni|avxvnni"
-    .attributes = .{ .@"const" = true }
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
 
 __builtin_ia32_vpdpbusds512
     .param_str = "V16iV16iV64UcV64c"
     .features = "avx512vnni"
-    .attributes = .{ .@"const" = true }
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
 
 __builtin_ia32_vpdpbuud128
     .param_str = "V4iV4iV16UcV16Uc"
@@ -8136,32 +8156,32 @@ __builtin_ia32_vpdpbuuds512
 __builtin_ia32_vpdpwssd128
     .param_str = "V4iV4iV8sV8s"
     .features = "avx512vl,avx512vnni|avxvnni"
-    .attributes = .{ .@"const" = true }
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
 
 __builtin_ia32_vpdpwssd256
     .param_str = "V8iV8iV16sV16s"
     .features = "avx512vl,avx512vnni|avxvnni"
-    .attributes = .{ .@"const" = true }
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
 
 __builtin_ia32_vpdpwssd512
     .param_str = "V16iV16iV32sV32s"
     .features = "avx512vnni"
-    .attributes = .{ .@"const" = true }
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
 
 __builtin_ia32_vpdpwssds128
     .param_str = "V4iV4iV8sV8s"
     .features = "avx512vl,avx512vnni|avxvnni"
-    .attributes = .{ .@"const" = true }
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
 
 __builtin_ia32_vpdpwssds256
     .param_str = "V8iV8iV16sV16s"
     .features = "avx512vl,avx512vnni|avxvnni"
-    .attributes = .{ .@"const" = true }
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
 
 __builtin_ia32_vpdpwssds512
     .param_str = "V16iV16iV32sV32s"
     .features = "avx512vnni"
-    .attributes = .{ .@"const" = true }
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
 
 __builtin_ia32_vpdpwsud128
     .param_str = "V4iV4iV8sV8Us"
@@ -9053,3 +9073,4 @@ __builtin_ia32_xsusldtrk
 __builtin_ia32_xtest
     .param_str = "i"
     .features = "rtm"
+

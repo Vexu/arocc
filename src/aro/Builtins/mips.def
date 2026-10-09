@@ -1758,19 +1758,19 @@ __builtin_msa_insve_w
     .attributes = .{ .@"const" = true }
 
 __builtin_msa_ld_b
-    .param_str = "V16Scv*Ii"
+    .param_str = "V16ScvC*Ii"
     .attributes = .{ .@"const" = true }
 
 __builtin_msa_ld_d
-    .param_str = "V2SLLiv*Ii"
+    .param_str = "V2SLLivC*Ii"
     .attributes = .{ .@"const" = true }
 
 __builtin_msa_ld_h
-    .param_str = "V8Ssv*Ii"
+    .param_str = "V8SsvC*Ii"
     .attributes = .{ .@"const" = true }
 
 __builtin_msa_ld_w
-    .param_str = "V4Siv*Ii"
+    .param_str = "V4SivC*Ii"
     .attributes = .{ .@"const" = true }
 
 __builtin_msa_ldi_b
@@ -2596,3 +2596,4 @@ __builtin_msa_xor_v
 __builtin_msa_xori_b
     .param_str = "V16cV16cIUi"
     .attributes = .{ .@"const" = true }
+
