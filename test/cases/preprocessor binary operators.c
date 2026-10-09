@@ -177,7 +177,5 @@ preprocessor binary operators.c:124:17: error: expected closing ')'
 preprocessor binary operators.c:124:12: note: to match this '('
 preprocessor binary operators.c:128:8: error: expected closing ')'
 preprocessor binary operators.c:128:5: note: to match this '('
-preprocessor binary operators.c:133:8: warning: right side of operator converted from negative value to unsigned: -1 to 18446744073709551615
-preprocessor binary operators.c:140:8: warning: right side of operator converted from negative value to unsigned: -1 to 18446744073709551615
 preprocessor binary operators.c:140:29: warning: right side of operator converted from negative value to unsigned: -1 to 18446744073709551615
 */
