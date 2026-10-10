@@ -266,7 +266,6 @@ pub const Args = union(enum) {
         name: Value,
     },
     unaligned,
-    // TODO cannot be combined with weak or selectany
     internal_linkage,
     availability: struct {
         platform: enum {

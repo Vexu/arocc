@@ -180,6 +180,7 @@ pub fn build(b: *Build) !void {
                 .module = aro_backend,
             },
             generateDef(b, "Builtins/aarch64.def"),
+            generateDef(b, "Builtins/aarch64_neon.def"),
             generateDef(b, "Builtins/amdgcn.def"),
             generateDef(b, "Builtins/arm.def"),
             generateDef(b, "Builtins/bpf.def"),

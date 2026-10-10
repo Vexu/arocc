@@ -236,6 +236,10 @@ os: Os,
 abi: Abi,
 ofmt: std.Target.ObjectFormat,
 dynamic_linker: std.Target.DynamicLinker = .none,
+/// The triple named no C ABI and isn't native, so `abi` is the per-OS default Zig
+/// filled in. clang treats such a triple as having an unknown environment and applies
+/// its own OS defaults instead, which differ from Zig's in some cases.
+abi_is_default: bool = false,
 
 pub const default: Target = .{
     .cpu = builtin.cpu,
@@ -2109,12 +2113,12 @@ pub const ArmFloatAbi = enum {
     hard,
 };
 
-pub fn armFloatAbi(target: *const Target, explicit_abi: ?Abi) ArmFloatAbi {
+pub fn armFloatAbi(target: *const Target) ArmFloatAbi {
     assert(target.cpu.arch.isArm());
 
     if (target.cpu.has(.arm, .soft_float)) return .soft;
 
-    const abi = explicit_abi orelse .none;
+    const abi: Abi = if (target.abi_is_default) .none else target.abi;
     return switch (target.os.tag) {
         .watchos => .hard,
         // Darwin defaults to softfp for v6 and v7, soft otherwise.

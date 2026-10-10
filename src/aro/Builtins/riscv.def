@@ -280,9 +280,409 @@ __builtin_riscv_orc_b_64
     .features = "zbb,64bit"
     .attributes = .{ .@"const" = true }
 
+__builtin_riscv_paadd_i8x4
+    .param_str = "V4ScV4ScV4Sc"
+    .features = "experimental_p"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_paadd_i8x8
+    .param_str = "V8ScV8ScV8Sc"
+    .features = "experimental_p"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_paadd_i16x2
+    .param_str = "V2sV2sV2s"
+    .features = "experimental_p"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_paadd_i16x4
+    .param_str = "V4sV4sV4s"
+    .features = "experimental_p"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_paadd_i32x2
+    .param_str = "V2iV2iV2i"
+    .features = "experimental_p"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_paaddu_u8x4
+    .param_str = "V4UcV4UcV4Uc"
+    .features = "experimental_p"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_paaddu_u8x8
+    .param_str = "V8UcV8UcV8Uc"
+    .features = "experimental_p"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_paaddu_u16x2
+    .param_str = "V2UsV2UsV2Us"
+    .features = "experimental_p"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_paaddu_u16x4
+    .param_str = "V4UsV4UsV4Us"
+    .features = "experimental_p"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_paaddu_u32x2
+    .param_str = "V2UiV2UiV2Ui"
+    .features = "experimental_p"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_paas_x_i16x2
+    .param_str = "V2sV2sV2s"
+    .features = "experimental_p"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_paas_x_i16x4
+    .param_str = "V4sV4sV4s"
+    .features = "experimental_p"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_paas_x_i32x2
+    .param_str = "V2iV2iV2i"
+    .features = "experimental_p"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_pabd_i8x4
+    .param_str = "V4UcV4ScV4Sc"
+    .features = "experimental_p"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_pabd_i8x8
+    .param_str = "V8UcV8ScV8Sc"
+    .features = "experimental_p"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_pabd_i16x2
+    .param_str = "V2UsV2sV2s"
+    .features = "experimental_p"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_pabd_i16x4
+    .param_str = "V4UsV4sV4s"
+    .features = "experimental_p"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_pabdsumau_u8x4_u32
+    .param_str = "UiUiV4UcV4Uc"
+    .features = "experimental_p"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_pabdsumau_u8x8_u32
+    .param_str = "UiUiV8UcV8Uc"
+    .features = "experimental_p"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_pabdsumau_u8x8_u64
+    .param_str = "UWiUWiV8UcV8Uc"
+    .features = "experimental_p"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_pabdsumu_u8x4_u32
+    .param_str = "UiV4UcV4Uc"
+    .features = "experimental_p"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_pabdsumu_u8x8_u32
+    .param_str = "UiV8UcV8Uc"
+    .features = "experimental_p"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_pabdsumu_u8x8_u64
+    .param_str = "UWiV8UcV8Uc"
+    .features = "experimental_p"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_pabdu_u8x4
+    .param_str = "V4UcV4UcV4Uc"
+    .features = "experimental_p"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_pabdu_u8x8
+    .param_str = "V8UcV8UcV8Uc"
+    .features = "experimental_p"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_pabdu_u16x2
+    .param_str = "V2UsV2UsV2Us"
+    .features = "experimental_p"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_pabdu_u16x4
+    .param_str = "V4UsV4UsV4Us"
+    .features = "experimental_p"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_pas_x_i16x2
+    .param_str = "V2sV2sV2s"
+    .features = "experimental_p"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_pas_x_i16x4
+    .param_str = "V4sV4sV4s"
+    .features = "experimental_p"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_pas_x_i32x2
+    .param_str = "V2iV2iV2i"
+    .features = "experimental_p"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_pasa_x_i16x2
+    .param_str = "V2sV2sV2s"
+    .features = "experimental_p"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_pasa_x_i16x4
+    .param_str = "V4sV4sV4s"
+    .features = "experimental_p"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_pasa_x_i32x2
+    .param_str = "V2iV2iV2i"
+    .features = "experimental_p"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_pasub_i8x4
+    .param_str = "V4ScV4ScV4Sc"
+    .features = "experimental_p"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_pasub_i8x8
+    .param_str = "V8ScV8ScV8Sc"
+    .features = "experimental_p"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_pasub_i16x2
+    .param_str = "V2sV2sV2s"
+    .features = "experimental_p"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_pasub_i16x4
+    .param_str = "V4sV4sV4s"
+    .features = "experimental_p"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_pasub_i32x2
+    .param_str = "V2iV2iV2i"
+    .features = "experimental_p"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_pasubu_u8x4
+    .param_str = "V4UcV4UcV4Uc"
+    .features = "experimental_p"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_pasubu_u8x8
+    .param_str = "V8UcV8UcV8Uc"
+    .features = "experimental_p"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_pasubu_u16x2
+    .param_str = "V2UsV2UsV2Us"
+    .features = "experimental_p"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_pasubu_u16x4
+    .param_str = "V4UsV4UsV4Us"
+    .features = "experimental_p"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_pasubu_u32x2
+    .param_str = "V2UiV2UiV2Ui"
+    .features = "experimental_p"
+    .attributes = .{ .@"const" = true }
+
 __builtin_riscv_pause
     .param_str = "v"
     .features = "zihintpause"
+
+__builtin_riscv_pmerge_i8x4
+    .param_str = "V4ScV4ScV4ScV4Uc"
+    .features = "experimental_p"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_pmerge_i8x8
+    .param_str = "V8ScV8ScV8ScV8Uc"
+    .features = "experimental_p"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_pmerge_i16x2
+    .param_str = "V2sV2sV2sV2Us"
+    .features = "experimental_p"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_pmerge_i16x4
+    .param_str = "V4sV4sV4sV4Us"
+    .features = "experimental_p"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_pmerge_i32x2
+    .param_str = "V2iV2iV2iV2Ui"
+    .features = "experimental_p"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_pmerge_u8x4
+    .param_str = "V4UcV4UcV4UcV4Uc"
+    .features = "experimental_p"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_pmerge_u8x8
+    .param_str = "V8UcV8UcV8UcV8Uc"
+    .features = "experimental_p"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_pmerge_u16x2
+    .param_str = "V2UsV2UsV2UsV2Us"
+    .features = "experimental_p"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_pmerge_u16x4
+    .param_str = "V4UsV4UsV4UsV4Us"
+    .features = "experimental_p"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_pmerge_u32x2
+    .param_str = "V2UiV2UiV2UiV2Ui"
+    .features = "experimental_p"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_predsum_i8x4_i32
+    .param_str = "iV4Sci"
+    .features = "experimental_p"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_predsum_i8x8_i32
+    .param_str = "iV8Sci"
+    .features = "experimental_p"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_predsum_i8x8_i64
+    .param_str = "WiV8ScWi"
+    .features = "experimental_p"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_predsum_i16x2_i32
+    .param_str = "iV2si"
+    .features = "experimental_p"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_predsum_i16x4_i32
+    .param_str = "iV4si"
+    .features = "experimental_p"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_predsum_i16x4_i64
+    .param_str = "WiV4sWi"
+    .features = "experimental_p"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_predsum_i32x2_i64
+    .param_str = "WiV2iWi"
+    .features = "experimental_p"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_predsumu_u8x4_u32
+    .param_str = "UiV4UcUi"
+    .features = "experimental_p"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_predsumu_u8x8_u32
+    .param_str = "UiV8UcUi"
+    .features = "experimental_p"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_predsumu_u8x8_u64
+    .param_str = "UWiV8UcUWi"
+    .features = "experimental_p"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_predsumu_u16x2_u32
+    .param_str = "UiV2UsUi"
+    .features = "experimental_p"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_predsumu_u16x4_u32
+    .param_str = "UiV4UsUi"
+    .features = "experimental_p"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_predsumu_u16x4_u64
+    .param_str = "UWiV4UsUWi"
+    .features = "experimental_p"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_predsumu_u32x2_u64
+    .param_str = "UWiV2UiUWi"
+    .features = "experimental_p"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_psa_x_i16x2
+    .param_str = "V2sV2sV2s"
+    .features = "experimental_p"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_psa_x_i16x4
+    .param_str = "V4sV4sV4s"
+    .features = "experimental_p"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_psa_x_i32x2
+    .param_str = "V2iV2iV2i"
+    .features = "experimental_p"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_psabs_i8x4
+    .param_str = "V4ScV4Sc"
+    .features = "experimental_p"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_psabs_i8x8
+    .param_str = "V8ScV8Sc"
+    .features = "experimental_p"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_psabs_i16x2
+    .param_str = "V2sV2s"
+    .features = "experimental_p"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_psabs_i16x4
+    .param_str = "V4sV4s"
+    .features = "experimental_p"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_psas_x_i16x2
+    .param_str = "V2sV2sV2s"
+    .features = "experimental_p"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_psas_x_i16x4
+    .param_str = "V4sV4sV4s"
+    .features = "experimental_p"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_psas_x_i32x2
+    .param_str = "V2iV2iV2i"
+    .features = "experimental_p"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_pssa_x_i16x2
+    .param_str = "V2sV2sV2s"
+    .features = "experimental_p"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_pssa_x_i16x4
+    .param_str = "V4sV4sV4s"
+    .features = "experimental_p"
+    .attributes = .{ .@"const" = true }
+
+__builtin_riscv_pssa_x_i32x2
+    .param_str = "V2iV2iV2i"
+    .features = "experimental_p"
+    .attributes = .{ .@"const" = true }
 
 __builtin_riscv_sha256sig0
     .param_str = "UiUi"
@@ -403,3 +803,4 @@ __builtin_riscv_zip_32
     .param_str = "UiUi"
     .features = "zbkb,32bit"
     .attributes = .{ .@"const" = true }
+

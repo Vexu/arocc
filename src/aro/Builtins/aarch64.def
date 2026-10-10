@@ -1,4 +1,4 @@
-# Generated from clang/include/clang/Basic/BuiltinsAArch64*.def
+# Generated from clang/include/clang/Basic/BuiltinsAArch64.td
 
 _AddressOfReturnAddress
     .param_str = "v*"
@@ -85,6 +85,16 @@ _CountOneBits64
     .header = .intrin
     .language = .all_ms_languages
 
+_CountTrailingZeros
+    .param_str = "UiUNi"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_CountTrailingZeros64
+    .param_str = "UiULLi"
+    .header = .intrin
+    .language = .all_ms_languages
+
 _InterlockedAdd
     .param_str = "NiNiD*Ni"
     .header = .intrin
@@ -125,6 +135,21 @@ _InterlockedAdd_rel
     .header = .intrin
     .language = .all_ms_languages
 
+_InterlockedAnd8_acq
+    .param_str = "ccD*c"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedAnd8_nf
+    .param_str = "ccD*c"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedAnd8_rel
+    .param_str = "ccD*c"
+    .header = .intrin
+    .language = .all_ms_languages
+
 _InterlockedAnd16_acq
     .param_str = "ssD*s"
     .header = .intrin
@@ -160,21 +185,6 @@ _InterlockedAnd64_rel
     .header = .intrin
     .language = .all_ms_languages
 
-_InterlockedAnd8_acq
-    .param_str = "ccD*c"
-    .header = .intrin
-    .language = .all_ms_languages
-
-_InterlockedAnd8_nf
-    .param_str = "ccD*c"
-    .header = .intrin
-    .language = .all_ms_languages
-
-_InterlockedAnd8_rel
-    .param_str = "ccD*c"
-    .header = .intrin
-    .language = .all_ms_languages
-
 _InterlockedAnd_acq
     .param_str = "NiNiD*Ni"
     .header = .intrin
@@ -190,23 +200,18 @@ _InterlockedAnd_rel
     .header = .intrin
     .language = .all_ms_languages
 
-_InterlockedCompareExchange128
-    .param_str = "UcLLiD*LLiLLiLLi*"
+_InterlockedCompareExchange8_acq
+    .param_str = "ccD*cc"
     .header = .intrin
     .language = .all_ms_languages
 
-_InterlockedCompareExchange128_acq
-    .param_str = "UcLLiD*LLiLLiLLi*"
+_InterlockedCompareExchange8_nf
+    .param_str = "ccD*cc"
     .header = .intrin
     .language = .all_ms_languages
 
-_InterlockedCompareExchange128_nf
-    .param_str = "UcLLiD*LLiLLiLLi*"
-    .header = .intrin
-    .language = .all_ms_languages
-
-_InterlockedCompareExchange128_rel
-    .param_str = "UcLLiD*LLiLLiLLi*"
+_InterlockedCompareExchange8_rel
+    .param_str = "ccD*cc"
     .header = .intrin
     .language = .all_ms_languages
 
@@ -240,18 +245,23 @@ _InterlockedCompareExchange64_rel
     .header = .intrin
     .language = .all_ms_languages
 
-_InterlockedCompareExchange8_acq
-    .param_str = "ccD*cc"
+_InterlockedCompareExchange128
+    .param_str = "UcLLiD*LLiLLiLLi*"
     .header = .intrin
     .language = .all_ms_languages
 
-_InterlockedCompareExchange8_nf
-    .param_str = "ccD*cc"
+_InterlockedCompareExchange128_acq
+    .param_str = "UcLLiD*LLiLLiLLi*"
     .header = .intrin
     .language = .all_ms_languages
 
-_InterlockedCompareExchange8_rel
-    .param_str = "ccD*cc"
+_InterlockedCompareExchange128_nf
+    .param_str = "UcLLiD*LLiLLiLLi*"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedCompareExchange128_rel
+    .param_str = "UcLLiD*LLiLLiLLi*"
     .header = .intrin
     .language = .all_ms_languages
 
@@ -330,6 +340,21 @@ _InterlockedDecrement_rel
     .header = .intrin
     .language = .all_ms_languages
 
+_InterlockedExchange8_acq
+    .param_str = "ccD*c"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedExchange8_nf
+    .param_str = "ccD*c"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedExchange8_rel
+    .param_str = "ccD*c"
+    .header = .intrin
+    .language = .all_ms_languages
+
 _InterlockedExchange16_acq
     .param_str = "ssD*s"
     .header = .intrin
@@ -365,17 +390,17 @@ _InterlockedExchange64_rel
     .header = .intrin
     .language = .all_ms_languages
 
-_InterlockedExchange8_acq
+_InterlockedExchangeAdd8_acq
     .param_str = "ccD*c"
     .header = .intrin
     .language = .all_ms_languages
 
-_InterlockedExchange8_nf
+_InterlockedExchangeAdd8_nf
     .param_str = "ccD*c"
     .header = .intrin
     .language = .all_ms_languages
 
-_InterlockedExchange8_rel
+_InterlockedExchangeAdd8_rel
     .param_str = "ccD*c"
     .header = .intrin
     .language = .all_ms_languages
@@ -412,21 +437,6 @@ _InterlockedExchangeAdd64_nf
 
 _InterlockedExchangeAdd64_rel
     .param_str = "LLiLLiD*LLi"
-    .header = .intrin
-    .language = .all_ms_languages
-
-_InterlockedExchangeAdd8_acq
-    .param_str = "ccD*c"
-    .header = .intrin
-    .language = .all_ms_languages
-
-_InterlockedExchangeAdd8_nf
-    .param_str = "ccD*c"
-    .header = .intrin
-    .language = .all_ms_languages
-
-_InterlockedExchangeAdd8_rel
-    .param_str = "ccD*c"
     .header = .intrin
     .language = .all_ms_languages
 
@@ -530,6 +540,21 @@ _InterlockedIncrement_rel
     .header = .intrin
     .language = .all_ms_languages
 
+_InterlockedOr8_acq
+    .param_str = "ccD*c"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedOr8_nf
+    .param_str = "ccD*c"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedOr8_rel
+    .param_str = "ccD*c"
+    .header = .intrin
+    .language = .all_ms_languages
+
 _InterlockedOr16_acq
     .param_str = "ssD*s"
     .header = .intrin
@@ -565,21 +590,6 @@ _InterlockedOr64_rel
     .header = .intrin
     .language = .all_ms_languages
 
-_InterlockedOr8_acq
-    .param_str = "ccD*c"
-    .header = .intrin
-    .language = .all_ms_languages
-
-_InterlockedOr8_nf
-    .param_str = "ccD*c"
-    .header = .intrin
-    .language = .all_ms_languages
-
-_InterlockedOr8_rel
-    .param_str = "ccD*c"
-    .header = .intrin
-    .language = .all_ms_languages
-
 _InterlockedOr_acq
     .param_str = "NiNiD*Ni"
     .header = .intrin
@@ -592,6 +602,21 @@ _InterlockedOr_nf
 
 _InterlockedOr_rel
     .param_str = "NiNiD*Ni"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedXor8_acq
+    .param_str = "ccD*c"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedXor8_nf
+    .param_str = "ccD*c"
+    .header = .intrin
+    .language = .all_ms_languages
+
+_InterlockedXor8_rel
+    .param_str = "ccD*c"
     .header = .intrin
     .language = .all_ms_languages
 
@@ -627,21 +652,6 @@ _InterlockedXor64_nf
 
 _InterlockedXor64_rel
     .param_str = "LLiLLiD*LLi"
-    .header = .intrin
-    .language = .all_ms_languages
-
-_InterlockedXor8_acq
-    .param_str = "ccD*c"
-    .header = .intrin
-    .language = .all_ms_languages
-
-_InterlockedXor8_nf
-    .param_str = "ccD*c"
-    .header = .intrin
-    .language = .all_ms_languages
-
-_InterlockedXor8_rel
-    .param_str = "ccD*c"
     .header = .intrin
     .language = .all_ms_languages
 
@@ -700,72 +710,232 @@ __break
     .header = .intrin
     .language = .all_ms_languages
 
+__builtin_sponentry
+    .param_str = "v*"
+    .attributes = .{ .@"const" = true }
+
+__clear_cache
+    .param_str = "vv*v*"
+
+__dmb
+    .param_str = "vUi"
+    .header = .arm_acle
+    .language = .all_languages
+    .attributes = .{ .@"const" = true }
+
+__dsb
+    .param_str = "vUi"
+    .header = .arm_acle
+    .language = .all_languages
+    .attributes = .{ .@"const" = true }
+
+__getReg
+    .param_str = "ULLii"
+    .header = .intrin
+    .language = .all_ms_languages
+
+__getRegFp
+    .param_str = "di"
+    .header = .intrin
+    .language = .all_ms_languages
+
+__hlt
+    .param_str = "UiUi."
+    .header = .intrin
+    .language = .all_ms_languages
+
+__incx18byte
+    .param_str = "vUNi"
+    .header = .intrin
+    .language = .all_ms_languages
+
+__incx18dword
+    .param_str = "vUNi"
+    .header = .intrin
+    .language = .all_ms_languages
+
+__incx18qword
+    .param_str = "vUNi"
+    .header = .intrin
+    .language = .all_ms_languages
+
+__incx18word
+    .param_str = "vUNi"
+    .header = .intrin
+    .language = .all_ms_languages
+
+__isb
+    .param_str = "vUi"
+    .header = .arm_acle
+    .language = .all_languages
+    .attributes = .{ .@"const" = true }
+
+__mulh
+    .param_str = "SLLiSLLiSLLi"
+    .header = .intrin
+    .language = .all_ms_languages
+
+__prefetch
+    .param_str = "vvC*"
+    .header = .intrin
+    .language = .all_ms_languages
+
+__prefetch2
+    .param_str = "vvC*Uc"
+    .header = .intrin
+    .language = .all_ms_languages
+
+__readx18byte
+    .param_str = "UcUNi"
+    .header = .intrin
+    .language = .all_ms_languages
+
+__readx18dword
+    .param_str = "UNiUNi"
+    .header = .intrin
+    .language = .all_ms_languages
+
+__readx18qword
+    .param_str = "ULLiUNi"
+    .header = .intrin
+    .language = .all_ms_languages
+
+__readx18word
+    .param_str = "UsUNi"
+    .header = .intrin
+    .language = .all_ms_languages
+
+__setReg
+    .param_str = "viULLi"
+    .header = .intrin
+    .language = .all_ms_languages
+
+__setRegFp
+    .param_str = "vid"
+    .header = .intrin
+    .language = .all_ms_languages
+
+__sev
+    .param_str = "v"
+    .header = .arm_acle
+    .language = .all_languages
+
+__sevl
+    .param_str = "v"
+    .header = .arm_acle
+    .language = .all_languages
+
+__sys
+    .param_str = "UiiLLi"
+    .header = .intrin
+    .language = .all_ms_languages
+
+__umulh
+    .param_str = "ULLiULLiULLi"
+    .header = .intrin
+    .language = .all_ms_languages
+
+__wfe
+    .param_str = "v"
+    .header = .arm_acle
+    .language = .all_languages
+
+__wfi
+    .param_str = "v"
+    .header = .arm_acle
+    .language = .all_languages
+
+__writex18byte
+    .param_str = "vUNiUc"
+    .header = .intrin
+    .language = .all_ms_languages
+
+__writex18dword
+    .param_str = "vUNiUNi"
+    .header = .intrin
+    .language = .all_ms_languages
+
+__writex18qword
+    .param_str = "vUNiULLi"
+    .header = .intrin
+    .language = .all_ms_languages
+
+__writex18word
+    .param_str = "vUNiUs"
+    .header = .intrin
+    .language = .all_ms_languages
+
+__yield
+    .param_str = "v"
+    .header = .arm_acle
+    .language = .all_languages
+
 __builtin_arm_addg
     .param_str = "v*v*Ui"
-    .attributes = .{ .custom_typecheck = true }
     .features = "mte"
+    .attributes = .{ .custom_typecheck = true }
 
 __builtin_arm_chkfeat
-    .param_str = "WUiWUi"
+    .param_str = "UWiUWi"
 
 __builtin_arm_clrex
     .param_str = "v"
 
 __builtin_arm_cls
-    .param_str = "UiZUi"
+    .param_str = "UiUZi"
     .attributes = .{ .@"const" = true }
 
 __builtin_arm_cls64
-    .param_str = "UiWUi"
+    .param_str = "UiUWi"
     .attributes = .{ .@"const" = true }
 
 __builtin_arm_clz
-    .param_str = "UiZUi"
+    .param_str = "UiUZi"
     .attributes = .{ .@"const" = true }
 
 __builtin_arm_clz64
-    .param_str = "UiWUi"
+    .param_str = "UiUWi"
     .attributes = .{ .@"const" = true }
 
 __builtin_arm_crc32b
     .param_str = "UiUiUc"
-    .attributes = .{ .@"const" = true }
     .features = "crc"
+    .attributes = .{ .@"const" = true }
 
 __builtin_arm_crc32cb
     .param_str = "UiUiUc"
-    .attributes = .{ .@"const" = true }
     .features = "crc"
+    .attributes = .{ .@"const" = true }
 
 __builtin_arm_crc32cd
-    .param_str = "UiUiWUi"
-    .attributes = .{ .@"const" = true }
+    .param_str = "UiUiUWi"
     .features = "crc"
+    .attributes = .{ .@"const" = true }
 
 __builtin_arm_crc32ch
     .param_str = "UiUiUs"
-    .attributes = .{ .@"const" = true }
     .features = "crc"
+    .attributes = .{ .@"const" = true }
 
 __builtin_arm_crc32cw
     .param_str = "UiUiUi"
-    .attributes = .{ .@"const" = true }
     .features = "crc"
+    .attributes = .{ .@"const" = true }
 
 __builtin_arm_crc32d
-    .param_str = "UiUiWUi"
-    .attributes = .{ .@"const" = true }
+    .param_str = "UiUiUWi"
     .features = "crc"
+    .attributes = .{ .@"const" = true }
 
 __builtin_arm_crc32h
     .param_str = "UiUiUs"
-    .attributes = .{ .@"const" = true }
     .features = "crc"
+    .attributes = .{ .@"const" = true }
 
 __builtin_arm_crc32w
     .param_str = "UiUiUi"
-    .attributes = .{ .@"const" = true }
     .features = "crc"
+    .attributes = .{ .@"const" = true }
 
 __builtin_arm_dmb
     .param_str = "vUi"
@@ -776,7 +946,7 @@ __builtin_arm_dsb
     .attributes = .{ .@"const" = true }
 
 __builtin_arm_gcspopm
-    .param_str = "WUiWUi"
+    .param_str = "UWiUWi"
     .features = "gcs"
 
 __builtin_arm_gcsss
@@ -784,17 +954,17 @@ __builtin_arm_gcsss
     .features = "gcs"
 
 __builtin_arm_get_sme_state
-    .param_str = "vWUi*WUi*"
+    .param_str = "vUWi*UWi*"
 
 __builtin_arm_gmi
-    .param_str = "Uiv*Ui"
-    .attributes = .{ .custom_typecheck = true }
+    .param_str = "UWiv*UWi"
     .features = "mte"
+    .attributes = .{ .custom_typecheck = true }
 
 __builtin_arm_irg
-    .param_str = "v*v*Ui"
-    .attributes = .{ .custom_typecheck = true }
+    .param_str = "v*v*UWi"
     .features = "mte"
+    .attributes = .{ .custom_typecheck = true }
 
 __builtin_arm_isb
     .param_str = "vUi"
@@ -802,11 +972,11 @@ __builtin_arm_isb
 
 __builtin_arm_jcvt
     .param_str = "Zid"
-    .attributes = .{ .@"const" = true }
     .features = "v8_3a"
+    .attributes = .{ .@"const" = true }
 
 __builtin_arm_ld64b
-    .param_str = "vvC*WUi*"
+    .param_str = "vvC*UWi*"
     .features = "ls64"
 
 __builtin_arm_ldaex
@@ -815,8 +985,8 @@ __builtin_arm_ldaex
 
 __builtin_arm_ldg
     .param_str = "v*v*"
-    .attributes = .{ .custom_typecheck = true }
     .features = "mte"
+    .attributes = .{ .custom_typecheck = true }
 
 __builtin_arm_ldrex
     .param_str = "v."
@@ -833,8 +1003,12 @@ __builtin_arm_prefetch
     .param_str = "vvC*UiUiUiUi"
     .attributes = .{ .@"const" = true }
 
+__builtin_arm_prefetch_ir
+    .param_str = "vvC*"
+    .attributes = .{ .@"const" = true }
+
 __builtin_arm_range_prefetch
-    .param_str = "vvC*UiUiWUi"
+    .param_str = "vvC*UiUiUWi"
 
 __builtin_arm_range_prefetch_x
     .param_str = "vvC*UiUiiUiiz"
@@ -844,7 +1018,7 @@ __builtin_arm_rbit
     .attributes = .{ .@"const" = true }
 
 __builtin_arm_rbit64
-    .param_str = "WUiWUi"
+    .param_str = "UWiUWi"
     .attributes = .{ .@"const" = true }
 
 __builtin_arm_rint32x
@@ -880,24 +1054,24 @@ __builtin_arm_rint64zf
     .features = "v8_5a"
 
 __builtin_arm_rndr
-    .param_str = "iWUi*"
+    .param_str = "iUWi*"
     .features = "rand"
 
 __builtin_arm_rndrrs
-    .param_str = "iWUi*"
+    .param_str = "iUWi*"
     .features = "rand"
 
 __builtin_arm_rsr
     .param_str = "UicC*"
     .attributes = .{ .@"const" = true }
 
-__builtin_arm_rsr128
-    .param_str = "LLLUicC*"
-    .attributes = .{ .@"const" = true }
-    .features = "d128"
-
 __builtin_arm_rsr64
-    .param_str = "WUicC*"
+    .param_str = "UWicC*"
+    .attributes = .{ .@"const" = true }
+
+__builtin_arm_rsr128
+    .param_str = "ULLLicC*"
+    .features = "d128"
     .attributes = .{ .@"const" = true }
 
 __builtin_arm_rsrp
@@ -911,21 +1085,21 @@ __builtin_arm_sevl
     .param_str = "v"
 
 __builtin_arm_st64b
-    .param_str = "vv*WUiC*"
+    .param_str = "vv*UWiC*"
     .features = "ls64"
 
 __builtin_arm_st64bv
-    .param_str = "WUiv*WUiC*"
+    .param_str = "UWiv*UWiC*"
     .features = "ls64"
 
 __builtin_arm_st64bv0
-    .param_str = "WUiv*WUiC*"
+    .param_str = "UWiv*UWiC*"
     .features = "ls64"
 
 __builtin_arm_stg
     .param_str = "vv*"
-    .attributes = .{ .custom_typecheck = true }
     .features = "mte"
+    .attributes = .{ .custom_typecheck = true }
 
 __builtin_arm_stlex
     .param_str = "i."
@@ -936,13 +1110,12 @@ __builtin_arm_strex
     .attributes = .{ .custom_typecheck = true }
 
 __builtin_arm_subp
-    .param_str = "Uiv*v*"
-    .attributes = .{ .custom_typecheck = true }
+    .param_str = "Wiv*v*"
     .features = "mte"
+    .attributes = .{ .custom_typecheck = true }
 
 __builtin_arm_trap
     .param_str = "vUIs"
-    .attributes = .{ .@"noreturn" = true }
 
 __builtin_arm_wfe
     .param_str = "v"
@@ -954,13 +1127,13 @@ __builtin_arm_wsr
     .param_str = "vcC*Ui"
     .attributes = .{ .@"const" = true }
 
-__builtin_arm_wsr128
-    .param_str = "vcC*LLLUi"
-    .attributes = .{ .@"const" = true }
-    .features = "d128"
-
 __builtin_arm_wsr64
-    .param_str = "vcC*WUi"
+    .param_str = "vcC*UWi"
+    .attributes = .{ .@"const" = true }
+
+__builtin_arm_wsr128
+    .param_str = "vcC*ULLLi"
+    .features = "d128"
     .attributes = .{ .@"const" = true }
 
 __builtin_arm_wsrp
@@ -970,278 +1143,3 @@ __builtin_arm_wsrp
 __builtin_arm_yield
     .param_str = "v"
 
-__builtin_sponentry
-    .param_str = "v*"
-    .attributes = .{ .@"const" = true }
-
-__builtin_sve_svdup_neonq_bf16
-    .param_str = "q8yV8y"
-    .features = "sve,bf16"
-
-__builtin_sve_svdup_neonq_f16
-    .param_str = "q8hV8h"
-    .features = "sve"
-
-__builtin_sve_svdup_neonq_f32
-    .param_str = "q4fV4f"
-    .features = "sve"
-
-__builtin_sve_svdup_neonq_f64
-    .param_str = "q2dV2d"
-    .features = "sve"
-
-__builtin_sve_svdup_neonq_s16
-    .param_str = "q8sV8s"
-    .features = "sve"
-
-__builtin_sve_svdup_neonq_s32
-    .param_str = "q4iV4i"
-    .features = "sve"
-
-__builtin_sve_svdup_neonq_s64
-    .param_str = "q4iV4i"
-    .features = "sve"
-
-__builtin_sve_svdup_neonq_s8
-    .param_str = "q16ScV16Sc"
-    .features = "sve"
-
-__builtin_sve_svdup_neonq_u16
-    .param_str = "q8UsV8Us"
-    .features = "sve"
-
-__builtin_sve_svdup_neonq_u32
-    .param_str = "q4UiV4Ui"
-    .features = "sve"
-
-__builtin_sve_svdup_neonq_u64
-    .param_str = "q2UWiV2UWi"
-    .features = "sve"
-
-__builtin_sve_svdup_neonq_u8
-    .param_str = "q16UcV16Uc"
-    .features = "sve"
-
-__builtin_sve_svget_neonq_bf16
-    .param_str = "V8yq8y"
-    .features = "sve,bf16"
-
-__builtin_sve_svget_neonq_f16
-    .param_str = "V8hq8h"
-    .features = "sve"
-
-__builtin_sve_svget_neonq_f32
-    .param_str = "V4fq4f"
-    .features = "sve"
-
-__builtin_sve_svget_neonq_f64
-    .param_str = "V2dq2d"
-    .features = "sve"
-
-__builtin_sve_svget_neonq_s16
-    .param_str = "V8sq8s"
-    .features = "sve"
-
-__builtin_sve_svget_neonq_s32
-    .param_str = "V4iq4i"
-    .features = "sve"
-
-__builtin_sve_svget_neonq_s64
-    .param_str = "V2Wiq2Wi"
-    .features = "sve"
-
-__builtin_sve_svget_neonq_s8
-    .param_str = "V16Scq16Sc"
-    .features = "sve"
-
-__builtin_sve_svget_neonq_u16
-    .param_str = "V16Usq16Us"
-    .features = "sve"
-
-__builtin_sve_svget_neonq_u32
-    .param_str = "V4Uiq4Ui"
-    .features = "sve"
-
-__builtin_sve_svget_neonq_u64
-    .param_str = "V2UWiq2UWi"
-    .features = "sve"
-
-__builtin_sve_svget_neonq_u8
-    .param_str = "V16Ucq16Uc"
-    .features = "sve"
-
-__builtin_sve_svset_neonq_bf16
-    .param_str = "q8yq8yV8y"
-    .features = "sve,bf16"
-
-__builtin_sve_svset_neonq_f16
-    .param_str = "q8hq8hV8h"
-    .features = "sve"
-
-__builtin_sve_svset_neonq_f32
-    .param_str = "q4fq4fV4f"
-    .features = "sve"
-
-__builtin_sve_svset_neonq_f64
-    .param_str = "q2dq2dV2d"
-    .features = "sve"
-
-__builtin_sve_svset_neonq_s16
-    .param_str = "q8sq8sV8s"
-    .features = "sve"
-
-__builtin_sve_svset_neonq_s32
-    .param_str = "q4iq4iV4i"
-    .features = "sve"
-
-__builtin_sve_svset_neonq_s64
-    .param_str = "q2Wiq2WiV2Wi"
-    .features = "sve"
-
-__builtin_sve_svset_neonq_s8
-    .param_str = "q16Scq16ScV16Sc"
-    .features = "sve"
-
-__builtin_sve_svset_neonq_u16
-    .param_str = "q8Usq8UsV8s"
-    .features = "sve"
-
-__builtin_sve_svset_neonq_u32
-    .param_str = "q4Uiq4UiV4Ui"
-    .features = "sve"
-
-__builtin_sve_svset_neonq_u64
-    .param_str = "q2UWiq2UWiV2UWi"
-    .features = "sve"
-
-__builtin_sve_svset_neonq_u8
-    .param_str = "q16Ucq16UcV16Uc"
-    .features = "sve"
-
-__clear_cache
-    .param_str = "vv*v*"
-
-__dmb
-    .param_str = "vUi"
-    .header = .arm_acle
-    .attributes = .{ .@"const" = true }
-
-__dsb
-    .param_str = "vUi"
-    .header = .arm_acle
-    .attributes = .{ .@"const" = true }
-
-__getReg
-    .param_str = "ULLii"
-    .header = .intrin
-    .language = .all_ms_languages
-
-__hlt
-    .param_str = "UiUi."
-    .header = .intrin
-    .language = .all_ms_languages
-
-__incx18byte
-    .param_str = "vUNi"
-    .header = .intrin
-    .language = .all_ms_languages
-
-__incx18dword
-    .param_str = "vUNi"
-    .header = .intrin
-    .language = .all_ms_languages
-
-__incx18qword
-    .param_str = "vUNi"
-    .header = .intrin
-    .language = .all_ms_languages
-
-__incx18word
-    .param_str = "vUNi"
-    .header = .intrin
-    .language = .all_ms_languages
-
-__isb
-    .param_str = "vUi"
-    .header = .arm_acle
-    .attributes = .{ .@"const" = true }
-
-__mulh
-    .param_str = "SLLiSLLiSLLi"
-    .header = .intrin
-    .language = .all_ms_languages
-
-__prefetch
-    .param_str = "vvC*"
-    .header = .intrin
-    .language = .all_ms_languages
-
-__readx18byte
-    .param_str = "UcUNi"
-    .header = .intrin
-    .language = .all_ms_languages
-
-__readx18dword
-    .param_str = "UNiUNi"
-    .header = .intrin
-    .language = .all_ms_languages
-
-__readx18qword
-    .param_str = "ULLiUNi"
-    .header = .intrin
-    .language = .all_ms_languages
-
-__readx18word
-    .param_str = "UsUNi"
-    .header = .intrin
-    .language = .all_ms_languages
-
-__sev
-    .param_str = "v"
-    .header = .arm_acle
-
-__sevl
-    .param_str = "v"
-    .header = .arm_acle
-
-__sys
-    .param_str = "UiiLLi"
-    .header = .intrin
-    .language = .all_ms_languages
-
-__umulh
-    .param_str = "ULLiULLiULLi"
-    .header = .intrin
-    .language = .all_ms_languages
-
-__wfe
-    .param_str = "v"
-    .header = .arm_acle
-
-__wfi
-    .param_str = "v"
-    .header = .arm_acle
-
-__writex18byte
-    .param_str = "vUNiUc"
-    .header = .intrin
-    .language = .all_ms_languages
-
-__writex18dword
-    .param_str = "vUNiUNi"
-    .header = .intrin
-    .language = .all_ms_languages
-
-__writex18qword
-    .param_str = "vUNiULLi"
-    .header = .intrin
-    .language = .all_ms_languages
-
-__writex18word
-    .param_str = "vUNiUs"
-    .header = .intrin
-    .language = .all_ms_languages
-
-__yield
-    .param_str = "v"
-    .header = .arm_acle

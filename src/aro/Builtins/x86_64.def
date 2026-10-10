@@ -106,7 +106,7 @@ __builtin_ia32_cmpccxadd64
 __builtin_ia32_crc32di
     .param_str = "UOiUOiUOi"
     .features = "crc32"
-    .attributes = .{ .@"const" = true }
+    .attributes = .{ .@"const" = true, .const_evaluable = true }
 
 __builtin_ia32_cvtsd2si64
     .param_str = "OiV2d"
@@ -494,14 +494,6 @@ __builtin_ia32_tilezero_internal
     .param_str = "V256iUsUs"
     .features = "amx_tile"
 
-__builtin_ia32_tmmultf32ps
-    .param_str = "vIUcIUcIUc"
-    .features = "amx_tf32"
-
-__builtin_ia32_tmmultf32ps_internal
-    .param_str = "V256iUsUsUsV256iV256iV256i"
-    .features = "amx_tf32"
-
 __builtin_ia32_tzcnt_u64
     .param_str = "UOiUOi"
     .attributes = .{ .@"const" = true, .const_evaluable = true }
@@ -717,3 +709,4 @@ __builtin_ia32_xsaveopt64
 __builtin_ia32_xsaves64
     .param_str = "vv*UOi"
     .features = "xsaves"
+

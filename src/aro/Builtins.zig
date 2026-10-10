@@ -26,6 +26,7 @@ const BuiltinTarget = struct {
 };
 
 const aarch64 = @import("Builtins/aarch64.def").with(BuiltinTarget);
+const aarch64_neon = @import("Builtins/aarch64_neon.def").with(BuiltinTarget);
 const amdgcn = @import("Builtins/amdgcn.def").with(BuiltinTarget);
 const arm = @import("Builtins/arm.def").with(BuiltinTarget);
 const bpf = @import("Builtins/bpf.def").with(BuiltinTarget);
@@ -46,6 +47,7 @@ const xcore = @import("Builtins/xcore.def").with(BuiltinBase);
 
 pub const Tag = union(enum) {
     aarch64: aarch64.Tag,
+    aarch64_neon: aarch64_neon.Tag,
     amdgcn: amdgcn.Tag,
     arm: arm.Tag,
     bpf: bpf.Tag,
@@ -338,6 +340,7 @@ pub fn fromName(comp: *Compilation, name: []const u8) ?FromName {
     switch (comp.target.cpu.arch) {
         .aarch64, .aarch64_be => {
             if (fromNameExtra(name, .aarch64)) |found| return found;
+            if (fromNameExtra(name, .aarch64_neon)) |found| return found;
             if (fromNameExtra(name, .neon)) |found| return found;
         },
         .amdgcn => if (fromNameExtra(name, .amdgcn)) |found| return found,
@@ -391,7 +394,7 @@ test "all builtins" {
                 while (it.next()) |_| {}
             }
             if (@hasField(@TypeOf(builtin), "features")) {
-                const corrected_name = comptime if (std.mem.eql(u8, list_name, "x86_64")) "x86" else if (std.mem.eql(u8, list_name, "neon")) "aarch64" else list_name;
+                const corrected_name = comptime if (std.mem.eql(u8, list_name, "x86_64")) "x86" else if (std.mem.eql(u8, list_name, "neon") or std.mem.eql(u8, list_name, "aarch64_neon")) "aarch64" else list_name;
                 const features = &@field(std.Target, corrected_name).all_features;
 
                 const feature_string = builtin.features orelse continue;
