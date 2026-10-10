@@ -27,7 +27,7 @@ void bar(int arg) {
     next: return;
 }
 
-#pragma GCC diagnostic warning "-Wgnu-case-range"
+#pragma GCC diagnostic warning "-Wc2y-extensions"
 void baz(int arg) {
     switch (arg) {
         case 1 ... 3:
@@ -42,6 +42,7 @@ void baz(int arg) {
 
 /** manifest:
 syntax
+args = -std=c17
 
 statements.c:2:17: warning: if statement has empty body [-Wempty-body]
 statements.c:2:17: note: put the semicolon on a separate line to silence this warning
@@ -52,7 +53,7 @@ statements.c:4:13: error: statement requires expression with integer type ('floa
 statements.c:5:10: warning: expression result unused [-Wunused-value]
 statements.c:5:10: error: statement requires expression with scalar type ('void' invalid)
 statements.c:7:21: error: case value must be an integer constant expression
-statements.c:33:16: warning: use of GNU case range extension [-Wgnu-case-range]
+statements.c:33:16: warning: case ranges are a C2y extension [-Wc2y-extensions]
 statements.c:34:14: error: duplicate case value '2'
 statements.c:33:14: note: previous case defined here
 */
