@@ -978,6 +978,116 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
                 try define(w, "__ARM_FEATURE_SIMD32");
             }
 
+            // `Driver.parseTarget` sets this.
+            const float_abi = comp.langopts.arm_float_abi orelse target.armFloatAbi(target.abi);
+
+            // ACLE 6.5.1 Hardware Floating Point. The value of __ARM_FP.
+            const HwFp = packed struct(u4) {
+                _unused: u1 = 0,
+                /// half (16-bit)
+                hp: bool = false,
+                /// single (32-bit)
+                sp: bool = false,
+                /// double (64-bit)
+                dp: bool = false,
+
+                fn int(self: @This()) u4 {
+                    return @bitCast(self);
+                }
+            };
+            const Fpu = packed struct(u5) {
+                vfp2: bool = false,
+                vfp3: bool = false,
+                vfp4: bool = false,
+                neon: bool = false,
+                fp_armv8: bool = false,
+
+                /// clang: `FPUModeIsVFP`
+                fn isVfp(self: @This()) bool {
+                    return @as(u5, @bitCast(self)) != 0;
+                }
+            };
+
+            // This is a (hopefully) exact copy of the code in clang (lib/Basic/Targets/ARM.cpp)
+            // The resulting defines are a little different for some CPUs because the script that extracts the
+            // feature information from clang (tools/update_cpu_features.zig in the stdlib) does some corrections.
+            var hw_fp: HwFp = .{};
+            var fpu: Fpu = .{};
+            if (float_abi != .soft) {
+                if (target.cpu.has(.arm, .vfp2) or target.cpu.has(.arm, .vfp2sp)) {
+                    fpu.vfp2 = true;
+                    hw_fp.sp = true;
+                    if (target.cpu.has(.arm, .vfp2)) hw_fp.dp = true;
+                }
+                if (target.cpu.has(.arm, .vfp3) or target.cpu.has(.arm, .vfp3d16) or
+                    target.cpu.has(.arm, .vfp3sp) or target.cpu.has(.arm, .vfp3d16sp))
+                {
+                    fpu.vfp3 = true;
+                    hw_fp.sp = true;
+                    if (target.cpu.has(.arm, .vfp3) or target.cpu.has(.arm, .vfp3d16)) hw_fp.dp = true;
+                }
+                if (target.cpu.has(.arm, .vfp4) or target.cpu.has(.arm, .vfp4d16) or
+                    target.cpu.has(.arm, .vfp4sp) or target.cpu.has(.arm, .vfp4d16sp))
+                {
+                    fpu.vfp4 = true;
+                    hw_fp.sp = true;
+                    hw_fp.hp = true;
+                    if (target.cpu.has(.arm, .vfp4) or target.cpu.has(.arm, .vfp4d16)) hw_fp.dp = true;
+                }
+                if (target.cpu.has(.arm, .fp_armv8) or target.cpu.has(.arm, .fp_armv8d16) or
+                    target.cpu.has(.arm, .fp_armv8sp) or target.cpu.has(.arm, .fp_armv8d16sp))
+                {
+                    fpu.fp_armv8 = true;
+                    hw_fp.sp = true;
+                    hw_fp.hp = true;
+                    if (target.cpu.has(.arm, .fp_armv8) or target.cpu.has(.arm, .fp_armv8d16)) hw_fp.dp = true;
+                }
+                if (target.cpu.has(.arm, .neon)) {
+                    fpu.neon = true;
+                    hw_fp.sp = true;
+                }
+                if (target.cpu.has(.arm, .mve_fp)) {
+                    fpu.fp_armv8 = true;
+                    hw_fp.sp = true;
+                    hw_fp.hp = true;
+                }
+                if (target.cpu.has(.arm, .fp64)) hw_fp.dp = true;
+                if (target.cpu.has(.arm, .fp16)) hw_fp.hp = true;
+            }
+
+            if (hw_fp.int() != 0) {
+                try w.print("#define __ARM_FP 0x{x}\n", .{hw_fp.int()});
+            }
+
+            if (arm_version >= 7 and fpu.vfp4) {
+                try define(w, "__ARM_FEATURE_FMA");
+            }
+
+            if (fpu.isVfp()) {
+                if (fpu.vfp2) try define(w, "__ARM_VFPV2__");
+                if (fpu.vfp3) try define(w, "__ARM_VFPV3__");
+                if (fpu.vfp4) try define(w, "__ARM_VFPV4__");
+                if (fpu.fp_armv8) try define(w, "__ARM_FPV5__");
+            }
+
+            if (fpu.neon and float_abi != .soft and arm_version >= 7) {
+                try define(w, "__ARM_NEON");
+                try define(w, "__ARM_NEON__");
+                // Current AArch32 Neon implementations have no double-precision support
+                // even when VFP does.
+                var neon_fp = hw_fp;
+                neon_fp.dp = false;
+                try w.print("#define __ARM_NEON_FP 0x{x}\n", .{neon_fp.int()});
+            }
+
+            if (float_abi == .hard) {
+                try define(w, "__ARM_PCS_VFP");
+            }
+
+            if (float_abi == .soft or (float_abi == .soft_fp and !fpu.isVfp())) {
+                try define(w, "__SOFTFP__");
+            }
+
             // Which co-processor intrinsics in arm_acle.h are available.
             // See https://arm-software.github.io/acle/main/acle.html#coprocessor-intrinsics
             const coproc = struct {

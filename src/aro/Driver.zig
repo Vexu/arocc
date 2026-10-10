@@ -1159,7 +1159,7 @@ fn parseTarget(
             vendor = .apple;
         }
     }
-    return .{
+    const target: Target = .{
         .cpu = zig_target.cpu,
         .vendor = vendor,
         .os = zig_target.os,
@@ -1167,6 +1167,8 @@ fn parseTarget(
         .ofmt = zig_target.ofmt,
         .dynamic_linker = zig_target.dynamic_linker,
     };
+
+    return target;
 }
 
 pub fn fatal(d: *Driver, comptime fmt: []const u8, args: anytype) error{ FatalError, OutOfMemory } {
