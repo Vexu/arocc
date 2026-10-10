@@ -4,11 +4,11 @@ const mem = std.mem;
 const system_defaults = @import("system_defaults");
 
 const Compilation = @import("Compilation.zig");
-const Driver = @import("Driver.zig");
-const Multilib = @import("Driver/Multilib.zig");
+const Diagnostics = @import("Diagnostics.zig");
+const Multilib = @import("Toolchain/Multilib.zig");
 const Target = @import("Target.zig");
-const Linux = @import("toolchains/Linux.zig");
-const Darwin = @import("toolchains/Darwin.zig");
+const Linux = @import("Toolchain/toolchains/Linux.zig");
+const Darwin = @import("Toolchain/toolchains/Darwin.zig");
 
 pub const PathList = std.ArrayList([]const u8);
 
@@ -49,9 +49,42 @@ const Inner = union(enum) {
     }
 };
 
+pub const Options = struct {
+    sysroot: ?[]const u8 = null,
+    resource_dir: ?[]const u8 = null,
+    nobuiltininc: bool = false,
+    nostdinc: bool = false,
+    nostdlibinc: bool = false,
+
+    // linker options
+    use_linker: ?[]const u8 = null,
+    linker_path: ?[]const u8 = null,
+    nodefaultlibs: bool = false,
+    nolibc: bool = false,
+    nostartfiles: bool = false,
+    nostdlib: bool = false,
+    pie: ?bool = null,
+    rdynamic: bool = false,
+    relocatable: bool = false,
+    rtlib: ?[]const u8 = null,
+    shared: bool = false,
+    shared_libgcc: bool = false,
+    static: bool = false,
+    static_libgcc: bool = false,
+    static_pie: bool = false,
+    strip: bool = false,
+    unwindlib: ?[]const u8 = null,
+
+    /// Full path to the aro executable
+    aro_name: []const u8 = "",
+    /// Value of -target passed via CLI
+    raw_target_triple: ?[]const u8 = null,
+};
+
 const Toolchain = @This();
 
-driver: *Driver,
+opts: *const Options,
+comp: *Compilation,
 
 /// The list of toolchain specific path prefixes to search for libraries.
 library_paths: PathList = .empty,
@@ -67,7 +100,7 @@ selected_multilib: Multilib = .{},
 inner: Inner = .{ .uninitialized = {} },
 
 pub fn getTarget(tc: *const Toolchain) *const Target {
-    return &tc.driver.comp.target;
+    return &tc.comp.target;
 }
 
 fn getDefaultLinker(tc: *const Toolchain) []const u8 {
@@ -108,7 +141,7 @@ pub fn discover(tc: *Toolchain) !void {
 }
 
 pub fn deinit(tc: *Toolchain) void {
-    const gpa = tc.driver.comp.gpa;
+    const gpa = tc.comp.gpa;
     tc.inner.deinit(gpa);
 
     tc.library_paths.deinit(gpa);
@@ -128,9 +161,9 @@ pub fn getLinkerPath(tc: *const Toolchain, buf: []u8) ![]const u8 {
     // contain a path component separator.
     // -fuse-ld=lld can be used with --ld-path= to indicate that the binary
     // that --ld-path= points to is lld.
-    const use_linker = tc.driver.use_linker orelse system_defaults.linker;
+    const use_linker = tc.opts.use_linker orelse system_defaults.linker;
 
-    if (tc.driver.linker_path) |ld_path| {
+    if (tc.opts.linker_path) |ld_path| {
         var path = ld_path;
         if (path.len > 0) {
             if (std.fs.path.dirname(path) == null) {
@@ -140,7 +173,7 @@ pub fn getLinkerPath(tc: *const Toolchain, buf: []u8) ![]const u8 {
                 return path;
             }
         }
-        return tc.driver.fatal(
+        return tc.fatal(
             "invalid linker name in argument '--ld-path={s}'",
             .{path},
         );
@@ -159,7 +192,7 @@ pub fn getLinkerPath(tc: *const Toolchain, buf: []u8) ![]const u8 {
     // to a relative path is surprising. This is more complex due to priorities
     // among -B, COMPILER_PATH and PATH. --ld-path= should be used instead.
     if (mem.findScalar(u8, use_linker, '/') != null) {
-        try tc.driver.comp.diagnostics.add(.{
+        try tc.comp.diagnostics.add(.{
             .text = "'-fuse-ld=' taking a path is deprecated; use '--ld-path=' instead",
             .kind = .off,
             .opt = .@"fuse-ld-path",
@@ -172,10 +205,10 @@ pub fn getLinkerPath(tc: *const Toolchain, buf: []u8) ![]const u8 {
             return use_linker;
         }
     } else {
-        const gpa = tc.driver.comp.gpa;
+        const gpa = tc.comp.gpa;
         var linker_name: std.ArrayList(u8) = .empty;
         defer linker_name.deinit(gpa);
-        try linker_name.ensureUnusedCapacity(tc.driver.comp.gpa, 5 + use_linker.len); // "ld64." ++ use_linker
+        try linker_name.ensureUnusedCapacity(tc.comp.gpa, 5 + use_linker.len); // "ld64." ++ use_linker
 
         if (tc.getTarget().os.tag.isDarwin()) {
             linker_name.appendSliceAssumeCapacity("ld64.");
@@ -189,8 +222,8 @@ pub fn getLinkerPath(tc: *const Toolchain, buf: []u8) ![]const u8 {
         }
     }
 
-    if (tc.driver.use_linker) |linker| {
-        return tc.driver.fatal(
+    if (tc.opts.use_linker) |linker| {
+        return tc.fatal(
             "invalid linker name in argument '-fuse-ld={s}'",
             .{linker},
         );
@@ -223,13 +256,13 @@ fn possibleProgramNames(
 
 /// Add toolchain `file_paths` to argv as `-L` arguments
 pub fn addFilePathLibArgs(tc: *const Toolchain, argv: *std.ArrayList([]const u8)) !void {
-    try argv.ensureUnusedCapacity(tc.driver.comp.gpa, tc.file_paths.items.len);
+    try argv.ensureUnusedCapacity(tc.comp.gpa, tc.file_paths.items.len);
 
     var bytes_needed: usize = 0;
     for (tc.file_paths.items) |path| {
         bytes_needed += path.len + 2; // +2 for `-L`
     }
-    var bytes = try tc.driver.comp.arena.alloc(u8, bytes_needed);
+    var bytes = try tc.comp.arena.alloc(u8, bytes_needed);
     var index: usize = 0;
     for (tc.file_paths.items) |path| {
         @memcpy(bytes[index..][0..2], "-L");
@@ -248,7 +281,7 @@ fn getProgramPath(tc: *const Toolchain, name: []const u8, buf: []u8) []const u8 
 
     var tool_specific_buf: [64]u8 = undefined;
     var possible_name_buf: [2][]const u8 = undefined;
-    const possible_names = possibleProgramNames(tc.driver.raw_target_triple, name, &tool_specific_buf, &possible_name_buf);
+    const possible_names = possibleProgramNames(tc.opts.raw_target_triple, name, &tool_specific_buf, &possible_name_buf);
 
     for (possible_names) |tool_name| {
         for (tc.program_paths.items) |program_path| {
@@ -268,7 +301,7 @@ fn getProgramPath(tc: *const Toolchain, name: []const u8, buf: []u8) []const u8 
 }
 
 pub fn getSysroot(tc: *const Toolchain) []const u8 {
-    return tc.driver.sysroot orelse system_defaults.sysroot;
+    return tc.opts.sysroot orelse system_defaults.sysroot;
 }
 
 /// Search for `name` in a variety of places
@@ -277,13 +310,13 @@ pub fn getFilePath(tc: *const Toolchain, name: []const u8) ![]const u8 {
     var path_buf: [std.fs.max_path_bytes]u8 = undefined;
     var fib = std.heap.FixedBufferAllocator.init(&path_buf);
     const allocator = fib.allocator();
-    const arena = tc.driver.comp.arena;
+    const arena = tc.comp.arena;
 
     const sysroot = tc.getSysroot();
 
     // todo check resource dir
     // todo check compiler RT path
-    const aro_dir = std.fs.path.dirname(tc.driver.aro_name) orelse "";
+    const aro_dir = std.fs.path.dirname(tc.opts.aro_name) orelse "";
     const candidate = try std.fs.path.join(allocator, &.{ aro_dir, "..", name });
     if (tc.exists(candidate)) {
         return arena.dupe(u8, candidate);
@@ -334,34 +367,34 @@ pub fn addPathIfExists(tc: *Toolchain, components: []const []const u8, dest_kind
     const candidate = try std.fs.path.join(fib.allocator(), components);
 
     if (tc.exists(candidate)) {
-        const duped = try tc.driver.comp.arena.dupe(u8, candidate);
+        const duped = try tc.comp.arena.dupe(u8, candidate);
         const dest = switch (dest_kind) {
             .library => &tc.library_paths,
             .file => &tc.file_paths,
             .program => &tc.program_paths,
         };
-        try dest.append(tc.driver.comp.gpa, duped);
+        try dest.append(tc.comp.gpa, duped);
     }
 }
 
 /// Join `components` using the Compilation arena and add the resulting path to `dest_kind`. Does not check
 /// whether the path actually exists
 pub fn addPathFromComponents(tc: *Toolchain, components: []const []const u8, dest_kind: PathKind) !void {
-    const full_path = try std.fs.path.join(tc.driver.comp.arena, components);
+    const full_path = try std.fs.path.join(tc.comp.arena, components);
     const dest = switch (dest_kind) {
         .library => &tc.library_paths,
         .file => &tc.file_paths,
         .program => &tc.program_paths,
     };
-    try dest.append(tc.driver.comp.gpa, full_path);
+    try dest.append(tc.comp.gpa, full_path);
 }
 
 /// Add linker args to `argv`. Does not add path to linker executable as first item; that must be handled separately
-/// Items added to `argv` will be string literals or owned by `tc.driver.comp.arena` so they must not be individually freed
-pub fn buildLinkerArgs(tc: *Toolchain, argv: *std.ArrayList([]const u8)) !void {
+/// Items added to `argv` will be string literals or owned by `tc.comp.arena` so they must not be individually freed
+pub fn buildLinkerArgs(tc: *Toolchain, argv: *std.ArrayList([]const u8), output_name: ?[]const u8, link_objects: []const []const u8) !void {
     return switch (tc.inner) {
         .uninitialized => unreachable,
-        .linux => |*linux| linux.buildLinkerArgs(tc, argv),
+        .linux => |*linux| linux.buildLinkerArgs(tc, argv, output_name, link_objects),
         .darwin, .unknown => @panic("This toolchain does not support linking yet"),
     };
 }
@@ -374,7 +407,7 @@ fn getDefaultRuntimeLibKind(tc: *const Toolchain) RuntimeLibKind {
 }
 
 pub fn getRuntimeLibKind(tc: *const Toolchain) RuntimeLibKind {
-    const libname = tc.driver.rtlib orelse system_defaults.rtlib;
+    const libname = tc.opts.rtlib orelse system_defaults.rtlib;
     if (mem.eql(u8, libname, "compiler-rt"))
         return .compiler_rt
     else if (mem.eql(u8, libname, "libgcc"))
@@ -393,17 +426,17 @@ pub fn getCompilerRt(tc: *const Toolchain, component: []const u8, file_kind: Fil
 
 fn getLibGCCKind(tc: *const Toolchain) LibGCCKind {
     const target = tc.getTarget();
-    if (tc.driver.static_libgcc or tc.driver.static or tc.driver.static_pie or target.abi.isAndroid()) {
+    if (tc.opts.static_libgcc or tc.opts.static or tc.opts.static_pie or target.abi.isAndroid()) {
         return .static;
     }
-    if (tc.driver.shared_libgcc) {
+    if (tc.opts.shared_libgcc) {
         return .shared;
     }
     return .unspecified;
 }
 
 fn getUnwindLibKind(tc: *const Toolchain) !UnwindLibKind {
-    const libname = tc.driver.unwindlib orelse system_defaults.unwindlib;
+    const libname = tc.opts.unwindlib orelse system_defaults.unwindlib;
     if (libname.len == 0 or mem.eql(u8, libname, "platform")) {
         switch (tc.getRuntimeLibKind()) {
             .compiler_rt => {
@@ -422,7 +455,7 @@ fn getUnwindLibKind(tc: *const Toolchain) !UnwindLibKind {
         return .libgcc;
     } else if (mem.eql(u8, libname, "libunwind")) {
         if (tc.getRuntimeLibKind() == .libgcc) {
-            try tc.driver.err("--rtlib=libgcc requires --unwindlib=libgcc", .{});
+            try tc.err("--rtlib=libgcc requires --unwindlib=libgcc", .{});
         }
         return .compiler_rt;
     } else {
@@ -449,7 +482,7 @@ fn addUnwindLibrary(tc: *const Toolchain, argv: *std.ArrayList([]const u8)) !voi
     const lgk = tc.getLibGCCKind();
     const as_needed = lgk == .unspecified and !target.abi.isAndroid() and !target.isMinGW();
 
-    try argv.ensureUnusedCapacity(tc.driver.comp.gpa, 3);
+    try argv.ensureUnusedCapacity(tc.comp.gpa, 3);
     if (as_needed) {
         argv.appendAssumeCapacity(getAsNeededOption(target.os.tag == .illumos, true));
     }
@@ -475,7 +508,7 @@ fn addUnwindLibrary(tc: *const Toolchain, argv: *std.ArrayList([]const u8)) !voi
 }
 
 fn addLibGCC(tc: *const Toolchain, argv: *std.ArrayList([]const u8)) !void {
-    const gpa = tc.driver.comp.gpa;
+    const gpa = tc.comp.gpa;
     const libgcc_kind = tc.getLibGCCKind();
     if (libgcc_kind == .static or libgcc_kind == .unspecified) {
         try argv.append(gpa, "-lgcc");
@@ -495,9 +528,9 @@ pub fn addRuntimeLibs(tc: *const Toolchain, argv: *std.ArrayList([]const u8)) !v
         },
         .libgcc => {
             if (target.isKnownWindowsMSVCEnvironment()) {
-                const rtlib_str = tc.driver.rtlib orelse system_defaults.rtlib;
+                const rtlib_str = tc.opts.rtlib orelse system_defaults.rtlib;
                 if (!mem.eql(u8, rtlib_str, "platform")) {
-                    try tc.driver.err("unsupported runtime library 'libgcc' for platform 'MSVC'", .{});
+                    try tc.err("unsupported runtime library 'libgcc' for platform 'MSVC'", .{});
                 }
             } else {
                 try tc.addLibGCC(argv);
@@ -505,79 +538,74 @@ pub fn addRuntimeLibs(tc: *const Toolchain, argv: *std.ArrayList([]const u8)) !v
         },
     }
 
-    if (target.abi.isAndroid() and !tc.driver.static and !tc.driver.static_pie) {
-        try argv.append(tc.driver.comp.gpa, "-ldl");
+    if (target.abi.isAndroid() and !tc.opts.static and !tc.opts.static_pie) {
+        try argv.append(tc.comp.gpa, "-ldl");
     }
 }
 
-pub fn defineSystemIncludes(tc: *Toolchain) !void {
+pub fn defineSystemIncludes(tc: *Toolchain, includes: *std.ArrayList(Compilation.Include)) !void {
     return switch (tc.inner) {
         .uninitialized => unreachable,
-        .linux => |*linux| linux.defineSystemIncludes(tc),
-        .darwin => |*darwin| darwin.defineSystemIncludes(tc),
+        .linux => |*linux| linux.defineSystemIncludes(tc, includes),
+        .darwin => |*darwin| darwin.defineSystemIncludes(tc, includes),
         .unknown => {
-            if (tc.driver.nostdinc) return;
+            if (tc.opts.nostdinc) return;
 
-            if (!tc.driver.nobuiltininc) {
-                try tc.addBuiltinIncludeDir();
+            if (!tc.opts.nobuiltininc) {
+                try tc.addBuiltinIncludeDir(includes);
             }
 
-            if (!tc.driver.nostdlibinc) {
-                try tc.addSystemIncludeDir("/usr/include");
+            if (!tc.opts.nostdlibinc) {
+                try tc.addSystemIncludeDir("/usr/include", includes);
             }
         },
     };
 }
 
-pub fn addSystemIncludeDirJoined(tc: *const Toolchain, components: []const []const u8) !void {
-    const path = try std.fs.path.join(tc.driver.comp.arena, components);
-    try tc.addSystemIncludeDir(path);
+pub fn addSystemIncludeDirJoined(tc: *const Toolchain, components: []const []const u8, includes: *std.ArrayList(Compilation.Include)) !void {
+    const path = try std.fs.path.join(tc.comp.arena, components);
+    try tc.addSystemIncludeDir(path, includes);
 }
 
-pub fn addSystemIncludeDir(tc: *const Toolchain, path: []const u8) !void {
-    const d = tc.driver;
-    _ = try d.includes.append(d.comp.gpa, .{ .kind = .system, .path = try d.comp.arena.dupe(u8, path) });
+pub fn addSystemIncludeDir(tc: *const Toolchain, path: []const u8, includes: *std.ArrayList(Compilation.Include)) !void {
+    _ = try includes.append(tc.comp.gpa, .{ .kind = .system, .path = try tc.comp.arena.dupe(u8, path) });
 }
 
 /// Add built-in aro headers directory to system include paths
-pub fn addBuiltinIncludeDir(tc: *const Toolchain) !void {
-    const d = tc.driver;
-    const comp = d.comp;
-    const io = comp.io;
-    const gpa = comp.gpa;
-    const arena = comp.arena;
-    try d.includes.ensureUnusedCapacity(gpa, 1);
-    if (d.resource_dir) |resource_dir| {
+pub fn addBuiltinIncludeDir(tc: *const Toolchain, includes: *std.ArrayList(Compilation.Include)) !void {
+    const io = tc.comp.io;
+    const gpa = tc.comp.gpa;
+    const arena = tc.comp.arena;
+    try includes.ensureUnusedCapacity(gpa, 1);
+    if (tc.opts.resource_dir) |resource_dir| {
         const path = try std.fs.path.join(arena, &.{ resource_dir, "include" });
-        comp.cwd.access(io, path, .{}) catch {
-            return d.fatal("Aro builtin headers not found in provided -resource-dir", .{});
+        tc.comp.cwd.access(io, path, .{}) catch {
+            return tc.fatal("Aro builtin headers not found in provided -resource-dir", .{});
         };
-        d.includes.appendAssumeCapacity(.{ .kind = .system, .path = path });
+        includes.appendAssumeCapacity(.{ .kind = .system, .path = path });
         return;
     }
-    var search_path = d.aro_name;
+    var search_path = tc.opts.aro_name;
     while (std.fs.path.dirname(search_path)) |dirname| : (search_path = dirname) {
-        var base_dir = d.comp.cwd.openDir(io, dirname, .{}) catch continue;
+        var base_dir = tc.comp.cwd.openDir(io, dirname, .{}) catch continue;
         defer base_dir.close(io);
 
         base_dir.access(io, "include/stddef.h", .{}) catch continue;
         const path = try std.fs.path.join(arena, &.{ dirname, "include" });
-        d.includes.appendAssumeCapacity(.{ .kind = .system, .path = path });
+        includes.appendAssumeCapacity(.{ .kind = .system, .path = path });
         break;
-    } else return d.fatal("unable to find Aro builtin headers", .{});
+    } else return tc.fatal("unable to find Aro builtin headers", .{});
 }
 
 /// Read the file at `path` into `buf`.
 /// Returns null if any errors are encountered
 /// Otherwise returns a slice of `buf`. If the file is larger than `buf` partial contents are returned
 pub fn readFile(tc: *const Toolchain, path: []const u8, buf: []u8) ?[]const u8 {
-    const comp = tc.driver.comp;
-    return comp.cwd.readFile(comp.io, path, buf) catch null;
+    return tc.comp.cwd.readFile(tc.comp.io, path, buf) catch null;
 }
 
 pub fn exists(tc: *const Toolchain, path: []const u8) bool {
-    const comp = tc.driver.comp;
-    comp.cwd.access(comp.io, path, .{}) catch return false;
+    tc.comp.cwd.access(tc.comp.io, path, .{}) catch return false;
     return true;
 }
 
@@ -594,7 +622,7 @@ pub fn canExecute(tc: *const Toolchain, path: []const u8) bool {
         return true;
     }
 
-    const comp = tc.driver.comp;
+    const comp = tc.comp;
     comp.cwd.access(comp.io, path, .{ .execute = true }) catch return false;
     // Todo: ensure path is not a directory
     return true;
@@ -609,14 +637,13 @@ pub fn findProgramByName(tc: *const Toolchain, name: []const u8, buf: []u8) ?[]c
         // TODO
         return null;
     }
-    const comp = tc.driver.comp;
 
     // TODO: does WASI need special handling?
     if (mem.findScalar(u8, name, '/') != null) {
         @memcpy(buf[0..name.len], name);
         return buf[0..name.len];
     }
-    const path_env = comp.environment.path orelse return null;
+    const path_env = tc.comp.environment.path orelse return null;
     var fib = std.heap.FixedBufferAllocator.init(buf);
 
     var it = mem.tokenizeScalar(u8, path_env, std.fs.path.delimiter);
@@ -627,4 +654,25 @@ pub fn findProgramByName(tc: *const Toolchain, name: []const u8, buf: []u8) ?[]c
     }
 
     return null;
+}
+
+pub fn err(tc: *const Toolchain, fmt: []const u8, args: anytype) Compilation.Error!void {
+    var bfa_buf: [1024]u8 = undefined;
+    var bfa: std.heap.BufferFirstAllocator = .init(&bfa_buf, tc.comp.gpa);
+    var allocating: std.Io.Writer.Allocating = .init(bfa.allocator());
+    defer allocating.deinit();
+
+    Diagnostics.formatArgs(&allocating.writer, fmt, args) catch return error.OutOfMemory;
+    try tc.comp.diagnostics.add(.{ .kind = .@"error", .text = allocating.written(), .location = null });
+}
+
+pub fn fatal(tc: *const Toolchain, comptime fmt: []const u8, args: anytype) error{ FatalError, OutOfMemory } {
+    var bfa_buf: [1024]u8 = undefined;
+    var bfa: std.heap.BufferFirstAllocator = .init(&bfa_buf, tc.comp.gpa);
+    var allocating: std.Io.Writer.Allocating = .init(bfa.allocator());
+    defer allocating.deinit();
+
+    Diagnostics.formatArgs(&allocating.writer, fmt, args) catch return error.OutOfMemory;
+    try tc.comp.diagnostics.add(.{ .kind = .@"fatal error", .text = allocating.written(), .location = null });
+    unreachable;
 }

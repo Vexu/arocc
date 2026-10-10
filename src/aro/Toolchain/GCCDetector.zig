@@ -52,7 +52,7 @@ fn addDefaultGCCPrefixes(prefixes: *std.ArrayList([]const u8), tc: *const Toolch
     if (sysroot.len == 0) {
         prefixes.appendAssumeCapacity("/usr");
     } else {
-        var usr_path = try tc.driver.comp.arena.alloc(u8, 4 + sysroot.len);
+        var usr_path = try tc.comp.arena.alloc(u8, 4 + sysroot.len);
         @memcpy(usr_path[0..4], "/usr");
         @memcpy(usr_path[4..], sysroot);
         prefixes.appendAssumeCapacity(usr_path);
@@ -585,7 +585,7 @@ fn scanLibDirForGCCTriple(
 ) !void {
     var path_buf: [std.fs.max_path_bytes]u8 = undefined;
     var fib = std.heap.FixedBufferAllocator.init(&path_buf);
-    const comp = tc.driver.comp;
+    const comp = tc.comp;
     const arena = comp.arena;
     const io = comp.io;
     for (0..2) |i| {
