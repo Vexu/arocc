@@ -8,7 +8,6 @@ const aro = @import("aro");
 const Compilation = aro.Compilation;
 const Diagnostics = aro.Diagnostics;
 const Driver = aro.Driver;
-const Toolchain = aro.Toolchain;
 const assembly_backend = @import("assembly_backend");
 
 var debug_allocator: std.heap.DebugAllocator(.{
@@ -83,13 +82,10 @@ pub fn main(init: process.Init.Minimal) u8 {
     };
     defer comp.deinit();
 
-    var driver: Driver = .{ .comp = &comp, .aro_name = aro_name, .diagnostics = &diagnostics };
+    var driver: Driver = .{ .comp = &comp, .diagnostics = &diagnostics };
     defer driver.deinit();
 
-    var toolchain: Toolchain = .{ .driver = &driver };
-    defer toolchain.deinit();
-
-    driver.main(&toolchain, args, fast_exit, assembly_backend.genAsm) catch |er| switch (er) {
+    driver.main(aro_name, args, fast_exit, assembly_backend.genAsm) catch |er| switch (er) {
         error.OutOfMemory => {
             std.debug.print("out of memory\n", .{});
             if (fast_exit) process.exit(1);
