@@ -68,6 +68,10 @@ void array_size_align_typedef(void) {
     typedef elem arr[4];
 }
 
+void register_var(void) {
+    register _Alignas(8) int a;
+}
+
 /** manifest:
 syntax
 args = -Wno-implicit-int
@@ -85,4 +89,5 @@ alignment.c:15:10: error: expected an integer constant as argmuent of '_Alignas'
 alignment.c:35:24: error: expected an integer constant as argmuent of 'aligned' attribute but got a string
 alignment.c:36:10: error: expression is not an integer constant expression
 alignment.c:68:21: error: size of array element of type 'elem' (aka 'int') (4 bytes) isn't a multiple of its alignment (8 bytes)
+alignment.c:72:14: error: '_Alignas' attribute cannot be applied to a variable with 'register' storage class
 */

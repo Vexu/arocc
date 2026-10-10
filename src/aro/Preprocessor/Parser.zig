@@ -54,7 +54,7 @@ pub const Value = union(enum) {
         };
     }
 
-    fn toUnsigned(val: *Value, p: *Parser, op_tok: TokenWithExpansionLocs, side: []const u8) !void {
+    fn toUnsigned(val: *Value, p: *Parser, op_tok: TokenWithExpansionLocs, opt_size: ?[]const u8) !void {
         switch (val.*) {
             .unsigned => {},
             .signed => |s| {
@@ -64,7 +64,8 @@ pub const Value = union(enum) {
                 }
 
                 val.* = .init(@as(uintmax, @bitCast(s)));
-                try p.pp.err(op_tok, .convert_to_positive, .{ side, s, val.unsigned });
+                if (opt_size) |side|
+                    try p.pp.err(op_tok, .convert_to_positive, .{ side, s, val.unsigned });
             },
         }
     }
@@ -323,8 +324,9 @@ fn binaryExpr(p: *Parser, min_prec: Token.Precedence, eval: bool) Error!?Value {
                 const else_res = try p.binaryExpr(op_prec, eval_else) orelse return null;
 
                 lhs = if (lhs.toBool()) rhs else else_res;
-                if (eval and rhs == .unsigned or else_res == .unsigned) {
-                    try lhs.toUnsigned(p, operator, "right");
+                // Usual arithmetic conversion
+                if (rhs == .unsigned or else_res == .unsigned) {
+                    try lhs.toUnsigned(p, operator, null);
                 }
             },
             .comma => {

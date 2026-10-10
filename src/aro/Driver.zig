@@ -321,7 +321,7 @@ pub fn parseArgs(
                 try stdout.flush();
                 return true;
             } else if (mem.eql(u8, arg, "--version")) {
-                try stdout.writeAll(@import("backend").version_str ++ "\n");
+                try stdout.writeAll(backend.version_str ++ "\n");
                 try stdout.flush();
                 return true;
             } else if (mem.startsWith(u8, arg, "-D")) {
