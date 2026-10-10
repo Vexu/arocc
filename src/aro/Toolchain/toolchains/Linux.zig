@@ -3,12 +3,11 @@ const mem = std.mem;
 
 const system_defaults = @import("system_defaults");
 
-const Compilation = @import("../Compilation.zig");
-const Driver = @import("../Driver.zig");
-const Distro = @import("../Driver/Distro.zig");
-const GCCDetector = @import("../Driver/GCCDetector.zig");
-const Target = @import("../Target.zig");
-const Toolchain = @import("../Toolchain.zig");
+const Compilation = @import("../../Compilation.zig");
+const Distro = @import("../Distro.zig");
+const GCCDetector = @import("../GCCDetector.zig");
+const Target = @import("../../Target.zig");
+const Toolchain = @import("../../Toolchain.zig");
 
 const Linux = @This();
 
@@ -27,7 +26,7 @@ pub fn discover(self: *Linux, tc: *Toolchain) !void {
 }
 
 fn buildExtraOpts(self: *Linux, tc: *const Toolchain) !void {
-    const gpa = tc.driver.comp.gpa;
+    const gpa = tc.comp.gpa;
     const target = tc.getTarget();
     const is_android = target.abi.isAndroid();
     if (self.distro.isAlpine() or is_android) {
@@ -136,24 +135,24 @@ fn isPIEDefault(self: *const Linux) bool {
     return false;
 }
 
-fn getPIE(self: *const Linux, d: *const Driver) bool {
-    if (d.shared or d.static or d.relocatable or d.static_pie) {
+fn getPIE(self: *const Linux, tc_opts: *const Toolchain.Options) bool {
+    if (tc_opts.shared or tc_opts.static or tc_opts.relocatable or tc_opts.static_pie) {
         return false;
     }
-    return d.pie orelse self.isPIEDefault();
+    return tc_opts.pie orelse self.isPIEDefault();
 }
 
-fn getStaticPIE(self: *const Linux, d: *Driver) !bool {
+fn getStaticPIE(self: *const Linux, tc: *const Toolchain) !bool {
     _ = self;
-    if (d.static_pie and d.pie != null) {
-        try d.err("cannot specify 'nopie' along with 'static-pie'", .{});
+    if (tc.opts.static_pie and tc.opts.pie != null) {
+        try tc.err("cannot specify 'nopie' along with 'static-pie'", .{});
     }
-    return d.static_pie;
+    return tc.opts.static_pie;
 }
 
-fn getStatic(self: *const Linux, d: *const Driver) bool {
+fn getStatic(self: *const Linux, tc_opts: *const Toolchain.Options) bool {
     _ = self;
-    return d.static and !d.static_pie;
+    return tc_opts.static and !tc_opts.static_pie;
 }
 
 pub fn getDefaultLinker(self: *const Linux, target: *const Target) []const u8 {
@@ -164,14 +163,13 @@ pub fn getDefaultLinker(self: *const Linux, target: *const Target) []const u8 {
     return "ld";
 }
 
-pub fn buildLinkerArgs(self: *const Linux, tc: *const Toolchain, argv: *std.ArrayList([]const u8)) Compilation.Error!void {
-    const d = tc.driver;
+pub fn buildLinkerArgs(self: *const Linux, tc: *const Toolchain, argv: *std.ArrayList([]const u8), output_name: ?[]const u8, link_objects: []const []const u8) Compilation.Error!void {
     const target = tc.getTarget();
-    const gpa = d.comp.gpa;
+    const gpa = tc.comp.gpa;
 
-    const is_pie = self.getPIE(d);
-    const is_static_pie = try self.getStaticPIE(d);
-    const is_static = self.getStatic(d);
+    const is_pie = self.getPIE(tc.opts);
+    const is_static_pie = try self.getStaticPIE(tc);
+    const is_static = self.getStatic(tc.opts);
     const is_android = target.abi.isAndroid();
     const is_ve = target.cpu.arch == .ve;
     const has_crt_begin_end_files = target.abi != .none; // TODO: clang checks for MIPS vendor
@@ -183,11 +181,11 @@ pub fn buildLinkerArgs(self: *const Linux, tc: *const Toolchain, argv: *std.Arra
         try argv.appendSlice(gpa, &.{ "-static", "-pie", "--no-dynamic-linker", "-z", "text" });
     }
 
-    if (d.rdynamic) {
+    if (tc.opts.rdynamic) {
         try argv.append(gpa, "-export-dynamic");
     }
 
-    if (d.strip) {
+    if (tc.opts.strip) {
         try argv.append(gpa, "-s");
     }
 
@@ -195,40 +193,40 @@ pub fn buildLinkerArgs(self: *const Linux, tc: *const Toolchain, argv: *std.Arra
     try argv.append(gpa, "--eh-frame-hdr");
 
     // Todo: Driver should parse `-EL`/`-EB` for arm to set endianness for arm targets
-    if (d.comp.target.ldEmulationOption(null)) |emulation| {
+    if (tc.comp.target.ldEmulationOption(null)) |emulation| {
         try argv.appendSlice(gpa, &.{ "-m", emulation });
     } else {
-        try d.err("Unknown target triple", .{});
+        try tc.err("Unknown target triple", .{});
         return;
     }
-    if (d.comp.target.cpu.arch.isRISCV()) {
+    if (tc.comp.target.cpu.arch.isRISCV()) {
         try argv.append(gpa, "-X");
     }
-    if (d.shared) {
+    if (tc.opts.shared) {
         try argv.append(gpa, "-shared");
     }
     if (is_static) {
         try argv.append(gpa, "-static");
     } else {
-        if (d.rdynamic) {
+        if (tc.opts.rdynamic) {
             try argv.append(gpa, "-export-dynamic");
         }
-        if (!d.shared and !is_static_pie and !d.relocatable) {
-            const dynamic_linker = d.comp.target.standardDynamicLinkerPath();
+        if (!tc.opts.shared and !is_static_pie and !tc.opts.relocatable) {
+            const dynamic_linker = tc.comp.target.standardDynamicLinkerPath();
             // todo: check for --dyld-prefix
             if (dynamic_linker.get()) |path| {
-                try argv.appendSlice(gpa, &.{ "-dynamic-linker", try d.comp.arena.dupe(u8, path) });
+                try argv.appendSlice(gpa, &.{ "-dynamic-linker", try tc.comp.arena.dupe(u8, path) });
             } else {
-                try d.err("Could not find dynamic linker path", .{});
+                try tc.err("Could not find dynamic linker path", .{});
             }
         }
     }
 
-    try argv.appendSlice(gpa, &.{ "-o", d.output_name orelse "a.out" });
+    try argv.appendSlice(gpa, &.{ "-o", output_name orelse "a.out" });
 
-    if (!d.nostdlib and !d.nostartfiles and !d.relocatable) {
+    if (!tc.opts.nostdlib and !tc.opts.nostartfiles and !tc.opts.relocatable) {
         if (!is_android) {
-            if (!d.shared) {
+            if (!tc.opts.shared) {
                 const crt1 = if (is_pie)
                     "Scrt1.o"
                 else if (is_static_pie)
@@ -252,7 +250,7 @@ pub fn buildLinkerArgs(self: *const Linux, tc: *const Toolchain, argv: *std.Arra
                 }
             }
             if (path.len == 0) {
-                const crt_begin = if (tc.driver.shared)
+                const crt_begin = if (tc.opts.shared)
                     if (is_android) "crtbegin_so.o" else "crtbeginS.o"
                 else if (is_static)
                     if (is_android) "crtbegin_static.o" else "crtbeginT.o"
@@ -272,17 +270,17 @@ pub fn buildLinkerArgs(self: *const Linux, tc: *const Toolchain, argv: *std.Arra
 
     // TODO handle LTO
 
-    try argv.appendSlice(gpa, d.link_objects.items);
+    try argv.appendSlice(gpa, link_objects);
 
-    if (!d.nostdlib and !d.relocatable) {
-        if (!d.nodefaultlibs) {
+    if (!tc.opts.nostdlib and !tc.opts.relocatable) {
+        if (!tc.opts.nodefaultlibs) {
             if (is_static or is_static_pie) {
                 try argv.append(gpa, "--start-group");
             }
             try tc.addRuntimeLibs(argv);
 
             // TODO: add pthread if needed
-            if (!d.nolibc) {
+            if (!tc.opts.nolibc) {
                 try argv.append(gpa, "-lc");
             }
             if (is_static or is_static_pie) {
@@ -291,7 +289,7 @@ pub fn buildLinkerArgs(self: *const Linux, tc: *const Toolchain, argv: *std.Arra
                 try tc.addRuntimeLibs(argv);
             }
         }
-        if (!d.nostartfiles) {
+        if (!tc.opts.nostartfiles) {
             if (has_crt_begin_end_files) {
                 var path: []const u8 = "";
                 if (tc.getRuntimeLibKind() == .compiler_rt and !is_android) {
@@ -301,7 +299,7 @@ pub fn buildLinkerArgs(self: *const Linux, tc: *const Toolchain, argv: *std.Arra
                     }
                 }
                 if (path.len == 0) {
-                    const crt_end = if (d.shared)
+                    const crt_end = if (tc.opts.shared)
                         if (is_android) "crtend_so.o" else "crtendS.o"
                     else if (is_pie or is_static_pie)
                         if (is_android) "crtend_android.o" else "crtendS.o"
@@ -366,47 +364,47 @@ fn getOSLibDir(target: *const Target) []const u8 {
     return "lib64";
 }
 
-pub fn defineSystemIncludes(self: *const Linux, tc: *const Toolchain) !void {
-    if (tc.driver.nostdinc) return;
+pub fn defineSystemIncludes(self: *const Linux, tc: *const Toolchain, includes: *std.ArrayList(Compilation.Include)) !void {
+    if (tc.opts.nostdinc) return;
 
-    const comp = tc.driver.comp;
+    const comp = tc.comp;
     const target = tc.getTarget();
 
     // musl prefers /usr/include before builtin includes, so musl targets will add builtins
     // at the end of this function (unless disabled with nostdlibinc)
-    if (!tc.driver.nobuiltininc and (!target.abi.isMusl() or tc.driver.nostdlibinc)) {
-        try tc.addBuiltinIncludeDir();
+    if (!tc.opts.nobuiltininc and (!target.abi.isMusl() or tc.opts.nostdlibinc)) {
+        try tc.addBuiltinIncludeDir(includes);
     }
 
-    if (tc.driver.nostdlibinc) return;
+    if (tc.opts.nostdlibinc) return;
 
     const sysroot = tc.getSysroot();
     const local_include = try std.fs.path.join(comp.gpa, &.{ sysroot, "/usr/local/include" });
     defer comp.gpa.free(local_include);
-    try tc.addSystemIncludeDir(local_include);
+    try tc.addSystemIncludeDir(local_include, includes);
 
     if (self.gcc_detector.is_valid) {
         const gcc_include_path = try std.fs.path.join(comp.gpa, &.{ self.gcc_detector.parent_lib_path, "..", self.gcc_detector.gcc_triple, "include" });
         defer comp.gpa.free(gcc_include_path);
-        try tc.addSystemIncludeDir(gcc_include_path);
+        try tc.addSystemIncludeDir(gcc_include_path, includes);
     }
 
     if (getMultiarchTriple(target)) |triple| {
         const joined = try std.fs.path.join(comp.gpa, &.{ sysroot, "/usr/include", triple });
         defer comp.gpa.free(joined);
         if (tc.exists(joined)) {
-            try tc.addSystemIncludeDir(joined);
+            try tc.addSystemIncludeDir(joined, includes);
         }
     }
 
     if (target.os.tag == .rtems) return;
 
-    try tc.addSystemIncludeDir("/include");
-    try tc.addSystemIncludeDir("/usr/include");
+    try tc.addSystemIncludeDir("/include", includes);
+    try tc.addSystemIncludeDir("/usr/include", includes);
 
-    std.debug.assert(!tc.driver.nostdlibinc);
-    if (!tc.driver.nobuiltininc and target.abi.isMusl()) {
-        try tc.addBuiltinIncludeDir();
+    std.debug.assert(!tc.opts.nostdlibinc);
+    if (!tc.opts.nobuiltininc and target.abi.isMusl()) {
+        try tc.addBuiltinIncludeDir(includes);
     }
 }
 
@@ -488,15 +486,13 @@ test Linux {
     comp.target = .fromZigTarget(try std.zig.system.resolveTargetQuery(fake_io, target_query));
     comp.langopts.setEmulatedCompiler(.gcc);
 
-    var driver: Driver = .{ .comp = &comp, .diagnostics = undefined };
-    defer driver.deinit();
-    driver.raw_target_triple = raw_triple;
-
-    const link_obj = try driver.comp.gpa.dupe(u8, "/tmp/foo.o");
-    try driver.link_objects.append(driver.comp.gpa, link_obj);
-    driver.temp_file_count += 1;
-
-    var toolchain: Toolchain = .{ .driver = &driver };
+    var opts: Toolchain.Options = .{ .raw_target_triple = raw_triple };
+    var link_objects: std.ArrayList([]const u8) = .empty;
+    defer link_objects.deinit(comp.gpa);
+    const link_obj = try comp.gpa.dupe(u8, "/tmp/foo.o");
+    defer comp.gpa.free(link_obj);
+    try link_objects.append(comp.gpa, link_obj);
+    var toolchain: Toolchain = .{ .opts = &opts, .comp = &comp };
     defer toolchain.deinit();
 
     try toolchain.discover();
@@ -508,7 +504,7 @@ test Linux {
     const linker_path = try toolchain.getLinkerPath(&linker_path_buf);
     try argv.append(gpa, linker_path);
 
-    try toolchain.buildLinkerArgs(&argv);
+    try toolchain.buildLinkerArgs(&argv, null, link_objects.items);
 
     const expected = [_][]const u8{
         "/usr/bin/ld",

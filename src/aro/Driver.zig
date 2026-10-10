@@ -12,7 +12,7 @@ const Attribute = @import("Attribute.zig");
 const Compilation = @import("Compilation.zig");
 const Diagnostics = @import("Diagnostics.zig");
 const DepFile = @import("DepFile.zig");
-const GCCVersion = @import("Driver/GCCVersion.zig");
+const GCCVersion = @import("Toolchain/GCCVersion.zig");
 const LangOpts = @import("LangOpts.zig");
 const Preprocessor = @import("Preprocessor.zig");
 const Source = @import("Source.zig");
@@ -45,7 +45,6 @@ const Driver = @This();
 
 comp: *Compilation,
 diagnostics: *Diagnostics,
-
 inputs: std.ArrayList(Source) = .empty,
 imacros: std.ArrayList(Source) = .empty,
 implicit_includes: std.ArrayList(Source) = .empty,
@@ -54,8 +53,6 @@ includes: std.ArrayList(Compilation.Include) = .empty,
 link_objects: std.ArrayList([]const u8) = .empty,
 macro_prefix_map: std.ArrayList(struct { []const u8, []const u8 }) = .empty,
 output_name: ?[]const u8 = null,
-sysroot: ?[]const u8 = null,
-resource_dir: ?[]const u8 = null,
 system_defines: Compilation.SystemDefinesMode = .include_system_defines,
 temp_file_count: u32 = 0,
 /// If false, do not emit line directives in -E mode
@@ -71,9 +68,6 @@ verbose_pp: bool = false,
 verbose_ir: bool = false,
 verbose_linker_args: bool = false,
 verbose_search_path: bool = false,
-nobuiltininc: bool = false,
-nostdinc: bool = false,
-nostdlibinc: bool = false,
 apple_kext: bool = false,
 mkernel: bool = false,
 mabicalls: ?bool = null,
@@ -101,11 +95,6 @@ dependencies: struct {
     file: ?[]const u8 = null,
 } = .{},
 
-/// Full path to the aro executable
-aro_name: []const u8 = "",
-
-/// Value of -target passed via CLI
-raw_target_triple: ?[]const u8 = null,
 /// Value of -darwin-target-variant-triple passed via CLI
 raw_darwin_variant_target_triple: ?[]const u8 = null,
 
@@ -114,25 +103,6 @@ raw_cpu: ?[]const u8 = null,
 
 /// Non-optimizing assembly backend is currently selected by passing `-O0`
 use_assembly_backend: bool = false,
-
-// linker options
-use_linker: ?[]const u8 = null,
-linker_path: ?[]const u8 = null,
-nodefaultlibs: bool = false,
-nolibc: bool = false,
-nostartfiles: bool = false,
-nostdlib: bool = false,
-pie: ?bool = null,
-rdynamic: bool = false,
-relocatable: bool = false,
-rtlib: ?[]const u8 = null,
-shared: bool = false,
-shared_libgcc: bool = false,
-static: bool = false,
-static_libgcc: bool = false,
-static_pie: bool = false,
-strip: bool = false,
-unwindlib: ?[]const u8 = null,
 
 pub fn deinit(d: *Driver) void {
     for (d.link_objects.items[d.link_objects.items.len - d.temp_file_count ..]) |obj| {
@@ -295,6 +265,7 @@ pub const usage =
 /// Process command line arguments, returns true if something was written to std_out.
 pub fn parseArgs(
     d: *Driver,
+    tc_opts: *Toolchain.Options,
     stdout: *std.Io.Writer,
     macro_buf: *std.ArrayList(u8),
     args: []const []const u8,
@@ -664,14 +635,14 @@ pub fn parseArgs(
                 }
                 d.output_name = file;
             } else if (option(arg, "--sysroot=")) |sysroot| {
-                d.sysroot = sysroot;
+                tc_opts.sysroot = sysroot;
             } else if (mem.eql(u8, arg, "--sysroot")) {
                 i += 1;
                 if (i >= args.len) {
                     try d.err("expected argument after --sysroot", .{});
                     continue;
                 }
-                d.sysroot = args[i];
+                tc_opts.sysroot = args[i];
             } else if (mem.startsWith(u8, arg, "-isysroot")) {
                 var path = arg["-isysroot".len..];
                 if (path.len == 0) {
@@ -682,7 +653,7 @@ pub fn parseArgs(
                     }
                     path = args[i];
                 }
-                d.sysroot = path;
+                tc_opts.sysroot = path;
             } else if (mem.eql(u8, arg, "-rpath")) {
                 i += 1;
                 if (i >= args.len) {
@@ -712,7 +683,7 @@ pub fn parseArgs(
                 d.diagnostics.state.ignore_warnings = true;
             } else if (option(arg, "--rtlib=")) |rtlib| {
                 if (mem.eql(u8, rtlib, "compiler-rt") or mem.eql(u8, rtlib, "libgcc") or mem.eql(u8, rtlib, "platform")) {
-                    d.rtlib = rtlib;
+                    tc_opts.rtlib = rtlib;
                 } else {
                     try d.err("invalid runtime library name '{s}'", .{rtlib});
                 }
@@ -752,10 +723,10 @@ pub fn parseArgs(
                     try d.err("expected argument after -target", .{});
                     continue;
                 }
-                d.raw_target_triple = args[i];
+                tc_opts.raw_target_triple = args[i];
                 emulate = null;
             } else if (option(arg, "--target=")) |triple| {
-                d.raw_target_triple = triple;
+                tc_opts.raw_target_triple = triple;
                 emulate = null;
             } else if (mem.eql(u8, arg, "--verbose-ast")) {
                 d.verbose_ast = true;
@@ -773,57 +744,57 @@ pub fn parseArgs(
                 d.comp.langopts.preserve_comments_in_macros = true;
                 comment_arg = arg;
             } else if (option(arg, "-fuse-ld=")) |linker_name| {
-                d.use_linker = linker_name;
+                tc_opts.use_linker = linker_name;
             } else if (mem.eql(u8, arg, "-fuse-ld=")) {
-                d.use_linker = null;
+                tc_opts.use_linker = null;
             } else if (option(arg, "--ld-path=")) |linker_path| {
-                d.linker_path = linker_path;
+                tc_opts.linker_path = linker_path;
             } else if (mem.eql(u8, arg, "-r")) {
-                d.relocatable = true;
+                tc_opts.relocatable = true;
             } else if (mem.eql(u8, arg, "-shared")) {
-                d.shared = true;
+                tc_opts.shared = true;
             } else if (mem.eql(u8, arg, "-shared-libgcc")) {
-                d.shared_libgcc = true;
+                tc_opts.shared_libgcc = true;
             } else if (mem.eql(u8, arg, "-static")) {
-                d.static = true;
+                tc_opts.static = true;
             } else if (mem.eql(u8, arg, "-static-libgcc")) {
-                d.static_libgcc = true;
+                tc_opts.static_libgcc = true;
             } else if (mem.eql(u8, arg, "-static-pie")) {
-                d.static_pie = true;
+                tc_opts.static_pie = true;
             } else if (mem.eql(u8, arg, "-pie")) {
-                d.pie = true;
+                tc_opts.pie = true;
             } else if (mem.eql(u8, arg, "-no-pie") or mem.eql(u8, arg, "-nopie")) {
-                d.pie = false;
+                tc_opts.pie = false;
             } else if (mem.eql(u8, arg, "-rdynamic")) {
-                d.rdynamic = true;
+                tc_opts.rdynamic = true;
             } else if (mem.eql(u8, arg, "-s")) {
-                d.strip = true;
+                tc_opts.strip = true;
             } else if (mem.eql(u8, arg, "-nodefaultlibs")) {
-                d.nodefaultlibs = true;
+                tc_opts.nodefaultlibs = true;
             } else if (mem.eql(u8, arg, "-nolibc")) {
-                d.nolibc = true;
+                tc_opts.nolibc = true;
             } else if (mem.eql(u8, arg, "-nobuiltininc")) {
-                d.nobuiltininc = true;
+                tc_opts.nobuiltininc = true;
             } else if (mem.eql(u8, arg, "-resource-dir")) {
                 i += 1;
                 if (i >= args.len) {
                     try d.err("expected argument after -resource-dir", .{});
                     continue;
                 }
-                d.resource_dir = args[i];
+                tc_opts.resource_dir = args[i];
             } else if (mem.eql(u8, arg, "-nostdinc") or mem.eql(u8, arg, "--no-standard-includes")) {
-                d.nostdinc = true;
+                tc_opts.nostdinc = true;
             } else if (mem.eql(u8, arg, "-nostdlibinc")) {
-                d.nostdlibinc = true;
+                tc_opts.nostdlibinc = true;
             } else if (mem.eql(u8, arg, "-nostdlib")) {
-                d.nostdlib = true;
+                tc_opts.nostdlib = true;
             } else if (mem.eql(u8, arg, "-nostartfiles")) {
-                d.nostartfiles = true;
+                tc_opts.nostartfiles = true;
             } else if (option(arg, "--unwindlib=")) |unwindlib| {
                 const valid_unwindlibs: [5][]const u8 = .{ "", "none", "platform", "libunwind", "libgcc" };
                 for (valid_unwindlibs) |name| {
                     if (mem.eql(u8, name, unwindlib)) {
-                        d.unwindlib = unwindlib;
+                        tc_opts.unwindlib = unwindlib;
                         break;
                     }
                 } else {
@@ -877,13 +848,13 @@ pub fn parseArgs(
         }
     }
     {
-        d.comp.target = try d.parseTarget(d.raw_target_triple orelse "native", d.raw_cpu, m_args.items);
+        d.comp.target = try d.parseTarget(tc_opts.raw_target_triple orelse "native", d.raw_cpu, m_args.items);
         if (d.raw_darwin_variant_target_triple) |darwin_triple| {
             d.comp.darwin_target_variant = try d.parseTarget(darwin_triple, null, &.{});
         }
         d.comp.langopts.setTargetOptions(d.comp.target);
     }
-    if (emulate != null or d.raw_target_triple != null) {
+    if (emulate != null or tc_opts.raw_target_triple != null) {
         d.comp.langopts.setEmulatedCompiler(emulate orelse d.comp.target.systemCompiler());
         switch (d.comp.langopts.emulate) {
             .clang => try d.diagnostics.set("clang", .off),
@@ -918,7 +889,7 @@ pub fn parseArgs(
         }
         d.comp.langopts.gnuc_version = version.toUnsigned();
     }
-    const pic_level, const is_pie = try d.getPICMode(pic_arg);
+    const pic_level, const is_pie = try d.getPICMode(tc_opts, pic_arg);
     d.comp.code_gen_options.pic_level = pic_level;
     d.comp.code_gen_options.is_pie = is_pie;
     d.comp.code_gen_options.debug = debug: {
@@ -1240,14 +1211,16 @@ pub fn errorDescription(e: anyerror) []const u8 {
 
 /// The entry point of the Aro compiler.
 /// **MAY call `exit` if `fast_exit` is set.**
-pub fn main(d: *Driver, tc: *Toolchain, args: []const []const u8, comptime fast_exit: bool, asm_gen_fn: ?AsmCodeGenFn) (Compilation.Error || std.Io.Cancelable)!void {
+pub fn main(d: *Driver, aro_name: []const u8, args: []const []const u8, comptime fast_exit: bool, asm_gen_fn: ?AsmCodeGenFn) (Compilation.Error || std.Io.Cancelable)!void {
+    var tc_opts: Toolchain.Options = .{ .aro_name = aro_name };
+
     const user_macros = macros: {
         var macro_buf: std.ArrayList(u8) = .empty;
         defer macro_buf.deinit(d.comp.gpa);
 
         var stdout_buf: [256]u8 = undefined;
         var stdout = std.Io.File.stdout().writer(d.comp.io, &stdout_buf);
-        if (parseArgs(d, &stdout.interface, &macro_buf, args) catch |er| switch (er) {
+        if (parseArgs(d, &tc_opts, &stdout.interface, &macro_buf, args) catch |er| switch (er) {
             error.WriteFailed => return d.fatal("failed to write to stdout: {s}", .{errorDescription(er)}),
             error.OutOfMemory => return error.OutOfMemory,
             error.FatalError => return error.FatalError,
@@ -1273,11 +1246,14 @@ pub fn main(d: *Driver, tc: *Toolchain, args: []const []const u8, comptime fast_
         try d.err("{s}: linker input file unused because linking not done", .{obj});
     };
 
+    var tc: Toolchain = .{ .opts = &tc_opts, .comp = d.comp };
+    defer tc.deinit();
+
     tc.discover() catch |er| switch (er) {
         error.OutOfMemory => return error.OutOfMemory,
         error.TooManyMultilibs => return d.fatal("found more than one multilib with the same priority", .{}),
     };
-    tc.defineSystemIncludes() catch |er| switch (er) {
+    tc.defineSystemIncludes(&d.includes) catch |er| switch (er) {
         error.OutOfMemory => return error.OutOfMemory,
         error.FatalError => return error.FatalError,
     };
@@ -1288,19 +1264,19 @@ pub fn main(d: *Driver, tc: *Toolchain, args: []const []const u8, comptime fast_
         else => |e| return e,
     };
     if (fast_exit and d.inputs.items.len == 1) {
-        try d.processSource(tc, d.inputs.items[0], builtin_macros, user_macros, fast_exit, asm_gen_fn);
+        try d.processSource(&tc, d.inputs.items[0], builtin_macros, user_macros, fast_exit, asm_gen_fn);
         unreachable;
     }
 
     for (d.inputs.items) |source| {
-        try d.processSource(tc, source, builtin_macros, user_macros, fast_exit, asm_gen_fn);
+        try d.processSource(&tc, source, builtin_macros, user_macros, fast_exit, asm_gen_fn);
     }
     if (d.diagnostics.errors != 0) {
         if (fast_exit) d.exitWithCleanup(1);
         return;
     }
     if (linking) {
-        try d.invokeLinker(tc, fast_exit);
+        try d.invokeLinker(&tc, fast_exit);
     }
     if (fast_exit) std.process.exit(0);
 }
@@ -1636,7 +1612,7 @@ pub fn invokeLinker(d: *Driver, tc: *Toolchain, comptime fast_exit: bool) Compil
     const linker_path = try tc.getLinkerPath(&linker_path_buf);
     try argv.append(gpa, linker_path);
 
-    try tc.buildLinkerArgs(&argv);
+    try tc.buildLinkerArgs(&argv, d.output_name, d.link_objects.items);
 
     if (d.verbose_linker_args) {
         var stdout_buf: [4096]u8 = undefined;
@@ -1684,11 +1660,11 @@ fn exitWithCleanup(d: *Driver, code: u8) noreturn {
 /// Then, smooshes them together with platform defaults, to decide whether
 /// this compile should be using PIC mode or not.
 /// Returns a tuple of ( backend.CodeGenOptions.PicLevel, IsPIE).
-pub fn getPICMode(d: *Driver, lastpic: []const u8) Compilation.Error!struct { backend.CodeGenOptions.PicLevel, bool } {
+pub fn getPICMode(d: *Driver, tc_opts: *const Toolchain.Options, lastpic: []const u8) Compilation.Error!struct { backend.CodeGenOptions.PicLevel, bool } {
     const eqlIgnoreCase = std.ascii.eqlIgnoreCase;
 
     const target = &d.comp.target;
-    const linker = d.use_linker orelse @import("system_defaults").linker;
+    const linker = tc_opts.use_linker orelse @import("system_defaults").linker;
     const is_bfd_linker = eqlIgnoreCase(linker, "bfd");
 
     const is_pie_default = switch (target.isPIEDefault()) {
@@ -1711,7 +1687,7 @@ pub fn getPICMode(d: *Driver, lastpic: []const u8) Compilation.Error!struct { ba
     var pie: bool = is_pie_default;
     var pic: bool = pie or is_pic_default;
     // The Darwin/MachO default to use PIC does not apply when using -static.
-    if (target.ofmt == .macho and d.static) {
+    if (target.ofmt == .macho and tc_opts.static) {
         pic, pie = .{ false, false };
     }
     var is_piclevel_two = pic;
