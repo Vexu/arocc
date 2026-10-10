@@ -3287,6 +3287,7 @@ pub fn isLvalExtra(tree: *const Tree, node: Node.Index, is_const: *bool) bool {
         },
         .deref_expr => |un| {
             const operand_qt = un.operand.qt(tree);
+            if (operand_qt.isInvalid()) return true;
             switch (operand_qt.base(tree.comp).type) {
                 .func => return false,
                 .pointer => |pointer| is_const.* = pointer.child.@"const",

@@ -129,6 +129,18 @@ error "failed"
 #error bad
 #endif
 
+// Usual arithmetic conversion means the result of the ternary expression is converted to unsigned
+#if (0 ? 0u : -1) != 18446744073709551615ULL
+#error bad
+#endif
+
+// Usual arithmetic conversion stemming from the 0u in the inner ternary expression
+// propagates all the way out to the final lhs of != and therefore turns the rhs of
+// the != to unsigned as well
+#if (0 ? (0 ? 0u : 1) : -1) != -1
+#error bad
+#endif
+
 /** manifest:
 syntax
 
@@ -165,4 +177,5 @@ preprocessor binary operators.c:124:17: error: expected closing ')'
 preprocessor binary operators.c:124:12: note: to match this '('
 preprocessor binary operators.c:128:8: error: expected closing ')'
 preprocessor binary operators.c:128:5: note: to match this '('
+preprocessor binary operators.c:140:29: warning: right side of operator converted from negative value to unsigned: -1 to 18446744073709551615
 */

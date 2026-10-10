@@ -3788,3 +3788,4 @@ __builtin_ve_vl_xorm_MMM
 
 __builtin_ve_vl_xorm_mmm
     .param_str = "V256bV256bV256b"
+

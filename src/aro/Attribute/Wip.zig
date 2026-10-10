@@ -637,7 +637,10 @@ fn applyAlignment(wip: *Wip) !void {
     const is_alignas = wip.current.attr.syntax == .keyword;
     if (is_alignas) {
         switch (wip.current.node()) {
-            .variable,
+            .variable => |variable| if (variable.storage_class == .register) {
+                try wip.err(.alignas_on_register, .{wip.current.attr});
+                return;
+            },
             .struct_decl,
             .union_decl,
             .enum_decl,

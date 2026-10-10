@@ -321,7 +321,7 @@ pub fn parseArgs(
                 try stdout.flush();
                 return true;
             } else if (mem.eql(u8, arg, "--version")) {
-                try stdout.writeAll(@import("backend").version_str ++ "\n");
+                try stdout.writeAll(backend.version_str ++ "\n");
                 try stdout.flush();
                 return true;
             } else if (mem.startsWith(u8, arg, "-D")) {
@@ -1160,6 +1160,7 @@ fn parseTarget(
         }
     }
     const target: Target = .{
+        .abi_is_default = query.abi == null and !query.isNativeAbi(),
         .cpu = zig_target.cpu,
         .vendor = vendor,
         .os = zig_target.os,

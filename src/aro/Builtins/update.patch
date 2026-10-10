@@ -1,0 +1,1207 @@
+diff --git c/clang/utils/TableGen/AroBuiltinsEmitter.cpp i/clang/utils/TableGen/AroBuiltinsEmitter.cpp
+new file mode 100644
+index 000000000..17d4e7a21
+--- /dev/null
++++ i/clang/utils/TableGen/AroBuiltinsEmitter.cpp
+@@ -0,0 +1,635 @@
++#include "TableGenBackends.h"
++#include "llvm/ADT/StringExtras.h"
++#include "llvm/ADT/StringSwitch.h"
++#include "llvm/TableGen/Error.h"
++#include "llvm/TableGen/Record.h"
++#include "llvm/TableGen/StringToOffsetTable.h"
++#include "llvm/TableGen/TableGenBackend.h"
++#include <sstream>
++
++using namespace llvm;
++
++namespace {
++enum class BuiltinType {
++  Builtin,
++  AtomicBuiltin,
++  LibBuiltin,
++  LangBuiltin,
++  TargetBuiltin,
++  TargetLibBuiltin,
++};
++
++class HeaderNameParser {
++public:
++  HeaderNameParser(const Record *Builtin) {
++    HeaderName = Builtin->getValueAsString("Header");
++    HeaderName = HeaderName.substr(0, HeaderName.size() - 2);
++  }
++
++  void Print(raw_ostream &OS) const { OS << "." << HeaderName; }
++
++private:
++  std::string HeaderName;
++};
++
++struct Builtin {
++  BuiltinType BT;
++  std::string Name;
++  std::string Type;
++  std::string Attributes;
++
++  const Record *BuiltinRecord;
++
++  void EmitEnumerator(llvm::raw_ostream &OS) const {
++    // If there is a required name prefix, include its spelling in the
++    // enumerator.
++    if (auto *PrefixRecord =
++            BuiltinRecord->getValueAsOptionalDef("RequiredNamePrefix"))
++      OS << PrefixRecord->getValueAsString("Spelling");
++    OS << Name << "\n";
++  }
++
++  void EmitInfo(llvm::raw_ostream &OS) const {
++    OS << "    .param_str = \"" << Type << "\"\n";
++
++    if (BT == BuiltinType::LibBuiltin || BT == BuiltinType::TargetLibBuiltin) {
++      OS << "    .header = ";
++      HeaderNameParser{BuiltinRecord}.Print(OS);
++      OS << "\n";
++    }
++    if (BT == BuiltinType::LibBuiltin || BT == BuiltinType::LangBuiltin ||
++        BT == BuiltinType::TargetLibBuiltin) {
++        auto LanguageName = StringSwitch<std::string>(BuiltinRecord->getValueAsString("Languages"))
++        .Case("ALL_LANGUAGES", ".all_languages")
++        .Case("ALL_MS_LANGUAGES", ".all_ms_languages")
++        .Case("ALL_GNU_LANGUAGES", ".all_gnu_languages")
++        .Case("GNU_LANG", ".gnu_lang")
++        .Case("C23_LANG", ".c23_lang")
++        .Default("error");
++      OS << "    .language = " << LanguageName << "\n";
++    }
++    if (BT == BuiltinType::TargetBuiltin) {
++      const auto &Features = BuiltinRecord->getValueAsString("Features");
++      if (Features != "") {
++        OS << "    .features = \"";
++
++        for (char c : Features) {
++          if (c == '.' || c == '-')
++            OS <<'_';
++          else
++            OS << c;
++        }
++        OS << "\"\n";
++      }
++    }
++    if (Attributes != "") {
++        OS << "    .attributes = .{ " << Attributes << " }\n";
++    }
++    OS << "\n";
++  }
++
++  void EmitXMacro(llvm::raw_ostream &OS) const {
++    if (BuiltinRecord->getValueAsBit("RequiresUndef"))
++      OS << "#undef " << Name << '\n';
++    switch (BT) {
++    case BuiltinType::LibBuiltin:
++      OS << "LIBBUILTIN";
++      break;
++    case BuiltinType::LangBuiltin:
++      OS << "LANGBUILTIN";
++      break;
++    case BuiltinType::Builtin:
++      OS << "BUILTIN";
++      break;
++    case BuiltinType::AtomicBuiltin:
++      OS << "ATOMIC_BUILTIN";
++      break;
++    case BuiltinType::TargetBuiltin:
++      OS << "TARGET_BUILTIN";
++      break;
++    case BuiltinType::TargetLibBuiltin:
++      OS << "TARGET_HEADER_BUILTIN";
++      break;
++    }
++
++    OS << "(" << Name << ", \"" << Type << "\", \"" << Attributes << "\"";
++
++    switch (BT) {
++    case BuiltinType::LibBuiltin: {
++      OS << ", ";
++      HeaderNameParser{BuiltinRecord}.Print(OS);
++      [[fallthrough]];
++    }
++    case BuiltinType::LangBuiltin: {
++      OS << ", " << BuiltinRecord->getValueAsString("Languages");
++      break;
++    }
++    case BuiltinType::TargetLibBuiltin: {
++      OS << ", ";
++      HeaderNameParser{BuiltinRecord}.Print(OS);
++      OS << ", " << BuiltinRecord->getValueAsString("Languages");
++      [[fallthrough]];
++    }
++    case BuiltinType::TargetBuiltin: {
++      OS << ", \"" << BuiltinRecord->getValueAsString("Features") << "\"";
++      break;
++    }
++    case BuiltinType::AtomicBuiltin:
++    case BuiltinType::Builtin:
++      break;
++    }
++    OS << ")\n";
++  }
++};
++
++class PrototypeParser {
++public:
++  PrototypeParser(StringRef Substitution, const Record *Builtin)
++      : Loc(Builtin->getFieldLoc("Prototype")), Substitution(Substitution),
++        EnableOpenCLLong(Builtin->getValueAsBit("EnableOpenCLLong")) {
++    ParsePrototype(Builtin->getValueAsString("Prototype"));
++  }
++
++  std::string takeTypeString() && { return std::move(Type); }
++
++private:
++  void ParsePrototype(StringRef Prototype) {
++    Prototype = Prototype.trim();
++
++    // Some builtins don't have an expressible prototype, simply emit an empty
++    // string for them.
++    if (Prototype.empty()) {
++      Type = "";
++      return;
++    }
++
++    ParseTypes(Prototype);
++  }
++
++  void ParseTypes(StringRef &Prototype) {
++    auto ReturnType = Prototype.take_until([](char c) { return c == '('; });
++    ParseType(ReturnType);
++    Prototype = Prototype.drop_front(ReturnType.size() + 1);
++    if (!Prototype.ends_with(")"))
++      PrintFatalError(Loc, "Expected closing brace at end of prototype");
++    Prototype = Prototype.drop_back();
++
++    // Look through the input parameters.
++    const size_t end = Prototype.size();
++    for (size_t I = 0; I != end;) {
++      const StringRef Current = Prototype.substr(I, end);
++      // Skip any leading space or commas
++      if (Current.starts_with(" ") || Current.starts_with(",")) {
++        ++I;
++        continue;
++      }
++
++      // Check if we are in _ExtVector. We do this first because
++      // extended vectors are written in template form with the syntax
++      // _ExtVector< ..., ...>, so we need to make sure we are not
++      // detecting the comma of the template class as a separator for
++      // the parameters of the prototype. Note: the assumption is that
++      // we cannot have nested _ExtVector.
++      if (Current.starts_with("_ExtVector<") ||
++          Current.starts_with("_Vector<")) {
++        size_t Pos = Current.find('<');
++        int Depth = 1;
++
++        // There may be a nested address_space<...> modifier on the type.
++        while (Depth > 0 && ++Pos < Current.size()) {
++          if (Current[Pos] == '<')
++            ++Depth;
++          else if (Current[Pos] == '>')
++            --Depth;
++        }
++
++        const size_t EndTemplate = Pos;
++        ParseType(Current.substr(0, EndTemplate + 1));
++        // Move the prototype beyond _ExtVector<...>
++        I += EndTemplate + 1;
++        continue;
++      }
++
++      // We know that we are past _ExtVector, therefore the first seen
++      // comma is the boundary of a parameter in the prototype.
++      if (size_t CommaPos = Current.find(',', 0)) {
++        if (CommaPos != StringRef::npos) {
++          StringRef T = Current.substr(0, CommaPos);
++          ParseType(T);
++          // Move the prototype beyond the comma.
++          I += CommaPos + 1;
++          continue;
++        }
++      }
++
++      // No more commas, parse final parameter.
++      ParseType(Current);
++      I = end;
++    }
++  }
++
++  void ParseType(StringRef T) {
++    T = T.trim();
++
++    auto ConsumeAddrSpace = [&]() -> std::optional<unsigned> {
++      T = T.trim();
++      if (!T.consume_back(">"))
++        return std::nullopt;
++
++      auto Open = T.find_last_of('<');
++      if (Open == StringRef::npos)
++        PrintFatalError(Loc, "Mismatched angle-brackets in type");
++
++      StringRef ArgStr = T.substr(Open + 1);
++      T = T.slice(0, Open);
++      if (!T.consume_back("address_space"))
++        PrintFatalError(Loc,
++                        "Only `address_space<N>` supported as a parameterized "
++                        "pointer or reference type qualifier");
++
++      unsigned Number = 0;
++      if (ArgStr.getAsInteger(10, Number))
++        PrintFatalError(
++            Loc, "Expected an integer argument to the address_space qualifier");
++      return Number;
++    };
++
++    if (T.consume_back("*")) {
++      // Pointers may have an address space qualifier immediately before them.
++      std::optional<unsigned> AS = ConsumeAddrSpace();
++      // Pointers can apply to already parsed types, like vectors.
++      if (!T.empty())
++        ParseType(T);
++      Type += "*";
++      if (AS)
++        Type += std::to_string(*AS);
++    } else if (T.consume_back("const")) {
++      if (!T.empty())
++        ParseType(T);
++      Type += "C";
++    } else if (T.consume_back("volatile")) {
++      if (!T.empty())
++        ParseType(T);
++      Type += "D";
++    } else if (T.consume_back("restrict")) {
++      if (!T.empty())
++        ParseType(T);
++      Type += "R";
++    } else if (T.consume_back("&")) {
++      // References may have an address space qualifier immediately before them.
++      std::optional<unsigned> AS = ConsumeAddrSpace();
++      ParseType(T);
++      Type += "&";
++      if (AS)
++        Type += std::to_string(*AS);
++    } else if (T.consume_back(")")) {
++      ParseType(T);
++      Type += "&";
++    } else if (EnableOpenCLLong && T.consume_front("long long")) {
++      Type += "O";
++      ParseType(T);
++    } else if (T.consume_front("long")) {
++      Type += "L";
++      ParseType(T);
++    } else if (T.consume_front("signed")) {
++      Type += "S";
++      ParseType(T);
++    } else if (T.consume_front("unsigned")) {
++      Type += "U";
++      ParseType(T);
++    } else if (T.consume_front("_Complex")) {
++      Type += "X";
++      ParseType(T);
++    } else if (T.consume_front("_Constant")) {
++      Type += "I";
++      ParseType(T);
++    } else if (T.consume_front("T")) {
++      if (Substitution.empty())
++        PrintFatalError(Loc, "Not a template");
++      ParseType(Substitution);
++    } else if (auto IsExt = T.consume_front("_ExtVector");
++               IsExt || T.consume_front("_Vector")) {
++      // Clang extended vector types are mangled as follows:
++      //
++      // '_ExtVector<' <lanes> ',' <scalar type> '>'
++
++      // Before parsing T(=<scalar type>), make sure the syntax of
++      // `_ExtVector<N, T>` is correct...
++      if (!T.consume_front("<"))
++        PrintFatalError(Loc, "Expected '<' after '_ExtVector'");
++      unsigned long long Lanes;
++      if (consumeUnsignedInteger(T, 10, Lanes))
++        PrintFatalError(Loc, "Expected number of lanes after '_ExtVector<'");
++      Type += (IsExt ? "E" : "V") + std::to_string(Lanes);
++      if (!T.consume_front(","))
++        PrintFatalError(Loc,
++                        "Expected ',' after number of lanes in '_ExtVector<'");
++      if (!T.consume_back(">"))
++        PrintFatalError(
++            Loc, "Expected '>' after scalar type in '_ExtVector<N, type>'");
++
++      // ...all good, we can check if we have a valid `<scalar type>`.
++      ParseType(T);
++    } else {
++      auto ReturnTypeVal = StringSwitch<std::string>(T)
++                               .Case("__builtin_va_list_ref", "A")
++                               .Case("__builtin_va_list", "a")
++                               .Case("__float128", "LLd")
++                               .Case("__fp16", "h")
++                               .Case("__hlsl_resource_t", "Qr")
++                               .Case("__amdgpu_buffer_rsrc_t", "Qb")
++                               .Case("__amdgpu_feature_predicate_t", "Qc")
++                               .Case("__amdgpu_texture_t", "Qt")
++                               .Case("__int128_t", "LLLi")
++                               .Case("__uint128_t", "ULLLi")
++                               .Case("_Float16", "x")
++                               .Case("__bf16", "y")
++                               .Case("bool", "b")
++                               .Case("char", "c")
++                               .Case("constant_CFString", "F")
++                               .Case("double", "d")
++                               .Case("FILE", "P")
++                               .Case("float", "f")
++                               .Case("id", "G")
++                               .Case("int", "i")
++                               .Case("int8_t", "Bi")
++                               .Case("int16_t", "Ti")
++                               .Case("int32_t", "Zi")
++                               .Case("int64_t", "Wi")
++                               .Case("jmp_buf", "J")
++                               .Case("msint32_t", "Ni")
++                               .Case("msuint32_t", "UNi")
++                               .Case("objc_super", "M")
++                               .Case("pid_t", "p")
++                               .Case("ptrdiff_t", "Y")
++                               .Case("SEL", "H")
++                               .Case("short", "s")
++                               .Case("sigjmp_buf", "SJ")
++                               .Case("size_t", "z")
++                               .Case("ucontext_t", "K")
++                               .Case("uint8_t", "UBi")
++                               .Case("uint16_t", "UTi")
++                               .Case("uint32_t", "UZi")
++                               .Case("uint64_t", "UWi")
++                               .Case("void", "v")
++                               .Case("wchar_t", "w")
++                               .Case("...", ".")
++                               .Default("error");
++      if (ReturnTypeVal == "error")
++        PrintFatalError(Loc, "Unknown Type: " + T);
++      Type += ReturnTypeVal;
++    }
++  }
++
++  SMLoc Loc;
++  StringRef Substitution;
++  bool EnableOpenCLLong;
++  std::string Type;
++};
++
++std::string renderAttributes(const Record *Builtin, BuiltinType BT) {
++  std::string Attributes;
++  raw_string_ostream OS(Attributes);
++  bool seen = false;
++
++  if (Builtin->isSubClassOf("LibBuiltin")) {
++    if (BT == BuiltinType::LibBuiltin) {
++      OS << ".lib_function_without_prefix = true";
++    } else {
++      OS << ".lib_function_with_builtin_prefix = true";
++      if (Builtin->getValueAsBit("OnlyBuiltinPrefixedAliasIsConstexpr"))
++      OS << ", .const_evaluable = true";
++    }
++    seen = true;
++  }
++
++  for (const auto *Attr : Builtin->getValueAsListOfDefs("Attributes")) {
++    if (Attr->getName() == "FunctionWithBuiltinPrefix") {
++      if (seen) OS << ", ";
++      OS << ".lib_function_with_builtin_prefix = true";
++    } else if (Attr->getName() == "FunctionWithoutBuiltinPrefix") {
++      if (seen) OS << ", ";
++      OS << ".lib_function_without_prefix = true";
++    } else if (Attr->getName() == "Pure") {
++      if (seen) OS << ", ";
++      OS << ".pure = true";
++    } else if (Attr->getName() == "Const") {
++      if (seen) OS << ", ";
++      OS << ".@\"const\" = true";
++    } else if (Attr->getName() == "Constexpr") {
++      if (seen) OS << ", ";
++      OS << ".const_evaluable = true";
++    } else if (Attr->getName() == "CustomTypeChecking") {
++      if (seen) OS << ", ";
++      OS << ".custom_typecheck = true";
++    } else if (Attr->getName() == "ReturnsTwice") {
++      if (seen) OS << ", ";
++      OS << ".returns_twice = true";
++    } else if (Attr->getName() == "UnevaluatedArguments") {
++      if (seen) OS << ", ";
++      OS << ".eval_args = false";
++    } else if (Attr->getName() == "ConstIgnoringErrnoAndExceptions") {
++      if (seen) OS << ", ";
++      OS << ".const_without_errno_and_fp_exceptions = true";
++    } else if (Attr->getName() == "ConstIgnoringExceptions") {
++      if (seen) OS << ", ";
++      OS << ".const_without_fp_exceptions = true";
++    } else if (Attr->getName() == "PrintfFormat") {
++      if (seen) OS << ", ";
++      auto Num = Attr->getValueAsInt("Index");
++      OS << ".format_kind = .printf, .format_string_position = " << Num;
++    } else if (Attr->getName() == "VPrintfFormat") {
++      if (seen) OS << ", ";
++      auto Num = Attr->getValueAsInt("Index");
++      OS << ".format_kind = .vprintf, .format_string_position = " << Num;
++    } else if (Attr->getName() == "ScanfFormat") {
++      if (seen) OS << ", ";
++      auto Num = Attr->getValueAsInt("Index");
++      OS << ".format_kind = .scanf, .format_string_position = " << Num;
++    } else if (Attr->getName() == "VScanfFormat") {
++      if (seen) OS << ", ";
++      auto Num = Attr->getValueAsInt("Index");
++      OS << ".format_kind = .vscanf, .format_string_position = " << Num;
++    } else {
++      continue;
++    }
++    seen = true;
++  }
++  return Attributes;
++}
++
++Builtin buildBuiltin(StringRef Substitution, const Record *BuiltinRecord,
++                     Twine Spelling, BuiltinType BT) {
++  Builtin B;
++  B.BT = BT;
++  B.Name = Spelling.str();
++  B.Type = PrototypeParser(Substitution, BuiltinRecord).takeTypeString();
++  B.Attributes = renderAttributes(BuiltinRecord, BT);
++  B.BuiltinRecord = BuiltinRecord;
++  return B;
++}
++
++struct TemplateInsts {
++  std::vector<std::string> Substitution;
++  std::vector<std::string> Affix;
++  bool IsPrefix;
++};
++
++TemplateInsts getTemplateInsts(const Record *R) {
++  TemplateInsts temp;
++  auto Substitutions = R->getValueAsListOfStrings("Substitutions");
++  auto Affixes = R->getValueAsListOfStrings("Affixes");
++  temp.IsPrefix = R->getValueAsBit("AsPrefix");
++
++  if (Substitutions.size() != Affixes.size())
++    PrintFatalError(R->getLoc(), "Substitutions and affixes "
++                                 "don't have the same lengths");
++
++  for (auto [Affix, Substitution] : zip(Affixes, Substitutions)) {
++    temp.Substitution.emplace_back(Substitution);
++    temp.Affix.emplace_back(Affix);
++  }
++  return temp;
++}
++
++void collectBuiltins(const Record *BuiltinRecord,
++                     SmallVectorImpl<Builtin> &Builtins) {
++  TemplateInsts Templates = {};
++  if (BuiltinRecord->isSubClassOf("Template")) {
++    Templates = getTemplateInsts(BuiltinRecord);
++  } else {
++    Templates.Affix.emplace_back();
++    Templates.Substitution.emplace_back();
++  }
++
++  for (auto [Substitution, Affix] :
++       zip(Templates.Substitution, Templates.Affix)) {
++    for (StringRef Spelling :
++         BuiltinRecord->getValueAsListOfStrings("Spellings")) {
++      auto FullSpelling =
++          (Templates.IsPrefix ? Affix + Spelling : Spelling + Affix).str();
++      BuiltinType BT = BuiltinType::Builtin;
++      if (BuiltinRecord->isSubClassOf("AtomicBuiltin")) {
++        BT = BuiltinType::AtomicBuiltin;
++      } else if (BuiltinRecord->isSubClassOf("LangBuiltin")) {
++        BT = BuiltinType::LangBuiltin;
++      } else if (BuiltinRecord->isSubClassOf("TargetLibBuiltin")) {
++        BT = BuiltinType::TargetLibBuiltin;
++      } else if (BuiltinRecord->isSubClassOf("TargetBuiltin")) {
++        BT = BuiltinType::TargetBuiltin;
++      } else if (BuiltinRecord->isSubClassOf("LibBuiltin")) {
++        BT = BuiltinType::LibBuiltin;
++        if (BuiltinRecord->getValueAsBit("AddBuiltinPrefixedAlias"))
++          Builtins.push_back(buildBuiltin(
++              Substitution, BuiltinRecord,
++              std::string("__builtin_") + FullSpelling, BuiltinType::Builtin));
++      }
++      Builtins.push_back(
++          buildBuiltin(Substitution, BuiltinRecord, FullSpelling, BT));
++    }
++  }
++}
++} // namespace
++
++void clang::EmitAroBuiltins(const RecordKeeper &Records, raw_ostream &OS) {
++  OS << "# Generated from " << Records.getInputFilename() << "\n\n";
++
++  SmallVector<Builtin> Builtins;
++  // AtomicBuiltins are order dependent. Emit them first to make manual checking
++  // easier and so we can build a special atomic builtin X-macro.
++  for (const auto *BuiltinRecord :
++       Records.getAllDerivedDefinitions("AtomicBuiltin"))
++    collectBuiltins(BuiltinRecord, Builtins);
++
++  for (const auto *BuiltinRecord :
++       Records.getAllDerivedDefinitions("Builtin")) {
++    if (BuiltinRecord->isSubClassOf("AtomicBuiltin"))
++      continue;
++    // Prefixed builtins are also special and we emit them last so they can have
++    // their own representation that skips the prefix.
++    if (BuiltinRecord->getValueAsOptionalDef("RequiredNamePrefix"))
++      continue;
++
++    collectBuiltins(BuiltinRecord, Builtins);
++  }
++
++  // Now collect (and count) the prefixed builtins.
++  const Record *FirstPrefix = nullptr;
++  for (const auto *BuiltinRecord :
++       Records.getAllDerivedDefinitions("Builtin")) {
++    auto *Prefix = BuiltinRecord->getValueAsOptionalDef("RequiredNamePrefix");
++    if (!Prefix)
++      continue;
++
++    if (!FirstPrefix)
++      FirstPrefix = Prefix;
++    assert(Prefix == FirstPrefix &&
++           "Multiple distinct prefixes which is not currently supported!");
++    assert(!BuiltinRecord->isSubClassOf("AtomicBuiltin") &&
++           "Cannot require a name prefix for an atomic builtin.");
++    collectBuiltins(BuiltinRecord, Builtins);
++  }
++
++  for (const auto &B : Builtins) {
++    if (B.BT == BuiltinType::LibBuiltin || B.BT == BuiltinType::LangBuiltin ||
++        B.BT == BuiltinType::TargetLibBuiltin) {
++
++      auto Lang = StringSwitch<bool>(B.BuiltinRecord->getValueAsString("Languages"))
++          .Case("ALL_LANGUAGES", true)
++          .Case("ALL_MS_LANGUAGES", true)
++          .Case("ALL_GNU_LANGUAGES", true)
++          .Case("GNU_LANG", true)
++          .Case("C23_LANG", true)
++          .Default(false);
++        
++      if (!Lang) continue;
++    }
++
++    B.EmitEnumerator(OS);
++    B.EmitInfo(OS);
++  }
++}
++
++#define NO_DEFS
++#include "NeonEmitter.cpp"
++
++void clang::EmitAroNeonBuiltins(const RecordKeeper &Records, raw_ostream &OS) {
++  auto NE = NeonEmitter(Records);
++
++  // We only want to emit a builtin once, and in order of its name.
++  std::map<std::string, Intrinsic *> Builtins;
++
++  llvm::StringToOffsetTable Table;
++  Table.GetOrAddStringOffset("");
++  Table.GetOrAddStringOffset("n");
++
++  SmallVector<Intrinsic *, 128> Defs;
++  for (const Record *R : Records.getAllDerivedDefinitions("Inst"))
++    NE.createIntrinsic(R, Defs);
++
++  for (auto *Def : Defs) {
++    if (Def->hasBody())
++      continue;
++
++    if (Builtins.insert({Def->getMangledName(), Def}).second) {
++      Table.GetOrAddStringOffset(Def->getMangledName());
++    }
++  }
++
++  OS << "# Generated from " << Records.getInputFilename() << "\n\n";
++  for (const auto &[Name, Def] : Builtins) {
++
++    OS << "__builtin_neon_" << Def->getMangledName() << "\n";
++    OS << "    .param_str = \"" << Def->getBuiltinTypeStr() << "\"\n";
++    OS << "    .features = \"";
++
++    auto Features = Def->getTargetGuard();
++    for (char c : Features) {
++      if (c == '.' || c == '-')
++        OS <<'_';
++      else
++        OS << c;
++    }
++    OS << "\"\n\n";
++  }
++}
+diff --git c/clang/utils/TableGen/CMakeLists.txt i/clang/utils/TableGen/CMakeLists.txt
+index 8b5e00c18..1d699fd29 100644
+--- c/clang/utils/TableGen/CMakeLists.txt
++++ i/clang/utils/TableGen/CMakeLists.txt
+@@ -27,6 +27,7 @@ add_tablegen(clang-tblgen CLANG
+   RISCVVEmitter.cpp
+   SveEmitter.cpp
+   TableGen.cpp
++  AroBuiltinsEmitter.cpp
+   )
+ 
+ target_link_libraries(clang-tblgen PRIVATE clangSupport_tablegen)
+diff --git c/clang/utils/TableGen/NeonEmitter.cpp i/clang/utils/TableGen/NeonEmitter.cpp
+index 6c90b55db..daf492c1c 100644
+--- c/clang/utils/TableGen/NeonEmitter.cpp
++++ i/clang/utils/TableGen/NeonEmitter.cpp
+@@ -576,6 +576,7 @@ class NeonEmitter {
+   std::map<std::string, std::deque<Intrinsic>, std::less<>> IntrinsicMap;
+   unsigned UniqueNumber;
+ 
++public:
+   void createIntrinsic(const Record *R, SmallVectorImpl<Intrinsic *> &Out);
+   void genBuiltinsDef(raw_ostream &OS, SmallVectorImpl<Intrinsic *> &Defs);
+   void genStreamingSVECompatibleList(raw_ostream &OS,
+@@ -2794,6 +2795,7 @@ void NeonEmitter::runBF16(raw_ostream &OS) {
+   OS << "#endif\n";
+ }
+ 
++#ifndef NO_DEFS
+ void clang::EmitNeon(const RecordKeeper &Records, raw_ostream &OS) {
+   NeonEmitter(Records).run(OS);
+ }
+@@ -2817,3 +2819,5 @@ void clang::EmitVectorTypes(const RecordKeeper &Records, raw_ostream &OS) {
+ void clang::EmitNeonTest(const RecordKeeper &Records, raw_ostream &OS) {
+   llvm_unreachable("Neon test generation no longer implemented!");
+ }
++
++#endif
+\ No newline at end of file
+diff --git c/clang/utils/TableGen/TableGen.cpp i/clang/utils/TableGen/TableGen.cpp
+index cc02b0816..c79019383 100644
+--- c/clang/utils/TableGen/TableGen.cpp
++++ i/clang/utils/TableGen/TableGen.cpp
+@@ -50,6 +50,8 @@ enum ActionType {
+   GenClangBasicReader,
+   GenClangBasicWriter,
+   GenClangBuiltins,
++  GenAroBuiltins,
++  GenAroNeonBuiltins,
+   GenClangBuiltinTemplates,
+   GenClangDiagsCompatIDs,
+   GenClangDiagsDefs,
+@@ -197,6 +199,10 @@ cl::opt<ActionType> Action(
+                    "Generate a list of undocumented attributes"),
+         clEnumValN(GenClangBuiltins, "gen-clang-builtins",
+                    "Generate clang builtins list"),
++        clEnumValN(GenAroBuiltins, "gen-aro-builtins",
++                   "Generate Aro builtins list"),
++        clEnumValN(GenAroNeonBuiltins, "gen-aro-neon-builtins",
++                   "Generate Aro Neon builtins list"),
+         clEnumValN(GenClangBuiltinTemplates, "gen-clang-builtin-templates",
+                    "Generate clang builtins list"),
+         clEnumValN(GenClangDiagsCompatIDs, "gen-clang-diags-compat-ids",
+@@ -460,6 +466,12 @@ bool ClangTableGenMain(raw_ostream &OS, const RecordKeeper &Records) {
+   case GenClangBuiltins:
+     EmitClangBuiltins(Records, OS);
+     break;
++  case GenAroBuiltins:
++    EmitAroBuiltins(Records, OS);
++    break;
++  case GenAroNeonBuiltins:
++    EmitAroNeonBuiltins(Records, OS);
++    break;
+   case GenClangBuiltinTemplates:
+     EmitClangBuiltinTemplates(Records, OS);
+     break;
+diff --git c/clang/utils/TableGen/TableGenBackends.h i/clang/utils/TableGen/TableGenBackends.h
+index 87a6ddda2..1777d5f5d 100644
+--- c/clang/utils/TableGen/TableGenBackends.h
++++ i/clang/utils/TableGen/TableGenBackends.h
+@@ -97,6 +97,10 @@ void EmitClangBuiltins(const llvm::RecordKeeper &Records,
+                        llvm::raw_ostream &OS);
+ void EmitClangBuiltinDocs(const llvm::RecordKeeper &Records,
+                           llvm::raw_ostream &OS);
++void EmitAroBuiltins(const llvm::RecordKeeper &Records,
++                       llvm::raw_ostream &OS);
++void EmitAroNeonBuiltins(const llvm::RecordKeeper &Records,
++                       llvm::raw_ostream &OS);
+ void EmitClangBuiltinTemplates(const llvm::RecordKeeper &Records,
+                                llvm::raw_ostream &OS);
+ 
+diff --git c/update_builtin_defs.zig i/update_builtin_defs.zig
+new file mode 100644
+index 000000000..8f0c4bfeb
+--- /dev/null
++++ i/update_builtin_defs.zig
+@@ -0,0 +1,469 @@
++const std = @import("std");
++const Allocator = std.mem.Allocator;
++const properties = @import("properties");
++
++const Builtin = struct {
++    param_str: [*:0]const u8,
++    language: properties.Language = .all_languages,
++    attributes: properties.Attributes = .{},
++    header: properties.Header = .none,
++    features: ?[*:0]const u8 = null,
++};
++
++const Headers = struct {
++    name: []const u8,
++    paths: []const []const u8,
++    /// Override the path mentioned in the comment in the generated .def file
++    generate_override: ?[]const u8 = null,
++};
++
++const headers = [_]Headers{
++    .{
++        .name = "aarch64_neon.def",
++        .paths = &.{
++            "-DGET_SVE_BUILTINS",
++            "clang/include/clang/Basic/BuiltinsAArch64NeonSVEBridge.def",
++        },
++        .generate_override = "clang/include/clang/Basic/BuiltinsAArch64NeonSVEBridge.def",
++    },
++    .{
++        .name = "arm.def",
++        .paths = &.{"clang/include/clang/Basic/BuiltinsARM.def"},
++    },
++    .{
++        .name = "loongarch.def",
++        .paths = &.{
++            "clang/include/clang/Basic/BuiltinsLoongArchBase.def",
++            "clang/include/clang/Basic/BuiltinsLoongArchLASX.def",
++            "clang/include/clang/Basic/BuiltinsLoongArchLSX.def",
++        },
++        .generate_override = "clang/include/clang/Basic/BuiltinsLoongArch*.def",
++    },
++    .{
++        .name = "mips.def",
++        .paths = &.{"clang/include/clang/Basic/BuiltinsMips.def"},
++    },
++    .{
++        .name = "powerpc.def",
++        .paths = &.{
++            "clang/include/clang/Basic/BuiltinsPPC.def",
++            "-DBUILTIN=BUILTIN", // to avoid the #ifndefs
++            "-DTARGET_BUILTIN=TARGET_BUILTIN",
++            "-DCUSTOM_BUILTIN=CUSTOM_BUILTIN",
++        },
++    },
++    .{
++        .name = "ve.def",
++        .paths = &.{"clang/include/clang/Basic/BuiltinsVE.def"},
++    },
++    .{
++        .name = "wasm.def",
++        .paths = &.{"clang/include/clang/Basic/BuiltinsWebAssembly.def"},
++    },
++    .{
++        .name = "xcore.def",
++        .paths = &.{"clang/include/clang/Basic/BuiltinsXCore.def"},
++    },
++};
++const Table = struct {
++    name: []const u8,
++    path: []const u8,
++    command: []const u8 = "-gen-aro-builtins",
++};
++const tables = [_]Table{
++    .{
++        .name = "amdgcn.def",
++        .path = "clang/include/clang/Basic/BuiltinsAMDGPU.td",
++    },
++    .{
++        .name = "bpf.def",
++        .path = "clang/include/clang/Basic/BuiltinsBPF.td",
++    },
++    .{
++        .name = "common.def",
++        .path = "clang/include/clang/Basic/Builtins.td",
++    },
++    .{
++        .name = "hexagon.def",
++        .path = "clang/include/clang/Basic/BuiltinsHexagon.td",
++    },
++    .{
++        .name = "nvptx.def",
++        .path = "clang/include/clang/Basic/BuiltinsNVPTX.td",
++    },
++    .{
++        .name = "riscv.def",
++        .path = "clang/include/clang/Basic/BuiltinsRISCV.td",
++    },
++    .{
++        .name = "s390x.def",
++        .path = "clang/include/clang/Basic/BuiltinsSystemZ.td",
++    },
++    .{
++        .name = "x86_64.def",
++        .path = "clang/include/clang/Basic/BuiltinsX86_64.td",
++    },
++    .{
++        .name = "x86.def",
++        .path = "clang/include/clang/Basic/BuiltinsX86.td",
++    },
++    .{
++        .name = "neon.def",
++        .path = "clang/include/clang/Basic/arm_neon.td",
++        .command = "-gen-aro-neon-builtins",
++    },
++};
++
++pub fn main(init: std.process.Init) !void {
++    const gpa = init.gpa;
++    const arena = init.arena.allocator();
++
++    var args_it = try init.minimal.args.iterateAllocator(gpa);
++    defer args_it.deinit();
++
++    _ = args_it.next();
++    const zig_exe = args_it.next().?;
++    const tablegen_exe = args_it.next().?;
++    const output_path = args_it.next().?;
++
++    var output_dir = try std.Io.Dir.cwd().openDir(init.io, output_path, .{});
++    defer output_dir.close(init.io);
++
++    for (headers) |header_list| {
++        const def_contents = blk: {
++            var argv: std.ArrayList([]const u8) = .empty;
++            defer argv.deinit(gpa);
++
++            try argv.appendSlice(gpa, &.{ zig_exe, "clang", "-I", "clang/include", "-E", "-x", "c" });
++            try argv.appendSlice(gpa, header_list.paths);
++            const result = try std.process.run(gpa, init.io, .{
++                .argv = argv.items,
++            });
++            if (result.term != .exited or result.term.exited != 0) {
++                const cmd = try std.mem.join(gpa, " ", argv.items);
++                std.debug.print("'{s}' failed\ncheck if .def was converted to .td and move the target from the 'headers' array to the 'tables' array\n", .{cmd});
++                std.process.exit(1);
++            }
++            gpa.free(result.stderr);
++            break :blk result.stdout;
++        };
++        defer gpa.free(def_contents);
++
++        var set: std.StringArrayHashMapUnmanaged(Builtin) = .empty;
++        defer set.deinit(gpa);
++
++        var line_it = std.mem.tokenizeAny(u8, def_contents, "\r\n");
++        while (line_it.next()) |line| {
++            var param_it = MacroIterator.init(line);
++            const macro_str = param_it.next() orelse continue;
++            const macro = std.meta.stringToEnum(Macro, macro_str) orelse continue;
++
++            switch (macro) {
++                .ATOMIC_BUILTIN => {
++                    std.debug.print("TODO unhandled macro type {t}\n", .{macro});
++                    continue;
++                },
++                else => {},
++            }
++
++            const name = param_it.next() orelse continue;
++            const params = param_it.next() orelse continue;
++            const param_without_quotes = params[1 .. params.len - 1];
++            if (param_without_quotes.len == 0) {
++                // pthread_create has an empty string as its params, so skip it
++                if (std.mem.eql(u8, name, "pthread_create")) continue;
++                std.debug.print("{s}: failed to parse param string: {s}\n", .{ name, params });
++                return error.InvalidParamString;
++            }
++
++            const param_str = try arena.dupeSentinel(u8, param_without_quotes, 0);
++
++            // skip anything with & in it since that's 'by reference'
++            if (std.mem.indexOfScalar(u8, param_without_quotes, '&') != null) {
++                std.debug.print("{s}: '&' in params str '{s}', skipping\n", .{ name, param_without_quotes });
++                continue;
++            }
++
++            const attrs_str = param_it.next() orelse continue;
++            const attrs = attributesFromString(attrs_str);
++
++            var builtin: Builtin = .{
++                .param_str = param_str,
++                .attributes = attrs,
++            };
++            var features: ?[:0]u8 = null;
++
++            switch (macro) {
++                .BUILTIN => {}, // no further params
++                .LANGBUILTIN => {
++                    const lang = param_it.next() orelse continue;
++                    builtin.language = allowed_languages_map.get(lang) orelse {
++                        std.debug.print("{s}: unknown language '{s}', skipping\n", .{ name, lang });
++                        continue;
++                    };
++                },
++                .LIBBUILTIN => {
++                    const header = param_it.next() orelse continue;
++                    builtin.header = header_map.get(header) orelse {
++                        std.debug.print("{s}: unknown header '{s}', skipping\n", .{ name, header });
++                        continue;
++                    };
++                    const lang = param_it.next() orelse continue;
++                    builtin.language = allowed_languages_map.get(lang) orelse {
++                        std.debug.print("{s}: unknown language '{s}', skipping\n", .{ name, lang });
++                        continue;
++                    };
++                },
++                .TARGET_BUILTIN => {
++                    const feature = param_it.next() orelse continue;
++                    if (feature.len > 2) {
++                        features = try arena.dupeSentinel(u8, feature, 0);
++                    }
++                },
++                .TARGET_HEADER_BUILTIN => {
++                    const header = param_it.next() orelse continue;
++                    builtin.header = header_map.get(header) orelse {
++                        std.debug.print("{s}: unknown header '{s}', skipping\n", .{ name, header });
++                        continue;
++                    };
++                    const lang = param_it.next() orelse continue;
++                    builtin.language = allowed_languages_map.get(lang) orelse {
++                        std.debug.print("{s}: unknown language '{s}', skipping\n", .{ name, lang });
++                        continue;
++                    };
++                    const feature = param_it.next() orelse continue;
++                    if (feature.len > 2) {
++                        features = try arena.dupeSentinel(u8, feature, 0);
++                    }
++                },
++                else => @panic("TODO unsupported BUILTIN macro"),
++            }
++
++            if (!param_it.isAtEnd()) {
++                std.debug.print("{s}: expected end of macro but '{s}' remains, skipping\n", .{ name, param_it.token_it.buffer[param_it.token_it.index..] });
++                continue;
++            }
++
++            if (features) |some| {
++                std.mem.replaceScalar(u8, some, '-', '_');
++                std.mem.replaceScalar(u8, some, '.', '_');
++                builtin.features = some.ptr;
++            }
++
++            const result = try set.getOrPut(gpa, name);
++            if (result.found_existing) std.debug.panic("duplicate builtin {s}\n", .{name});
++            result.key_ptr.* = try arena.dupe(u8, name);
++            result.value_ptr.* = builtin;
++        }
++
++        set.sort(struct {
++            names: []const []const u8,
++            pub fn lessThan(ctx: @This(), a: usize, b: usize) bool {
++                return std.mem.lessThan(u8, ctx.names[a], ctx.names[b]);
++            }
++        }{
++            .names = set.keys(),
++        });
++
++        var output_file = try output_dir.createFile(init.io, header_list.name, .{});
++        defer output_file.close(init.io);
++
++        var file_writer = output_file.writer(init.io, &.{});
++        const writer = &file_writer.interface;
++        try writeData(writer, header_list.generate_override orelse header_list.paths[0], set.keys(), set.values());
++
++        try writer.flush();
++    }
++
++    for (tables) |table| {
++        var argv: std.ArrayList([]const u8) = .empty;
++        defer argv.deinit(gpa);
++
++        try argv.appendSlice(gpa, &.{ tablegen_exe, table.command, "-I", "clang/include", "-I", "clang/include/clang/Basic" });
++        try argv.append(gpa, table.path);
++        const result = try std.process.run(gpa, init.io, .{
++            .argv = argv.items,
++        });
++        if (result.term != .exited or result.term.exited != 0) {
++            const cmd = try std.mem.join(gpa, " ", argv.items);
++            std.debug.print("'{s}' failed\nAroBuiltinsEmitter.cpp needs to be updated to match the one in ClangBuiltinsEmitter.cpp - check the diff and apply all relevant changes\n", .{cmd});
++            std.process.exit(1);
++        }
++        gpa.free(result.stderr);
++        defer gpa.free(result.stdout);
++
++        var output_file = try output_dir.createFile(init.io, table.name, .{});
++        defer output_file.close(init.io);
++
++        var file_writer = output_file.writer(init.io, &.{});
++        const writer = &file_writer.interface;
++
++        try writer.writeAll(result.stdout);
++    }
++}
++
++fn writeData(writer: *std.Io.Writer, path: []const u8, keys: []const []const u8, values: []const Builtin) !void {
++    try writer.print("# Generated from {s}\n\n", .{path});
++
++    for (keys, values) |name, builtin| {
++        try writer.print("{f}\n", .{std.zig.fmtIdP(name)});
++        try writer.print("    .param_str = \"{s}\"\n", .{builtin.param_str});
++        if (builtin.header != .none) {
++            try writer.print("    .header = .{t}\n", .{builtin.header});
++        }
++        if (builtin.language != .all_languages) {
++            try writer.print("    .language = .{t}\n", .{builtin.language});
++        }
++        if (!allDefaultAttributes(builtin.attributes)) {
++            try writer.writeAll("    .attributes = .{");
++            var first = true;
++            const S = @typeInfo(@TypeOf(builtin.attributes)).@"struct";
++            inline for (S.field_types, S.field_names, S.field_attrs) |field_type, field_name, field_attrs| {
++                const default = @as(*align(1) const field_type, @ptrCast(field_attrs.default_value_ptr.?)).*;
++                if (@field(builtin.attributes, field_name) != default) {
++                    if (!first) try writer.writeAll(",");
++                    first = false;
++                    try writer.print(" .{f} = ", .{std.zig.fmtId(field_name)});
++                    switch (@typeInfo(field_type)) {
++                        .@"enum" => {
++                            try writer.print(".{f}", .{std.zig.fmtId(@tagName(@field(builtin.attributes, field_name)))});
++                        },
++                        .bool, .int => {
++                            try writer.print("{}", .{@field(builtin.attributes, field_name)});
++                        },
++                        else => @compileError("unsupported field type in attributes"),
++                    }
++                }
++            }
++            try writer.writeAll(" }\n");
++        }
++        if (builtin.features) |feature| {
++            try writer.print("    .features = {s}\n", .{feature});
++        }
++        try writer.writeAll("\n");
++    }
++}
++
++fn allDefaultAttributes(attributes: properties.Attributes) bool {
++    const S = @typeInfo(@TypeOf(attributes)).@"struct";
++    inline for (S.field_types, S.field_names, S.field_attrs) |field_type, field_name, field_attrs| {
++        if (field_attrs.default_value_ptr) |default_ptr| {
++            const default = @as(*align(1) const field_type, @ptrCast(default_ptr)).*;
++            if (@field(attributes, field_name) != default) return false;
++        } else {
++            @panic("field with no default in Attributes");
++        }
++    }
++    return true;
++}
++
++const header_map = std.StaticStringMap(properties.Header).initComptime(.{
++    .{ "NO_HEADER", .none },
++    .{ "STDIO_H", .stdio },
++    .{ "STDLIB_H", .stdlib },
++    .{ "SETJMPEX_H", .setjmpex },
++    .{ "STDARG_H", .stdarg },
++    .{ "STRING_H", .string },
++    .{ "CTYPE_H", .ctype },
++    .{ "WCHAR_H", .wchar },
++    .{ "SETJMP_H", .setjmp },
++    .{ "MALLOC_H", .malloc },
++    .{ "STRINGS_H", .strings },
++    .{ "UNISTD_H", .unistd },
++    .{ "PTHREAD_H", .pthread },
++    // .{ "OBJC_MESSAGE_H", .objc_message },
++    // .{ "OBJC_RUNTIME_H", .objc_runtime },
++    // .{ "OBJC_OBJC_AUTO_H", .objc_objc_auto },
++    // .{ "OBJC_OBJC_EXCEPTION_H", .objc_objc_exception },
++    // .{ "OBJC_OBJC_SYNC_H", .objc_objc_sync },
++    // .{ "FOUNDATION_NSOBJCRUNTIME_H", .Foundation_NSObjCRuntime },
++    .{ "MATH_H", .math },
++    .{ "COMPLEX_H", .complex },
++    .{ "BLOCKS_H", .blocks },
++    // .{ "MEMORY", .memory },
++    // .{ "UTILITY", .utility },
++    .{ "INTRIN_H", .intrin },
++    .{ "IMMINTRIN_H", .immintrin },
++    .{ "XMMINTRIN_H", .xmmintrin },
++    .{ "EMMINTRIN_H", .emmintrin },
++    .{ "MMINTRIN_H", .mmintrin },
++    .{ "ARMACLE_H", .arm_acle },
++    .{ "ARM_ACLE_H", .arm_acle },
++});
++
++const allowed_languages_map = std.StaticStringMap(properties.Language).initComptime(.{
++    .{ "ALL_LANGUAGES", .all_languages },
++    .{ "ALL_MS_LANGUAGES", .all_ms_languages },
++    .{ "ALL_GNU_LANGUAGES", .all_gnu_languages },
++    .{ "GNU_LANG", .gnu_lang },
++    .{ "C23_LANG", .c23_lang },
++});
++
++fn attributesFromString(str: []const u8) properties.Attributes {
++    var attrs = properties.Attributes{};
++    attrs.noreturn = std.mem.indexOfScalar(u8, str, 'r') != null;
++    attrs.pure = std.mem.indexOfScalar(u8, str, 'U') != null;
++    attrs.@"const" = std.mem.indexOfScalar(u8, str, 'c') != null;
++    attrs.custom_typecheck = std.mem.indexOfScalar(u8, str, 't') != null;
++    attrs.allow_type_mismatch = std.mem.indexOfScalar(u8, str, 'T') != null;
++    attrs.lib_function_with_builtin_prefix = std.mem.indexOfScalar(u8, str, 'F') != null;
++    attrs.lib_function_without_prefix = std.mem.indexOfScalar(u8, str, 'f') != null;
++    attrs.returns_twice = std.mem.indexOfScalar(u8, str, 'j') != null;
++    attrs.eval_args = std.mem.indexOfScalar(u8, str, 'u') == null; // flipped
++    attrs.const_without_errno_and_fp_exceptions = std.mem.indexOfScalar(u8, str, 'e') != null;
++    attrs.const_without_fp_exceptions = std.mem.indexOfScalar(u8, str, 'g') != null;
++    attrs.const_evaluable = std.mem.indexOfScalar(u8, str, 'E') != null;
++    if (std.mem.indexOfAny(u8, str, "sSpP")) |pos| {
++        attrs.format_kind = switch (str[pos]) {
++            'p' => .printf,
++            'P' => .vprintf,
++            's' => .scanf,
++            'S' => .vscanf,
++            else => unreachable,
++        };
++        std.debug.assert(str[pos + 1] == ':');
++        std.debug.assert(std.ascii.isDigit(str[pos + 2]));
++        std.debug.assert(str[pos + 3] == ':');
++        const num = str[pos + 2] - '0';
++        attrs.format_string_position = @intCast(num);
++    }
++    return attrs;
++}
++
++const Macro = enum {
++    BUILTIN,
++    LANGBUILTIN,
++    LIBBUILTIN,
++    TARGET_BUILTIN,
++    TARGET_HEADER_BUILTIN,
++    ATOMIC_BUILTIN, // TODO
++};
++
++const MacroIterator = struct {
++    token_it: std.mem.TokenIterator(u8, .any),
++
++    pub fn init(line: []const u8) MacroIterator {
++        return .{
++            .token_it = std.mem.tokenizeAny(u8, line, "(, )"),
++        };
++    }
++
++    pub fn next(self: *MacroIterator) ?[]const u8 {
++        var value = self.token_it.next() orelse return null;
++        // value.len is always > 0 since we're using TokenIterator
++        if (value[0] == '"') {
++            if (value[value.len - 1] == '"') return value;
++            // If the value starts with a quote, we don't want delimiters to break the quoted string,
++            // so keep appending values to the len until we find the end of the quoted string
++            const end_index = std.mem.findScalar(u8, self.token_it.buffer[self.token_it.index..], '"').? + 1;
++            self.token_it.index += end_index;
++            const new_value = value.ptr[0 .. value.len + end_index];
++            return new_value;
++        }
++        return value;
++    }
++
++    pub fn isAtEnd(self: *MacroIterator) bool {
++        return self.token_it.buffer[self.token_it.index] == ')';
++    }
++};

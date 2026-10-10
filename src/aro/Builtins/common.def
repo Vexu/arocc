@@ -98,6 +98,22 @@ __atomic_fetch_and
     .param_str = "v."
     .attributes = .{ .custom_typecheck = true }
 
+__atomic_fetch_fmaximum
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__atomic_fetch_fmaximum_num
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__atomic_fetch_fminimum
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__atomic_fetch_fminimum_num
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
 __atomic_fetch_max
     .param_str = "v."
     .attributes = .{ .custom_typecheck = true }
@@ -359,6 +375,22 @@ __scoped_atomic_fetch_add
     .attributes = .{ .custom_typecheck = true }
 
 __scoped_atomic_fetch_and
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__scoped_atomic_fetch_fmaximum
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__scoped_atomic_fetch_fmaximum_num
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__scoped_atomic_fetch_fminimum
+    .param_str = "v."
+    .attributes = .{ .custom_typecheck = true }
+
+__scoped_atomic_fetch_fminimum_num
     .param_str = "v."
     .attributes = .{ .custom_typecheck = true }
 
@@ -892,6 +924,10 @@ __builtin_bitreverse32
 __builtin_bitreverse64
     .param_str = "UWiUWi"
     .attributes = .{ .@"const" = true, .const_evaluable = true }
+
+__builtin_bitreverseg
+    .param_str = "i."
+    .attributes = .{ .@"const" = true, .const_evaluable = true, .custom_typecheck = true }
 
 _bittest
     .param_str = "UcNiC*Ni"
@@ -1546,6 +1582,10 @@ cimagl
 __builtin___clear_cache
     .param_str = "vv*v*"
 
+__builtin_clear_padding
+    .param_str = "vv*"
+    .attributes = .{ .custom_typecheck = true }
+
 __builtin_clogf
     .param_str = "XfXf"
     .attributes = .{ .lib_function_with_builtin_prefix = true, .const_without_errno_and_fp_exceptions = true }
@@ -2088,6 +2128,10 @@ __builtin_elementwise_ceil
     .param_str = "v."
     .attributes = .{ .@"const" = true, .custom_typecheck = true }
 
+__builtin_elementwise_clmul
+    .param_str = "v."
+    .attributes = .{ .@"const" = true, .custom_typecheck = true, .const_evaluable = true }
+
 __builtin_elementwise_copysign
     .param_str = "v."
     .attributes = .{ .@"const" = true, .custom_typecheck = true }
@@ -2191,6 +2235,14 @@ __builtin_elementwise_minimumnum
 __builtin_elementwise_nearbyint
     .param_str = "v."
     .attributes = .{ .@"const" = true, .custom_typecheck = true }
+
+__builtin_elementwise_pdep
+    .param_str = "v."
+    .attributes = .{ .@"const" = true, .custom_typecheck = true, .const_evaluable = true }
+
+__builtin_elementwise_pext
+    .param_str = "v."
+    .attributes = .{ .@"const" = true, .custom_typecheck = true, .const_evaluable = true }
 
 __builtin_elementwise_popcount
     .param_str = "v."
@@ -2986,6 +3038,9 @@ __builtin___get_unsafe_stack_start
 __builtin___get_unsafe_stack_top
     .param_str = "v*"
     .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+__builtin_hlsl_resource_getpointer_typed
+    .param_str = "v."
 
 __builtin_huge_valf
     .param_str = "f"
@@ -4427,6 +4482,14 @@ __builtin_ptrauth_auth_and_resign
     .param_str = "v*v*iv*iv*"
     .attributes = .{ .custom_typecheck = true }
 
+__builtin_ptrauth_auth_load_relative_and_sign
+    .param_str = "v*v*iv*iv*Y"
+    .attributes = .{ .custom_typecheck = true }
+
+__builtin_ptrauth_auth_with_pc_and_resign
+    .param_str = "v*v*iv*v*iv*"
+    .attributes = .{ .custom_typecheck = true }
+
 __builtin_ptrauth_blend_discriminator
     .param_str = "zv*i"
     .attributes = .{ .custom_typecheck = true, .@"const" = true }
@@ -4470,6 +4533,14 @@ __builtin_reduce_add
 __builtin_reduce_and
     .param_str = "v."
     .attributes = .{ .@"const" = true, .custom_typecheck = true, .const_evaluable = true }
+
+__builtin_reduce_assoc_fadd
+    .param_str = "v."
+    .attributes = .{ .@"const" = true, .custom_typecheck = true }
+
+__builtin_reduce_in_order_fadd
+    .param_str = "v."
+    .attributes = .{ .@"const" = true, .custom_typecheck = true }
 
 __builtin_reduce_max
     .param_str = "v."
@@ -5150,6 +5221,494 @@ __builtin_ssubll_overflow
 
 __builtin_stack_address
     .param_str = "v*"
+
+__builtin_stdc_bit_ceil
+    .param_str = "v."
+    .attributes = .{ .@"const" = true, .const_evaluable = true, .custom_typecheck = true }
+
+stdc_bit_ceil_uc
+    .param_str = "UcUc"
+    .header = .stdbit
+    .language = .c23_lang
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true, .const_evaluable = true }
+
+stdc_bit_ceil_us
+    .param_str = "UsUs"
+    .header = .stdbit
+    .language = .c23_lang
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true, .const_evaluable = true }
+
+stdc_bit_ceil_ui
+    .param_str = "UiUi"
+    .header = .stdbit
+    .language = .c23_lang
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true, .const_evaluable = true }
+
+stdc_bit_ceil_ul
+    .param_str = "ULiULi"
+    .header = .stdbit
+    .language = .c23_lang
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true, .const_evaluable = true }
+
+stdc_bit_ceil_ull
+    .param_str = "ULLiULLi"
+    .header = .stdbit
+    .language = .c23_lang
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true, .const_evaluable = true }
+
+__builtin_stdc_bit_floor
+    .param_str = "v."
+    .attributes = .{ .@"const" = true, .const_evaluable = true, .custom_typecheck = true }
+
+stdc_bit_floor_uc
+    .param_str = "UcUc"
+    .header = .stdbit
+    .language = .c23_lang
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true, .const_evaluable = true }
+
+stdc_bit_floor_us
+    .param_str = "UsUs"
+    .header = .stdbit
+    .language = .c23_lang
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true, .const_evaluable = true }
+
+stdc_bit_floor_ui
+    .param_str = "UiUi"
+    .header = .stdbit
+    .language = .c23_lang
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true, .const_evaluable = true }
+
+stdc_bit_floor_ul
+    .param_str = "ULiULi"
+    .header = .stdbit
+    .language = .c23_lang
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true, .const_evaluable = true }
+
+stdc_bit_floor_ull
+    .param_str = "ULLiULLi"
+    .header = .stdbit
+    .language = .c23_lang
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true, .const_evaluable = true }
+
+__builtin_stdc_bit_width
+    .param_str = "v."
+    .attributes = .{ .@"const" = true, .const_evaluable = true, .custom_typecheck = true }
+
+stdc_bit_width_uc
+    .param_str = "UiUc"
+    .header = .stdbit
+    .language = .c23_lang
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true, .const_evaluable = true }
+
+stdc_bit_width_us
+    .param_str = "UiUs"
+    .header = .stdbit
+    .language = .c23_lang
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true, .const_evaluable = true }
+
+stdc_bit_width_ui
+    .param_str = "UiUi"
+    .header = .stdbit
+    .language = .c23_lang
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true, .const_evaluable = true }
+
+stdc_bit_width_ul
+    .param_str = "UiULi"
+    .header = .stdbit
+    .language = .c23_lang
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true, .const_evaluable = true }
+
+stdc_bit_width_ull
+    .param_str = "UiULLi"
+    .header = .stdbit
+    .language = .c23_lang
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true, .const_evaluable = true }
+
+__builtin_stdc_count_ones
+    .param_str = "v."
+    .attributes = .{ .@"const" = true, .const_evaluable = true, .custom_typecheck = true }
+
+stdc_count_ones_uc
+    .param_str = "UiUc"
+    .header = .stdbit
+    .language = .c23_lang
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true, .const_evaluable = true }
+
+stdc_count_ones_us
+    .param_str = "UiUs"
+    .header = .stdbit
+    .language = .c23_lang
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true, .const_evaluable = true }
+
+stdc_count_ones_ui
+    .param_str = "UiUi"
+    .header = .stdbit
+    .language = .c23_lang
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true, .const_evaluable = true }
+
+stdc_count_ones_ul
+    .param_str = "UiULi"
+    .header = .stdbit
+    .language = .c23_lang
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true, .const_evaluable = true }
+
+stdc_count_ones_ull
+    .param_str = "UiULLi"
+    .header = .stdbit
+    .language = .c23_lang
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true, .const_evaluable = true }
+
+__builtin_stdc_count_zeros
+    .param_str = "v."
+    .attributes = .{ .@"const" = true, .const_evaluable = true, .custom_typecheck = true }
+
+stdc_count_zeros_uc
+    .param_str = "UiUc"
+    .header = .stdbit
+    .language = .c23_lang
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true, .const_evaluable = true }
+
+stdc_count_zeros_us
+    .param_str = "UiUs"
+    .header = .stdbit
+    .language = .c23_lang
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true, .const_evaluable = true }
+
+stdc_count_zeros_ui
+    .param_str = "UiUi"
+    .header = .stdbit
+    .language = .c23_lang
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true, .const_evaluable = true }
+
+stdc_count_zeros_ul
+    .param_str = "UiULi"
+    .header = .stdbit
+    .language = .c23_lang
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true, .const_evaluable = true }
+
+stdc_count_zeros_ull
+    .param_str = "UiULLi"
+    .header = .stdbit
+    .language = .c23_lang
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true, .const_evaluable = true }
+
+__builtin_stdc_first_leading_one
+    .param_str = "v."
+    .attributes = .{ .@"const" = true, .const_evaluable = true, .custom_typecheck = true }
+
+stdc_first_leading_one_uc
+    .param_str = "UiUc"
+    .header = .stdbit
+    .language = .c23_lang
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true, .const_evaluable = true }
+
+stdc_first_leading_one_us
+    .param_str = "UiUs"
+    .header = .stdbit
+    .language = .c23_lang
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true, .const_evaluable = true }
+
+stdc_first_leading_one_ui
+    .param_str = "UiUi"
+    .header = .stdbit
+    .language = .c23_lang
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true, .const_evaluable = true }
+
+stdc_first_leading_one_ul
+    .param_str = "UiULi"
+    .header = .stdbit
+    .language = .c23_lang
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true, .const_evaluable = true }
+
+stdc_first_leading_one_ull
+    .param_str = "UiULLi"
+    .header = .stdbit
+    .language = .c23_lang
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true, .const_evaluable = true }
+
+__builtin_stdc_first_leading_zero
+    .param_str = "v."
+    .attributes = .{ .@"const" = true, .const_evaluable = true, .custom_typecheck = true }
+
+stdc_first_leading_zero_uc
+    .param_str = "UiUc"
+    .header = .stdbit
+    .language = .c23_lang
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true, .const_evaluable = true }
+
+stdc_first_leading_zero_us
+    .param_str = "UiUs"
+    .header = .stdbit
+    .language = .c23_lang
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true, .const_evaluable = true }
+
+stdc_first_leading_zero_ui
+    .param_str = "UiUi"
+    .header = .stdbit
+    .language = .c23_lang
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true, .const_evaluable = true }
+
+stdc_first_leading_zero_ul
+    .param_str = "UiULi"
+    .header = .stdbit
+    .language = .c23_lang
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true, .const_evaluable = true }
+
+stdc_first_leading_zero_ull
+    .param_str = "UiULLi"
+    .header = .stdbit
+    .language = .c23_lang
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true, .const_evaluable = true }
+
+__builtin_stdc_first_trailing_one
+    .param_str = "v."
+    .attributes = .{ .@"const" = true, .const_evaluable = true, .custom_typecheck = true }
+
+stdc_first_trailing_one_uc
+    .param_str = "UiUc"
+    .header = .stdbit
+    .language = .c23_lang
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true, .const_evaluable = true }
+
+stdc_first_trailing_one_us
+    .param_str = "UiUs"
+    .header = .stdbit
+    .language = .c23_lang
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true, .const_evaluable = true }
+
+stdc_first_trailing_one_ui
+    .param_str = "UiUi"
+    .header = .stdbit
+    .language = .c23_lang
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true, .const_evaluable = true }
+
+stdc_first_trailing_one_ul
+    .param_str = "UiULi"
+    .header = .stdbit
+    .language = .c23_lang
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true, .const_evaluable = true }
+
+stdc_first_trailing_one_ull
+    .param_str = "UiULLi"
+    .header = .stdbit
+    .language = .c23_lang
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true, .const_evaluable = true }
+
+__builtin_stdc_first_trailing_zero
+    .param_str = "v."
+    .attributes = .{ .@"const" = true, .const_evaluable = true, .custom_typecheck = true }
+
+stdc_first_trailing_zero_uc
+    .param_str = "UiUc"
+    .header = .stdbit
+    .language = .c23_lang
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true, .const_evaluable = true }
+
+stdc_first_trailing_zero_us
+    .param_str = "UiUs"
+    .header = .stdbit
+    .language = .c23_lang
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true, .const_evaluable = true }
+
+stdc_first_trailing_zero_ui
+    .param_str = "UiUi"
+    .header = .stdbit
+    .language = .c23_lang
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true, .const_evaluable = true }
+
+stdc_first_trailing_zero_ul
+    .param_str = "UiULi"
+    .header = .stdbit
+    .language = .c23_lang
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true, .const_evaluable = true }
+
+stdc_first_trailing_zero_ull
+    .param_str = "UiULLi"
+    .header = .stdbit
+    .language = .c23_lang
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true, .const_evaluable = true }
+
+__builtin_stdc_has_single_bit
+    .param_str = "b."
+    .attributes = .{ .@"const" = true, .const_evaluable = true, .custom_typecheck = true }
+
+stdc_has_single_bit_uc
+    .param_str = "bUc"
+    .header = .stdbit
+    .language = .c23_lang
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true, .const_evaluable = true }
+
+stdc_has_single_bit_us
+    .param_str = "bUs"
+    .header = .stdbit
+    .language = .c23_lang
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true, .const_evaluable = true }
+
+stdc_has_single_bit_ui
+    .param_str = "bUi"
+    .header = .stdbit
+    .language = .c23_lang
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true, .const_evaluable = true }
+
+stdc_has_single_bit_ul
+    .param_str = "bULi"
+    .header = .stdbit
+    .language = .c23_lang
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true, .const_evaluable = true }
+
+stdc_has_single_bit_ull
+    .param_str = "bULLi"
+    .header = .stdbit
+    .language = .c23_lang
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true, .const_evaluable = true }
+
+__builtin_stdc_leading_ones
+    .param_str = "v."
+    .attributes = .{ .@"const" = true, .const_evaluable = true, .custom_typecheck = true }
+
+stdc_leading_ones_uc
+    .param_str = "UiUc"
+    .header = .stdbit
+    .language = .c23_lang
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true, .const_evaluable = true }
+
+stdc_leading_ones_us
+    .param_str = "UiUs"
+    .header = .stdbit
+    .language = .c23_lang
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true, .const_evaluable = true }
+
+stdc_leading_ones_ui
+    .param_str = "UiUi"
+    .header = .stdbit
+    .language = .c23_lang
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true, .const_evaluable = true }
+
+stdc_leading_ones_ul
+    .param_str = "UiULi"
+    .header = .stdbit
+    .language = .c23_lang
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true, .const_evaluable = true }
+
+stdc_leading_ones_ull
+    .param_str = "UiULLi"
+    .header = .stdbit
+    .language = .c23_lang
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true, .const_evaluable = true }
+
+__builtin_stdc_leading_zeros
+    .param_str = "v."
+    .attributes = .{ .@"const" = true, .const_evaluable = true, .custom_typecheck = true }
+
+stdc_leading_zeros_uc
+    .param_str = "UiUc"
+    .header = .stdbit
+    .language = .c23_lang
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true, .const_evaluable = true }
+
+stdc_leading_zeros_us
+    .param_str = "UiUs"
+    .header = .stdbit
+    .language = .c23_lang
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true, .const_evaluable = true }
+
+stdc_leading_zeros_ui
+    .param_str = "UiUi"
+    .header = .stdbit
+    .language = .c23_lang
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true, .const_evaluable = true }
+
+stdc_leading_zeros_ul
+    .param_str = "UiULi"
+    .header = .stdbit
+    .language = .c23_lang
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true, .const_evaluable = true }
+
+stdc_leading_zeros_ull
+    .param_str = "UiULLi"
+    .header = .stdbit
+    .language = .c23_lang
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true, .const_evaluable = true }
+
+__builtin_stdc_memreverse8
+    .param_str = "vzUc*"
+    .attributes = .{ .lib_function_with_builtin_prefix = true }
+
+__builtin_stdc_rotate_left
+    .param_str = "v."
+    .attributes = .{ .@"const" = true, .const_evaluable = true, .custom_typecheck = true }
+
+__builtin_stdc_rotate_right
+    .param_str = "v."
+    .attributes = .{ .@"const" = true, .const_evaluable = true, .custom_typecheck = true }
+
+__builtin_stdc_trailing_ones
+    .param_str = "v."
+    .attributes = .{ .@"const" = true, .const_evaluable = true, .custom_typecheck = true }
+
+stdc_trailing_ones_uc
+    .param_str = "UiUc"
+    .header = .stdbit
+    .language = .c23_lang
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true, .const_evaluable = true }
+
+stdc_trailing_ones_us
+    .param_str = "UiUs"
+    .header = .stdbit
+    .language = .c23_lang
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true, .const_evaluable = true }
+
+stdc_trailing_ones_ui
+    .param_str = "UiUi"
+    .header = .stdbit
+    .language = .c23_lang
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true, .const_evaluable = true }
+
+stdc_trailing_ones_ul
+    .param_str = "UiULi"
+    .header = .stdbit
+    .language = .c23_lang
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true, .const_evaluable = true }
+
+stdc_trailing_ones_ull
+    .param_str = "UiULLi"
+    .header = .stdbit
+    .language = .c23_lang
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true, .const_evaluable = true }
+
+__builtin_stdc_trailing_zeros
+    .param_str = "v."
+    .attributes = .{ .@"const" = true, .const_evaluable = true, .custom_typecheck = true }
+
+stdc_trailing_zeros_uc
+    .param_str = "UiUc"
+    .header = .stdbit
+    .language = .c23_lang
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true, .const_evaluable = true }
+
+stdc_trailing_zeros_us
+    .param_str = "UiUs"
+    .header = .stdbit
+    .language = .c23_lang
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true, .const_evaluable = true }
+
+stdc_trailing_zeros_ui
+    .param_str = "UiUi"
+    .header = .stdbit
+    .language = .c23_lang
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true, .const_evaluable = true }
+
+stdc_trailing_zeros_ul
+    .param_str = "UiULi"
+    .header = .stdbit
+    .language = .c23_lang
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true, .const_evaluable = true }
+
+stdc_trailing_zeros_ull
+    .param_str = "UiULLi"
+    .header = .stdbit
+    .language = .c23_lang
+    .attributes = .{ .lib_function_without_prefix = true, .@"const" = true, .const_evaluable = true }
 
 __builtin_stpcpy
     .param_str = "c*c*cC*"
@@ -6323,3 +6882,14 @@ __xray_customevent
 
 __xray_typedevent
     .param_str = "vzcC*z"
+
+__builtin_zos_va_copy
+    .param_str = "vc**c**"
+
+__builtin_zos_va_end
+    .param_str = "vc**"
+
+__builtin_zos_va_start
+    .param_str = "vc**."
+    .attributes = .{ .custom_typecheck = true }
+
