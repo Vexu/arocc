@@ -6513,6 +6513,13 @@ const CallExpr = union(enum) {
                 .va_start,
                 => return p.checkVaStartArg(builtin_tok, first_after, param_tok, arg, arg_idx),
                 .__builtin_complex => return p.checkComplexArg(builtin_tok, first_after, param_tok, arg, arg_idx),
+                .__c11_atomic_load => if (arg_idx == 0) {
+                    const pointer = arg.qt.get(p.comp, .pointer) orelse
+                        return p.err(param_tok, .atomic_address_pointer, .{arg.qt});
+                    if (!pointer.child.is(p.comp, .atomic)) {
+                        return p.err(param_tok, .c11_atomic_address_type, .{arg.qt});
+                    }
+                },
                 .__builtin_add_overflow,
                 .__builtin_sub_overflow,
                 .__builtin_mul_overflow,
@@ -6794,9 +6801,18 @@ const CallExpr = union(enum) {
 
                 .__atomic_exchange_n,
                 .__c11_atomic_exchange,
+                .__atomic_load_n,
                 => {
-                    const second_param = args[1].qt(&p.tree);
-                    return second_param;
+                    const first_param = args[0].qt(&p.tree);
+                    const pointer = first_param.get(p.comp, .pointer) orelse return .invalid;
+                    const value_qt = pointer.child.get(p.comp, .atomic) orelse pointer.child;
+                    return value_qt.unqualified();
+                },
+
+                .__c11_atomic_load => {
+                    const pointer = args[0].qt(&p.tree).get(p.comp, .pointer) orelse return .invalid;
+                    const value_qt = pointer.child.get(p.comp, .atomic) orelse return .invalid;
+                    return value_qt.unqualified();
                 },
 
                 .__sync_fetch_and_add,
@@ -6828,16 +6844,11 @@ const CallExpr = union(enum) {
                 },
                 .__atomic_compare_exchange,
                 .__atomic_compare_exchange_n,
+                .__c11_atomic_compare_exchange_strong,
+                .__c11_atomic_compare_exchange_weak,
                 .__c11_atomic_is_lock_free,
                 .__sync_bool_compare_and_swap,
                 => .bool,
-
-                .__c11_atomic_compare_exchange_strong,
-                .__c11_atomic_compare_exchange_weak,
-                => {
-                    const third_param = args[2].qt(&p.tree);
-                    return third_param;
-                },
 
                 .__builtin_elementwise_abs,
                 .__builtin_elementwise_bitreverse,
@@ -6899,8 +6910,6 @@ const CallExpr = union(enum) {
                     const vector_ty = first_param.get(p.comp, .vector) orelse return .invalid;
                     return vector_ty.elem;
                 },
-                .__atomic_load_n,
-                .__c11_atomic_load,
                 .__builtin_nontemporal_load,
                 => {
                     const first_param = args[0].qt(&p.tree);
