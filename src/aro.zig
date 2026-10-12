@@ -26,17 +26,20 @@ pub const version_str = backend.version_str;
 pub const version = backend.version;
 
 test {
-    _ = @import("aro/annex_g.zig");
     _ = @import("aro/Builtins.zig");
-    _ = @import("aro/char_info.zig");
     _ = @import("aro/Compilation.zig");
-    _ = @import("aro/Driver/Distro.zig");
-    _ = @import("aro/Driver/GCCVersion.zig");
     _ = @import("aro/InitList.zig");
     _ = @import("aro/LangOpts.zig");
     _ = @import("aro/Preprocessor.zig");
     _ = @import("aro/Target.zig");
     _ = @import("aro/Tokenizer.zig");
-    _ = @import("aro/toolchains/Linux.zig");
+    _ = @import("aro/Toolchain/Darwin.zig");
+    _ = @import("aro/Toolchain/Distro.zig");
+    _ = @import("aro/Toolchain/GCCDetector.zig");
+    _ = @import("aro/Toolchain/GCCVersion.zig");
+    _ = @import("aro/Toolchain/Linux.zig");
+    _ = @import("aro/Toolchain/Multilib.zig");
     _ = @import("aro/Value.zig");
+    _ = @import("aro/annex_g.zig");
+    _ = @import("aro/char_info.zig");
 }
