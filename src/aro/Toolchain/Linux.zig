@@ -3,11 +3,11 @@ const mem = std.mem;
 
 const system_defaults = @import("system_defaults");
 
-const Compilation = @import("../../Compilation.zig");
-const Distro = @import("../Distro.zig");
-const GCCDetector = @import("../GCCDetector.zig");
-const Target = @import("../../Target.zig");
-const Toolchain = @import("../../Toolchain.zig");
+const Compilation = @import("../Compilation.zig");
+const Distro = @import("Distro.zig");
+const GCCDetector = @import("GCCDetector.zig");
+const Target = @import("../Target.zig");
+const Toolchain = @import("../Toolchain.zig");
 
 const Linux = @This();
 

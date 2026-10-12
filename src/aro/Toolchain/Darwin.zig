@@ -1,6 +1,6 @@
-const Target = @import("../../Target.zig");
-const Toolchain = @import("../../Toolchain.zig");
-const Compilation = @import("../../Compilation.zig");
+const Target = @import("../Target.zig");
+const Toolchain = @import("../Toolchain.zig");
+const Compilation = @import("../Compilation.zig");
 
 const std = @import("std");
 const builtin = @import("builtin");

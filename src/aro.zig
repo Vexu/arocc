@@ -33,9 +33,12 @@ test {
     _ = @import("aro/Preprocessor.zig");
     _ = @import("aro/Target.zig");
     _ = @import("aro/Tokenizer.zig");
+    _ = @import("aro/Toolchain/Darwin.zig");
     _ = @import("aro/Toolchain/Distro.zig");
+    _ = @import("aro/Toolchain/GCCDetector.zig");
     _ = @import("aro/Toolchain/GCCVersion.zig");
-    _ = @import("aro/Toolchain/toolchains/Linux.zig");
+    _ = @import("aro/Toolchain/Linux.zig");
+    _ = @import("aro/Toolchain/Multilib.zig");
     _ = @import("aro/Value.zig");
     _ = @import("aro/annex_g.zig");
     _ = @import("aro/char_info.zig");

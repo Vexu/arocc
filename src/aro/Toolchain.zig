@@ -7,8 +7,8 @@ const Compilation = @import("Compilation.zig");
 const Diagnostics = @import("Diagnostics.zig");
 const Multilib = @import("Toolchain/Multilib.zig");
 const Target = @import("Target.zig");
-const Linux = @import("Toolchain/toolchains/Linux.zig");
-const Darwin = @import("Toolchain/toolchains/Darwin.zig");
+const Linux = @import("Toolchain/Linux.zig");
+const Darwin = @import("Toolchain/Darwin.zig");
 
 pub const PathList = std.ArrayList([]const u8);
 
