@@ -2413,7 +2413,9 @@ pub fn initNamedTypes(ts: *TypeStore, comp: *Compilation) !void {
         .openbsd => .int,
         .uefi => .ushort,
         .windows => .ushort,
+        .serenity => .uint,
         else => switch (arch) {
+            .avr => .int,
             .csky => .uint,
             .loongarch32, .loongarch64 => .uint,
             .riscv32, .riscv32be, .riscv64, .riscv64be => .uint,

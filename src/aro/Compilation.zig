@@ -1368,7 +1368,9 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
         try w.print("#define __UINT24_MAX__ 16777215{s}\n", .{unsigned_suffix});
     }
     try comp.generateIntMaxAndWidth(w, "WCHAR", comp.type_store.wchar);
+    try comp.generateIntMin(w, "WCHAR", comp.type_store.wchar);
     try comp.generateIntMaxAndWidth(w, "WINT", comp.type_store.wint);
+    try comp.generateIntMin(w, "WINT", comp.type_store.wint);
     try comp.generateIntMaxAndWidth(w, "INTMAX", comp.type_store.intmax);
     try comp.generateIntMaxAndWidth(w, "SIZE", comp.type_store.size);
     try comp.generateIntMaxAndWidth(w, "UINTMAX", try comp.type_store.intmax.makeIntUnsigned(comp));
@@ -1808,6 +1810,14 @@ pub fn hasFloat128(comp: *const Compilation) bool {
 
 pub fn hasHalfPrecisionFloatABI(comp: *const Compilation) bool {
     return comp.langopts.allow_half_args_and_returns or comp.target.hasHalfPrecisionFloatABI();
+}
+
+fn generateIntMin(comp: *const Compilation, w: *Io.Writer, name: []const u8, qt: QualType) !void {
+    if (qt.signedness(comp) == .unsigned) {
+        try w.print("#define __{s}_MIN__ 0{s}\n", .{ name, qt.intValueSuffix(comp) });
+    } else {
+        try w.print("#define __{s}_MIN__ (-__{s}_MAX__ - 1)\n", .{ name, name });
+    }
 }
 
 fn generateIntMax(comp: *const Compilation, w: *Io.Writer, name: []const u8, qt: QualType) !void {
