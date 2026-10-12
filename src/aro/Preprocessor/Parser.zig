@@ -54,7 +54,7 @@ pub const Value = union(enum) {
         };
     }
 
-    fn toUnsigned(val: *Value, p: *Parser, op_tok: TokenWithExpansionLocs, opt_size: ?[]const u8) !void {
+    fn toUnsigned(val: *Value, p: *Parser, op_tok: TokenWithExpansionLocs, opt_side: ?[]const u8) !void {
         switch (val.*) {
             .unsigned => {},
             .signed => |s| {
@@ -64,7 +64,7 @@ pub const Value = union(enum) {
                 }
 
                 val.* = .init(@as(uintmax, @bitCast(s)));
-                if (opt_size) |side|
+                if (opt_side) |side|
                     try p.pp.err(op_tok, .convert_to_positive, .{ side, s, val.unsigned });
             },
         }
