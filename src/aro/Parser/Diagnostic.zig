@@ -767,14 +767,52 @@ pub const array_before: Diagnostic = .{
     .kind = .warning,
 };
 
-pub const statement_int: Diagnostic = .{
+pub const non_int_cond: Diagnostic = .{
     .fmt = "statement requires expression with integer type ({qt} invalid)",
     .kind = .@"error",
 };
 
-pub const statement_scalar: Diagnostic = .{
+pub const non_scalar_cond: Diagnostic = .{
     .fmt = "statement requires expression with scalar type ({qt} invalid)",
     .kind = .@"error",
+};
+
+pub const multiple_cond_decl: Diagnostic = .{
+    .fmt = "declaration in condition can only declare a single object",
+    .kind = .@"error",
+};
+
+pub const non_scalar_cond_decl: Diagnostic = .{
+    .fmt = "declaration in condition must have a scalar type ({qt} invalid)",
+    .kind = .@"error",
+};
+
+pub const non_int_cond_decl: Diagnostic = .{
+    .fmt = "declaration in condition must have an integer type ({qt} invalid)",
+    .kind = .@"error",
+};
+
+pub const cond_decl_variable: Diagnostic = .{
+    .fmt = "declaration in condition must be a variable",
+    .kind = .@"error",
+};
+
+pub const cond_decl_initializer: Diagnostic = .{
+    .fmt = "variable declaration in condition must have an initializer",
+    .kind = .@"error",
+};
+
+pub const c2y_selection_header: Diagnostic = .{
+    .fmt = "declarations in {s} conditions are a C2y extension",
+    .kind = .off,
+    .opt = .@"c2y-extensions",
+    .extension = true,
+};
+
+pub const pre_c2y_selection_header: Diagnostic = .{
+    .fmt = "declarations in {s} conditions are incompatible with C standards before C2y",
+    .kind = .off,
+    .opt = .@"pre-c2y-compat",
 };
 
 pub const func_should_return: Diagnostic = .{

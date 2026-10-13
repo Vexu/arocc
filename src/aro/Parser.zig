@@ -1401,6 +1401,10 @@ fn typedefDefined(p: *Parser, name: StringId, ty: QualType) void {
 ///  : declSpec (initDeclarator ( ',' initDeclarator)*)? ';'
 ///  | declSpec declarator decl* compoundStmt
 fn decl(p: *Parser) Error!bool {
+    return p.declExtra(.full);
+}
+
+fn declExtra(p: *Parser, kind: enum { simple, full }) Error!bool {
     const gpa = p.comp.gpa;
     _ = try p.pragma();
     const first_tok = p.tok_i;
@@ -1775,6 +1779,7 @@ fn decl(p: *Parser) Error!bool {
         if (completes_tentative_array) _ = p.tentative_defs.orderedRemove(.tentativeArray(interned_name));
         try p.addMaybeUnusued(decl_node);
 
+        if (kind == .simple) break;
         if (p.eatToken(.comma) == null) break;
 
         p.wip_attrs.restore(declarator_attr_state);
@@ -1801,7 +1806,7 @@ fn decl(p: *Parser) Error!bool {
         };
     }
 
-    _ = try p.expectToken(.semicolon);
+    if (kind == .full) _ = try p.expectToken(.semicolon);
     return true;
 }
 
@@ -5570,8 +5575,8 @@ fn asmStr(p: *Parser) Error!Result {
 /// stmt
 ///  : labeledStmt
 ///  | compoundStmt
-///  | keyword_if '(' expr ')' stmt (keyword_else stmt)?
-///  | keyword_switch '(' expr ')' stmt
+///  | keyword_if '(' selectionHeader ')' stmt (keyword_else stmt)?
+///  | keyword_switch '(' selectionHeader ')' stmt
 ///  | keyword_while '(' expr ')' stmt
 ///  | keyword_do stmt while '(' expr ')' ';'
 ///  | keyword_for '(' (decl | expr? ';') expr? ';' expr? ')' stmt
@@ -5600,15 +5605,9 @@ fn attributedStmt(p: *Parser, check_unused: bool) Error!Node.Index {
     const gpa = p.comp.gpa;
     if (p.eatToken(.keyword_if)) |kw_if| {
         const l_paren = try p.expectToken(.l_paren);
-
-        const cond_tok = p.tok_i;
-        var cond = try p.expect(expr);
-        try cond.lvalConversion(p);
-        try cond.usualUnaryConversion(p, cond_tok);
-        if (!cond.qt.isInvalid() and cond.qt.scalarKind(p.comp) == .none)
-            try p.err(l_paren + 1, .statement_scalar, .{cond.qt});
-        try cond.saveValue(p);
-
+        try p.syms.pushScope(p);
+        defer p.syms.popScope();
+        const opt_init, const cond = try p.selectionHeader(.scalar);
         try p.expectClosing(l_paren, .r_paren);
 
         const then_body = try p.stmt(true);
@@ -5625,31 +5624,26 @@ fn attributedStmt(p: *Parser, check_unused: bool) Error!Node.Index {
             }
         }
 
-        return p.addNode(.{ .if_stmt = .{
-            .if_tok = kw_if,
-            .cond = cond.node,
-            .then_body = then_body,
-            .else_body = else_body,
-        } });
+        return p.addNode(.{
+            .if_stmt = .{
+                .if_tok = kw_if,
+                .init = opt_init,
+                .cond = cond,
+                .then_body = then_body,
+                .else_body = else_body,
+            },
+        });
     }
     if (p.eatToken(.keyword_switch)) |kw_switch| {
         const l_paren = try p.expectToken(.l_paren);
-        const cond_tok = p.tok_i;
-        var cond = try p.expect(expr);
-        try cond.lvalConversion(p);
-        try cond.usualUnaryConversion(p, cond_tok);
-
-        // Switch condition can't be complex.
-        if (!cond.qt.isInvalid() and !cond.qt.isRealInt(p.comp)) {
-            try p.err(l_paren + 1, .statement_int, .{cond.qt});
-        }
-
-        try cond.saveValue(p);
+        try p.syms.pushScope(p);
+        defer p.syms.popScope();
+        const opt_init, const cond = try p.selectionHeader(.int);
         try p.expectClosing(l_paren, .r_paren);
 
         const old_switch = p.@"switch";
         var @"switch": Switch = .{
-            .qt = cond.qt,
+            .qt = cond.qt(&p.tree),
             .comp = p.comp,
         };
         p.@"switch" = &@"switch";
@@ -5662,7 +5656,8 @@ fn attributedStmt(p: *Parser, check_unused: bool) Error!Node.Index {
 
         return p.addNode(.{ .switch_stmt = .{
             .switch_tok = kw_switch,
-            .cond = cond.node,
+            .init = opt_init,
+            .cond = cond,
             .body = body,
         } });
     }
@@ -5674,7 +5669,7 @@ fn attributedStmt(p: *Parser, check_unused: bool) Error!Node.Index {
         try cond.lvalConversion(p);
         try cond.usualUnaryConversion(p, cond_tok);
         if (!cond.qt.isInvalid() and cond.qt.scalarKind(p.comp) == .none)
-            try p.err(l_paren + 1, .statement_scalar, .{cond.qt});
+            try p.err(l_paren + 1, .non_scalar_cond, .{cond.qt});
         try cond.saveValue(p);
 
         try p.expectClosing(l_paren, .r_paren);
@@ -5709,7 +5704,7 @@ fn attributedStmt(p: *Parser, check_unused: bool) Error!Node.Index {
         try cond.usualUnaryConversion(p, cond_tok);
 
         if (!cond.qt.isInvalid() and cond.qt.scalarKind(p.comp) == .none)
-            try p.err(l_paren + 1, .statement_scalar, .{cond.qt});
+            try p.err(l_paren + 1, .non_scalar_cond, .{cond.qt});
         try cond.saveValue(p);
         try p.expectClosing(l_paren, .r_paren);
 
@@ -5750,7 +5745,7 @@ fn attributedStmt(p: *Parser, check_unused: bool) Error!Node.Index {
             try cond.lvalConversion(p);
             try cond.usualUnaryConversion(p, cond_tok);
             if (!cond.qt.isInvalid() and cond.qt.scalarKind(p.comp) == .none)
-                try p.err(l_paren + 1, .statement_scalar, .{cond.qt});
+                try p.err(l_paren + 1, .non_scalar_cond, .{cond.qt});
             try cond.saveValue(p);
             break :cond cond.node;
         };
@@ -5867,6 +5862,69 @@ fn declStmt(p: *Parser) Error!?Node.Index {
         } });
     }
     return null;
+}
+
+/// selectionHeader:
+/// : expr
+/// | decl expr
+/// | decl = initializer
+fn selectionHeader(p: *Parser, kind: enum { scalar, int }) Error!struct { ?Node.Index, Node.Index } {
+    const decl_buf_top = p.decl_buf.items.len;
+    defer p.decl_buf.items.len = decl_buf_top;
+    const first = p.tok_i;
+
+    var opt_init = if (try p.declExtra(.simple))
+        try p.addNode(.{ .decl_stmt = .{
+            .decls = p.decl_buf.items[decl_buf_top..],
+            .first_tok = first,
+        } })
+    else
+        null;
+    if (opt_init) |init| {
+        const c2y = p.comp.langopts.standard.atLeast(.c2y);
+        try p.err(init.tok(&p.tree), if (c2y) .pre_c2y_selection_header else .c2y_selection_header, .{
+            switch (kind) {
+                .scalar => "if",
+                .int => "switch",
+            },
+        });
+    }
+    const expect_expr = if (opt_init) |_| p.eatToken(.semicolon) != null else true;
+    const opt_cond = try p.expr();
+
+    const cond = if (expect_expr) cond: {
+        var cond = try p.expectResult(opt_cond);
+        const cond_tok = cond.node.tok(&p.tree);
+        try cond.lvalConversion(p);
+        try cond.usualUnaryConversion(p, cond_tok);
+        if (!cond.qt.isInvalid()) switch (kind) {
+            .scalar => if (cond.qt.scalarKind(p.comp) == .none) try p.err(cond_tok, .non_scalar_cond, .{cond.qt}),
+            .int => if (!cond.qt.isRealInt(p.comp)) try p.err(cond_tok, .non_int_cond, .{cond.qt}),
+        };
+
+        try cond.saveValue(p);
+        break :cond cond.node;
+    } else cond: {
+        const init = opt_init.?;
+        const decl_stmt = init.get(&p.tree).decl_stmt;
+        const qt = decl_stmt.decls[0].qt(&p.tree);
+        const decl_tok = decl_stmt.decls[0].tok(&p.tree);
+        const decl_node = decl_stmt.decls[0].get(&p.tree);
+        if (decl_stmt.decls.len > 1) {
+            try p.err(init.tok(&p.tree), .multiple_cond_decl, .{});
+        } else if (decl_node != .variable) {
+            try p.err(decl_tok, .cond_decl_variable, .{});
+        } else if (decl_node.variable.initializer == null) {
+            try p.err(decl_tok, .cond_decl_initializer, .{});
+        } else if (!qt.isInvalid()) switch (kind) {
+            .scalar => if (qt.scalarKind(p.comp) == .none) try p.err(decl_tok, .non_scalar_cond_decl, .{qt}),
+            .int => if (!qt.isRealInt(p.comp)) try p.err(decl_tok, .non_int_cond_decl, .{qt}),
+        };
+        opt_init = null;
+        break :cond init;
+    };
+
+    return .{ opt_init, cond };
 }
 
 /// labeledStmt
