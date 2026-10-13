@@ -470,6 +470,7 @@ pub const Node = union(enum) {
 
     pub const IfStmt = struct {
         if_tok: TokenIndex,
+        init: ?Node.Index,
         cond: Node.Index,
         then_body: Node.Index,
         else_body: ?Node.Index,
@@ -477,6 +478,7 @@ pub const Node = union(enum) {
 
     pub const SwitchStmt = struct {
         switch_tok: TokenIndex,
+        init: ?Node.Index,
         cond: Node.Index,
         body: Node.Index,
     };
@@ -1050,15 +1052,35 @@ pub const Node = union(enum) {
                     .if_stmt = .{
                         .if_tok = node_tok,
                         .cond = @fromBackingInt(node_data[0]),
+                        .init = null,
                         .then_body = @fromBackingInt(node_data[1]),
                         .else_body = unpackOptIndex(node_data[2]),
+                    },
+                },
+                .if_init => .{
+                    .if_stmt = .{
+                        .if_tok = node_tok,
+                        .cond = @fromBackingInt(node_data[0]),
+                        .init = @fromBackingInt(node_data[1]),
+                        .then_body = @fromBackingInt(node_data[2]),
+                        .else_body = null,
+                    },
+                },
+                .if_full => .{
+                    .if_stmt = .{
+                        .if_tok = node_tok,
+                        .cond = @fromBackingInt(node_data[0]),
+                        .init = @fromBackingInt(node_data[1]),
+                        .then_body = @fromBackingInt(tree.extra.items[node_data[2]]),
+                        .else_body = @fromBackingInt(tree.extra.items[node_data[2] + 1]),
                     },
                 },
                 .switch_stmt => .{
                     .switch_stmt = .{
                         .switch_tok = node_tok,
                         .cond = @fromBackingInt(node_data[0]),
-                        .body = @fromBackingInt(node_data[1]),
+                        .init = unpackOptIndex(node_data[1]),
+                        .body = @fromBackingInt(node_data[2]),
                     },
                 },
                 .case_stmt => .{
@@ -2122,6 +2144,8 @@ pub const Node = union(enum) {
             compound_stmt,
             compound_stmt_three,
             if_stmt,
+            if_init,
+            if_full,
             switch_stmt,
             case_stmt,
             default_stmt,
@@ -2416,16 +2440,29 @@ pub fn setNode(tree: *Tree, node: Node, index: usize) !void {
             repr.tok = compound.l_brace_tok;
         },
         .if_stmt => |@"if"| {
-            repr.tag = .if_stmt;
             repr.data[0] = @backingInt(@"if".cond);
-            repr.data[1] = @backingInt(@"if".then_body);
-            repr.data[2] = packOptIndex(@"if".else_body);
+            if (@"if".init) |init| {
+                if (@"if".else_body) |else_body| {
+                    repr.tag = .if_full;
+                    repr.data[1] = @backingInt(init);
+                    repr.data[2], _ = try tree.addExtra(&.{ @"if".then_body, else_body });
+                } else {
+                    repr.tag = .if_init;
+                    repr.data[1] = packOptIndex(init);
+                    repr.data[2] = @backingInt(@"if".then_body);
+                }
+            } else {
+                repr.tag = .if_stmt;
+                repr.data[1] = @backingInt(@"if".then_body);
+                repr.data[2] = packOptIndex(@"if".else_body);
+            }
             repr.tok = @"if".if_tok;
         },
         .switch_stmt => |@"switch"| {
             repr.tag = .switch_stmt;
             repr.data[0] = @backingInt(@"switch".cond);
-            repr.data[1] = @backingInt(@"switch".body);
+            repr.data[1] = packOptIndex(@"switch".init);
+            repr.data[2] = @backingInt(@"switch".body);
             repr.tok = @"switch".switch_tok;
         },
         .case_stmt => |case| {
@@ -2477,13 +2514,13 @@ pub fn setNode(tree: *Tree, node: Node, index: usize) !void {
                 repr.data[1] = packOptIndex(@"for".incr);
             } else if (init) {
                 repr.tag = .for_init;
-                repr.data[0] = packOptIndex(@"for".cond);
+                repr.data[0] = packOptIndex(@"for".init);
             } else if (cond) {
                 repr.tag = .for_cond;
                 repr.data[0] = packOptIndex(@"for".cond);
             } else if (incr) {
                 repr.tag = .for_incr;
-                repr.data[0] = packOptIndex(@"for".cond);
+                repr.data[0] = packOptIndex(@"for".incr);
             } else {
                 repr.tag = .for_ever;
             }
@@ -3944,6 +3981,12 @@ fn dumpNode(
         },
         .builtin_va_arg_pack, .builtin_va_arg_pack_len => {},
         .if_stmt => |@"if"| {
+            if (@"if".init) |init| {
+                try w.splatByteAll(' ', level + half);
+                try w.writeAll("init:\n");
+                try tree.dumpNode(init, level + delta, term);
+            }
+
             try w.splatByteAll(' ', level + half);
             try w.writeAll("cond:\n");
             try tree.dumpNode(@"if".cond, level + delta, term);
@@ -3959,6 +4002,12 @@ fn dumpNode(
             }
         },
         .switch_stmt => |@"switch"| {
+            if (@"switch".init) |init| {
+                try w.splatByteAll(' ', level + half);
+                try w.writeAll("init:\n");
+                try tree.dumpNode(init, level + delta, term);
+            }
+
             try w.splatByteAll(' ', level + half);
             try w.writeAll("cond:\n");
             try tree.dumpNode(@"switch".cond, level + delta, term);
