@@ -2426,27 +2426,131 @@ pub fn initNamedTypes(ts: *TypeStore, comp: *Compilation) !void {
         },
     };
 
+    const darwin_macho_bsd = os.isDarwin() or comp.target.ofmt == .macho or os == .openbsd or os == .netbsd;
     const ptr_width = comp.target.ptrBitWidth();
-    ts.ptrdiff = if (arch == .wasm32)
+
+    ts.ptrdiff = if (os == .haiku)
         .long
-    else if (os == .windows and ptr_width == 64)
-        .long_long
-    else switch (ptr_width) {
-        16 => .int,
-        32 => .int,
-        64 => .long,
-        else => unreachable,
+    else switch (arch) {
+        .aarch64, .aarch64_be => if (os == .windows)
+            .long_long
+        else
+            .long,
+        .amdgcn => .long,
+        .arc => .int,
+        .arm, .armeb, .thumb, .thumbeb => if (darwin_macho_bsd) .long else .int,
+        .avr => .int,
+        .bpfeb,
+        .bpfel,
+        => .long,
+        .csky => .int,
+        .hexagon => .int,
+        .loongarch32 => .int,
+        .loongarch64 => .long,
+        .m68k => .int,
+        .mips, .mipsel, .mips64, .mips64el => switch (comp.target.mipsAbi()) {
+            .o32 => .int,
+            .n32 => .int,
+            .n64 => .long,
+        },
+        .msp430 => .int,
+        .nvptx => .int,
+        .nvptx64 => .long,
+        .powerpc, .powerpcle => .int,
+        .riscv32 => .int,
+        .sparc => if (os == .netbsd or os == .openbsd)
+            .long
+        else
+            .int,
+        .spirv32 => .int,
+        .spirv64 => .long,
+        .ve => .long,
+        .wasm32 => .long,
+        .wasm64 => .long,
+        .x86 => if (os == .openbsd)
+            .long
+        else if (os.isDarwin())
+            .long
+        else if (os == .rtems)
+            .long
+        else
+            .int,
+        .x86_64 => if (os == .uefi or os == .windows)
+            .long_long
+        else if (ptr_width == 32)
+            .int
+        else
+            .long,
+        .xcore => .int,
+        .xtensa, .xtensaeb => .int,
+        else => switch (ptr_width) {
+            16 => .int,
+            32 => .int,
+            64 => .long,
+            else => unreachable,
+        },
     };
 
-    ts.size = if (arch == .wasm32)
+    ts.size = if (os == .haiku)
         .ulong
-    else if (os == .windows and ptr_width == 64)
-        .ulong_long
-    else switch (ptr_width) {
-        16 => .uint,
-        32 => .uint,
-        64 => .ulong,
-        else => unreachable,
+    else switch (arch) {
+        .aarch64, .aarch64_be => if (os == .windows)
+            .ulong_long
+        else
+            .ulong,
+        .amdgcn => .ulong,
+        .arc => .uint,
+        .arm, .armeb, .thumb, .thumbeb => if (darwin_macho_bsd) .ulong else .uint,
+        .avr => .uint,
+        .bpfeb,
+        .bpfel,
+        => .ulong,
+        .csky => .uint,
+        .hexagon => .uint,
+        .loongarch32 => .uint,
+        .loongarch64 => .ulong,
+        .m68k => .uint,
+        .mips, .mipsel, .mips64, .mips64el => switch (comp.target.mipsAbi()) {
+            .o32 => .uint,
+            .n32 => .uint,
+            .n64 => .ulong,
+        },
+        .msp430 => .uint,
+        .nvptx => .uint,
+        .nvptx64 => .ulong,
+        .powerpc, .powerpcle => .uint,
+        .riscv32 => .uint,
+        .sparc => if (os == .netbsd or os == .openbsd)
+            .ulong
+        else
+            .uint,
+        .spirv32 => .uint,
+        .spirv64 => .ulong,
+        .ve => .ulong,
+        .wasm32 => .ulong,
+        .wasm64 => .ulong,
+        .x86 => if (os == .openbsd)
+            .ulong
+        else if (os.isDarwin())
+            .ulong
+        else if (os == .rtems)
+            .ulong
+        else
+            .uint,
+        .x86_64 => if (os == .uefi or os == .windows)
+            .ulong_long
+        else if (ptr_width == 32)
+            .uint
+        else
+            .ulong,
+        .xcore => .uint,
+        .xtensa, .xtensaeb => .uint,
+        else => switch (ptr_width) {
+            16 => .uint,
+            32 => .uint,
+            64 => .ulong,
+            else => unreachable,
+        },
     };
 
     ts.pid_t = switch (os) {
