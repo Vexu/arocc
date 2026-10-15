@@ -172,10 +172,6 @@ fn runCaseExtra(io: Io, aro_exe: []const u8, test_case: TestCase, stats: *Stats)
     });
     const target = try std.zig.system.resolveTargetQuery(io, query);
     switch (target.os.tag) {
-        .hermit => {
-            stats.recordResult(.invalid_target);
-            return; // Skip targets Aro doesn't support.
-        },
         .ios, .macos => {
             switch (target.cpu.arch) {
                 .x86, .arm => {
