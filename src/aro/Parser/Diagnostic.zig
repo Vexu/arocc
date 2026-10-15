@@ -2085,7 +2085,12 @@ pub const nontemporal_address_type: Diagnostic = .{
 };
 
 pub const atomic_address_pointer: Diagnostic = .{
-    .fmt = "address argument to atomic builtin must be a pointer ('{qt}' invalid)",
+    .fmt = "address argument to atomic builtin must be a pointer ({qt} invalid)",
+    .kind = .@"error",
+};
+
+pub const c11_atomic_address_type: Diagnostic = .{
+    .fmt = "address argument to atomic operation must be a pointer to _Atomic type ({qt} invalid)",
     .kind = .@"error",
 };
 
