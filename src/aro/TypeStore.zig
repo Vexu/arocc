@@ -527,6 +527,8 @@ pub const QualType = packed struct(u32) {
             .pointer => |pointer| pointer.child,
             .array => |array| array.elem,
             .vector => |vector| vector.elem,
+            // An atomic load yields the value, so the qualifier is not part of the child
+            .atomic => |atomic| atomic,
             .block => qt.base(comp).qt, // special case: block's childType is always itself
             else => unreachable,
         };
