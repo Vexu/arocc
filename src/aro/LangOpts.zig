@@ -184,6 +184,7 @@ blocks: bool = false,
 
 /// If non-null, contains ARM LDREX/STREX mask. Only populated on ARM targets.
 arm_ldrex: ?ArmLdrex = null,
+
 /// Whether the target supports AVR's non-standard 24-bit integer types.
 has_int24: bool = false,
 
