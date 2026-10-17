@@ -199,6 +199,11 @@ pub const QualType = packed struct(u32) {
         return .{ ._index = qt._index };
     }
 
+    /// Return the underlying value type of an atomic type, or the original type otherwise.
+    pub fn nonAtomic(qt: QualType, comp: *const Compilation) QualType {
+        return qt.get(comp, .atomic) orelse qt;
+    }
+
     pub fn withQualifiers(target: QualType, quals_from: QualType) QualType {
         return .{
             ._index = target._index,
