@@ -6598,7 +6598,7 @@ const CallExpr = union(enum) {
                 },
                 .__builtin_complex => {
                     const last_param = args[args.len - 1].qt(&p.tree);
-                    if (last_param.isInvalid()) return .invalid;
+                    if (!last_param.is(p.comp, .float)) return .invalid;
                     return try last_param.toComplex(p.comp);
                 },
                 .__atomic_compare_exchange,
@@ -9770,7 +9770,7 @@ fn checkArithOverflowArg(p: *Parser, builtin_tok: TokenIndex, first_after: Token
 fn checkComplexArg(p: *Parser, builtin_tok: TokenIndex, first_after: TokenIndex, param_tok: TokenIndex, arg: *Result, idx: u32) !void {
     _ = builtin_tok;
     _ = first_after;
-    if (idx <= 1 and !arg.qt.isFloat(p.comp)) {
+    if (idx <= 1 and !arg.qt.is(p.comp, .float)) {
         try p.err(param_tok, .not_floating_type, .{arg.qt});
     } else if (idx == 1) {
         const prev_idx = p.list_buf.items[p.list_buf.items.len - 1];
