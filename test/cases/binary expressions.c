@@ -105,7 +105,7 @@ _Static_assert((int){1} = 0, "");
 syntax
 args = -Wno-unused
 
-binary expressions.c:3:7: error: invalid operands to binary expression ('_Atomic(long)' and 'float')
+binary expressions.c:3:7: error: invalid operands to binary expression ('long' and 'float')
 binary expressions.c:6:13: error: invalid operands to binary expression ('char' and 'int *')
 binary expressions.c:8:9: error: invalid operands to binary expression ('void (*)(void)' and 'void')
 binary expressions.c:10:15: warning: comparison of distinct pointer types ('float *' and 'int *') [-Wcompare-distinct-pointer-types]
