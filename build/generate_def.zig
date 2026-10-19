@@ -335,7 +335,7 @@ const DafsaBuilder = struct {
     root: *Node,
     arena: std.heap.ArenaAllocator.State,
     allocator: Allocator,
-    unchecked_nodes: std.ArrayListUnmanaged(UncheckedNode),
+    unchecked_nodes: std.ArrayList(UncheckedNode),
     minimized_nodes: std.HashMapUnmanaged(*Node, *Node, Node.DuplicateContext, std.hash_map.default_max_load_percentage),
     previous_word_buf: [128]u8 = undefined,
     previous_word: []u8 = &[_]u8{},
