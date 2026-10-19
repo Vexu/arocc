@@ -2699,7 +2699,7 @@ const PragmaLoc = struct { name_tok: TokenWithExpansionLocs, start: Tree.TokenIn
 
 fn addTokensFromExpandBuf(pp: *Preprocessor, tokens: []const TokenWithExpansionLocs, tokenizer_nl: TokenWithExpansionLocs) !void {
     const gpa = pp.comp.gpa;
-    var pragma_locs: std.ArrayListUnmanaged(PragmaLoc) = .empty;
+    var pragma_locs: std.ArrayList(PragmaLoc) = .empty;
     defer pragma_locs.deinit(gpa);
 
     try pp.ensureUnusedTokenCapacity(tokens.len);

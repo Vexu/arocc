@@ -190,7 +190,7 @@ fn runCaseExtra(
 
     switch (case.kind) {
         .syntax, .expand_error, .expand, .expand_partial => |expected_errors| {
-            var actual_errors: std.ArrayListUnmanaged([]const u8) = .empty;
+            var actual_errors: std.ArrayList([]const u8) = .empty;
             defer actual_errors.deinit(gpa);
 
             {
