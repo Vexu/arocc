@@ -8042,6 +8042,13 @@ pub const Result = struct {
                 }
                 _ = try res.val.intCast(dest_qt, p.comp);
             }
+        } else if (dest_qt.eql(res.qt, p.comp)) {
+            if (dest_qt.hasIncompleteSize(p.comp)) {
+                try p.err(l_paren, .cast_to_incomplete_type, .{dest_qt});
+                return error.ParsingFailed;
+            }
+            try p.err(l_paren, .cast_to_same_type, .{dest_qt});
+            cast_kind = .no_op;
         } else if (dest_qt.get(p.comp, .@"union")) |union_ty| {
             if (union_ty.layout == null) {
                 try p.err(l_paren, .cast_to_incomplete_type, .{dest_qt});
@@ -8058,9 +8065,6 @@ pub const Result = struct {
                 try p.err(l_paren, .invalid_union_cast, .{res.qt});
                 return error.ParsingFailed;
             }
-        } else if (dest_qt.eql(res.qt, p.comp)) {
-            try p.err(l_paren, .cast_to_same_type, .{dest_qt});
-            cast_kind = .no_op;
         } else {
             try p.err(l_paren, .invalid_cast_type, .{dest_qt});
             return error.ParsingFailed;
