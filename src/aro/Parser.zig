@@ -7803,18 +7803,6 @@ pub const Result = struct {
             return;
         }
         try res.atomicToNonAtomic(p);
-        if (dest_qt.get(p.comp, .atomic)) |value_qt| {
-            try res.castType(p, value_qt, operand_tok, l_paren);
-            res.qt = dest_qt.unqualified();
-            res.node = try p.addNode(.{ .cast = .{
-                .l_paren = l_paren,
-                .qt = res.qt,
-                .operand = res.node,
-                .kind = .non_atomic_to_atomic,
-                .implicit = false,
-            } });
-            return;
-        }
         var cast_kind: Node.Cast.Kind = undefined;
 
         const dest_sk = dest_qt.scalarKind(p.comp);
@@ -7823,7 +7811,10 @@ pub const Result = struct {
         const dest_vec = dest_qt.is(p.comp, .vector);
         const src_vec = res.qt.is(p.comp, .vector);
 
-        if (dest_qt.is(p.comp, .void)) {
+        if (dest_qt.get(p.comp, .atomic)) |value_qt| {
+            try res.castType(p, value_qt, operand_tok, l_paren);
+            cast_kind = .non_atomic_to_atomic;
+        } else if (dest_qt.is(p.comp, .void)) {
             // everything can cast to void
             cast_kind = .to_void;
             res.val = .{};
