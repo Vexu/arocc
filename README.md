@@ -32,7 +32,7 @@ The new backend will reuse parts of the self-hosted Zig compiler.
 The following assumes that your package has a `build.zig.zon` file.
 
 ```sh-session
-zig fetch --save git+https://github.com/Vexu/arocc.git
+zig fetch --save git+https://github.com/Vexu/arocc#latest
 ```
 
 Add the following to your `build.zig`:

@@ -1,10 +1,16 @@
 .{
     .name = .aro,
 
-    .version = "0.0.0",
+    // Remember to increment the dev version after changing `minimum_zig_version`
+    // or after implementing changes you want to use in a different project.
+    //
+    // A maintainer should run `git push origin master:latest` after
+    // merging changes that updated the version to master.
+    .version = "0.1.0-dev.1",
 
     .fingerprint = 0x76501fb842f52025, // Changing this has security and trust implications.
 
+    // Remember to update `version`.
     .minimum_zig_version = "0.18.0-dev.567+7f0281900",
 
     .dependencies = .{},

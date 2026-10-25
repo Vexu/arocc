@@ -102,56 +102,7 @@ pub fn build(b: *Build) !void {
     aro_options.addOption(bool, "enable_tracy_allocation", tracy_allocation);
     aro_options.addOption(bool, "debug_allocations", debug_allocations);
 
-    const version_str = v: {
-        const version_string = b.fmt("{d}.{d}.{d}", .{ aro_version.major, aro_version.minor, aro_version.patch });
-
-        // TODO detect when Aro is being used as a dependency.
-        // https://github.com/Vexu/arocc/issues/965
-        if (true) break :v version_string;
-
-        var code: u8 = undefined;
-        const git_describe_untrimmed = b.runAllowFail(&[_][]const u8{
-            "git", "-C", b.build_root.path orelse ".", "describe", "--match", "*.*.*", "--tags",
-        }, &code, .ignore) catch version_string;
-        const git_describe = std.mem.trim(u8, git_describe_untrimmed, " \n\r");
-
-        switch (std.mem.count(u8, git_describe, "-")) {
-            0 => {
-                // Tagged release version (e.g. 0.10.0).
-                if (!std.mem.eql(u8, git_describe, version_string)) {
-                    std.debug.print("Aro version '{s}' does not match Git tag '{s}'\n", .{ version_string, git_describe });
-                    std.process.exit(1);
-                }
-                break :v version_string;
-            },
-            2 => {
-                // Untagged development build (e.g. 0.10.0-dev.2025+ecf0050a9).
-                var it = std.mem.splitScalar(u8, git_describe, '-');
-                const tagged_ancestor = it.first();
-                const commit_height = it.next().?;
-                const commit_id = it.next().?;
-
-                const ancestor_ver = try std.SemanticVersion.parse(tagged_ancestor);
-                if (!aro_version.order(ancestor_ver).compare(.gte)) {
-                    std.debug.print("Aro version '{f}' must be greater than tagged ancestor '{f}'\n", .{ aro_version, ancestor_ver });
-                    std.process.exit(1);
-                }
-
-                // Check that the commit hash is prefixed with a 'g' (a Git convention).
-                if (commit_id.len < 1 or commit_id[0] != 'g') {
-                    std.debug.print("Unexpected `git describe` output: {s}\n", .{git_describe});
-                    break :v version_string;
-                }
-
-                // The version is reformatted in accordance with the https://semver.org specification.
-                break :v b.fmt("{s}-dev.{s}+{s}", .{ version_string, commit_height, commit_id[1..] });
-            },
-            else => {
-                std.debug.print("Unexpected `git describe` output: {s}\n", .{git_describe});
-                break :v version_string;
-            },
-        }
-    };
+    const version_str = b.fmt("{f}", .{aro_version});
     aro_options.addOption([]const u8, "version_str", version_str);
     const aro_options_module = aro_options.createModule();
 
