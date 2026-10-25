@@ -24,6 +24,8 @@ const TypeStore = @import("TypeStore.zig");
 const Type = TypeStore.Type;
 const QualType = TypeStore.QualType;
 
+pub const builtinFromName = Builtins.fromName;
+
 pub const Error = error{
     /// A fatal error has occurred and compilation has stopped.
     FatalError,
