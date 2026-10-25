@@ -7097,7 +7097,7 @@ pub const Result = struct {
                     const b_child_qt = b.qt.get(p.comp, .pointer).?.child;
 
                     if (!a_child_qt.eql(b_child_qt, p.comp)) try p.err(tok, .incompatible_pointers, .{ a.qt, b.qt });
-                    if (a.qt.childType(p.comp).sizeofOrNull(p.comp) orelse 1 == 0) try p.err(tok, .subtract_pointers_zero_elem_size, .{a.qt.childType(p.comp)});
+                    if (a.qt.childType(p.comp).sizeofOrNull(p.comp) == 0) try p.err(tok, .subtract_pointers_zero_elem_size, .{a.qt.childType(p.comp)});
                     a.qt = p.comp.type_store.ptrdiff;
                 }
 

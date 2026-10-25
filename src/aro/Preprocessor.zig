@@ -310,13 +310,13 @@ pub const InitOptions = struct {
 };
 
 pub fn init(comp: *Compilation, options: InitOptions) !Preprocessor {
-    const source_epoch: SourceEpoch = options.source_epoch orelse comp.environment.sourceEpoch(comp.io) catch |er| switch (er) {
+    const source_epoch: SourceEpoch = options.source_epoch orelse (comp.environment.sourceEpoch(comp.io) catch |er| switch (er) {
         error.InvalidEpoch => blk: {
             const diagnostic: Diagnostic = .invalid_source_epoch;
             try comp.diagnostics.add(.{ .text = diagnostic.fmt, .kind = diagnostic.kind, .opt = diagnostic.opt, .location = null });
             break :blk .default;
         },
-    };
+    });
 
     var pp: Preprocessor = .{
         .comp = comp,
@@ -3882,7 +3882,7 @@ pub fn prettyPrintTokens(pp: *Preprocessor, w: *std.Io.Writer, macro_dump_mode: 
             },
             .keyword_pragma => {
                 const pragma_name = pp.expandedSlice(pp.tokens.get(i + 1));
-                const end_idx = mem.findScalarPos(Token.Id, tok_ids, i, .nl) orelse i + 1;
+                const end_idx = mem.findScalarPos(Token.Id, tok_ids, i, .nl) orelse (i + 1);
                 const pragma_len = @as(u32, @intCast(end_idx)) - i;
 
                 if (pp.comp.getPragma(pragma_name)) |prag| {

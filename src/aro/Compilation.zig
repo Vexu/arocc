@@ -287,7 +287,7 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
     const gnuc_version = comp.langopts.gnuc_version orelse comp.langopts.emulate.defaultGccVersion();
     if (gnuc_version > 0) {
         try w.print("#define __GNUC__ {d}\n", .{gnuc_version / 10_000});
-        try w.print("#define __GNUC_MINOR__ {d}\n", .{gnuc_version / 100 % 100});
+        try w.print("#define __GNUC_MINOR__ {d}\n", .{(gnuc_version / 100) % 100});
         try w.print("#define __GNUC_PATCHLEVEL__ {d}\n", .{gnuc_version % 100});
     }
 
@@ -963,7 +963,7 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
                 try define(w, "__ARM_ARCH_EXT_IDIV__");
             }
             var sat = false;
-            if (arm_version == 6 and !target.cpu.has(.arm, .mclass) or arm_version > 6) {
+            if ((arm_version == 6 and !target.cpu.has(.arm, .mclass)) or arm_version > 6) {
                 try define(w, "__ARM_FEATURE_SAT");
                 sat = true;
             }
@@ -2976,7 +2976,7 @@ test "addSourceFromBuffer - exhaustive check for carriage return elimination" {
             if (buf[j] == alphabet[0]) buf[j - 1] = alphabet[(idx + 1) % alen] else break;
         }
     }
-    try std.testing.expect(source_count == std.math.powi(usize, alen, alen) catch unreachable);
+    try std.testing.expect(source_count == (std.math.powi(usize, alen, alen) catch unreachable));
 }
 
 test "ignore BOM at beginning of file" {

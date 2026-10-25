@@ -8121,8 +8121,8 @@ _Static_assert(__builtin_bitoffsetof(A13,i) == 8, "");
 _Static_assert(__builtin_bitoffsetof(A13,j) == 128, "");
 _Static_assert(__builtin_bitoffsetof(A13,d) == 136, "");
 #endif
-// MAPPING|EIGHT|hexagon-generic-linux-musl:Clang|mipsel-mips32-other-none:Clang|powerpc-ppc-netbsd-gnu:Clang|riscv32-baseline_rv32-other-eabi:Clang|wasm32-generic-emscripten-musl:Clang|wasm32-generic-other-musl:Clang|wasm32-generic-wasi-musl:Clang|END
-// repr targets HexagonUnknownLinuxMusl|Some("hexagon-generic-linux-musl") MipselSonyPsp|None MipselUnknownNone|Some("mipsel-mips32-other-none") PowerpcUnknownLinuxGnuspe|None PowerpcUnknownNetbsd|Some("powerpc-ppc-netbsd-gnu") Riscv32|Some("riscv32-baseline_rv32-other-eabi") Wasm32UnknownEmscripten|Some("wasm32-generic-emscripten-musl") Wasm32UnknownUnknown|Some("wasm32-generic-other-musl") Wasm32Wasi|Some("wasm32-generic-wasi-musl")
+// MAPPING|EIGHT|hexagon-generic-linux-musl:Clang|mipsel-mips32-other-none:Clang|powerpc-ppc-netbsd-gnu:Clang|riscv32-baseline_rv32-other-eabi:Clang|wasm32-mvp-emscripten-musl:Clang|wasm32-mvp-other-musl:Clang|wasm32-mvp-wasi-musl:Clang|END
+// repr targets HexagonUnknownLinuxMusl|Some("hexagon-generic-linux-musl") MipselSonyPsp|None MipselUnknownNone|Some("mipsel-mips32-other-none") PowerpcUnknownLinuxGnuspe|None PowerpcUnknownNetbsd|Some("powerpc-ppc-netbsd-gnu") Riscv32|Some("riscv32-baseline_rv32-other-eabi") Wasm32UnknownEmscripten|Some("wasm32-mvp-emscripten-musl") Wasm32UnknownUnknown|Some("wasm32-mvp-other-musl") Wasm32Wasi|Some("wasm32-mvp-wasi-musl")
 #elif defined(EIGHT)
 _Static_assert(sizeof(A) == 1, "");
 _Static_assert(_Alignof(A) == 1, "");

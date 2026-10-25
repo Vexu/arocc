@@ -143,7 +143,8 @@ pub fn main(init: process.Init.Minimal) !void {
 }
 
 fn runCase(io: Io, aro_exe: []const u8, test_case: TestCase, stats: *Stats) void {
-    runCaseExtra(io, aro_exe, test_case, stats) catch {
+    runCaseExtra(io, aro_exe, test_case, stats) catch |err| {
+        print("case {q} failed: {t}\n", .{ test_case.path, err });
         stats.recordResult(.fail);
     };
 }
@@ -166,10 +167,14 @@ fn runCaseExtra(io: Io, aro_exe: []const u8, test_case: TestCase, stats: *Stats)
     var w = Io.Writer.fixed(&buf);
     try w.print("{s}-{s}-{s}", .{ arch, os, abi });
 
-    const query = try std.Target.Query.parse(.{
+    const query = std.Target.Query.parse(.{
         .arch_os_abi = w.buffered(),
         .cpu_features = model,
-    });
+    }) catch |err| {
+        print("can't parse {q} {q}: {t}\n", .{ w.buffered(), model, err });
+        stats.recordResult(.fail);
+        return;
+    };
     const target = try std.zig.system.resolveTargetQuery(io, query);
     switch (target.os.tag) {
         .ios, .macos => {

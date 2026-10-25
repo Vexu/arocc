@@ -324,7 +324,7 @@ const SysVContext = struct {
 
             // On Clang, the alignment requested by annotations is not respected if it is
             // larger than the value of #pragma pack. See test case 0083.
-            if (annotation_alignment <= self.max_field_align_bits orelse std.math.maxInt(u29)) {
+            if (annotation_alignment <= (self.max_field_align_bits orelse std.math.maxInt(u29))) {
                 field_align_bits = @max(field_align_bits, annotation_alignment);
             }
             // On Clang, if there are no packing annotations and the field would cross a
