@@ -1332,13 +1332,10 @@ fn getRandomFilename(d: *Driver, buf: *[std.fs.max_name_bytes]u8, extension: []c
     var random_bytes: [random_bytes_count]u8 = undefined;
     d.comp.io.random(&random_bytes);
     var random_name: [sub_path_len]u8 = undefined;
-    _ = std.fs.base64_encoder.encode(&random_name, &random_bytes);
+    const filename = std.fs.base64_encoder.encode(&random_name, &random_bytes);
 
     const fmt_template = "/tmp/{s}{s}";
-    const fmt_args = .{
-        @as([]const u8, &random_name),
-        extension,
-    };
+    const fmt_args = .{ filename, extension };
     return mem.print(buf, fmt_template, fmt_args) catch return d.fatal("Filename too long for filesystem: " ++ fmt_template, fmt_args);
 }
 

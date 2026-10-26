@@ -568,7 +568,7 @@ pub fn addSystemIncludeDirJoined(tc: *const Toolchain, components: []const []con
 }
 
 pub fn addSystemIncludeDir(tc: *const Toolchain, path: []const u8, includes: *std.ArrayList(Compilation.Include)) !void {
-    _ = try includes.append(tc.comp.gpa, .{ .kind = .system, .path = try tc.comp.arena.dupe(u8, path) });
+    try includes.append(tc.comp.gpa, .{ .kind = .system, .path = try tc.comp.arena.dupe(u8, path) });
 }
 
 /// Add built-in aro headers directory to system include paths
