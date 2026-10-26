@@ -20,23 +20,29 @@ function: 'fn () void'
  name: test_typeof_quals
  body:
   compound_stmt
-    variable: 'const int'
-     name: a
+    decl_stmt
+      variable: 'const int'
+       name: a
 
-    variable: 'const typeof(<expr>: const int)'
-     name: b
+    decl_stmt
+      variable: 'const typeof(<expr>: const int)'
+       name: b
 
-    variable: 'volatile int'
-     name: c
+    decl_stmt
+      variable: 'volatile int'
+       name: c
 
-    variable: 'volatile typeof(<expr>: volatile int)'
-     name: d
+    decl_stmt
+      variable: 'volatile typeof(<expr>: volatile int)'
+       name: d
 
-    variable: 'int'
-     register name: e
+    decl_stmt
+      variable: 'int'
+       register name: e
 
-    variable: 'typeof(<expr>: int)'
-     name: f
+    decl_stmt
+      variable: 'typeof(<expr>: int)'
+       name: f
 
     cast: (to_void) 'void'
       addr_of_expr: '*typeof(<expr>: int)'
@@ -44,20 +50,24 @@ function: 'fn () void'
         decl_ref_expr: 'typeof(<expr>: int)' lvalue
          name: f
 
-    variable: '_Atomic(int)'
-     name: g
+    decl_stmt
+      variable: '_Atomic(int)'
+       name: g
 
-    variable: 'typeof(<expr>: _Atomic(int))'
-     name: h
+    decl_stmt
+      variable: 'typeof(<expr>: _Atomic(int))'
+       name: h
 
-    variable: 'restrict *int'
-     name: i
-     init:
-      implicit cast: (null_to_pointer) '*int'
-        int_literal: 'int' (value: 0)
+    decl_stmt
+      variable: 'restrict *int'
+       name: i
+       init:
+        implicit cast: (null_to_pointer) '*int'
+          int_literal: 'int' (value: 0)
 
-    variable: 'restrict typeof(<expr>: restrict *int)'
-     name: j
+    decl_stmt
+      variable: 'restrict typeof(<expr>: restrict *int)'
+       name: j
 
     implicit return_stmt: 'void'
 

@@ -20,37 +20,39 @@ function: 'fn () void'
  name: foo
  body:
   compound_stmt
-    variable: 'float'
-     name: a
-     init:
-      float_literal: 'float' (value: 1)
+    decl_stmt
+      variable: 'float'
+       name: a
+       init:
+        float_literal: 'float' (value: 1)
+      variable: 'float'
+       name: b
+       init:
+        float_literal: 'float' (value: 2)
 
-    variable: 'float'
-     name: b
-     init:
-      float_literal: 'float' (value: 2)
+    decl_stmt
+      variable: 'float'
+       name: c
+       init:
+        implicit cast: (float_cast) 'float'
+          add_expr: 'double'
+           lhs:
+            implicit cast: (float_cast) 'double'
+              implicit cast: (lval_to_rval) 'float'
+                decl_ref_expr: 'float' lvalue
+                 name: a
+           rhs:
+            implicit cast: (float_cast) 'double'
+              implicit cast: (lval_to_rval) 'float'
+                decl_ref_expr: 'float' lvalue
+                 name: b
 
-    variable: 'float'
-     name: c
-     init:
-      implicit cast: (float_cast) 'float'
-        add_expr: 'double'
-         lhs:
-          implicit cast: (float_cast) 'double'
-            implicit cast: (lval_to_rval) 'float'
-              decl_ref_expr: 'float' lvalue
-               name: a
-         rhs:
-          implicit cast: (float_cast) 'double'
-            implicit cast: (lval_to_rval) 'float'
-              decl_ref_expr: 'float' lvalue
-               name: b
-
-    variable: '_Complex float'
-     name: ca
-     init:
-      implicit cast: (real_to_complex_float) '_Complex float' (value: 0 + 0i)
-        float_literal: 'float' (value: 0)
+    decl_stmt
+      variable: '_Complex float'
+       name: ca
+       init:
+        implicit cast: (real_to_complex_float) '_Complex float' (value: 0 + 0i)
+          float_literal: 'float' (value: 0)
 
     assign_expr: '_Complex float'
      lhs:

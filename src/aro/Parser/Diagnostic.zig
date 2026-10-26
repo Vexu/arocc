@@ -144,6 +144,11 @@ pub const expected_external_decl: Diagnostic = .{
     .kind = .@"error",
 };
 
+pub const expected_record_decl: Diagnostic = .{
+    .fmt = "expected record declaration",
+    .kind = .@"error",
+};
+
 pub const expected_ident_or_l_paren: Diagnostic = .{
     .fmt = "expected identifier or '('",
     .kind = .@"error",

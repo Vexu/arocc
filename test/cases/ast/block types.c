@@ -89,49 +89,54 @@ function: 'fn (afunc: *fn (int) double, ablock: block (int) double) void'
          struct_init_expr: 'struct (anonymous struct at block types.c:21:11)'
            int_literal: 'int' (value: 0)
 
-    struct_decl: 'struct (anonymous struct at block types.c:22:3)'
-      record_field: 'int'
-       name: foo
+    decl_stmt
+      struct_decl: 'struct (anonymous struct at block types.c:22:3)'
+        record_field: 'int'
+         name: foo
 
-      record_field: 'int'
-       name: bar
+        record_field: 'int'
+         name: bar
+      variable: 'struct (anonymous struct at block types.c:22:3)'
+       name: result
+       init:
+        call_expr: 'invalid'
+         callee:
+          implicit cast: (lval_to_rval) 'block (int) double'
+            decl_ref_expr: 'block (int) double' lvalue
+             name: ablock
 
-    variable: 'struct (anonymous struct at block types.c:22:3)'
-     name: result
-     init:
-      call_expr: 'invalid'
-       callee:
-        implicit cast: (lval_to_rval) 'block (int) double'
-          decl_ref_expr: 'block (int) double' lvalue
-           name: ablock
+    decl_stmt
+      variable: 'bar: block (int) int'
+       name: a
 
-    variable: 'bar: block (int) int'
-     name: a
+    decl_stmt
+      variable: 'int'
+       name: b
+       init:
+        implicit cast: (lval_to_rval) 'bar: block (int) int'
+          decl_ref_expr: 'bar: block (int) int' lvalue
+           name: a
 
-    variable: 'int'
-     name: b
-     init:
-      implicit cast: (lval_to_rval) 'bar: block (int) int'
+    decl_stmt
+      variable: 'invalid'
+       name: c
+       init:
         decl_ref_expr: 'bar: block (int) int' lvalue
          name: a
 
-    variable: 'invalid'
-     name: c
-     init:
-      decl_ref_expr: 'bar: block (int) int' lvalue
-       name: a
+    decl_stmt
+      variable: 'MyInt: int'
+       name: d
+       init:
+        int_literal: 'int' (value: 3)
 
-    variable: 'MyInt: int'
-     name: d
-     init:
-      int_literal: 'int' (value: 3)
-
-    variable: 'block (MyInt: int) MyInt: int'
-     name: e
-     init:
-      implicit cast: (lval_to_rval) 'MyInt: int'
-        decl_ref_expr: 'MyInt: int' lvalue
-         name: d
+    decl_stmt
+      variable: 'block (MyInt: int) MyInt: int'
+       name: e
+       init:
+        implicit cast: (lval_to_rval) 'MyInt: int'
+          decl_ref_expr: 'MyInt: int' lvalue
+           name: d
 
     assign_expr: 'block (MyInt: int) MyInt: int'
      lhs:
@@ -208,15 +213,17 @@ function: 'fn (afunc: *fn (int) double, ablock: block (int) double) void'
         decl_ref_expr: '*fn (int) double' lvalue
          name: afunc
 
-    variable: '*void'
-     name: anyptr
+    decl_stmt
+      variable: '*void'
+       name: anyptr
 
-    variable: 'block (int) int'
-     name: f
-     init:
-      implicit cast: (lval_to_rval) 'bar: block (int) int'
-        decl_ref_expr: 'bar: block (int) int' lvalue
-         name: a
+    decl_stmt
+      variable: 'block (int) int'
+       name: f
+       init:
+        implicit cast: (lval_to_rval) 'bar: block (int) int'
+          decl_ref_expr: 'bar: block (int) int' lvalue
+           name: a
 
     assign_expr: 'bar: block (int) int'
      lhs:
@@ -321,8 +328,9 @@ function: 'fn (afunc: *fn (int) double, ablock: block (int) double) void'
             decl_ref_expr: 'block (int) int' lvalue
              name: f
 
-    variable: 'invalid'
-     name: a
+    decl_stmt
+      variable: 'invalid'
+       name: a
 
     implicit return_stmt: 'void'
 

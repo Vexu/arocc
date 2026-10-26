@@ -26,11 +26,11 @@ function: 'fn () void'
  name: foo
  body:
   compound_stmt
-    variable: 'f2v: vector(2, float)'
-     name: a
-
-    variable: 'f2v: vector(2, float)'
-     name: b
+    decl_stmt
+      variable: 'f2v: vector(2, float)'
+       name: a
+      variable: 'f2v: vector(2, float)'
+       name: b
 
     assign_expr: 'f2v: vector(2, float)'
      lhs:
@@ -199,29 +199,32 @@ function: 'fn () int'
  name: main
  body:
   compound_stmt
-    variable: 'vec_b: vector(2, float)'
-     name: b
-     init:
-      array_init_expr: 'vec_b: vector(2, float)'
-        float_literal: 'float' (value: 1.4)
+    decl_stmt
+      variable: 'vec_b: vector(2, float)'
+       name: b
+       init:
+        array_init_expr: 'vec_b: vector(2, float)'
+          float_literal: 'float' (value: 1.4)
 
-        float_literal: 'float' (value: 2.4)
+          float_literal: 'float' (value: 2.4)
 
-    variable: 'vec_a: vector(8, char)'
-     name: a
-     init:
-      implicit cast: (bitcast) 'vec_a: vector(8, char)'
-        implicit cast: (lval_to_rval) 'vec_b: vector(2, float)'
-          decl_ref_expr: 'vec_b: vector(2, float)' lvalue
-           name: b
+    decl_stmt
+      variable: 'vec_a: vector(8, char)'
+       name: a
+       init:
+        implicit cast: (bitcast) 'vec_a: vector(8, char)'
+          implicit cast: (lval_to_rval) 'vec_b: vector(2, float)'
+            decl_ref_expr: 'vec_b: vector(2, float)' lvalue
+             name: b
 
-    variable: 'vec_a: vector(8, char)'
-     name: a2
-     init:
-      implicit cast: (bitcast) 'vec_a: vector(8, char)'
-        implicit cast: (lval_to_rval) 'vec_b: vector(2, float)'
-          decl_ref_expr: 'vec_b: vector(2, float)' lvalue
-           name: b
+    decl_stmt
+      variable: 'vec_a: vector(8, char)'
+       name: a2
+       init:
+        implicit cast: (bitcast) 'vec_a: vector(8, char)'
+          implicit cast: (lval_to_rval) 'vec_b: vector(2, float)'
+            decl_ref_expr: 'vec_b: vector(2, float)' lvalue
+             name: b
 
     assign_expr: 'vec_a: vector(8, char)'
      lhs:
@@ -266,58 +269,62 @@ function: 'fn (a: vec_a: vector(8, char), b: vec_a: vector(8, char), c: vec_b: v
  name: compare
  body:
   compound_stmt
-    variable: 'vec_a: vector(8, char)'
-     name: ab1
-     init:
-      equal_expr: 'vec_a: vector(8, char)'
-       lhs:
-        implicit cast: (lval_to_rval) 'vec_a: vector(8, char)'
-          decl_ref_expr: 'vec_a: vector(8, char)' lvalue
-           name: a
-       rhs:
-        implicit cast: (lval_to_rval) 'vec_a: vector(8, char)'
-          decl_ref_expr: 'vec_a: vector(8, char)' lvalue
-           name: b
+    decl_stmt
+      variable: 'vec_a: vector(8, char)'
+       name: ab1
+       init:
+        equal_expr: 'vec_a: vector(8, char)'
+         lhs:
+          implicit cast: (lval_to_rval) 'vec_a: vector(8, char)'
+            decl_ref_expr: 'vec_a: vector(8, char)' lvalue
+             name: a
+         rhs:
+          implicit cast: (lval_to_rval) 'vec_a: vector(8, char)'
+            decl_ref_expr: 'vec_a: vector(8, char)' lvalue
+             name: b
 
-    variable: 'vec_a: vector(8, char)'
-     name: ab2
-     init:
-      less_than_expr: 'vec_a: vector(8, char)'
-       lhs:
-        implicit cast: (lval_to_rval) 'vec_a: vector(8, char)'
-          decl_ref_expr: 'vec_a: vector(8, char)' lvalue
-           name: a
-       rhs:
-        implicit cast: (lval_to_rval) 'vec_a: vector(8, char)'
-          decl_ref_expr: 'vec_a: vector(8, char)' lvalue
-           name: b
+    decl_stmt
+      variable: 'vec_a: vector(8, char)'
+       name: ab2
+       init:
+        less_than_expr: 'vec_a: vector(8, char)'
+         lhs:
+          implicit cast: (lval_to_rval) 'vec_a: vector(8, char)'
+            decl_ref_expr: 'vec_a: vector(8, char)' lvalue
+             name: a
+         rhs:
+          implicit cast: (lval_to_rval) 'vec_a: vector(8, char)'
+            decl_ref_expr: 'vec_a: vector(8, char)' lvalue
+             name: b
 
-    variable: 'vec_a: vector(8, char)'
-     name: ab3
-     init:
-      not_equal_expr: 'vec_a: vector(8, char)'
-       lhs:
-        implicit cast: (lval_to_rval) 'vec_a: vector(8, char)'
-          decl_ref_expr: 'vec_a: vector(8, char)' lvalue
-           name: a
-       rhs:
-        implicit cast: (bitcast) 'vec_a: vector(8, char)'
+    decl_stmt
+      variable: 'vec_a: vector(8, char)'
+       name: ab3
+       init:
+        not_equal_expr: 'vec_a: vector(8, char)'
+         lhs:
+          implicit cast: (lval_to_rval) 'vec_a: vector(8, char)'
+            decl_ref_expr: 'vec_a: vector(8, char)' lvalue
+             name: a
+         rhs:
+          implicit cast: (bitcast) 'vec_a: vector(8, char)'
+            implicit cast: (lval_to_rval) 'vec_b: vector(2, float)'
+              decl_ref_expr: 'vec_b: vector(2, float)' lvalue
+               name: c
+
+    decl_stmt
+      variable: 'vector(2, int)'
+       name: ab4
+       init:
+        greater_than_equal_expr: 'vector(2, int)'
+         lhs:
           implicit cast: (lval_to_rval) 'vec_b: vector(2, float)'
             decl_ref_expr: 'vec_b: vector(2, float)' lvalue
              name: c
-
-    variable: 'vector(2, int)'
-     name: ab4
-     init:
-      greater_than_equal_expr: 'vector(2, int)'
-       lhs:
-        implicit cast: (lval_to_rval) 'vec_b: vector(2, float)'
-          decl_ref_expr: 'vec_b: vector(2, float)' lvalue
-           name: c
-       rhs:
-        implicit cast: (lval_to_rval) 'vec_b: vector(2, float)'
-          decl_ref_expr: 'vec_b: vector(2, float)' lvalue
-           name: d
+         rhs:
+          implicit cast: (lval_to_rval) 'vec_b: vector(2, float)'
+            decl_ref_expr: 'vec_b: vector(2, float)' lvalue
+             name: d
 
     implicit return_stmt: 'void'
 

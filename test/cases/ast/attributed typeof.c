@@ -24,21 +24,26 @@ function: 'fn () void'
  name: foo
  body:
   compound_stmt
-    variable: 'aligned_int: int'
-     name: a
+    decl_stmt
+      variable: 'aligned_int: int'
+       name: a
 
-    variable: 'int'
-     aligned: 16
-     name: b
+    decl_stmt
+      variable: 'int'
+       aligned: 16
+       name: b
 
-    variable: 'typeof(<expr>: aligned_int: int)'
-     name: c
+    decl_stmt
+      variable: 'typeof(<expr>: aligned_int: int)'
+       name: c
 
-    variable: 'typeof(aligned_int: int)'
-     name: d
+    decl_stmt
+      variable: 'typeof(aligned_int: int)'
+       name: d
 
-    variable: 'typeof(<expr>: int)'
-     name: e
+    decl_stmt
+      variable: 'typeof(<expr>: int)'
+       name: e
 
     implicit return_stmt: 'void'
 

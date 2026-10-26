@@ -35,20 +35,25 @@ function: 'fn () void'
  name: foo
  body:
   compound_stmt
-    variable: 'int'
-     name: x
+    decl_stmt
+      variable: 'int'
+       name: x
 
-    variable: 'float'
-     name: f
+    decl_stmt
+      variable: 'float'
+       name: f
 
-    variable: 'double'
-     name: d
+    decl_stmt
+      variable: 'double'
+       name: d
 
-    variable: '[2]int'
-     name: arr
+    decl_stmt
+      variable: '[2]int'
+       name: arr
 
-    variable: '*int'
-     name: p
+    decl_stmt
+      variable: '*int'
+       name: p
 
     assign_expr: '*int'
      lhs:
@@ -81,13 +86,14 @@ function: 'fn () void'
           decl_ref_expr: 'fn () int' lvalue
            name: bar
 
-    variable: '_Bool'
-     name: b
-     init:
-      implicit cast: (pointer_to_bool) '_Bool'
-        implicit cast: (lval_to_rval) '*int'
-          decl_ref_expr: '*int' lvalue
-           name: p
+    decl_stmt
+      variable: '_Bool'
+       name: b
+       init:
+        implicit cast: (pointer_to_bool) '_Bool'
+          implicit cast: (lval_to_rval) '*int'
+            decl_ref_expr: '*int' lvalue
+             name: p
 
     assign_expr: 'int'
      lhs:
@@ -220,8 +226,9 @@ function: 'fn () void'
         decl_ref_expr: '*int' lvalue
          name: p
 
-    variable: 'union U'
-     name: u
+    decl_stmt
+      variable: 'union U'
+       name: u
 
     assign_expr: 'union U'
      lhs:
@@ -243,8 +250,9 @@ function: 'fn () void'
           decl_ref_expr: 'float' lvalue
            name: f
 
-    variable: '*void'
-     name: vp
+    decl_stmt
+      variable: '*void'
+       name: vp
 
     assign_expr: '*void'
      lhs:
@@ -266,8 +274,9 @@ function: 'fn () void'
           decl_ref_expr: '*void' lvalue
            name: vp
 
-    variable: '*const int'
-     name: const_p
+    decl_stmt
+      variable: '*const int'
+       name: const_p
 
     assign_expr: '*const int'
      lhs:
@@ -289,8 +298,9 @@ function: 'fn () void'
           decl_ref_expr: '*const int' lvalue
            name: const_p
 
-    variable: '*volatile int'
-     name: volatile_p
+    decl_stmt
+      variable: '*volatile int'
+       name: volatile_p
 
     assign_expr: '*volatile int'
      lhs:

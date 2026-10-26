@@ -20,10 +20,11 @@ function: 'fn () void'
  name: foo
  body:
   compound_stmt
-    variable: '__float80: long double'
-     name: x
-     init:
-      float_literal: 'long double' (value: 1)
+    decl_stmt
+      variable: '__float80: long double'
+       name: x
+       init:
+        float_literal: 'long double' (value: 1)
 
     assign_expr: '__float80: long double'
      lhs:
@@ -32,8 +33,9 @@ function: 'fn () void'
      rhs:
       float_literal: 'long double' (value: 1)
 
-    variable: '_Complex long double'
-     name: z
+    decl_stmt
+      variable: '_Complex long double'
+       name: z
 
     assign_expr: '_Complex long double'
      lhs:

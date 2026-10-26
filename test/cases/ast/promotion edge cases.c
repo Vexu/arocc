@@ -31,16 +31,18 @@ function: 'fn () void'
  name: foo
  body:
   compound_stmt
-    variable: 'char'
-     name: c
-     init:
-      implicit cast: (int_cast) 'char' (value: 0)
-        int_literal: 'int' (value: 0)
+    decl_stmt
+      variable: 'char'
+       name: c
+       init:
+        implicit cast: (int_cast) 'char' (value: 0)
+          int_literal: 'int' (value: 0)
 
-    variable: 'double'
-     name: d
-     init:
-      float_literal: 'double' (value: 2)
+    decl_stmt
+      variable: 'double'
+       name: d
+       init:
+        float_literal: 'double' (value: 2)
 
     assign_expr: 'double'
      lhs:
@@ -59,49 +61,53 @@ function: 'fn () void'
               decl_ref_expr: 'char' lvalue
                name: c
 
-    variable: 'struct S'
-     name: s
-     init:
-      struct_init_expr: 'struct S'
-        int_literal: 'unsigned int' (value: 1)
+    decl_stmt
+      variable: 'struct S'
+       name: s
+       init:
+        struct_init_expr: 'struct S'
+          int_literal: 'unsigned int' (value: 1)
 
-        int_literal: 'long' (value: 1)
+          int_literal: 'long' (value: 1)
 
-    variable: 'int'
-     name: x
-     init:
-      add_expr: 'int'
-       lhs:
-        implicit cast: (int_cast) 'int'
-          implicit cast: (lval_to_rval) 'unsigned int'
-            member_access_expr: 'unsigned int' lvalue bitfield
-             lhs:
-              decl_ref_expr: 'struct S' lvalue
-               name: s
-             name: x
-       rhs:
-        int_literal: 'int' (value: 1)
+    decl_stmt
+      variable: 'int'
+       name: x
+       init:
+        add_expr: 'int'
+         lhs:
+          implicit cast: (int_cast) 'int'
+            implicit cast: (lval_to_rval) 'unsigned int'
+              member_access_expr: 'unsigned int' lvalue bitfield
+               lhs:
+                decl_ref_expr: 'struct S' lvalue
+                 name: s
+               name: x
+         rhs:
+          int_literal: 'int' (value: 1)
 
-    variable: 'int'
-     name: y
-     init:
-      add_expr: 'int'
-       lhs:
-        implicit cast: (int_cast) 'int'
-          implicit cast: (lval_to_rval) 'long'
-            member_access_expr: 'long' lvalue bitfield
-             lhs:
-              decl_ref_expr: 'struct S' lvalue
-               name: s
-             name: y
-       rhs:
-        int_literal: 'int' (value: 1)
+    decl_stmt
+      variable: 'int'
+       name: y
+       init:
+        add_expr: 'int'
+         lhs:
+          implicit cast: (int_cast) 'int'
+            implicit cast: (lval_to_rval) 'long'
+              member_access_expr: 'long' lvalue bitfield
+               lhs:
+                decl_ref_expr: 'struct S' lvalue
+                 name: s
+               name: y
+         rhs:
+          int_literal: 'int' (value: 1)
 
-    variable: '__fp16'
-     name: fp16
-     init:
-      implicit cast: (float_cast) '__fp16' (value: 0)
-        float_literal: 'float' (value: 0)
+    decl_stmt
+      variable: '__fp16'
+       name: fp16
+       init:
+        implicit cast: (float_cast) '__fp16' (value: 0)
+          float_literal: 'float' (value: 0)
 
     assign_expr: '__fp16'
      lhs:
