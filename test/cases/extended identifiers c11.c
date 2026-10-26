@@ -46,5 +46,5 @@ extended identifiers c11.c:27:8: error: unexpected character <U+00A3>
 extended identifiers c11.c:27:1: warning: declaration does not declare anything [-Wmissing-declaration]
 extended identifiers c11.c:31:9: error: unexpected character <U+00A2>
 extended identifiers c11.c:31:10: warning: declaration does not declare anything [-Wmissing-declaration]
-extended identifiers c11.c:34:18: error: invalid operands to binary expression ('char *' and 'int')
+extended identifiers c11.c:34:18: error: invalid operands to binary expression ('char [10]' and 'int')
 */

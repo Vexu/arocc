@@ -7156,6 +7156,7 @@ pub const Result = struct {
         if (a.qt.isInvalid()) {
             return;
         }
+        const original_qts: [2]QualType = .{ a.qt, b.qt };
         try a.valueConversion(p);
         try b.valueConversion(p);
 
@@ -7165,7 +7166,7 @@ pub const Result = struct {
             const a_vec = opt_a_vec.?;
             const b_vec = opt_b_vec.?;
             if (kind == .boolean_logic) {
-                return a.invalidBinTy(tok, b, p);
+                return a.invalidBinTy(tok, b, p, original_qts);
             }
             if (a_vec.eql(b_vec, p.comp, true) and a_vec.kind == .generic) {
                 return;
@@ -7187,7 +7188,7 @@ pub const Result = struct {
                 try b.implicitCast(p, .vector_splat);
                 return;
             } else |er| switch (er) {
-                error.CoercionFailed => return a.invalidBinTy(tok, b, p),
+                error.CoercionFailed => return a.invalidBinTy(tok, b, p, original_qts),
                 else => |e| return e,
             }
         } else if (opt_b_vec) |b_vec| {
@@ -7197,7 +7198,7 @@ pub const Result = struct {
                 try a.implicitCast(p, .vector_splat);
                 return;
             } else |er| switch (er) {
-                error.CoercionFailed => return a.invalidBinTy(tok, b, p),
+                error.CoercionFailed => return a.invalidBinTy(tok, b, p, original_qts),
                 else => |e| return e,
             }
         }
@@ -7209,24 +7210,24 @@ pub const Result = struct {
             try a.usualArithmeticConversion(b, p, tok);
             return;
         }
-        if (kind == .integer) return a.invalidBinTy(tok, b, p);
+        if (kind == .integer) return a.invalidBinTy(tok, b, p, original_qts);
 
         if (a_sk.isArithmetic() and b_sk.isArithmetic()) {
             // <, <=, >, >= only work on real types
             if (kind == .relational and (!a_sk.isReal() or !b_sk.isReal()))
-                return a.invalidBinTy(tok, b, p);
+                return a.invalidBinTy(tok, b, p, original_qts);
 
             try a.usualArithmeticConversion(b, p, tok);
             return;
         }
-        if (kind == .arithmetic) return a.invalidBinTy(tok, b, p);
+        if (kind == .arithmetic) return a.invalidBinTy(tok, b, p, original_qts);
 
         switch (kind) {
             .boolean_logic => {
                 if (!(a_sk != .none or a_sk == .nullptr_t) or
                     !(b_sk != .none or b_sk == .nullptr_t))
                 {
-                    return a.invalidBinTy(tok, b, p);
+                    return a.invalidBinTy(tok, b, p, original_qts);
                 }
 
                 // Do integer promotions but nothing else
@@ -7248,13 +7249,13 @@ pub const Result = struct {
                         try other_res.nullToPointer(p, nullptr_res.qt);
                         return;
                     }
-                    return a.invalidBinTy(tok, b, p);
+                    return a.invalidBinTy(tok, b, p, original_qts);
                 }
 
                 // comparisons between floats and pointes not allowed
                 if (a_sk == .none or b_sk == .none or (a_sk.isFloat() and b_sk.isPointer()) or (b_sk.isFloat() and a_sk.isPointer()))
-                    return a.invalidBinTy(tok, b, p);
-                if (a_sk == .nullptr_t or b_sk == .nullptr_t) return a.invalidBinTy(tok, b, p);
+                    return a.invalidBinTy(tok, b, p, original_qts);
+                if (a_sk == .nullptr_t or b_sk == .nullptr_t) return a.invalidBinTy(tok, b, p, original_qts);
 
                 if ((a_sk.isInt() or b_sk.isInt()) and !(a.val.isZero(p.comp) or b.val.isZero(p.comp))) {
                     try p.err(tok, .comparison_ptr_int, .{ a.qt, b.qt });
@@ -7314,11 +7315,11 @@ pub const Result = struct {
                 if (a.qt.getRecord(p.comp) != null and b.qt.getRecord(p.comp) != null and a.qt.eql(b.qt, p.comp)) {
                     return;
                 }
-                return a.invalidBinTy(tok, b, p);
+                return a.invalidBinTy(tok, b, p, original_qts);
             },
             .add => {
                 // if both aren't arithmetic one should be pointer and the other an integer
-                if (a_sk.isPointer() == b_sk.isPointer() or a_sk.isInt() == b_sk.isInt()) return a.invalidBinTy(tok, b, p);
+                if (a_sk.isPointer() == b_sk.isPointer() or a_sk.isInt() == b_sk.isInt()) return a.invalidBinTy(tok, b, p, original_qts);
                 try p.boundsSafetyCheckPointerArithmetic(a.qt, b.qt, tok, a.node);
 
                 if (a_sk == .void_pointer or b_sk == .void_pointer)
@@ -7336,7 +7337,7 @@ pub const Result = struct {
             },
             .sub => {
                 // if both aren't arithmetic then either both should be pointers or just the left one.
-                if (!a_sk.isPointer() or !(b_sk.isPointer() or b_sk.isInt())) return a.invalidBinTy(tok, b, p);
+                if (!a_sk.isPointer() or !(b_sk.isPointer() or b_sk.isInt())) return a.invalidBinTy(tok, b, p, original_qts);
                 try p.boundsSafetyCheckPointerArithmetic(a.qt, b.qt, tok, a.node);
 
                 if (a_sk == .void_pointer)
@@ -7357,7 +7358,7 @@ pub const Result = struct {
                 // Do integer promotion on b if needed
                 if (b_sk.isInt()) try b.castToInt(p, b.qt.promoteInt(p.comp), tok);
             },
-            else => return a.invalidBinTy(tok, b, p),
+            else => return a.invalidBinTy(tok, b, p, original_qts),
         }
     }
 
@@ -7764,8 +7765,8 @@ pub const Result = struct {
         try b.castToInt(p, target_qt, tok);
     }
 
-    fn invalidBinTy(a: *Result, tok: TokenIndex, b: *Result, p: *Parser) Error!void {
-        try p.err(tok, .invalid_bin_types, .{ a.qt, b.qt });
+    fn invalidBinTy(a: *Result, tok: TokenIndex, b: *Result, p: *Parser, original_qts: [2]QualType) Error!void {
+        try p.err(tok, .invalid_bin_types, .{ original_qts[0], original_qts[1] });
         a.val = .{};
         b.val = .{};
         a.qt = .invalid;
@@ -8501,7 +8502,6 @@ fn binaryExpr(p: *Parser, min_prec: Token.Precedence, eval: bool) Error!?Result 
 
                 var lhs_dummy = lhs;
                 try lhs_dummy.un(p, .compound_assign_dummy_expr, operator);
-                try lhs_dummy.lvalConversion(p);
 
                 switch (tag) {
                     .mul_assign_expr,
