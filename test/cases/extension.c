@@ -26,7 +26,7 @@ syntax
 
 extension.c:6:18: error: expected expression
 extension.c:7:19: warning: expression result unused [-Wunused-value]
-extension.c:11:18: error: expected a type
+extension.c:11:18: error: expected record declaration
 extension.c:17:1: warning: extra ';' outside of a function [-Wextra-semi]
 extension.c:22:14: error: expected external declaration
 */

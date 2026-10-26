@@ -47,11 +47,13 @@ function: 'fn () void'
  name: foo
  body:
   compound_stmt
-    variable: 'neon_vector(4, int)'
-     name: a
+    decl_stmt
+      variable: 'neon_vector(4, int)'
+       name: a
 
-    variable: 'neon_vector(4, float)'
-     name: b
+    decl_stmt
+      variable: 'neon_vector(4, float)'
+       name: b
 
     assign_expr: 'neon_vector(4, int)'
      lhs:

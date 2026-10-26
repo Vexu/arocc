@@ -20,8 +20,9 @@ function: 'fn () void'
  name: foo
  body:
   compound_stmt
-    variable: '*unsigned short'
-     name: ptr
+    decl_stmt
+      variable: '*unsigned short'
+       name: ptr
 
     post_inc_expr: 'unsigned short'
      operand:

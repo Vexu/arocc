@@ -82,19 +82,23 @@ function: 'fn () int'
  name: bar
  body:
   compound_stmt
-    function: 'fn () int'
-     name: baz
+    decl_stmt
+      function: 'fn () int'
+       name: baz
 
-    function: 'fn () int'
-     name: baz
-     definition: 0x21
+    decl_stmt
+      function: 'fn () int'
+       name: baz
+       definition: 0x21
 
-    variable: 'int'
-     extern name: b
+    decl_stmt
+      variable: 'int'
+       extern name: b
 
-    variable: 'int'
-     extern name: b
-     definition: 0x23
+    decl_stmt
+      variable: 'int'
+       extern name: b
+       definition: 0x25
 
     return_stmt: 'int'
      expr:

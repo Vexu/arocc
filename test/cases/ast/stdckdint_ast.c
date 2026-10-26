@@ -20,23 +20,27 @@ function: 'fn () void'
  name: foo
  body:
   compound_stmt
-    variable: 'char'
-     name: x
-     init:
-      implicit cast: (int_cast) 'char' (value: 0)
-        int_literal: 'int' (value: 0)
+    decl_stmt
+      variable: 'char'
+       name: x
+       init:
+        implicit cast: (int_cast) 'char' (value: 0)
+          int_literal: 'int' (value: 0)
 
-    variable: 'unsigned int'
-     name: y
-     init:
-      implicit cast: (int_cast) 'unsigned int' (value: 2)
-        int_literal: 'int' (value: 2)
+    decl_stmt
+      variable: 'unsigned int'
+       name: y
+       init:
+        implicit cast: (int_cast) 'unsigned int' (value: 2)
+          int_literal: 'int' (value: 2)
 
-    variable: '_Bool'
-     name: overflowed
+    decl_stmt
+      variable: '_Bool'
+       name: overflowed
 
-    variable: 'long'
-     name: res
+    decl_stmt
+      variable: 'long'
+       name: res
 
     assign_expr: '_Bool'
      lhs:

@@ -81,6 +81,7 @@ const Switch = struct {
 const Label = union(enum) {
     unresolved_goto: TokenIndex,
     label: Node.Index,
+    named_break: TokenIndex,
 };
 
 const InitContext = enum {
@@ -866,6 +867,7 @@ fn findLabel(p: *Parser, name: []const u8) ?TokenIndex {
                 }
             },
             .unresolved_goto => {},
+            .named_break => {},
         }
     }
     return null;
@@ -1082,6 +1084,22 @@ fn diagnoseUnusedValue(p: *Parser, node: Node.Index, prev_total: usize) Error!vo
     }
 }
 
+fn diagnoseC99Keyword(p: *Parser) !void {
+    if (p.comp.langopts.standard.atLeast(.c99)) return;
+    try p.err(p.tok_i, .c99_extension, .{p.tokSlice(p.tok_i)});
+}
+
+fn diagnoseC11Keyword(p: *Parser) !void {
+    const c11 = p.comp.langopts.standard.atLeast(.c11);
+    try p.err(p.tok_i, if (c11) .pre_c11_compat else .c11_extension, .{p.tokSlice(p.tok_i)});
+}
+
+fn diagnoseC23Keyword(p: *Parser) !void {
+    // Not an assert because typeof is also a GNU keyword.
+    if (!p.comp.langopts.standard.atLeast(.c23)) return;
+    try p.err(p.tok_i, .pre_c23_compat, .{p.tokSlice(p.tok_i)});
+}
+
 /// root : (decl | assembly ';' | staticAssert)*
 pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
     const gpa = pp.comp.gpa;
@@ -1160,62 +1178,76 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
     const implicit_typedef_count = p.decl_buf.items.len;
     assert(implicit_typedef_count <= expected_implicit_typedef_max);
 
-    while (p.eatToken(.eof) == null) {
-        if (try p.pragma()) continue;
-
-        const attr_state = p.wip_attrs.state(true);
-        defer p.wip_attrs.restore(attr_state);
-        p.attributeSpecifier() catch |er| switch (er) {
+    outer: while (p.eatToken(.eof) == null) {
+        p.rootItem() catch |er| switch (er) {
             error.ParsingFailed => {
-                p.nextExternDecl();
-                continue;
+                var parens: u32 = 0;
+                while (true) : (p.tok_i += 1) switch (p.tok_ids[p.tok_i]) {
+                    .l_paren, .l_brace => parens += 1,
+                    .l_bracket => {
+                        if (parens == 0 and p.tok_ids[p.tok_i + 1] == .l_bracket) continue :outer;
+                        parens += 1;
+                    },
+                    .r_paren, .r_brace, .r_bracket => parens -|= 1,
+                    // TODO https://github.com/ziglang/zig/issues/21507
+                    .keyword_attribute1,
+                    .keyword_attribute2,
+                    .keyword_declspec,
+                    .keyword_typedef,
+                    .keyword_extern,
+                    .keyword_static,
+                    .keyword_auto,
+                    .keyword_register,
+                    .keyword_thread_local,
+                    .keyword_c23_thread_local,
+                    .keyword_thread,
+                    .keyword_inline,
+                    .keyword_inline1,
+                    .keyword_inline2,
+                    .keyword_noreturn,
+                    .keyword_void,
+                    .keyword_bool,
+                    .keyword_c23_bool,
+                    .keyword_char,
+                    .keyword_short,
+                    .keyword_int,
+                    .keyword_long,
+                    .keyword_signed,
+                    .keyword_signed1,
+                    .keyword_signed2,
+                    .keyword_unsigned,
+                    .keyword_float,
+                    .keyword_double,
+                    .keyword_complex,
+                    .keyword_atomic,
+                    .keyword_enum,
+                    .keyword_struct,
+                    .keyword_union,
+                    .keyword_alignas,
+                    .keyword_c23_alignas,
+                    .identifier,
+                    .extended_identifier,
+                    .keyword_typeof,
+                    .keyword_typeof1,
+                    .keyword_typeof2,
+                    .keyword_typeof_unqual,
+                    .keyword_extension,
+                    .keyword_bit_int,
+                    => if (parens == 0) continue :outer,
+                    .keyword_pragma => p.skipToPragmaSentinel(),
+                    .eof => break :outer,
+                    .semicolon => if (parens == 0) {
+                        p.tok_i += 1;
+                        continue :outer;
+                    },
+                    else => {},
+                };
+                comptime unreachable;
             },
             else => |e| return e,
         };
-
-        if (try p.parseOrNextDecl(staticAssert)) continue;
-        if (try p.parseOrNextDecl(decl)) continue;
-        if (p.eatToken(.keyword_extension)) |_| {
-            const saved_extension = p.extension_suppressed;
-            defer p.extension_suppressed = saved_extension;
-            p.extension_suppressed = true;
-
-            if (try p.parseOrNextDecl(decl)) continue;
-            switch (p.tok_ids[p.tok_i]) {
-                .semicolon => p.tok_i += 1,
-                .keyword_static_assert,
-                .keyword_c23_static_assert,
-                .keyword_pragma,
-                .keyword_extension,
-                .keyword_asm,
-                .keyword_asm1,
-                .keyword_asm2,
-                => {},
-                else => try p.err(p.tok_i, .expected_external_decl, .{}),
-            }
-            continue;
-        }
-        if (p.assembly(.global) catch |er| switch (er) {
-            error.ParsingFailed => {
-                p.nextExternDecl();
-                continue;
-            },
-            else => |e| return e,
-        }) |node| {
-            try p.decl_buf.append(gpa, node);
-            continue;
-        }
-        if (p.eatToken(.semicolon)) |tok| {
-            try p.err(tok, .extra_semi, .{});
-            const empty = try p.tree.addNode(.{ .empty_decl = .{
-                .semicolon = tok,
-            } });
-            try p.decl_buf.append(gpa, empty);
-            continue;
-        }
-        try p.err(p.tok_i, .expected_external_decl, .{});
-        p.nextExternDecl();
     }
+
     if (p.tentative_defs.count() > 0) {
         try p.diagnoseIncompleteDefinitions();
         try p.diagnoseTentativeArrays();
@@ -1232,6 +1264,51 @@ pub fn parse(pp: *Preprocessor) Compilation.Error!Tree {
     try p.finalizeTentativeDefinitions();
 
     return p.tree;
+}
+
+fn rootItem(p: *Parser) !void {
+    if (try p.pragma()) return;
+
+    const attr_state = p.wip_attrs.state(true);
+    defer p.wip_attrs.restore(attr_state);
+    try p.attributeSpecifier();
+
+    if (try p.staticAssert()) return;
+    if (try p.decl(.full)) return;
+    if (p.eatToken(.keyword_extension)) |_| {
+        const saved_extension = p.extension_suppressed;
+        defer p.extension_suppressed = saved_extension;
+        p.extension_suppressed = true;
+
+        if (try p.decl(.full)) return;
+        switch (p.tok_ids[p.tok_i]) {
+            .semicolon => p.tok_i += 1,
+            .keyword_static_assert,
+            .keyword_c23_static_assert,
+            .keyword_pragma,
+            .keyword_extension,
+            .keyword_asm,
+            .keyword_asm1,
+            .keyword_asm2,
+            => {},
+            else => try p.err(p.tok_i, .expected_external_decl, .{}),
+        }
+        return;
+    }
+    if (try p.assembly(.global)) |node| {
+        try p.decl_buf.append(p.comp.gpa, node);
+        return;
+    }
+    if (p.eatToken(.semicolon)) |tok| {
+        try p.err(tok, .extra_semi, .{});
+        const empty = try p.tree.addNode(.{ .empty_decl = .{
+            .semicolon = tok,
+        } });
+        try p.decl_buf.append(p.comp.gpa, empty);
+        return;
+    }
+    try p.err(p.tok_i, .expected_external_decl, .{});
+    return error.ParsingFailed;
 }
 
 fn addImplicitTypedef(p: *Parser, name: []const u8, qt: QualType) !void {
@@ -1277,74 +1354,6 @@ fn skipToPragmaSentinel(p: *Parser) void {
     }
 }
 
-fn parseOrNextDecl(p: *Parser, comptime func: fn (*Parser) Error!bool) Compilation.Error!bool {
-    return func(p) catch |er| switch (er) {
-        error.ParsingFailed => {
-            p.nextExternDecl();
-            return true;
-        },
-        else => |e| return e,
-    };
-}
-
-fn nextExternDecl(p: *Parser) void {
-    var parens: u32 = 0;
-    while (true) : (p.tok_i += 1) {
-        switch (p.tok_ids[p.tok_i]) {
-            .l_paren, .l_brace, .l_bracket => parens += 1,
-            .r_paren, .r_brace, .r_bracket => parens -|= 1,
-            .keyword_typedef,
-            .keyword_extern,
-            .keyword_static,
-            .keyword_auto,
-            .keyword_register,
-            .keyword_thread_local,
-            .keyword_c23_thread_local,
-            .keyword_thread,
-            .keyword_inline,
-            .keyword_inline1,
-            .keyword_inline2,
-            .keyword_noreturn,
-            .keyword_void,
-            .keyword_bool,
-            .keyword_c23_bool,
-            .keyword_char,
-            .keyword_short,
-            .keyword_int,
-            .keyword_long,
-            .keyword_signed,
-            .keyword_signed1,
-            .keyword_signed2,
-            .keyword_unsigned,
-            .keyword_float,
-            .keyword_double,
-            .keyword_complex,
-            .keyword_atomic,
-            .keyword_enum,
-            .keyword_struct,
-            .keyword_union,
-            .keyword_alignas,
-            .keyword_c23_alignas,
-            .identifier,
-            .extended_identifier,
-            .keyword_typeof,
-            .keyword_typeof1,
-            .keyword_typeof2,
-            .keyword_typeof_unqual,
-            .keyword_extension,
-            .keyword_bit_int,
-            => if (parens == 0) return,
-            .keyword_pragma => p.skipToPragmaSentinel(),
-            .eof => return,
-            .semicolon => if (parens == 0) {
-                p.tok_i += 1;
-                return;
-            },
-            else => {},
-        }
-    }
-}
-
 fn skipTo(p: *Parser, id: Token.Id) void {
     var parens: u32 = 0;
     while (true) : (p.tok_i += 1) {
@@ -1382,7 +1391,7 @@ fn typedefDefined(p: *Parser, name: StringId, ty: QualType) void {
 /// decl
 ///  : declSpec (initDeclarator ( ',' initDeclarator)*)? ';'
 ///  | declSpec declarator decl* compoundStmt
-fn decl(p: *Parser) Error!bool {
+fn decl(p: *Parser, kind: enum { simple, full }) Error!bool {
     const gpa = p.comp.gpa;
     _ = try p.pragma();
     const first_tok = p.tok_i;
@@ -1644,10 +1653,11 @@ fn decl(p: *Parser) Error!bool {
 
         // check gotos
         if (func.qt == null) {
-            for (p.labels.items) |item| {
-                if (item == .unresolved_goto)
-                    try p.err(item.unresolved_goto, .undeclared_label, .{p.tokSlice(item.unresolved_goto)});
-            }
+            for (p.labels.items) |item| switch (item) {
+                .label => {},
+                .unresolved_goto => |tok| try p.err(tok, .undeclared_label, .{p.tokSlice(tok)}),
+                .named_break => |tok| try p.err(tok, .named_break_not_enclosing, .{p.tokSlice(tok - 1)}),
+            };
             if (p.computed_goto_tok) |goto_tok| {
                 if (!p.contains_address_of_label) try p.err(goto_tok, .invalid_computed_goto, .{});
             }
@@ -1756,6 +1766,7 @@ fn decl(p: *Parser) Error!bool {
         if (completes_tentative_array) _ = p.tentative_defs.orderedRemove(.tentativeArray(interned_name));
         try p.addMaybeUnusued(decl_node);
 
+        if (kind == .simple) break;
         if (p.eatToken(.comma) == null) break;
 
         p.wip_attrs.restore(declarator_attr_state);
@@ -1782,7 +1793,7 @@ fn decl(p: *Parser) Error!bool {
         };
     }
 
-    _ = try p.expectToken(.semicolon);
+    if (kind == .full) _ = try p.expectToken(.semicolon);
     return true;
 }
 
@@ -1855,7 +1866,13 @@ fn staticAssertEvaluationNote(p: *Parser, node: Node.Index, requirement: []const
 ///    | keyword_c23_static_assert '(' integerConstExpr (',' STRING_LITERAL)? ')' ';'
 fn staticAssert(p: *Parser) Error!bool {
     const gpa = p.comp.gpa;
-    const static_assert = p.eatToken(.keyword_static_assert) orelse p.eatToken(.keyword_c23_static_assert) orelse return false;
+    switch (p.tok_ids[p.tok_i]) {
+        .keyword_static_assert => try p.diagnoseC11Keyword(),
+        .keyword_c23_static_assert => try p.diagnoseC23Keyword(),
+        else => return false,
+    }
+    const static_assert = p.tok_i;
+    p.tok_i += 1;
     const l_paren = try p.expectToken(.l_paren);
     const res_token = p.tok_i;
     const old_record_static_assert_eval_note = p.record_static_assert_eval_note;
@@ -1882,8 +1899,8 @@ fn staticAssert(p: *Parser) Error!bool {
     try p.expectClosing(l_paren, .r_paren);
     _ = try p.expectToken(.semicolon);
     if (str == null) {
-        try p.err(static_assert, .static_assert_missing_message, .{});
-        try p.err(static_assert, .pre_c23_compat, .{"'_Static_assert' with no message"});
+        const c23 = p.comp.langopts.standard.atLeast(.c23);
+        try p.err(static_assert, if (c23) .static_assert_missing_message_compat else .static_assert_missing_message, .{});
     }
 
     const is_int_expr = res.qt.isInvalid() or res.qt.isInt(p.comp);
@@ -1992,15 +2009,19 @@ pub const DeclSpec = struct {
 ///   | keyword_typeof '(' expr ')'
 fn typeof(p: *Parser) Error!?QualType {
     const gpa = p.comp.gpa;
-    var unqual = false;
-    switch (p.tok_ids[p.tok_i]) {
-        .keyword_typeof, .keyword_typeof1, .keyword_typeof2 => p.tok_i += 1,
-        .keyword_typeof_unqual => {
-            p.tok_i += 1;
-            unqual = true;
+    const unqual = switch (p.tok_ids[p.tok_i]) {
+        .keyword_typeof1, .keyword_typeof2 => false,
+        .keyword_typeof => unqual: {
+            try p.diagnoseC23Keyword();
+            break :unqual false;
+        },
+        .keyword_typeof_unqual => unqual: {
+            try p.diagnoseC23Keyword();
+            break :unqual true;
         },
         else => return null,
-    }
+    };
+    p.tok_i += 1;
     const l_paren = try p.expectToken(.l_paren);
     if (try p.typeName()) |qt| {
         try p.expectClosing(l_paren, .r_paren);
@@ -2035,6 +2056,7 @@ fn declSpec(p: *Parser) Error!?DeclSpec {
         const id = p.tok_ids[p.tok_i];
         switch (id) {
             .keyword_inline, .keyword_inline1, .keyword_inline2 => {
+                if (id == .keyword_inline) try p.diagnoseC99Keyword();
                 if (d.@"inline" != null) {
                     try p.err(p.tok_i, .duplicate_decl_spec, .{"inline"});
                 }
@@ -2043,6 +2065,7 @@ fn declSpec(p: *Parser) Error!?DeclSpec {
                 continue;
             },
             .keyword_noreturn => {
+                try p.diagnoseC11Keyword();
                 if (d.noreturn != null) {
                     try p.err(p.tok_i, .duplicate_decl_spec, .{"_Noreturn"});
                 }
@@ -2133,6 +2156,11 @@ fn storageClassSpec(p: *Parser, d: *DeclSpec) Error!bool {
             .keyword_c23_thread_local,
             .keyword_thread,
             => {
+                switch (id) {
+                    .keyword_thread_local => try p.diagnoseC11Keyword(),
+                    .keyword_c23_thread_local => try p.diagnoseC23Keyword(),
+                    else => {},
+                }
                 if (d.thread_local != null) {
                     try p.err(p.tok_i, .duplicate_decl_spec, .{id.lexeme().?});
                 }
@@ -2144,6 +2172,7 @@ fn storageClassSpec(p: *Parser, d: *DeclSpec) Error!bool {
                 d.thread_local = p.tok_i;
             },
             .keyword_constexpr => {
+                try p.diagnoseC23Keyword();
                 if (d.constexpr != null) {
                     try p.err(p.tok_i, .duplicate_decl_spec, .{id.lexeme().?});
                 }
@@ -2591,7 +2620,14 @@ fn typeSpec(p: *Parser, builder: *TypeStore.Builder) Error!bool {
         if (try p.typeQual(builder, true)) continue;
         switch (p.tok_ids[p.tok_i]) {
             .keyword_void => try builder.combine(.void, p.tok_i),
-            .keyword_bool, .keyword_c23_bool => try builder.combine(.bool, p.tok_i),
+            .keyword_bool => {
+                try p.diagnoseC99Keyword();
+                try builder.combine(.bool, p.tok_i);
+            },
+            .keyword_c23_bool => {
+                try p.diagnoseC23Keyword();
+                try builder.combine(.bool, p.tok_i);
+            },
             .keyword_char => try builder.combine(.char, p.tok_i),
             .keyword_short => try builder.combine(.short, p.tok_i),
             .keyword_int => try builder.combine(.int, p.tok_i),
@@ -2628,7 +2664,14 @@ fn typeSpec(p: *Parser, builder: *TypeStore.Builder) Error!bool {
             .keyword_dfloat64x => try builder.combine(.dfloat64x, p.tok_i),
             .keyword_float => try builder.combine(.float, p.tok_i),
             .keyword_double => try builder.combine(.double, p.tok_i),
-            .keyword_complex => try builder.combine(.complex, p.tok_i),
+            .keyword_complex => {
+                try p.diagnoseC99Keyword();
+                try builder.combine(.complex, p.tok_i);
+            },
+            .keyword_imaginary => {
+                try p.diagnoseC99Keyword();
+                try p.err(p.tok_i, .imaginary_unsupported, .{});
+            },
             .keyword_float128, .keyword_float128_1 => {
                 if (!p.comp.hasFloat128()) {
                     try p.err(p.tok_i, .type_not_supported_on_target, .{p.tok_ids[p.tok_i].lexeme().?});
@@ -2643,6 +2686,7 @@ fn typeSpec(p: *Parser, builder: *TypeStore.Builder) Error!bool {
                     p.tok_i = atomic_tok;
                     break;
                 };
+                try p.diagnoseC11Keyword();
                 const base_qt = try p.expectTypeName(.r_paren);
                 try p.expectClosing(l_paren, .r_paren);
 
@@ -2657,7 +2701,12 @@ fn typeSpec(p: *Parser, builder: *TypeStore.Builder) Error!bool {
             },
             .keyword_alignas,
             .keyword_c23_alignas,
-            => {
+            => |id| {
+                switch (id) {
+                    .keyword_alignas => try p.diagnoseC11Keyword(),
+                    .keyword_c23_alignas => try p.diagnoseC23Keyword(),
+                    else => unreachable,
+                }
                 const align_tok = p.tok_i;
                 p.tok_i += 1;
                 const l_paren = try p.expectToken(.l_paren);
@@ -2762,7 +2811,7 @@ fn getAnonymousName(p: *Parser, kind_tok: TokenIndex) !StringId {
 }
 
 /// recordSpec
-///  : (keyword_struct | keyword_union) IDENTIFIER? { recordDecls }
+///  : (keyword_struct | keyword_union) IDENTIFIER? { recordDeclItem* }
 ///  | (keyword_struct | keyword_union) IDENTIFIER
 fn recordSpec(p: *Parser) Error!QualType {
     const gpa = p.comp.gpa;
@@ -2896,7 +2945,83 @@ fn recordSpec(p: *Parser) Error!QualType {
     defer p.record = old_record;
     defer p.record_members.items.len = old_members;
 
-    try p.recordDecls();
+    outer: while (p.eatToken(.r_brace) == null) {
+        p.recordDeclItem() catch |er| switch (er) {
+            error.ParsingFailed => {
+                var parens: u32 = 0;
+                while (true) : (p.tok_i += 1) switch (p.tok_ids[p.tok_i]) {
+                    .l_paren, .l_brace => parens += 1,
+                    .l_bracket => {
+                        if (parens == 0 and p.tok_ids[p.tok_i + 1] == .l_bracket) continue :outer;
+                        parens += 1;
+                    },
+                    .r_paren, .r_bracket => {
+                        parens -|= 1;
+                    },
+                    .r_brace => if (parens == 0) {
+                        p.tok_i += 1;
+                        break :outer;
+                    } else {
+                        parens -= 1;
+                    },
+                    .semicolon => if (parens == 0) {
+                        p.tok_i += 1;
+                        continue :outer;
+                    },
+                    // TODO https://github.com/ziglang/zig/issues/21507
+                    .keyword_attribute1,
+                    .keyword_attribute2,
+                    .keyword_declspec,
+                    .keyword_typedef,
+                    .keyword_extern,
+                    .keyword_static,
+                    .keyword_auto,
+                    .keyword_register,
+                    .keyword_thread_local,
+                    .keyword_c23_thread_local,
+                    .keyword_thread,
+                    .keyword_inline,
+                    .keyword_inline1,
+                    .keyword_inline2,
+                    .keyword_noreturn,
+                    .keyword_void,
+                    .keyword_bool,
+                    .keyword_c23_bool,
+                    .keyword_char,
+                    .keyword_short,
+                    .keyword_int,
+                    .keyword_long,
+                    .keyword_signed,
+                    .keyword_signed1,
+                    .keyword_signed2,
+                    .keyword_unsigned,
+                    .keyword_float,
+                    .keyword_double,
+                    .keyword_complex,
+                    .keyword_atomic,
+                    .keyword_enum,
+                    .keyword_struct,
+                    .keyword_union,
+                    .keyword_alignas,
+                    .keyword_c23_alignas,
+                    .keyword_typeof,
+                    .keyword_typeof1,
+                    .keyword_typeof2,
+                    .keyword_typeof_unqual,
+                    .keyword_extension,
+                    => if (parens == 0) continue :outer,
+                    .keyword_pragma => p.skipToPragmaSentinel(),
+                    .eof => {
+                        try p.expectClosing(l_brace, .r_brace);
+                        return error.ParsingFailed;
+                    },
+                    else => {},
+                };
+                comptime unreachable;
+            },
+            else => |e| return e,
+        };
+    }
 
     const fields = p.record_buf.items[record_buf_top..];
 
@@ -2914,7 +3039,6 @@ fn recordSpec(p: *Parser) Error!QualType {
         try p.err(kind_tok, .empty_record, .{p.tokSlice(kind_tok)});
         try p.err(kind_tok, .empty_record_size, .{p.tokSlice(kind_tok)});
     }
-    try p.expectClosing(l_brace, .r_brace);
     done = true;
     try p.attributeSpecifier();
 
@@ -2957,29 +3081,27 @@ fn recordSpec(p: *Parser) Error!QualType {
     return qt;
 }
 
-/// recordDecls : (keyword_extension? recordDecl | staticAssert)*
-fn recordDecls(p: *Parser) Error!void {
-    while (true) {
-        if (try p.pragma()) continue;
+/// recordDeclItem : keyword_extension? recordDecl | staticAssert
+fn recordDeclItem(p: *Parser) Error!void {
+    if (try p.pragma()) return;
 
-        const attr_state = p.wip_attrs.state(true);
-        defer p.wip_attrs.restore(attr_state);
-        try p.attributeSpecifier();
+    const attr_state = p.wip_attrs.state(true);
+    defer p.wip_attrs.restore(attr_state);
+    try p.attributeSpecifier();
 
-        if (try p.parseOrNextDecl(staticAssert)) continue;
-        if (p.eatToken(.keyword_extension)) |_| {
-            const saved_extension = p.extension_suppressed;
-            defer p.extension_suppressed = saved_extension;
-            p.extension_suppressed = true;
+    if (try p.staticAssert()) return;
+    if (p.eatToken(.keyword_extension)) |_| {
+        const saved_extension = p.extension_suppressed;
+        defer p.extension_suppressed = saved_extension;
+        p.extension_suppressed = true;
 
-            if (try p.parseOrNextDecl(recordDecl)) continue;
-            try p.err(p.tok_i, .expected_type, .{});
-            p.nextExternDecl();
-            continue;
-        }
-        if (try p.parseOrNextDecl(recordDecl)) continue;
-        break;
+        if (try p.recordDecl()) return;
+        try p.err(p.tok_i, .expected_record_decl, .{});
+        return error.ParsingFailed;
     }
+    if (try p.recordDecl()) return;
+    try p.err(p.tok_i, .expected_record_decl, .{});
+    return error.ParsingFailed;
 }
 
 /// recordDecl : typeSpec+ (recordDeclarator (',' recordDeclarator)*)?
@@ -2987,6 +3109,7 @@ fn recordDecls(p: *Parser) Error!void {
 fn recordDecl(p: *Parser) Error!bool {
     const gpa = p.comp.gpa;
 
+    var warn_missing_declaration = true;
     const base_qt: QualType = blk: {
         const start = p.tok_i;
         var builder: TypeStore.Builder = .{ .parser = p };
@@ -3009,6 +3132,7 @@ fn recordDecl(p: *Parser) Error!bool {
                     if (builder.type != .none) break;
                     try p.err(p.tok_i, .unknown_type_name, .{p.tokSlice(p.tok_i)});
                     builder.type = .{ .other = .invalid };
+                    warn_missing_declaration = false;
                 },
                 else => break,
             }
@@ -3116,7 +3240,7 @@ fn recordDecl(p: *Parser) Error!bool {
             };
             if (error_on_unnamed) {
                 try p.err(first_tok, .expected_member_name, .{});
-            } else {
+            } else if (warn_missing_declaration) {
                 try p.err(p.tok_i, .missing_declaration, .{});
             }
             if (p.eatToken(.comma) == null) break;
@@ -3726,7 +3850,8 @@ fn typeQual(p: *Parser, b: *TypeStore.Builder, allow_attr: bool) Error!bool {
         if (allow_attr and try p.msTypeAttribute()) continue;
         if (allow_attr) try p.attributeSpecifier();
         switch (p.tok_ids[p.tok_i]) {
-            .keyword_restrict, .keyword_restrict1, .keyword_restrict2 => {
+            .keyword_restrict, .keyword_restrict1, .keyword_restrict2 => |id| {
+                if (id == .keyword_restrict) try p.diagnoseC99Keyword();
                 if (b.restrict != null)
                     try p.err(p.tok_i, .duplicate_decl_spec, .{"restrict"})
                 else
@@ -3747,6 +3872,7 @@ fn typeQual(p: *Parser, b: *TypeStore.Builder, allow_attr: bool) Error!bool {
             .keyword_atomic => {
                 // _Atomic(typeName) instead of just _Atomic
                 if (p.tok_ids[p.tok_i + 1] == .l_paren) break;
+                try p.diagnoseC11Keyword();
                 if (b.atomic != null)
                     try p.err(p.tok_i, .duplicate_decl_spec, .{"atomic"})
                 else
@@ -5511,8 +5637,8 @@ fn asmStr(p: *Parser) Error!Result {
 /// stmt
 ///  : labeledStmt
 ///  | compoundStmt
-///  | keyword_if '(' expr ')' stmt (keyword_else stmt)?
-///  | keyword_switch '(' expr ')' stmt
+///  | keyword_if '(' selectionHeader ')' stmt (keyword_else stmt)?
+///  | keyword_switch '(' selectionHeader ')' stmt
 ///  | keyword_while '(' expr ')' stmt
 ///  | keyword_do stmt while '(' expr ')' ';'
 ///  | keyword_for '(' (decl | expr? ';') expr? ';' expr? ')' stmt
@@ -5541,15 +5667,9 @@ fn attributedStmt(p: *Parser, check_unused: bool) Error!Node.Index {
     const gpa = p.comp.gpa;
     if (p.eatToken(.keyword_if)) |kw_if| {
         const l_paren = try p.expectToken(.l_paren);
-
-        const cond_tok = p.tok_i;
-        var cond = try p.expect(expr);
-        try cond.lvalConversion(p);
-        try cond.usualUnaryConversion(p, cond_tok);
-        if (!cond.qt.isInvalid() and cond.qt.scalarKind(p.comp) == .none)
-            try p.err(l_paren + 1, .statement_scalar, .{cond.qt});
-        try cond.saveValue(p);
-
+        try p.syms.pushScope(p);
+        defer p.syms.popScope();
+        const opt_init, const cond = try p.selectionHeader(.scalar);
         try p.expectClosing(l_paren, .r_paren);
 
         const then_body = try p.stmt(true);
@@ -5566,31 +5686,26 @@ fn attributedStmt(p: *Parser, check_unused: bool) Error!Node.Index {
             }
         }
 
-        return p.addNode(.{ .if_stmt = .{
-            .if_tok = kw_if,
-            .cond = cond.node,
-            .then_body = then_body,
-            .else_body = else_body,
-        } });
+        return p.addNode(.{
+            .if_stmt = .{
+                .if_tok = kw_if,
+                .init = opt_init,
+                .cond = cond,
+                .then_body = then_body,
+                .else_body = else_body,
+            },
+        });
     }
     if (p.eatToken(.keyword_switch)) |kw_switch| {
         const l_paren = try p.expectToken(.l_paren);
-        const cond_tok = p.tok_i;
-        var cond = try p.expect(expr);
-        try cond.lvalConversion(p);
-        try cond.usualUnaryConversion(p, cond_tok);
-
-        // Switch condition can't be complex.
-        if (!cond.qt.isInvalid() and !cond.qt.isRealInt(p.comp)) {
-            try p.err(l_paren + 1, .statement_int, .{cond.qt});
-        }
-
-        try cond.saveValue(p);
+        try p.syms.pushScope(p);
+        defer p.syms.popScope();
+        const opt_init, const cond = try p.selectionHeader(.int);
         try p.expectClosing(l_paren, .r_paren);
 
         const old_switch = p.@"switch";
         var @"switch": Switch = .{
-            .qt = cond.qt,
+            .qt = cond.qt(&p.tree),
             .comp = p.comp,
         };
         p.@"switch" = &@"switch";
@@ -5603,7 +5718,8 @@ fn attributedStmt(p: *Parser, check_unused: bool) Error!Node.Index {
 
         return p.addNode(.{ .switch_stmt = .{
             .switch_tok = kw_switch,
-            .cond = cond.node,
+            .init = opt_init,
+            .cond = cond,
             .body = body,
         } });
     }
@@ -5615,7 +5731,7 @@ fn attributedStmt(p: *Parser, check_unused: bool) Error!Node.Index {
         try cond.lvalConversion(p);
         try cond.usualUnaryConversion(p, cond_tok);
         if (!cond.qt.isInvalid() and cond.qt.scalarKind(p.comp) == .none)
-            try p.err(l_paren + 1, .statement_scalar, .{cond.qt});
+            try p.err(l_paren + 1, .non_scalar_cond, .{cond.qt});
         try cond.saveValue(p);
 
         try p.expectClosing(l_paren, .r_paren);
@@ -5650,7 +5766,7 @@ fn attributedStmt(p: *Parser, check_unused: bool) Error!Node.Index {
         try cond.usualUnaryConversion(p, cond_tok);
 
         if (!cond.qt.isInvalid() and cond.qt.scalarKind(p.comp) == .none)
-            try p.err(l_paren + 1, .statement_scalar, .{cond.qt});
+            try p.err(l_paren + 1, .non_scalar_cond, .{cond.qt});
         try cond.saveValue(p);
         try p.expectClosing(l_paren, .r_paren);
 
@@ -5691,7 +5807,7 @@ fn attributedStmt(p: *Parser, check_unused: bool) Error!Node.Index {
             try cond.lvalConversion(p);
             try cond.usualUnaryConversion(p, cond_tok);
             if (!cond.qt.isInvalid() and cond.qt.scalarKind(p.comp) == .none)
-                try p.err(l_paren + 1, .statement_scalar, .{cond.qt});
+                try p.err(l_paren + 1, .non_scalar_cond, .{cond.qt});
             try cond.saveValue(p);
             break :cond cond.node;
         };
@@ -5757,14 +5873,24 @@ fn attributedStmt(p: *Parser, check_unused: bool) Error!Node.Index {
         return p.addNode(.{ .goto_stmt = .{ .label_tok = name_tok } });
     }
     if (p.eatToken(.keyword_continue)) |cont| {
-        if (!p.in_loop) try p.err(cont, .continue_not_in_loop, .{});
+        const opt_label = try p.eatIdentifier();
+        if (opt_label) |label| {
+            const c2y = p.comp.langopts.standard.atLeast(.c2y);
+            try p.err(label, if (c2y) .c2y_named_break else .pre_c2y_named_break, .{"continue"});
+            try p.labels.append(gpa, .{ .named_break = label });
+        } else if (!p.in_loop) try p.err(cont, .continue_not_in_loop, .{});
         _ = try p.expectToken(.semicolon);
-        return p.addNode(.{ .continue_stmt = .{ .continue_tok = cont } });
+        return p.addNode(.{ .continue_stmt = .{ .continue_tok = cont, .label = opt_label } });
     }
     if (p.eatToken(.keyword_break)) |br| {
-        if (!p.in_loop and p.@"switch" == null) try p.err(br, .break_not_in_loop_or_switch, .{});
+        const opt_label = try p.eatIdentifier();
+        if (opt_label) |label| {
+            const c2y = p.comp.langopts.standard.atLeast(.c2y);
+            try p.err(label, if (c2y) .c2y_named_break else .pre_c2y_named_break, .{"break"});
+            try p.labels.append(gpa, .{ .named_break = label });
+        } else if (!p.in_loop and p.@"switch" == null) try p.err(br, .break_not_in_loop_or_switch, .{});
         _ = try p.expectToken(.semicolon);
-        return p.addNode(.{ .break_stmt = .{ .break_tok = br } });
+        return p.addNode(.{ .break_stmt = .{ .break_tok = br, .label = opt_label } });
     }
     if (try p.returnStmt()) |some| return some;
     if (try p.assembly(.stmt)) |some| return some;
@@ -5791,13 +5917,76 @@ fn declStmt(p: *Parser) Error!?Node.Index {
     const decl_buf_top = p.decl_buf.items.len;
     defer p.decl_buf.items.len = decl_buf_top;
     const first = p.tok_i;
-    if (try p.decl()) {
+    if (try p.decl(.full)) {
         return try p.addNode(.{ .decl_stmt = .{
             .decls = p.decl_buf.items[decl_buf_top..],
             .first_tok = first,
         } });
     }
     return null;
+}
+
+/// selectionHeader:
+/// : expr
+/// | decl expr
+/// | decl = initializer
+fn selectionHeader(p: *Parser, kind: enum { scalar, int }) Error!struct { ?Node.Index, Node.Index } {
+    const decl_buf_top = p.decl_buf.items.len;
+    defer p.decl_buf.items.len = decl_buf_top;
+    const first = p.tok_i;
+
+    var opt_init = if (try p.decl(.simple))
+        try p.addNode(.{ .decl_stmt = .{
+            .decls = p.decl_buf.items[decl_buf_top..],
+            .first_tok = first,
+        } })
+    else
+        null;
+    if (opt_init) |init| {
+        const c2y = p.comp.langopts.standard.atLeast(.c2y);
+        try p.err(init.tok(&p.tree), if (c2y) .pre_c2y_selection_header else .c2y_selection_header, .{
+            switch (kind) {
+                .scalar => "if",
+                .int => "switch",
+            },
+        });
+    }
+    const expect_expr = if (opt_init) |_| p.eatToken(.semicolon) != null else true;
+    const opt_cond = try p.expr();
+
+    const cond = if (expect_expr) cond: {
+        var cond = try p.expectResult(opt_cond);
+        const cond_tok = cond.node.tok(&p.tree);
+        try cond.lvalConversion(p);
+        try cond.usualUnaryConversion(p, cond_tok);
+        if (!cond.qt.isInvalid()) switch (kind) {
+            .scalar => if (cond.qt.scalarKind(p.comp) == .none) try p.err(cond_tok, .non_scalar_cond, .{cond.qt}),
+            .int => if (!cond.qt.isRealInt(p.comp)) try p.err(cond_tok, .non_int_cond, .{cond.qt}),
+        };
+
+        try cond.saveValue(p);
+        break :cond cond.node;
+    } else cond: {
+        const init = opt_init.?;
+        const decl_stmt = init.get(&p.tree).decl_stmt;
+        const qt = decl_stmt.decls[0].qt(&p.tree);
+        const decl_tok = decl_stmt.decls[0].tok(&p.tree);
+        const decl_node = decl_stmt.decls[0].get(&p.tree);
+        if (decl_stmt.decls.len > 1) {
+            try p.err(init.tok(&p.tree), .multiple_cond_decl, .{});
+        } else if (decl_node != .variable) {
+            try p.err(decl_tok, .cond_decl_variable, .{});
+        } else if (decl_node.variable.initializer == null) {
+            try p.err(decl_tok, .cond_decl_initializer, .{});
+        } else if (!qt.isInvalid()) switch (kind) {
+            .scalar => if (qt.scalarKind(p.comp) == .none) try p.err(decl_tok, .non_scalar_cond_decl, .{qt}),
+            .int => if (!qt.isRealInt(p.comp)) try p.err(decl_tok, .non_int_cond_decl, .{qt}),
+        };
+        opt_init = null;
+        break :cond init;
+    };
+
+    return .{ opt_init, cond };
 }
 
 /// labeledStmt
@@ -5850,6 +6039,29 @@ fn labeledStmt(p: *Parser) Error!?Node.Index {
         node.labeled_stmt.body = try p.labelableStmt();
         try p.tree.setNode(node, @backingInt(labeled_stmt));
 
+        {
+            const body_node = node.labeled_stmt.body.get(&p.tree);
+            const enclosing = switch (body_node) {
+                .switch_stmt, .for_stmt, .while_stmt, .do_while_stmt => true,
+                else => false,
+            };
+            var i: u32 = 0;
+            for (p.labels.items) |label| switch (label) {
+                .label, .unresolved_goto => {
+                    p.labels.items[i] = label;
+                    i += 1;
+                },
+                .named_break => |tok| {
+                    if (!mem.eql(u8, p.tokSlice(tok), str) or !enclosing) {
+                        try p.err(tok, .named_break_not_enclosing, .{p.tokSlice(tok - 1)});
+                    } else if (p.tok_ids[tok - 1] == .keyword_continue and body_node == .switch_stmt) {
+                        try p.err(tok, .named_continue_switch, .{});
+                    }
+                },
+            };
+            p.labels.items.len = i;
+        }
+
         if (applied_any and node.labeled_stmt.body.get(&p.tree) == .decl_stmt) {
             try p.err(attr_tok, .gnu_label_attr, .{});
         }
@@ -5859,7 +6071,8 @@ fn labeledStmt(p: *Parser) Error!?Node.Index {
         var first_item = try p.integerConstExpr(.gnu_folding_extension);
         const ellipsis = p.tok_i;
         var second_item = if (p.eatToken(.ellipsis) != null) blk: {
-            try p.err(ellipsis, .gnu_switch_range, .{});
+            const c2y = p.comp.langopts.standard.atLeast(.c2y);
+            try p.err(ellipsis, if (c2y) .pre_c2y_switch_range else .c2y_switch_range, .{});
             break :blk try p.integerConstExpr(.gnu_folding_extension);
         } else null;
         _ = try p.expectToken(.colon);
@@ -5940,7 +6153,7 @@ fn labelableStmt(p: *Parser) Error!Node.Index {
     return p.stmt(true);
 }
 
-/// compoundStmt : '{' ( decl | keyword_extension decl | staticAssert | stmt)* '}'
+/// compoundStmt : '{' compoundStmtItem* '}'
 fn compoundStmt(p: *Parser, is_fn_body: bool, stmt_expr_state: ?*?Node.Index) Error!?Node.Index {
     const l_brace = p.eatToken(.l_brace) orelse return null;
 
@@ -5952,57 +6165,104 @@ fn compoundStmt(p: *Parser, is_fn_body: bool, stmt_expr_state: ?*?Node.Index) Er
     if (!is_fn_body) try p.syms.pushScope(p);
     defer if (!is_fn_body) p.syms.popScope();
 
-    var noreturn_index: ?TokenIndex = null;
-    var noreturn_label_count: u32 = 0;
-    var prev_errors = p.diagnostics.errors;
+    var ctx: CompoundStmtContext = .{
+        .stmt_expr_state = stmt_expr_state,
+        .prev_errors = p.diagnostics.errors,
+    };
 
-    while (p.eatToken(.r_brace) == null) : (_ = try p.pragma()) {
-        const attr_state = p.wip_attrs.state(true);
-        defer p.wip_attrs.restore(attr_state);
-        try p.attributeSpecifier();
-
-        if (stmt_expr_state) |opt_node| {
-            if (opt_node.*) |node| try p.diagnoseUnusedValue(node, prev_errors);
-            opt_node.* = null;
-        }
-        prev_errors = p.diagnostics.errors;
-        if (try p.parseOrNextStmt(staticAssert, l_brace)) continue;
-        // TODO use declStmt?
-        if (try p.parseOrNextStmt(decl, l_brace)) continue;
-        if (p.eatToken(.keyword_extension)) |ext| {
-            const saved_extension = p.extension_suppressed;
-            defer p.extension_suppressed = saved_extension;
-            p.extension_suppressed = true;
-
-            if (try p.parseOrNextStmt(decl, l_brace)) continue;
-            p.tok_i = ext;
-        }
-        const s = p.stmt(stmt_expr_state == null) catch |er| switch (er) {
+    outer: while (p.eatToken(.r_brace) == null) : (_ = try p.pragma()) {
+        p.compoundStmtItem(&ctx) catch |er| switch (er) {
             error.ParsingFailed => {
-                try p.nextStmt(l_brace);
-                continue;
+                var parens: u32 = 0;
+                while (true) : (p.tok_i += 1) switch (p.tok_ids[p.tok_i]) {
+                    .l_paren, .l_brace => parens += 1,
+                    .l_bracket => {
+                        if (parens == 0 and p.tok_ids[p.tok_i + 1] == .l_bracket) continue :outer;
+                        parens += 1;
+                    },
+                    .r_paren, .r_bracket => {
+                        parens -|= 1;
+                    },
+                    .r_brace => if (parens == 0) {
+                        p.tok_i += 1;
+                        break :outer;
+                    } else {
+                        parens -= 1;
+                    },
+                    .semicolon => if (parens == 0) {
+                        p.tok_i += 1;
+                        continue :outer;
+                    },
+                    // TODO https://github.com/ziglang/zig/issues/21507
+                    .keyword_attribute1,
+                    .keyword_attribute2,
+                    .keyword_declspec,
+                    .keyword_for,
+                    .keyword_while,
+                    .keyword_do,
+                    .keyword_if,
+                    .keyword_goto,
+                    .keyword_switch,
+                    .keyword_case,
+                    .keyword_default,
+                    .keyword_continue,
+                    .keyword_break,
+                    .keyword_return,
+                    .keyword_typedef,
+                    .keyword_extern,
+                    .keyword_static,
+                    .keyword_auto,
+                    .keyword_register,
+                    .keyword_thread_local,
+                    .keyword_c23_thread_local,
+                    .keyword_thread,
+                    .keyword_inline,
+                    .keyword_inline1,
+                    .keyword_inline2,
+                    .keyword_noreturn,
+                    .keyword_void,
+                    .keyword_bool,
+                    .keyword_c23_bool,
+                    .keyword_char,
+                    .keyword_short,
+                    .keyword_int,
+                    .keyword_long,
+                    .keyword_signed,
+                    .keyword_signed1,
+                    .keyword_signed2,
+                    .keyword_unsigned,
+                    .keyword_float,
+                    .keyword_double,
+                    .keyword_complex,
+                    .keyword_atomic,
+                    .keyword_enum,
+                    .keyword_struct,
+                    .keyword_union,
+                    .keyword_alignas,
+                    .keyword_c23_alignas,
+                    .keyword_typeof,
+                    .keyword_typeof1,
+                    .keyword_typeof2,
+                    .keyword_typeof_unqual,
+                    .keyword_extension,
+                    => if (parens == 0) continue :outer,
+                    .keyword_pragma => p.skipToPragmaSentinel(),
+                    .eof => {
+                        try p.expectClosing(l_brace, .r_brace);
+                        return error.ParsingFailed;
+                    },
+                    else => {},
+                };
+                comptime unreachable;
             },
             else => |e| return e,
         };
-        if (stmt_expr_state) |opt_node| {
-            opt_node.* = s;
-        }
-        try p.decl_buf.append(gpa, s);
-
-        if (noreturn_index == null and p.nodeIsNoreturn(s) == .yes) {
-            noreturn_index = p.tok_i;
-            noreturn_label_count = p.label_count;
-        }
-        switch (s.get(&p.tree)) {
-            .case_stmt, .default_stmt, .labeled_stmt => noreturn_index = null,
-            else => {},
-        }
     }
     const r_brace = p.tok_i - 1;
 
-    if (noreturn_index) |some| {
+    if (ctx.noreturn_index) |some| {
         // if new labels were defined we cannot be certain that the code is unreachable
-        if (some != p.tok_i - 1 and noreturn_label_count == p.label_count) try p.err(some, .unreachable_code, .{});
+        if (some != p.tok_i - 1 and ctx.noreturn_label_count == p.label_count) try p.err(some, .unreachable_code, .{});
     }
     if (is_fn_body) {
         const last_noreturn = if (p.decl_buf.items.len == decl_buf_top)
@@ -6049,6 +6309,56 @@ fn compoundStmt(p: *Parser, is_fn_body: bool, stmt_expr_state: ?*?Node.Index) Er
     } });
 }
 
+const CompoundStmtContext = struct {
+    stmt_expr_state: ?*?Node.Index,
+    noreturn_index: ?TokenIndex = null,
+    noreturn_label_count: u32 = 0,
+    prev_errors: u32,
+};
+
+/// compoundStmtItem : decl | keyword_extension decl | staticAssert | stmt
+fn compoundStmtItem(p: *Parser, ctx: *CompoundStmtContext) !void {
+    const attr_state = p.wip_attrs.state(true);
+    defer p.wip_attrs.restore(attr_state);
+    try p.attributeSpecifier();
+
+    if (ctx.stmt_expr_state) |opt_node| {
+        if (opt_node.*) |node| try p.diagnoseUnusedValue(node, ctx.prev_errors);
+        opt_node.* = null;
+    }
+    ctx.prev_errors = p.diagnostics.errors;
+    if (try p.staticAssert()) return;
+    if (try p.declStmt()) |decl_stmt| {
+        try p.decl_buf.append(p.comp.gpa, decl_stmt);
+        return;
+    }
+    if (p.eatToken(.keyword_extension)) |ext| {
+        const saved_extension = p.extension_suppressed;
+        defer p.extension_suppressed = saved_extension;
+        p.extension_suppressed = true;
+
+        if (try p.declStmt()) |decl_stmt| {
+            try p.decl_buf.append(p.comp.gpa, decl_stmt);
+            return;
+        }
+        p.tok_i = ext;
+    }
+    const s = try p.stmt(ctx.stmt_expr_state == null);
+    if (ctx.stmt_expr_state) |opt_node| {
+        opt_node.* = s;
+    }
+    try p.decl_buf.append(p.comp.gpa, s);
+
+    if (ctx.noreturn_index == null and p.nodeIsNoreturn(s) == .yes) {
+        ctx.noreturn_index = p.tok_i;
+        ctx.noreturn_label_count = p.label_count;
+    }
+    switch (s.get(&p.tree)) {
+        .case_stmt, .default_stmt, .labeled_stmt => ctx.noreturn_index = null,
+        else => {},
+    }
+}
+
 fn pointerValue(p: *Parser, node: Node.Index, offset: Value) !Value {
     switch (node.get(&p.tree)) {
         .decl_ref_expr => |decl_ref| {
@@ -6090,91 +6400,6 @@ fn nodeIsNoreturn(p: *Parser, node: Node.Index) NoreturnKind {
         .goto_stmt, .computed_goto_stmt => return .complex,
         else => return .no,
     }
-}
-
-fn parseOrNextStmt(p: *Parser, comptime func: fn (*Parser) Error!bool, l_brace: TokenIndex) !bool {
-    return func(p) catch |er| switch (er) {
-        error.ParsingFailed => {
-            try p.nextStmt(l_brace);
-            return true;
-        },
-        else => |e| return e,
-    };
-}
-
-fn nextStmt(p: *Parser, l_brace: TokenIndex) !void {
-    var parens: u32 = 0;
-    while (p.tok_i < p.tok_ids.len) : (p.tok_i += 1) {
-        switch (p.tok_ids[p.tok_i]) {
-            .l_paren, .l_brace, .l_bracket => parens += 1,
-            .r_paren, .r_bracket => if (parens != 0) {
-                parens -= 1;
-            },
-            .r_brace => if (parens == 0)
-                return
-            else {
-                parens -= 1;
-            },
-            .semicolon => if (parens == 0) {
-                p.tok_i += 1;
-                return;
-            },
-            .keyword_for,
-            .keyword_while,
-            .keyword_do,
-            .keyword_if,
-            .keyword_goto,
-            .keyword_switch,
-            .keyword_case,
-            .keyword_default,
-            .keyword_continue,
-            .keyword_break,
-            .keyword_return,
-            .keyword_typedef,
-            .keyword_extern,
-            .keyword_static,
-            .keyword_auto,
-            .keyword_register,
-            .keyword_thread_local,
-            .keyword_c23_thread_local,
-            .keyword_thread,
-            .keyword_inline,
-            .keyword_inline1,
-            .keyword_inline2,
-            .keyword_noreturn,
-            .keyword_void,
-            .keyword_bool,
-            .keyword_c23_bool,
-            .keyword_char,
-            .keyword_short,
-            .keyword_int,
-            .keyword_long,
-            .keyword_signed,
-            .keyword_signed1,
-            .keyword_signed2,
-            .keyword_unsigned,
-            .keyword_float,
-            .keyword_double,
-            .keyword_complex,
-            .keyword_atomic,
-            .keyword_enum,
-            .keyword_struct,
-            .keyword_union,
-            .keyword_alignas,
-            .keyword_c23_alignas,
-            .keyword_typeof,
-            .keyword_typeof1,
-            .keyword_typeof2,
-            .keyword_typeof_unqual,
-            .keyword_extension,
-            => if (parens == 0) return,
-            .keyword_pragma => p.skipToPragmaSentinel(),
-            else => {},
-        }
-    }
-    p.tok_i -= 1; // So we can consume EOF
-    try p.expectClosing(l_brace, .r_brace);
-    unreachable;
 }
 
 fn returnStmt(p: *Parser) Error!?Node.Index {
@@ -9308,6 +9533,11 @@ fn unExpr(p: *Parser, eval: bool) Error!?Result {
                 .keyword_alignof1, .keyword_alignof2 => true,
                 else => false,
             };
+            switch (id) {
+                .keyword_alignof => try p.diagnoseC11Keyword(),
+                .keyword_c23_alignof => try p.diagnoseC23Keyword(),
+                else => {},
+            }
             p.tok_i += 1;
 
             const operand_qt, const opt_node = try p.nonCastUnExpr();
@@ -9333,6 +9563,38 @@ fn unExpr(p: *Parser, eval: bool) Error!?Result {
             return .{
                 .qt = qt,
                 .node = try p.addNode(.{ .alignof_expr = .{
+                    .op_tok = tok,
+                    .qt = qt,
+                    .expr = opt_node,
+                    .operand_qt = operand_qt,
+                } }),
+                .val = val,
+            };
+        },
+        .keyword_countof => {
+            const c2y = p.comp.langopts.standard.atLeast(.c2y);
+            try p.err(p.tok_i, if (c2y) .pre_c2y_countof else .c2y_countof, .{});
+            p.tok_i += 1;
+            const operand_tok = p.tok_i;
+
+            const operand_qt, const opt_node = try p.nonCastUnExpr();
+            var qt: QualType = .invalid;
+            var val: Value = .{};
+
+            if (operand_qt.get(p.comp, .array)) |array| {
+                qt = p.comp.type_store.size;
+                switch (array.len) {
+                    .fixed, .static => |size| val = try .int(size, p.comp),
+                    .variable => {},
+                    .unspecified_variable, .incomplete => try p.err(operand_tok, .invalid_countof, .{operand_qt}),
+                }
+            } else if (!operand_qt.isInvalid()) {
+                try p.err(operand_tok, .invalid_countof, .{operand_qt});
+            }
+
+            return .{
+                .qt = qt,
+                .node = try p.addNode(.{ .countof_expr = .{
                     .op_tok = tok,
                     .qt = qt,
                     .expr = opt_node,
@@ -10540,7 +10802,7 @@ fn primaryExpr(p: *Parser, eval: bool) Error!?Result {
         },
         .keyword_nullptr => {
             defer p.tok_i += 1;
-            try p.err(p.tok_i, .pre_c23_compat, .{"'nullptr'"});
+            try p.diagnoseC23Keyword();
             return .{
                 .val = .null,
                 .qt = .nullptr_t,
@@ -11123,6 +11385,7 @@ fn ppNum(p: *Parser) Error!Result {
 fn genericSelection(p: *Parser) Error!?Result {
     const gpa = p.comp.gpa;
     const kw_generic = p.tok_i;
+    try p.diagnoseC11Keyword();
     p.tok_i += 1;
     const l_paren = try p.expectToken(.l_paren);
     const controlling_tok = p.tok_i;

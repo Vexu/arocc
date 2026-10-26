@@ -348,6 +348,7 @@ pub const Node = union(enum) {
 
     sizeof_expr: TypeInfo,
     alignof_expr: TypeInfo,
+    countof_expr: TypeInfo,
 
     generic_expr: Generic,
     generic_association_expr: Generic.Association,
@@ -469,6 +470,7 @@ pub const Node = union(enum) {
 
     pub const IfStmt = struct {
         if_tok: TokenIndex,
+        init: ?Node.Index,
         cond: Node.Index,
         then_body: Node.Index,
         else_body: ?Node.Index,
@@ -476,6 +478,7 @@ pub const Node = union(enum) {
 
     pub const SwitchStmt = struct {
         switch_tok: TokenIndex,
+        init: ?Node.Index,
         cond: Node.Index,
         body: Node.Index,
     };
@@ -523,10 +526,12 @@ pub const Node = union(enum) {
 
     pub const ContinueStmt = struct {
         continue_tok: TokenIndex,
+        label: ?TokenIndex,
     };
 
     pub const BreakStmt = struct {
         break_tok: TokenIndex,
+        label: ?TokenIndex,
     };
 
     pub const NullStmt = struct {
@@ -1047,15 +1052,35 @@ pub const Node = union(enum) {
                     .if_stmt = .{
                         .if_tok = node_tok,
                         .cond = @fromBackingInt(node_data[0]),
+                        .init = null,
                         .then_body = @fromBackingInt(node_data[1]),
                         .else_body = unpackOptIndex(node_data[2]),
+                    },
+                },
+                .if_init => .{
+                    .if_stmt = .{
+                        .if_tok = node_tok,
+                        .cond = @fromBackingInt(node_data[0]),
+                        .init = @fromBackingInt(node_data[1]),
+                        .then_body = @fromBackingInt(node_data[2]),
+                        .else_body = null,
+                    },
+                },
+                .if_full => .{
+                    .if_stmt = .{
+                        .if_tok = node_tok,
+                        .cond = @fromBackingInt(node_data[0]),
+                        .init = @fromBackingInt(node_data[1]),
+                        .then_body = @fromBackingInt(tree.extra.items[node_data[2]]),
+                        .else_body = @fromBackingInt(tree.extra.items[node_data[2] + 1]),
                     },
                 },
                 .switch_stmt => .{
                     .switch_stmt = .{
                         .switch_tok = node_tok,
                         .cond = @fromBackingInt(node_data[0]),
-                        .body = @fromBackingInt(node_data[1]),
+                        .init = unpackOptIndex(node_data[1]),
+                        .body = @fromBackingInt(node_data[2]),
                     },
                 },
                 .case_stmt => .{
@@ -1172,11 +1197,13 @@ pub const Node = union(enum) {
                 .continue_stmt => .{
                     .continue_stmt = .{
                         .continue_tok = node_tok,
+                        .label = if (node_data[0] != 0) node_data[1] else null,
                     },
                 },
                 .break_stmt => .{
                     .break_stmt = .{
                         .break_tok = node_tok,
+                        .label = if (node_data[0] != 0) node_data[1] else null,
                     },
                 },
                 .null_stmt => .{
@@ -1784,7 +1811,14 @@ pub const Node = union(enum) {
                         .operand_qt = @bitCast(node_data[2]),
                     },
                 },
-
+                .countof_expr => .{
+                    .countof_expr = .{
+                        .op_tok = node_tok,
+                        .qt = @bitCast(node_data[0]),
+                        .expr = unpackOptIndex(node_data[1]),
+                        .operand_qt = @bitCast(node_data[2]),
+                    },
+                },
                 .generic_expr_zero => .{
                     .generic_expr = .{
                         .generic_tok = node_tok,
@@ -2110,6 +2144,8 @@ pub const Node = union(enum) {
             compound_stmt,
             compound_stmt_three,
             if_stmt,
+            if_init,
+            if_full,
             switch_stmt,
             case_stmt,
             default_stmt,
@@ -2205,6 +2241,7 @@ pub const Node = union(enum) {
             imaginary_literal,
             sizeof_expr,
             alignof_expr,
+            countof_expr,
             generic_expr,
             generic_expr_zero,
             generic_association_expr,
@@ -2403,16 +2440,29 @@ pub fn setNode(tree: *Tree, node: Node, index: usize) !void {
             repr.tok = compound.l_brace_tok;
         },
         .if_stmt => |@"if"| {
-            repr.tag = .if_stmt;
             repr.data[0] = @backingInt(@"if".cond);
-            repr.data[1] = @backingInt(@"if".then_body);
-            repr.data[2] = packOptIndex(@"if".else_body);
+            if (@"if".init) |init| {
+                if (@"if".else_body) |else_body| {
+                    repr.tag = .if_full;
+                    repr.data[1] = @backingInt(init);
+                    repr.data[2], _ = try tree.addExtra(&.{ @"if".then_body, else_body });
+                } else {
+                    repr.tag = .if_init;
+                    repr.data[1] = packOptIndex(init);
+                    repr.data[2] = @backingInt(@"if".then_body);
+                }
+            } else {
+                repr.tag = .if_stmt;
+                repr.data[1] = @backingInt(@"if".then_body);
+                repr.data[2] = packOptIndex(@"if".else_body);
+            }
             repr.tok = @"if".if_tok;
         },
         .switch_stmt => |@"switch"| {
             repr.tag = .switch_stmt;
             repr.data[0] = @backingInt(@"switch".cond);
-            repr.data[1] = @backingInt(@"switch".body);
+            repr.data[1] = packOptIndex(@"switch".init);
+            repr.data[2] = @backingInt(@"switch".body);
             repr.tok = @"switch".switch_tok;
         },
         .case_stmt => |case| {
@@ -2464,13 +2514,13 @@ pub fn setNode(tree: *Tree, node: Node, index: usize) !void {
                 repr.data[1] = packOptIndex(@"for".incr);
             } else if (init) {
                 repr.tag = .for_init;
-                repr.data[0] = packOptIndex(@"for".cond);
+                repr.data[0] = packOptIndex(@"for".init);
             } else if (cond) {
                 repr.tag = .for_cond;
                 repr.data[0] = packOptIndex(@"for".cond);
             } else if (incr) {
                 repr.tag = .for_incr;
-                repr.data[0] = packOptIndex(@"for".cond);
+                repr.data[0] = packOptIndex(@"for".incr);
             } else {
                 repr.tag = .for_ever;
             }
@@ -2489,10 +2539,14 @@ pub fn setNode(tree: *Tree, node: Node, index: usize) !void {
         .continue_stmt => |@"continue"| {
             repr.tag = .continue_stmt;
             repr.tok = @"continue".continue_tok;
+            repr.data[0] = @intFromBool(@"continue".label != null);
+            if (@"continue".label) |label| repr.data[1] = label;
         },
         .break_stmt => |@"break"| {
             repr.tag = .break_stmt;
             repr.tok = @"break".break_tok;
+            repr.data[0] = @intFromBool(@"break".label != null);
+            if (@"break".label) |label| repr.data[1] = label;
         },
         .null_stmt => |@"null"| {
             repr.tag = .null_stmt;
@@ -2997,6 +3051,13 @@ pub fn setNode(tree: *Tree, node: Node, index: usize) !void {
             repr.data[2] = @bitCast(type_info.operand_qt);
             repr.tok = type_info.op_tok;
         },
+        .countof_expr => |type_info| {
+            repr.tag = .countof_expr;
+            repr.data[0] = @bitCast(type_info.qt);
+            repr.data[1] = packOptIndex(type_info.expr);
+            repr.data[2] = @bitCast(type_info.operand_qt);
+            repr.tok = type_info.op_tok;
+        },
         .generic_expr => |generic| {
             repr.data[0] = @bitCast(generic.qt);
             if (generic.rest.len > 0) {
@@ -3404,6 +3465,7 @@ pub fn write(tree: *const Tree, node: Node.Index, w: *std.Io.Writer) std.Io.Writ
         .imaginary_literal => |un| try tree.write(un.operand, w),
         .sizeof_expr,
         .alignof_expr,
+        .countof_expr,
         => |type_info| {
             try w.writeAll(tree.tokSlice(type_info.op_tok));
             if (type_info.expr) |expr| {
@@ -3919,6 +3981,12 @@ fn dumpNode(
         },
         .builtin_va_arg_pack, .builtin_va_arg_pack_len => {},
         .if_stmt => |@"if"| {
+            if (@"if".init) |init| {
+                try w.splatByteAll(' ', level + half);
+                try w.writeAll("init:\n");
+                try tree.dumpNode(init, level + delta, term);
+            }
+
             try w.splatByteAll(' ', level + half);
             try w.writeAll("cond:\n");
             try tree.dumpNode(@"if".cond, level + delta, term);
@@ -3934,6 +4002,12 @@ fn dumpNode(
             }
         },
         .switch_stmt => |@"switch"| {
+            if (@"switch".init) |init| {
+                try w.splatByteAll(' ', level + half);
+                try w.writeAll("init:\n");
+                try tree.dumpNode(init, level + delta, term);
+            }
+
             try w.splatByteAll(' ', level + half);
             try w.writeAll("cond:\n");
             try tree.dumpNode(@"switch".cond, level + delta, term);
@@ -3999,7 +4073,16 @@ fn dumpNode(
             try w.writeAll("expr:\n");
             try tree.dumpNode(goto.expr, level + delta, term);
         },
-        .continue_stmt, .break_stmt, .null_stmt => {},
+        .null_stmt => {},
+        inline .continue_stmt, .break_stmt => |stmt| {
+            if (stmt.label) |label| {
+                try w.splatByteAll(' ', level + half);
+                try w.writeAll("label: ");
+                try term.setColor(LITERAL);
+                try w.writeAll(tree.tokSlice(label));
+                try w.writeByte('\n');
+            }
+        },
         .return_stmt => |ret| {
             switch (ret.operand) {
                 .expr => |expr| {
@@ -4216,7 +4299,7 @@ fn dumpNode(
             try w.writeAll("index:\n");
             try tree.dumpNode(access.index, level + delta, term);
         },
-        .sizeof_expr, .alignof_expr => |type_info| {
+        .sizeof_expr, .alignof_expr, .countof_expr => |type_info| {
             if (type_info.expr) |some| {
                 try w.splatByteAll(' ', level + 1);
                 try w.writeAll("expr:\n");

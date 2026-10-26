@@ -60,11 +60,13 @@ function: 'fn () void'
  name: test_coerce
  body:
   compound_stmt
-    variable: '_Atomic(int)'
-     name: a
+    decl_stmt
+      variable: '_Atomic(int)'
+       name: a
 
-    variable: 'long'
-     name: b
+    decl_stmt
+      variable: 'long'
+       name: b
 
     assign_expr: 'long'
      lhs:
@@ -99,8 +101,9 @@ function: 'fn () void'
         implicit cast: (int_cast) '_Atomic(int)'
           int_literal: 'int' (value: 1)
 
-    variable: '_Atomic(float)'
-     name: f
+    decl_stmt
+      variable: '_Atomic(float)'
+       name: f
 
     assign_expr: '_Atomic(int)'
      lhs:
@@ -128,18 +131,22 @@ function: 'fn () void'
  name: test_member_access
  body:
   compound_stmt
-    struct_decl: 'struct B'
-      record_field: 'int'
+    decl_stmt
+      struct_decl: 'struct B'
+        record_field: 'int'
+         name: a
+
+    decl_stmt
+      variable: '_Atomic(struct B)'
        name: a
 
-    variable: '_Atomic(struct B)'
-     name: a
+    decl_stmt
+      variable: '_Atomic(struct B *)'
+       name: b
 
-    variable: '_Atomic(struct B *)'
-     name: b
-
-    variable: '*_Atomic(struct B)'
-     name: c
+    decl_stmt
+      variable: '*_Atomic(struct B)'
+       name: c
 
     member_access_expr: 'int' lvalue
      lhs:

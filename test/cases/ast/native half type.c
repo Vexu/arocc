@@ -20,17 +20,19 @@ function: 'fn () void'
  name: foo
  body:
   compound_stmt
-    variable: '__fp16'
-     name: x
-     init:
-      implicit cast: (float_cast) '__fp16' (value: 1)
-        float_literal: 'float' (value: 1)
+    decl_stmt
+      variable: '__fp16'
+       name: x
+       init:
+        implicit cast: (float_cast) '__fp16' (value: 1)
+          float_literal: 'float' (value: 1)
 
-    variable: '__fp16'
-     name: y
-     init:
-      implicit cast: (float_cast) '__fp16' (value: 2)
-        float_literal: 'float' (value: 2)
+    decl_stmt
+      variable: '__fp16'
+       name: y
+       init:
+        implicit cast: (float_cast) '__fp16' (value: 2)
+          float_literal: 'float' (value: 2)
 
     assign_expr: '__fp16'
      lhs:

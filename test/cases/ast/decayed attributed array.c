@@ -34,24 +34,26 @@ function: 'fn () void'
  name: foo
  body:
   compound_stmt
-    variable: '[64]char'
-     _Alignas: 8
-     name: x
+    decl_stmt
+      variable: '[64]char'
+       _Alignas: 8
+       name: x
 
-    variable: '*char'
-     name: y
-     init:
-      addr_of_expr: '*char' (value: &x)
-       operand:
-        array_access_expr: 'char' lvalue
-         base:
-          implicit cast: (array_to_pointer) 'decayed *[64]char'
-            paren_expr: '[64]char' lvalue
-             operand:
-              decl_ref_expr: '[64]char' lvalue
-               name: x
-         index:
-          int_literal: 'int' (value: 0)
+    decl_stmt
+      variable: '*char'
+       name: y
+       init:
+        addr_of_expr: '*char' (value: &x)
+         operand:
+          array_access_expr: 'char' lvalue
+           base:
+            implicit cast: (array_to_pointer) 'decayed *[64]char'
+              paren_expr: '[64]char' lvalue
+               operand:
+                decl_ref_expr: '[64]char' lvalue
+                 name: x
+           index:
+            int_literal: 'int' (value: 0)
 
     implicit return_stmt: 'void'
 

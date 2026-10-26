@@ -42,8 +42,9 @@ function: 'fn (x: int, ...) void'
  name: bar
  body:
   compound_stmt
-    variable: 'va_list: __builtin_va_list: [1]struct __va_list_tag'
-     name: va
+    decl_stmt
+      variable: 'va_list: __builtin_va_list: [1]struct __va_list_tag'
+       name: va
 
     builtin_call_expr: 'void'
      name: __builtin_va_start
@@ -67,10 +68,11 @@ function: 'fn () void'
  name: quux
  body:
   compound_stmt
-    variable: '_Float16'
-     name: f
-     init:
-      float_literal: '_Float16' (value: 1)
+    decl_stmt
+      variable: '_Float16'
+       name: f
+       init:
+        float_literal: '_Float16' (value: 1)
 
     call_expr: 'void'
      callee:
@@ -89,21 +91,24 @@ function: 'fn () void'
  name: conversions
  body:
   compound_stmt
-    variable: 'double'
-     name: d
-     init:
-      float_literal: 'double' (value: 1)
+    decl_stmt
+      variable: 'double'
+       name: d
+       init:
+        float_literal: 'double' (value: 1)
 
-    variable: '_Float16'
-     name: f16
-     init:
-      float_literal: '_Float16' (value: 2)
+    decl_stmt
+      variable: '_Float16'
+       name: f16
+       init:
+        float_literal: '_Float16' (value: 2)
 
-    variable: '__fp16'
-     name: fp16
-     init:
-      implicit cast: (int_to_float) '__fp16' (value: 0)
-        int_literal: 'int' (value: 0)
+    decl_stmt
+      variable: '__fp16'
+       name: fp16
+       init:
+        implicit cast: (int_to_float) '__fp16' (value: 0)
+          int_literal: 'int' (value: 0)
 
     assign_expr: 'double'
      lhs:

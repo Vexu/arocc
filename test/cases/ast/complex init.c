@@ -20,21 +20,23 @@ function: 'fn () void'
  name: foo
  body:
   compound_stmt
-    variable: '_Complex double'
-     name: cd
-     init:
-      array_init_expr: '_Complex double' (value: 1 + 2i)
-        float_literal: 'double' (value: 1)
+    decl_stmt
+      variable: '_Complex double'
+       name: cd
+       init:
+        array_init_expr: '_Complex double' (value: 1 + 2i)
+          float_literal: 'double' (value: 1)
 
-        float_literal: 'double' (value: 2)
+          float_literal: 'double' (value: 2)
 
-    variable: '_Complex float'
-     name: cf
-     init:
-      array_init_expr: '_Complex float' (value: 1 + 2i)
-        float_literal: 'float' (value: 1)
+    decl_stmt
+      variable: '_Complex float'
+       name: cf
+       init:
+        array_init_expr: '_Complex float' (value: 1 + 2i)
+          float_literal: 'float' (value: 1)
 
-        float_literal: 'float' (value: 2)
+          float_literal: 'float' (value: 2)
 
     assign_expr: '_Complex double'
      lhs:
