@@ -160,6 +160,10 @@ computed_goto_tok: ?TokenIndex = null,
 /// so that it is not used in its own initializer.
 auto_type_decl_name: StringId = .empty,
 
+/// Start of the generic association expression currently being parsed.
+/// Builtins are allowed as the direct operand of a generic association.
+generic_assoc_start: ?TokenIndex = null,
+
 init_context: InitContext = .runtime,
 
 /// Various variables that are different for each function.
@@ -887,6 +891,18 @@ pub fn getDecayedStringLiteral(p: *Parser, node: Node.Index) ?Value {
             },
             else => return null,
         }
+    }
+}
+
+/// Gets the builtin_ref node, looking through parentheses and generic selections.
+fn getBuiltinRef(p: *Parser, node: Node.Index) ?Node.BuiltinRef {
+    loop: switch (node.get(&p.tree)) {
+        .paren_expr => |un| continue :loop un.operand.get(&p.tree),
+        .generic_expr => |generic| continue :loop generic.chosen.get(&p.tree),
+        .generic_association_expr => |assoc| continue :loop assoc.expr.get(&p.tree),
+        .generic_default_expr => |default| continue :loop default.expr.get(&p.tree),
+        .builtin_ref => |builtin_ref| return builtin_ref,
+        else => return null,
     }
 }
 
@@ -6223,7 +6239,7 @@ const CallExpr = union(enum) {
     },
 
     fn init(p: *Parser, call_node: Node.Index, func_node: Node.Index) CallExpr {
-        if (p.getNode(call_node, .builtin_ref)) |builtin_ref| {
+        if (p.getBuiltinRef(call_node)) |builtin_ref| {
             const name = p.tokSlice(builtin_ref.name_tok);
             const expanded = p.comp.builtins.lookup(name);
             return .{ .builtin = .{ .builtin_tok = builtin_ref.name_tok, .expanded = expanded } };
@@ -10277,6 +10293,28 @@ fn checkArrayBounds(p: *Parser, index: Result, array: Result, tok: TokenIndex) !
     }
 }
 
+/// Checks that the builtin expression spanning from `start_tok` up to `p.tok_i` is called.
+fn checkBuiltinCalled(p: *Parser, start_tok: TokenIndex, name_tok: TokenIndex) Error!void {
+    if (p.generic_assoc_start) |assoc_start| direct: {
+        // The direct operand of a generic association is checked by the generic selection.
+        const parens = start_tok - assoc_start;
+        for (p.tok_ids[assoc_start..start_tok]) |id| if (id != .l_paren) break :direct;
+        if (p.tok_i + parens >= p.tok_ids.len) break :direct;
+        for (p.tok_ids[p.tok_i..][0..parens]) |id| if (id != .r_paren) break :direct;
+        switch (p.tok_ids[p.tok_i + parens]) {
+            .comma, .r_paren => return,
+            else => {},
+        }
+    }
+    for (p.tok_ids[p.tok_i..]) |id| switch (id) {
+        .r_paren => {}, // closing grouped expr
+        .l_paren => return, // beginning of a call
+        else => break,
+    };
+    try p.err(name_tok, .builtin_must_be_called, .{});
+    return error.ParsingFailed;
+}
+
 /// primaryExpr
 ///  : IDENTIFIER
 ///  | keyword_true
@@ -10437,14 +10475,7 @@ fn primaryExpr(p: *Parser, eval: bool) Error!?Result {
 
             // Check if this is a builtin call.
             if (try p.comp.builtins.getOrCreate(p.comp, name)) |some| {
-                for (p.tok_ids[p.tok_i..]) |id| switch (id) {
-                    .r_paren => {}, // closing grouped expr
-                    .l_paren => break, // beginning of a call
-                    else => {
-                        try p.err(name_tok, .builtin_must_be_called, .{});
-                        return error.ParsingFailed;
-                    },
-                };
+                try p.checkBuiltinCalled(name_tok, name_tok);
                 if (some.header != .none) {
                     try p.err(name_tok, .implicit_builtin, .{name});
                     try p.err(name_tok, .implicit_builtin_header_note, .{
@@ -11146,6 +11177,8 @@ fn genericSelection(p: *Parser) Error!?Result {
     var chosen_tok: ?TokenIndex = null;
     var chosen: Result = undefined;
 
+    const generic_assoc_start = p.generic_assoc_start;
+    defer p.generic_assoc_start = generic_assoc_start;
     while (true) {
         const start = p.tok_i;
         if (try p.typeName()) |qt| blk: {
@@ -11158,6 +11191,7 @@ fn genericSelection(p: *Parser) Error!?Result {
             }
 
             const colon = try p.expectToken(.colon);
+            p.generic_assoc_start = p.tok_i;
             var res = try p.expect(assignExpr);
             res.node = try p.addNode(.{
                 .generic_association_expr = .{
@@ -11186,6 +11220,7 @@ fn genericSelection(p: *Parser) Error!?Result {
             }
         } else if (p.eatToken(.keyword_default)) |tok| {
             _ = try p.expectToken(.colon);
+            p.generic_assoc_start = p.tok_i;
             var res = try p.expect(assignExpr);
             res.node = try p.addNode(.{
                 .generic_default_expr = .{
@@ -11209,6 +11244,7 @@ fn genericSelection(p: *Parser) Error!?Result {
         }
         if (p.eatToken(.comma) == null) break;
     }
+    p.generic_assoc_start = generic_assoc_start;
     try p.expectClosing(l_paren, .r_paren);
 
     if (chosen_tok == null) {
@@ -11220,6 +11256,10 @@ fn genericSelection(p: *Parser) Error!?Result {
         }
     } else if (default_tok != null) {
         try p.list_buf.append(gpa, default.node);
+    }
+
+    if (p.getBuiltinRef(chosen.node)) |builtin_ref| {
+        try p.checkBuiltinCalled(kw_generic, builtin_ref.name_tok);
     }
 
     for (p.list_buf.items[list_buf_top..], list_buf_top..) |item, i| {
