@@ -38,6 +38,11 @@ void test_member_access() {
     c->a;
 }
 
+void invalid_vector_initializer(void) {
+    typedef int V __attribute__((vector_size(16)));
+    (void)~((_Atomic(V)){0});
+}
+
 /** manifest:
 syntax
 args = -std=c23 --target=x86_64-linux-gnu
@@ -59,4 +64,5 @@ atomic.c:36:6: warning: expression result unused [-Wunused-value]
 atomic.c:37:7: error: accessing a member of atomic type '_Atomic(struct B)' is undefined behavior
 atomic.c:37:7: error: member reference type '_Atomic(struct B) *' is a pointer; did you mean to use '->'?
 atomic.c:38:8: error: accessing a member of atomic type '_Atomic(struct B)' is undefined behavior
+atomic.c:43:26: error: initializing 'V' (vector of 4 'int' values) from incompatible type 'int'
 */

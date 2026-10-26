@@ -8130,6 +8130,7 @@ pub const Result = struct {
         try res.atomicToNonAtomic(p);
         if (dest_qt.get(p.comp, .atomic)) |value_qt| {
             try res.coerceExtra(p, value_qt, tok, c);
+            if (!res.qt.eql(value_qt, p.comp)) return error.ParsingFailed;
             res.qt = dest_qt.unqualified();
             return res.implicitCast(p, .non_atomic_to_atomic);
         }

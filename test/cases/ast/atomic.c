@@ -185,3 +185,12 @@ function: 'fn () void'
 
     implicit return_stmt: 'void'
 
+function: 'fn () void'
+ name: invalid_vector_initializer
+ body:
+  compound_stmt
+    typedef: 'vector(4, int)'
+     name: V
+
+    implicit return_stmt: 'void'
+
