@@ -5896,9 +5896,11 @@ fn attributedStmt(p: *Parser, check_unused: bool) Error!Node.Index {
     if (try p.assembly(.stmt)) |some| return some;
 
     const prev_errors = p.diagnostics.errors;
-    if (try p.expr()) |some| {
+    if (try p.expr()) |res| {
+        var some = res;
         _ = try p.expectToken(.semicolon);
         if (check_unused) try p.diagnoseUnusedValue(some.node, prev_errors);
+        try some.lvalConversion(p);
         try some.putValue(p);
         return some.node;
     }
