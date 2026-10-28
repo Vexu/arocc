@@ -199,6 +199,11 @@ pub const QualType = packed struct(u32) {
         return .{ ._index = qt._index };
     }
 
+    /// Return the underlying value type of an atomic type, or the original type otherwise.
+    pub fn nonAtomic(qt: QualType, comp: *const Compilation) QualType {
+        return qt.get(comp, .atomic) orelse qt;
+    }
+
     pub fn withQualifiers(target: QualType, quals_from: QualType) QualType {
         return .{
             ._index = target._index,
@@ -2153,6 +2158,29 @@ pub fn putExtra(ts: *TypeStore, gpa: std.mem.Allocator, ty: Type) !Index {
     const index = try ts.types.addOne(gpa);
     try ts.set(gpa, ty, index);
     return @fromBackingInt(@intCast(index));
+}
+
+pub fn setFuncReturnType(ts: *TypeStore, func_qt: QualType, return_qt: QualType) void {
+    const index = @backingInt(func_qt._index);
+    var repr = ts.types.get(index);
+    std.debug.assert(switch (repr.tag) {
+        .func,
+        .func_variadic,
+        .func_old_style,
+        .func_attributed,
+        .func_zero,
+        .func_variadic_zero,
+        .func_old_style_zero,
+        .func_attributed_zero,
+        .func_one,
+        .func_variadic_one,
+        .func_old_style_one,
+        .func_attributed_one,
+        => true,
+        else => false,
+    });
+    repr.data[0] = @bitCast(return_qt);
+    ts.types.set(index, repr);
 }
 
 pub fn set(ts: *TypeStore, gpa: std.mem.Allocator, ty: Type, index: usize) !void {

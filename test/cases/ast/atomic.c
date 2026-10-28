@@ -74,56 +74,63 @@ function: 'fn () void'
        name: b
      rhs:
       implicit cast: (int_cast) 'long'
-        implicit cast: (lval_to_rval) '_Atomic(int)'
-          decl_ref_expr: '_Atomic(int)' lvalue
-           name: a
+        implicit cast: (atomic_to_non_atomic) 'int'
+          implicit cast: (lval_to_rval) '_Atomic(int)'
+            decl_ref_expr: '_Atomic(int)' lvalue
+             name: a
 
-    assign_expr: '_Atomic(int)'
+    assign_expr: 'int'
      lhs:
       decl_ref_expr: '_Atomic(int)' lvalue
        name: a
      rhs:
-      implicit cast: (int_cast) '_Atomic(int)'
-        implicit cast: (lval_to_rval) 'long'
-          decl_ref_expr: 'long' lvalue
-           name: b
+      implicit cast: (non_atomic_to_atomic) '_Atomic(int)'
+        implicit cast: (int_cast) 'int'
+          implicit cast: (lval_to_rval) 'long'
+            decl_ref_expr: 'long' lvalue
+             name: b
 
-    add_assign_expr: '_Atomic(int)'
+    add_assign_expr: 'int'
      lhs:
       decl_ref_expr: '_Atomic(int)' lvalue
        name: a
      rhs:
-      add_expr: '_Atomic(int)'
-       lhs:
-        implicit cast: (lval_to_rval) '_Atomic(int)'
-          implicit compound_assign_dummy_expr: '_Atomic(int)' lvalue
-       rhs:
-        implicit cast: (int_cast) '_Atomic(int)'
+      implicit cast: (non_atomic_to_atomic) '_Atomic(int)'
+        add_expr: 'int'
+         lhs:
+          implicit cast: (atomic_to_non_atomic) 'int'
+            implicit cast: (lval_to_rval) '_Atomic(int)'
+              implicit compound_assign_dummy_expr: '_Atomic(int)' lvalue
+         rhs:
           int_literal: 'int' (value: 1)
 
     decl_stmt
       variable: '_Atomic(float)'
        name: f
 
-    assign_expr: '_Atomic(int)'
+    assign_expr: 'int'
      lhs:
       decl_ref_expr: '_Atomic(int)' lvalue
        name: a
      rhs:
-      implicit cast: (float_to_int) '_Atomic(int)'
-        implicit cast: (lval_to_rval) '_Atomic(float)'
-          decl_ref_expr: '_Atomic(float)' lvalue
-           name: f
+      implicit cast: (non_atomic_to_atomic) '_Atomic(int)'
+        implicit cast: (float_to_int) 'int'
+          implicit cast: (atomic_to_non_atomic) 'float'
+            implicit cast: (lval_to_rval) '_Atomic(float)'
+              decl_ref_expr: '_Atomic(float)' lvalue
+               name: f
 
-    assign_expr: '_Atomic(float)'
+    assign_expr: 'float'
      lhs:
       decl_ref_expr: '_Atomic(float)' lvalue
        name: f
      rhs:
-      implicit cast: (int_to_float) '_Atomic(float)'
-        implicit cast: (lval_to_rval) '_Atomic(int)'
-          decl_ref_expr: '_Atomic(int)' lvalue
-           name: a
+      implicit cast: (non_atomic_to_atomic) '_Atomic(float)'
+        implicit cast: (int_to_float) 'float'
+          implicit cast: (atomic_to_non_atomic) 'int'
+            implicit cast: (lval_to_rval) '_Atomic(int)'
+              decl_ref_expr: '_Atomic(int)' lvalue
+               name: a
 
     implicit return_stmt: 'void'
 
@@ -148,30 +155,48 @@ function: 'fn () void'
       variable: '*_Atomic(struct B)'
        name: c
 
-    member_access_expr: 'int' lvalue
-     lhs:
-      decl_ref_expr: '_Atomic(struct B)' lvalue
+    implicit cast: (lval_to_rval) 'int'
+      member_access_expr: 'int' lvalue
+       lhs:
+        decl_ref_expr: '_Atomic(struct B)' lvalue
+         name: a
+
+    implicit cast: (lval_to_rval) 'int'
+      member_access_expr: 'int' lvalue
+       lhs:
+        decl_ref_expr: '_Atomic(struct B *)' lvalue
+         name: b
+
+    implicit cast: (lval_to_rval) 'int'
+      member_access_ptr_expr: 'int' lvalue
+       lhs:
+        implicit cast: (atomic_to_non_atomic) '*struct B'
+          implicit cast: (lval_to_rval) '_Atomic(struct B *)'
+            decl_ref_expr: '_Atomic(struct B *)' lvalue
+             name: b
        name: a
 
-    member_access_expr: 'int' lvalue
-     lhs:
-      decl_ref_expr: '_Atomic(struct B *)' lvalue
-       name: b
+    implicit cast: (lval_to_rval) 'int'
+      member_access_expr: 'int' lvalue
+       lhs:
+        decl_ref_expr: '*_Atomic(struct B)' lvalue
+         name: c
 
-    member_access_ptr_expr: 'int' lvalue
-     lhs:
-      decl_ref_expr: '_Atomic(struct B *)' lvalue
-       name: b
+    implicit cast: (lval_to_rval) 'int'
+      member_access_ptr_expr: 'int' lvalue
+       lhs:
+        decl_ref_expr: '*_Atomic(struct B)' lvalue
+         name: c
 
-    member_access_expr: 'int' lvalue
-     lhs:
-      decl_ref_expr: '*_Atomic(struct B)' lvalue
-       name: c
+    implicit return_stmt: 'void'
 
-    member_access_ptr_expr: 'int' lvalue
-     lhs:
-      decl_ref_expr: '*_Atomic(struct B)' lvalue
-       name: c
+function: 'fn () void'
+ name: invalid_vector_initializer
+ body:
+  compound_stmt
+    decl_stmt
+      typedef: 'vector(4, int)'
+       name: V
 
     implicit return_stmt: 'void'
 

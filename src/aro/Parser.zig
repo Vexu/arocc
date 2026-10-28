@@ -4051,10 +4051,19 @@ const Declarator = struct {
                 if (ret_qt.@"volatile") {
                     try p.err(source_tok, .qual_on_ret_type, .{"volatile"});
                 }
-                if (ret_qt.get(p.comp, .float)) |float| {
+                const return_qt = if (p.comp.langopts.standard.atLeast(.c23))
+                    ret_qt.nonAtomic(p.comp).unqualified()
+                else
+                    ret_qt;
+                if (return_qt.get(p.comp, .float)) |float| {
                     if (float == .fp16 and !p.comp.hasHalfPrecisionFloatABI()) {
                         try p.err(source_tok, .suggest_pointer_for_invalid_fp16, .{"function return value"});
                     }
+                }
+                if (p.comp.langopts.standard.atLeast(.c23)) {
+                    // C23 function types return the unqualified, non-atomic type.
+                    // 6.7.7.4 paragraph 4
+                    p.comp.type_store.setFuncReturnType(cur, return_qt);
                 }
                 return .normal;
             },
@@ -5896,9 +5905,11 @@ fn attributedStmt(p: *Parser, check_unused: bool) Error!Node.Index {
     if (try p.assembly(.stmt)) |some| return some;
 
     const prev_errors = p.diagnostics.errors;
-    if (try p.expr()) |some| {
+    if (try p.expr()) |res| {
+        var some = res;
         _ = try p.expectToken(.semicolon);
         if (check_unused) try p.diagnoseUnusedValue(some.node, prev_errors);
+        try some.lvalConversion(p);
         try some.putValue(p);
         return some.node;
     }
@@ -6513,6 +6524,13 @@ const CallExpr = union(enum) {
                 .va_start,
                 => return p.checkVaStartArg(builtin_tok, first_after, param_tok, arg, arg_idx),
                 .__builtin_complex => return p.checkComplexArg(builtin_tok, first_after, param_tok, arg, arg_idx),
+                .__c11_atomic_load => if (arg_idx == 0) {
+                    const pointer = arg.qt.get(p.comp, .pointer) orelse
+                        return p.err(param_tok, .atomic_address_pointer, .{arg.qt});
+                    if (!pointer.child.is(p.comp, .atomic)) {
+                        return p.err(param_tok, .c11_atomic_address_type, .{arg.qt});
+                    }
+                },
                 .__builtin_add_overflow,
                 .__builtin_sub_overflow,
                 .__builtin_mul_overflow,
@@ -6794,9 +6812,18 @@ const CallExpr = union(enum) {
 
                 .__atomic_exchange_n,
                 .__c11_atomic_exchange,
+                .__atomic_load_n,
                 => {
-                    const second_param = args[1].qt(&p.tree);
-                    return second_param;
+                    const first_param = args[0].qt(&p.tree);
+                    const pointer = first_param.get(p.comp, .pointer) orelse return .invalid;
+                    const value_qt = pointer.child.nonAtomic(p.comp);
+                    return value_qt.unqualified();
+                },
+
+                .__c11_atomic_load => {
+                    const pointer = args[0].qt(&p.tree).get(p.comp, .pointer) orelse return .invalid;
+                    const value_qt = pointer.child.get(p.comp, .atomic) orelse return .invalid;
+                    return value_qt.unqualified();
                 },
 
                 .__sync_fetch_and_add,
@@ -6828,16 +6855,11 @@ const CallExpr = union(enum) {
                 },
                 .__atomic_compare_exchange,
                 .__atomic_compare_exchange_n,
+                .__c11_atomic_compare_exchange_strong,
+                .__c11_atomic_compare_exchange_weak,
                 .__c11_atomic_is_lock_free,
                 .__sync_bool_compare_and_swap,
                 => .bool,
-
-                .__c11_atomic_compare_exchange_strong,
-                .__c11_atomic_compare_exchange_weak,
-                => {
-                    const third_param = args[2].qt(&p.tree);
-                    return third_param;
-                },
 
                 .__builtin_elementwise_abs,
                 .__builtin_elementwise_bitreverse,
@@ -6899,8 +6921,6 @@ const CallExpr = union(enum) {
                     const vector_ty = first_param.get(p.comp, .vector) orelse return .invalid;
                     return vector_ty.elem;
                 },
-                .__atomic_load_n,
-                .__c11_atomic_load,
                 .__builtin_nontemporal_load,
                 => {
                     const first_param = args[0].qt(&p.tree);
@@ -7003,6 +7023,21 @@ pub const Result = struct {
     }
 
     fn bin(lhs: *Result, p: *Parser, rt_tag: std.meta.Tag(Node), rhs: Result, tok_i: TokenIndex) !void {
+        switch (rt_tag) {
+            .assign_expr,
+            .mul_assign_expr,
+            .div_assign_expr,
+            .mod_assign_expr,
+            .add_assign_expr,
+            .sub_assign_expr,
+            .shl_assign_expr,
+            .shr_assign_expr,
+            .bit_and_assign_expr,
+            .bit_xor_assign_expr,
+            .bit_or_assign_expr,
+            => lhs.qt = lhs.qt.nonAtomic(p.comp).unqualified(),
+            else => {},
+        }
         const bin_data: Node.Binary = .{
             .op_tok = tok_i,
             .lhs = lhs.node,
@@ -7026,6 +7061,10 @@ pub const Result = struct {
     }
 
     fn un(operand: *Result, p: *Parser, rt_tag: std.meta.Tag(Node), tok_i: TokenIndex) Error!void {
+        switch (rt_tag) {
+            .pre_inc_expr, .pre_dec_expr, .post_inc_expr, .post_dec_expr => operand.qt = operand.qt.nonAtomic(p.comp).unqualified(),
+            else => {},
+        }
         const un_data: Node.Unary = .{
             .op_tok = tok_i,
             .operand = operand.node,
@@ -7128,8 +7167,9 @@ pub const Result = struct {
         if (a.qt.isInvalid()) {
             return;
         }
-        try a.lvalConversion(p);
-        try b.lvalConversion(p);
+        const original_qts: [2]QualType = .{ a.qt, b.qt };
+        try a.valueConversion(p);
+        try b.valueConversion(p);
 
         const opt_a_vec = a.qt.get(p.comp, .vector);
         const opt_b_vec = b.qt.get(p.comp, .vector);
@@ -7137,7 +7177,7 @@ pub const Result = struct {
             const a_vec = opt_a_vec.?;
             const b_vec = opt_b_vec.?;
             if (kind == .boolean_logic) {
-                return a.invalidBinTy(tok, b, p);
+                return a.invalidBinTy(tok, b, p, original_qts);
             }
             if (a_vec.eql(b_vec, p.comp, true) and a_vec.kind == .generic) {
                 return;
@@ -7159,7 +7199,7 @@ pub const Result = struct {
                 try b.implicitCast(p, .vector_splat);
                 return;
             } else |er| switch (er) {
-                error.CoercionFailed => return a.invalidBinTy(tok, b, p),
+                error.CoercionFailed => return a.invalidBinTy(tok, b, p, original_qts),
                 else => |e| return e,
             }
         } else if (opt_b_vec) |b_vec| {
@@ -7169,7 +7209,7 @@ pub const Result = struct {
                 try a.implicitCast(p, .vector_splat);
                 return;
             } else |er| switch (er) {
-                error.CoercionFailed => return a.invalidBinTy(tok, b, p),
+                error.CoercionFailed => return a.invalidBinTy(tok, b, p, original_qts),
                 else => |e| return e,
             }
         }
@@ -7181,24 +7221,24 @@ pub const Result = struct {
             try a.usualArithmeticConversion(b, p, tok);
             return;
         }
-        if (kind == .integer) return a.invalidBinTy(tok, b, p);
+        if (kind == .integer) return a.invalidBinTy(tok, b, p, original_qts);
 
         if (a_sk.isArithmetic() and b_sk.isArithmetic()) {
             // <, <=, >, >= only work on real types
             if (kind == .relational and (!a_sk.isReal() or !b_sk.isReal()))
-                return a.invalidBinTy(tok, b, p);
+                return a.invalidBinTy(tok, b, p, original_qts);
 
             try a.usualArithmeticConversion(b, p, tok);
             return;
         }
-        if (kind == .arithmetic) return a.invalidBinTy(tok, b, p);
+        if (kind == .arithmetic) return a.invalidBinTy(tok, b, p, original_qts);
 
         switch (kind) {
             .boolean_logic => {
                 if (!(a_sk != .none or a_sk == .nullptr_t) or
                     !(b_sk != .none or b_sk == .nullptr_t))
                 {
-                    return a.invalidBinTy(tok, b, p);
+                    return a.invalidBinTy(tok, b, p, original_qts);
                 }
 
                 // Do integer promotions but nothing else
@@ -7220,13 +7260,13 @@ pub const Result = struct {
                         try other_res.nullToPointer(p, nullptr_res.qt);
                         return;
                     }
-                    return a.invalidBinTy(tok, b, p);
+                    return a.invalidBinTy(tok, b, p, original_qts);
                 }
 
                 // comparisons between floats and pointes not allowed
                 if (a_sk == .none or b_sk == .none or (a_sk.isFloat() and b_sk.isPointer()) or (b_sk.isFloat() and a_sk.isPointer()))
-                    return a.invalidBinTy(tok, b, p);
-                if (a_sk == .nullptr_t or b_sk == .nullptr_t) return a.invalidBinTy(tok, b, p);
+                    return a.invalidBinTy(tok, b, p, original_qts);
+                if (a_sk == .nullptr_t or b_sk == .nullptr_t) return a.invalidBinTy(tok, b, p, original_qts);
 
                 if ((a_sk.isInt() or b_sk.isInt()) and !(a.val.isZero(p.comp) or b.val.isZero(p.comp))) {
                     try p.err(tok, .comparison_ptr_int, .{ a.qt, b.qt });
@@ -7286,11 +7326,11 @@ pub const Result = struct {
                 if (a.qt.getRecord(p.comp) != null and b.qt.getRecord(p.comp) != null and a.qt.eql(b.qt, p.comp)) {
                     return;
                 }
-                return a.invalidBinTy(tok, b, p);
+                return a.invalidBinTy(tok, b, p, original_qts);
             },
             .add => {
                 // if both aren't arithmetic one should be pointer and the other an integer
-                if (a_sk.isPointer() == b_sk.isPointer() or a_sk.isInt() == b_sk.isInt()) return a.invalidBinTy(tok, b, p);
+                if (a_sk.isPointer() == b_sk.isPointer() or a_sk.isInt() == b_sk.isInt()) return a.invalidBinTy(tok, b, p, original_qts);
                 try p.boundsSafetyCheckPointerArithmetic(a.qt, b.qt, tok, a.node);
 
                 if (a_sk == .void_pointer or b_sk == .void_pointer)
@@ -7308,7 +7348,7 @@ pub const Result = struct {
             },
             .sub => {
                 // if both aren't arithmetic then either both should be pointers or just the left one.
-                if (!a_sk.isPointer() or !(b_sk.isPointer() or b_sk.isInt())) return a.invalidBinTy(tok, b, p);
+                if (!a_sk.isPointer() or !(b_sk.isPointer() or b_sk.isInt())) return a.invalidBinTy(tok, b, p, original_qts);
                 try p.boundsSafetyCheckPointerArithmetic(a.qt, b.qt, tok, a.node);
 
                 if (a_sk == .void_pointer)
@@ -7329,10 +7369,11 @@ pub const Result = struct {
                 // Do integer promotion on b if needed
                 if (b_sk.isInt()) try b.castToInt(p, b.qt.promoteInt(p.comp), tok);
             },
-            else => return a.invalidBinTy(tok, b, p),
+            else => return a.invalidBinTy(tok, b, p, original_qts),
         }
     }
 
+    /// Decay arrays and functions and read lvalues, removing atomic types only from lvalues.
     fn lvalConversion(res: *Result, p: *Parser) Error!void {
         if (res.qt.isInvalid()) return;
         if (res.qt.is(p.comp, .func)) {
@@ -7348,7 +7389,20 @@ pub const Result = struct {
         } else if (p.tree.isLval(res.node)) {
             res.qt = res.qt.unqualified();
             try res.implicitCast(p, .lval_to_rval);
+            try res.atomicToNonAtomic(p);
         }
+    }
+
+    /// Perform lvalue conversion and also convert atomic rvalues to their underlying value type.
+    fn valueConversion(res: *Result, p: *Parser) Error!void {
+        try res.lvalConversion(p);
+        try res.atomicToNonAtomic(p);
+    }
+
+    fn atomicToNonAtomic(res: *Result, p: *Parser) Error!void {
+        const value_qt = res.qt.get(p.comp, .atomic) orelse return;
+        res.qt = value_qt.unqualified();
+        try res.implicitCast(p, .atomic_to_non_atomic);
     }
 
     fn castToBool(res: *Result, p: *Parser, bool_qt: QualType, tok: TokenIndex) Error!void {
@@ -7593,6 +7647,7 @@ pub const Result = struct {
 
     fn usualUnaryConversion(res: *Result, p: *Parser, tok: TokenIndex) Error!void {
         if (res.qt.isInvalid()) return;
+        try res.atomicToNonAtomic(p);
         if (res.qt.isFloat(p.comp)) fp_eval: {
             const eval_method = p.comp.langopts.fp_eval_method orelse break :fp_eval;
             switch (eval_method) {
@@ -7721,8 +7776,8 @@ pub const Result = struct {
         try b.castToInt(p, target_qt, tok);
     }
 
-    fn invalidBinTy(a: *Result, tok: TokenIndex, b: *Result, p: *Parser) Error!void {
-        try p.err(tok, .invalid_bin_types, .{ a.qt, b.qt });
+    fn invalidBinTy(a: *Result, tok: TokenIndex, b: *Result, p: *Parser, original_qts: [2]QualType) Error!void {
+        try p.err(tok, .invalid_bin_types, .{ original_qts[0], original_qts[1] });
         a.val = .{};
         b.val = .{};
         a.qt = .invalid;
@@ -7759,6 +7814,7 @@ pub const Result = struct {
             res.qt = .invalid;
             return;
         }
+        try res.atomicToNonAtomic(p);
         var cast_kind: Node.Cast.Kind = undefined;
 
         const dest_sk = dest_qt.scalarKind(p.comp);
@@ -7767,7 +7823,14 @@ pub const Result = struct {
         const dest_vec = dest_qt.is(p.comp, .vector);
         const src_vec = res.qt.is(p.comp, .vector);
 
-        if (dest_qt.is(p.comp, .void)) {
+        if (dest_qt.get(p.comp, .atomic)) |value_qt| {
+            try res.castType(p, value_qt, operand_tok, l_paren);
+            if (p.comp.langopts.standard.atLeast(.c23)) {
+                if (dest_qt.isQualified()) try p.err(l_paren, .qual_cast, .{dest_qt});
+                return;
+            }
+            cast_kind = .non_atomic_to_atomic;
+        } else if (dest_qt.is(p.comp, .void)) {
             // everything can cast to void
             cast_kind = .to_void;
             res.val = .{};
@@ -7986,6 +8049,13 @@ pub const Result = struct {
                 }
                 _ = try res.val.intCast(dest_qt, p.comp);
             }
+        } else if (dest_qt.eql(res.qt, p.comp)) {
+            if (dest_qt.hasIncompleteSize(p.comp)) {
+                try p.err(l_paren, .cast_to_incomplete_type, .{dest_qt});
+                return error.ParsingFailed;
+            }
+            try p.err(l_paren, .cast_to_same_type, .{dest_qt});
+            cast_kind = .no_op;
         } else if (dest_qt.get(p.comp, .@"union")) |union_ty| {
             if (union_ty.layout == null) {
                 try p.err(l_paren, .cast_to_incomplete_type, .{dest_qt});
@@ -8002,9 +8072,6 @@ pub const Result = struct {
                 try p.err(l_paren, .invalid_union_cast, .{res.qt});
                 return error.ParsingFailed;
             }
-        } else if (dest_qt.eql(res.qt, p.comp)) {
-            try p.err(l_paren, .cast_to_same_type, .{dest_qt});
-            cast_kind = .no_op;
         } else {
             try p.err(l_paren, .invalid_cast_type, .{dest_qt});
             return error.ParsingFailed;
@@ -8076,6 +8143,13 @@ pub const Result = struct {
             else => {},
         }
         if (res.qt.isInvalid()) return;
+        try res.atomicToNonAtomic(p);
+        if (dest_qt.get(p.comp, .atomic)) |value_qt| {
+            try res.coerceExtra(p, value_qt, tok, c);
+            if (!res.qt.eql(value_qt, p.comp)) return error.ParsingFailed;
+            res.qt = dest_qt.unqualified();
+            return res.implicitCast(p, .non_atomic_to_atomic);
+        }
         const dest_unqual = dest_qt.unqualified();
         const dest_sk = dest_unqual.scalarKind(p.comp);
         const src_sk = res.qt.scalarKind(p.comp);
@@ -8443,7 +8517,6 @@ fn binaryExpr(p: *Parser, min_prec: Token.Precedence, eval: bool) Error!?Result 
 
                 var lhs_dummy = lhs;
                 try lhs_dummy.un(p, .compound_assign_dummy_expr, operator);
-                try lhs_dummy.lvalConversion(p);
 
                 switch (tag) {
                     .mul_assign_expr,
@@ -8685,7 +8758,7 @@ fn binaryExpr(p: *Parser, min_prec: Token.Precedence, eval: bool) Error!?Result 
                     else => unreachable,
                 };
                 // We'll want to check this for invalid pointer arithmetic.
-                const original_lhs_qt = lhs.qt;
+                const original_lhs_qt = lhs.qt.nonAtomic(p.comp);
 
                 try lhs.adjustTypes(operator, &rhs, p, if (tag == .add_expr) .add else .sub);
                 if (try lhs.shouldEval(&rhs, p, eval)) {
@@ -9150,7 +9223,7 @@ fn offsetofMemberDesignator(
             };
             var ptr = lhs;
             try ptr.lvalConversion(p);
-            try index.lvalConversion(p);
+            try index.valueConversion(p);
 
             if (!index.qt.isInvalid() and index.qt.isRealInt(p.comp)) {
                 try p.checkArrayBounds(index, lhs, l_bracket_tok);
@@ -9207,8 +9280,10 @@ fn computeOffsetExtra(p: *Parser, node: Node.Index, offset_so_far: *Value) !Valu
         },
         .member_access_expr, .member_access_ptr_expr => |access| {
             var ty = access.base.qt(&p.tree);
-            if (ty.isPointer(p.comp)) ty = ty.childType(p.comp);
-            const record_ty = ty.getRecord(p.comp).?;
+            ty = ty.nonAtomic(p.comp);
+            if (ty.get(p.comp, .pointer)) |pointer| ty = pointer.child;
+            ty = ty.nonAtomic(p.comp);
+            const record_ty = ty.getRecord(p.comp) orelse return .{};
 
             const field_offset = try Value.int(@divExact(record_ty.fields[access.member_index].layout.offset_bits, 8), p.comp);
             _ = try offset_so_far.add(field_offset, offset_so_far.*, p.comp.type_store.ptrdiff, p.comp);
@@ -9310,10 +9385,10 @@ fn unExpr(p: *Parser, eval: bool) Error!?Result {
             p.tok_i += 1;
             var operand = try p.expectResult(try p.unExpr(eval));
             if (try operand.checkInvalidUn(p, .deref_expr, tok)) return operand;
+            try operand.valueConversion(p);
 
             switch (operand.qt.base(p.comp).type) {
-                .array, .func, .pointer => {
-                    try operand.lvalConversion(p);
+                .pointer => {
                     operand.qt = operand.qt.childType(p.comp);
                     operand.val = .{};
                 },
@@ -9326,7 +9401,6 @@ fn unExpr(p: *Parser, eval: bool) Error!?Result {
                 try p.err(tok, .deref_incomplete_ty_ptr, .{operand.qt});
             }
 
-            operand.qt = operand.qt.unqualified();
             try operand.un(p, .deref_expr, tok);
             return operand;
         },
@@ -9383,7 +9457,8 @@ fn unExpr(p: *Parser, eval: bool) Error!?Result {
                 try p.err(tok, .not_assignable, .{});
                 return error.ParsingFailed;
             }
-            if (operand.qt.get(p.comp, .pointer)) |pointer| {
+            const value_qt = operand.qt.nonAtomic(p.comp);
+            if (value_qt.get(p.comp, .pointer)) |pointer| {
                 try p.checkPtrArithmeticAllowed(pointer, p.tok_i, operand.node);
             }
 
@@ -9415,7 +9490,8 @@ fn unExpr(p: *Parser, eval: bool) Error!?Result {
                 try p.err(tok, .not_assignable, .{});
                 return error.ParsingFailed;
             }
-            if (operand.qt.get(p.comp, .pointer)) |pointer| {
+            const value_qt = operand.qt.nonAtomic(p.comp);
+            if (value_qt.get(p.comp, .pointer)) |pointer| {
                 try p.checkPtrArithmeticAllowed(pointer, p.tok_i, operand.node);
             }
 
@@ -9776,7 +9852,8 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!?Result {
                 try p.err(p.tok_i, .not_assignable, .{});
                 return error.ParsingFailed;
             }
-            if (operand.qt.get(p.comp, .pointer)) |pointer| {
+            const value_qt = operand.qt.nonAtomic(p.comp);
+            if (value_qt.get(p.comp, .pointer)) |pointer| {
                 try p.checkPtrArithmeticAllowed(pointer, p.tok_i, operand.node);
             }
 
@@ -9801,7 +9878,8 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!?Result {
                 try p.err(p.tok_i, .not_assignable, .{});
                 return error.ParsingFailed;
             }
-            if (operand.qt.get(p.comp, .pointer)) |pointer| {
+            const value_qt = operand.qt.nonAtomic(p.comp);
+            if (value_qt.get(p.comp, .pointer)) |pointer| {
                 try p.checkPtrArithmeticAllowed(pointer, p.tok_i, operand.node);
             }
 
@@ -9818,8 +9896,8 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!?Result {
             const index_before_conversion = index;
             var ptr = lhs;
 
-            try ptr.lvalConversion(p);
-            try index.lvalConversion(p);
+            try ptr.valueConversion(p);
+            try index.valueConversion(p);
             if (ptr.qt.get(p.comp, .pointer)) |pointer_ty| {
                 ptr.qt = pointer_ty.child;
                 if (index.qt.isRealInt(p.comp)) {
@@ -9868,13 +9946,11 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!?Result {
             const arrow = p.tok_i;
             p.tok_i += 1;
             const name = try p.expectIdentifier();
-            if (lhs.qt.is(p.comp, .array)) {
-                var copy = lhs;
-                copy.qt = try copy.qt.decay(p.comp);
-                try copy.implicitCast(p, .array_to_pointer);
-                return try p.fieldAccess(copy, name, true, arrow);
+            var base = lhs;
+            if (base.qt.is(p.comp, .atomic) or base.qt.is(p.comp, .array)) {
+                try base.valueConversion(p);
             }
-            return try p.fieldAccess(lhs, name, true, arrow);
+            return try p.fieldAccess(base, name, true, arrow);
         },
         else => return null,
     }
@@ -9903,10 +9979,10 @@ fn fieldAccess(
         };
     }
 
-    const expr_qt = if (lhs.qt.get(p.comp, .atomic)) |atomic| atomic else lhs.qt;
+    const expr_qt = lhs.qt.nonAtomic(p.comp);
     const is_ptr = expr_qt.isPointer(p.comp);
     const expr_base_qt = if (is_ptr) expr_qt.childType(p.comp) else expr_qt;
-    const record_qt = if (expr_base_qt.get(p.comp, .atomic)) |atomic| atomic else expr_base_qt;
+    const record_qt = expr_base_qt.nonAtomic(p.comp);
     const record_ty = record_qt.getRecord(p.comp) orelse {
         try p.err(field_name_tok, .expected_record_ty, .{expr_qt});
         return error.ParsingFailed;
@@ -10282,10 +10358,13 @@ fn callExpr(p: *Parser, lhs: Result) Error!Result {
     const l_paren = p.tok_i;
     p.tok_i += 1;
 
+    var func = lhs;
+    try func.valueConversion(p);
+
     // We cannot refer to the function type here because the pointer to
     // type_store.extra might get invalidated while parsing args.
     const func_qt, const typed_params_len, const func_kind_base, const maybe_nonnull: ?Attribute = blk: {
-        var base_qt = lhs.qt;
+        var base_qt = func.qt;
         if (base_qt.get(p.comp, .pointer)) |pointer_ty| base_qt = pointer_ty.child else if (base_qt.get(p.comp, .block)) |block_ty| base_qt = block_ty.func;
         if (base_qt.isInvalid()) break :blk .{ base_qt, std.math.maxInt(usize), undefined, null };
 
@@ -10301,9 +10380,6 @@ fn callExpr(p: *Parser, lhs: Result) Error!Result {
             if (p.tree.calledFunctionAttr(lhs.node, .nonnull)) |info| info.attr else null,
         };
     };
-
-    var func = lhs;
-    try func.lvalConversion(p);
 
     const list_buf_top = p.list_buf.items.len;
     defer p.list_buf.items.len = list_buf_top;
@@ -10353,7 +10429,7 @@ fn callExpr(p: *Parser, lhs: Result) Error!Result {
         var arg = try p.expect(assignExpr);
 
         if (call_expr.shouldPerformLvalConversion(arg_count)) {
-            try arg.lvalConversion(p);
+            try arg.valueConversion(p);
         }
         if ((arg.qt.hasIncompleteSize(p.comp) and !arg.qt.is(p.comp, .void)) or arg.qt.isInvalid()) return error.ParsingFailed;
 
@@ -11394,6 +11470,8 @@ fn genericSelection(p: *Parser) Error!?Result {
     var controlling_qt = controlling.qt;
     if (controlling_qt.is(p.comp, .array)) {
         controlling_qt = try controlling_qt.decay(p.comp);
+    } else if (p.tree.isLval(controlling.node)) {
+        controlling_qt = controlling_qt.nonAtomic(p.comp).unqualified();
     }
     _ = try p.expectToken(.comma);
 

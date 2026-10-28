@@ -14,13 +14,13 @@ _Atomic void l;
 void test_coerce() {
     _Atomic int a;
     long b;
-    b = a; // TODO atomic to non atomic
-    a = b; // TODO non atomic to atomic
+    b = a;
+    a = b;
     a += 1;
 
     _Atomic float f;
-    a = f; // TODO atomic to non atomic, float to int, non atomic to atomic
-    f = a; // TODO atomic to non atomic, int to float, non atomic to atomic
+    a = f;
+    f = a;
 }
 
 void test_member_access() {
@@ -38,13 +38,15 @@ void test_member_access() {
     c->a;
 }
 
+void invalid_vector_initializer(void) {
+    typedef int V __attribute__((vector_size(16)));
+    (void)~((_Atomic(V)){0});
+}
+
 /** manifest:
 syntax
 args = -std=c23 --target=x86_64-linux-gnu
 skip = TODO _Atomic __auto_type
-skip = TODO atomic to non atomic cast
-skip = TODO non atomic to atomic cast
-skip = TODO atomic casts combined with other casts
 
 atomic.c:1:1: error: _Atomic cannot be applied to qualified type 'const int'
 atomic.c:2:1: error: _Atomic cannot be applied to array type 'int [2]'
@@ -58,8 +60,9 @@ atomic.c:12:1: error: _Atomic cannot be applied to incomplete type 'void'
 atomic.c:34:7: error: accessing a member of atomic type '_Atomic(struct B)' is undefined behavior
 atomic.c:35:7: error: accessing a member of atomic type '_Atomic(struct B *)' is undefined behavior
 atomic.c:35:7: error: member reference type 'struct B *' is a pointer; did you mean to use '->'?
-atomic.c:36:8: error: accessing a member of atomic type '_Atomic(struct B *)' is undefined behavior
+atomic.c:36:6: warning: expression result unused [-Wunused-value]
 atomic.c:37:7: error: accessing a member of atomic type '_Atomic(struct B)' is undefined behavior
 atomic.c:37:7: error: member reference type '_Atomic(struct B) *' is a pointer; did you mean to use '->'?
 atomic.c:38:8: error: accessing a member of atomic type '_Atomic(struct B)' is undefined behavior
+atomic.c:43:26: error: initializing 'V' (vector of 4 'int' values) from incompatible type 'int'
 */
