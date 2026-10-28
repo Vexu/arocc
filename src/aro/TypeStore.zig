@@ -2160,6 +2160,29 @@ pub fn putExtra(ts: *TypeStore, gpa: std.mem.Allocator, ty: Type) !Index {
     return @fromBackingInt(@intCast(index));
 }
 
+pub fn setFuncReturnType(ts: *TypeStore, func_qt: QualType, return_qt: QualType) void {
+    const index = @backingInt(func_qt._index);
+    var repr = ts.types.get(index);
+    std.debug.assert(switch (repr.tag) {
+        .func,
+        .func_variadic,
+        .func_old_style,
+        .func_attributed,
+        .func_zero,
+        .func_variadic_zero,
+        .func_old_style_zero,
+        .func_attributed_zero,
+        .func_one,
+        .func_variadic_one,
+        .func_old_style_one,
+        .func_attributed_one,
+        => true,
+        else => false,
+    });
+    repr.data[0] = @bitCast(return_qt);
+    ts.types.set(index, repr);
+}
+
 pub fn set(ts: *TypeStore, gpa: std.mem.Allocator, ty: Type, index: usize) !void {
     var repr: Repr = undefined;
     switch (ty) {

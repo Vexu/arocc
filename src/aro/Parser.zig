@@ -4051,10 +4051,19 @@ const Declarator = struct {
                 if (ret_qt.@"volatile") {
                     try p.err(source_tok, .qual_on_ret_type, .{"volatile"});
                 }
-                if (ret_qt.get(p.comp, .float)) |float| {
+                const return_qt = if (p.comp.langopts.standard.atLeast(.c23))
+                    ret_qt.nonAtomic(p.comp).unqualified()
+                else
+                    ret_qt;
+                if (return_qt.get(p.comp, .float)) |float| {
                     if (float == .fp16 and !p.comp.hasHalfPrecisionFloatABI()) {
                         try p.err(source_tok, .suggest_pointer_for_invalid_fp16, .{"function return value"});
                     }
+                }
+                if (p.comp.langopts.standard.atLeast(.c23)) {
+                    // C23 function types return the unqualified, non-atomic type.
+                    // 6.7.7.4 paragraph 4
+                    p.comp.type_store.setFuncReturnType(cur, return_qt);
                 }
                 return .normal;
             },
@@ -7816,6 +7825,10 @@ pub const Result = struct {
 
         if (dest_qt.get(p.comp, .atomic)) |value_qt| {
             try res.castType(p, value_qt, operand_tok, l_paren);
+            if (p.comp.langopts.standard.atLeast(.c23)) {
+                if (dest_qt.isQualified()) try p.err(l_paren, .qual_cast, .{dest_qt});
+                return;
+            }
             cast_kind = .non_atomic_to_atomic;
         } else if (dest_qt.is(p.comp, .void)) {
             // everything can cast to void
