@@ -9946,18 +9946,11 @@ fn suffixExpr(p: *Parser, lhs: Result) Error!?Result {
             const arrow = p.tok_i;
             p.tok_i += 1;
             const name = try p.expectIdentifier();
-            if (lhs.qt.is(p.comp, .atomic)) {
-                var pointer = lhs;
-                try pointer.valueConversion(p);
-                return try p.fieldAccess(pointer, name, true, arrow);
+            var base = lhs;
+            if (base.qt.is(p.comp, .atomic) or base.qt.is(p.comp, .array)) {
+                try base.valueConversion(p);
             }
-            if (lhs.qt.is(p.comp, .array)) {
-                var copy = lhs;
-                copy.qt = try copy.qt.decay(p.comp);
-                try copy.implicitCast(p, .array_to_pointer);
-                return try p.fieldAccess(copy, name, true, arrow);
-            }
-            return try p.fieldAccess(lhs, name, true, arrow);
+            return try p.fieldAccess(base, name, true, arrow);
         },
         else => return null,
     }
