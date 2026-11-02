@@ -1,9 +1,9 @@
 diff --git c/clang/utils/TableGen/AroBuiltinsEmitter.cpp i/clang/utils/TableGen/AroBuiltinsEmitter.cpp
 new file mode 100644
-index 000000000..17d4e7a21
+index 000000000..ceef8ac28
 --- /dev/null
 +++ i/clang/utils/TableGen/AroBuiltinsEmitter.cpp
-@@ -0,0 +1,635 @@
+@@ -0,0 +1,667 @@
 +#include "TableGenBackends.h"
 +#include "llvm/ADT/StringExtras.h"
 +#include "llvm/ADT/StringSwitch.h"
@@ -77,9 +77,41 @@ index 000000000..17d4e7a21
 +    if (BT == BuiltinType::TargetBuiltin) {
 +      const auto &Features = BuiltinRecord->getValueAsString("Features");
 +      if (Features != "") {
++        if (Features == "experimental-p" || Features == "float128" || Features == "future-vector") {
++          OS << "#";
++        }
 +        OS << "    .features = \"";
 +
-+        for (char c : Features) {
++        static std::pair<StringRef, StringRef> replacements[] = {
++          { "transactional-execution", "te" },
++          { "vector-enhancements-1", "vxeh" },
++          { "vector-enhancements-2", "vxeh2" },
++          { "vector-enhancements-3", "vxeh3" },
++          { "vector", "vx" },
++          { "nnp-assist", "nnpa" },
++          { "miscellaneous-extensions-4", "minste4" },
++          { "ci-insts", "gfx7" },
++          { "gfx8-insts", "gfx8" },
++          { "gfx9-insts", "gfx9" },
++          { "gfx90a-insts", "gfx9_0a" },
++          { "gfx940-insts", "gfx9_4" },
++          { "gfx950-insts", "gfx9_5" },
++          { "gfx10-insts", "gfx10" },
++          { "gfx11-insts", "gfx11" },
++          { "gfx12-insts", "gfx12" },
++          { "gfx1250-insts", "gfx12_5" },
++        };
++
++        StringRef Replaced = Features;
++        for (auto &pair : replacements) {
++          if (Features.starts_with(pair.first)) {
++            OS << pair.second;
++            Replaced = Features.slice(pair.first.size(), Features.size());
++            break;
++          }
++        }
++
++        for (char c : Replaced) {
 +          if (c == '.' || c == '-')
 +            OS <<'_';
 +          else
@@ -732,10 +764,10 @@ index 87a6ddda2..1777d5f5d 100644
  
 diff --git c/update_builtin_defs.zig i/update_builtin_defs.zig
 new file mode 100644
-index 000000000..8f0c4bfeb
+index 000000000..bba16077a
 --- /dev/null
 +++ i/update_builtin_defs.zig
-@@ -0,0 +1,469 @@
+@@ -0,0 +1,476 @@
 +const std = @import("std");
 +const Allocator = std.mem.Allocator;
 +const properties = @import("properties");
@@ -745,7 +777,7 @@ index 000000000..8f0c4bfeb
 +    language: properties.Language = .all_languages,
 +    attributes: properties.Attributes = .{},
 +    header: properties.Header = .none,
-+    features: ?[*:0]const u8 = null,
++    features: ?[:0]const u8 = null,
 +};
 +
 +const Headers = struct {
@@ -809,6 +841,10 @@ index 000000000..8f0c4bfeb
 +    command: []const u8 = "-gen-aro-builtins",
 +};
 +const tables = [_]Table{
++    .{
++        .name = "aarch64.def",
++        .path = "clang/include/clang/Basic/BuiltinsAArch64.td",
++    },
 +    .{
 +        .name = "amdgcn.def",
 +        .path = "clang/include/clang/Basic/BuiltinsAMDGPU.td",
@@ -985,7 +1021,7 @@ index 000000000..8f0c4bfeb
 +            if (features) |some| {
 +                std.mem.replaceScalar(u8, some, '-', '_');
 +                std.mem.replaceScalar(u8, some, '.', '_');
-+                builtin.features = some.ptr;
++                builtin.features = some;
 +            }
 +
 +            const result = try set.getOrPut(gpa, name);
@@ -1076,6 +1112,9 @@ index 000000000..8f0c4bfeb
 +            try writer.writeAll(" }\n");
 +        }
 +        if (builtin.features) |feature| {
++            if (std.mem.eql(u8, feature, "\"float128\"") or std.mem.eql(u8, feature, "\"future_vector\"")) {
++                try writer.writeByte('#');
++            }
 +            try writer.print("    .features = {s}\n", .{feature});
 +        }
 +        try writer.writeAll("\n");
