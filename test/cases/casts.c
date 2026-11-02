@@ -19,6 +19,12 @@ void foo(void) {
     (enum DoesNotExist)2.0;
 }
 
+void atomic_qualifiers(int value) {
+    (void)(const _Atomic(int))value;
+    (void)(volatile _Atomic(int))value;
+    (void)(const volatile _Atomic(int))value;
+}
+
 /** manifest:
 syntax
 
@@ -33,4 +39,7 @@ casts.c:11:13: error: pointer cannot be cast to type 'float'
 casts.c:16:5: error: cast to incomplete type 'enum E'
 casts.c:18:18: error: operand of type 'void' where arithmetic or pointer type is required
 casts.c:19:5: error: cast to incomplete type 'enum DoesNotExist'
+casts.c:23:11: warning: cast to type 'const _Atomic(int)' will not preserve qualifiers [-Wcast-qualifiers]
+casts.c:24:11: warning: cast to type 'volatile _Atomic(int)' will not preserve qualifiers [-Wcast-qualifiers]
+casts.c:25:11: warning: cast to type 'const volatile _Atomic(int)' will not preserve qualifiers [-Wcast-qualifiers]
 */

@@ -101,13 +101,23 @@ void div_by_zero_assign(void) {
 
 _Static_assert((int){1} = 0, "");
 
+void qualified_binary_operands(void) {
+    const volatile _Atomic(long) a;
+    const volatile float b;
+    volatile _Atomic(long) c;
+    b | a;
+    a | b;
+    (long)a | b;
+    c |= b;
+}
+
 /** manifest:
 syntax
 args = -Wno-unused
 
-binary expressions.c:3:7: error: invalid operands to binary expression ('_Atomic(long)' and 'float')
+binary expressions.c:3:7: error: invalid operands to binary expression ('const volatile _Atomic(long)' and 'float')
 binary expressions.c:6:13: error: invalid operands to binary expression ('char' and 'int *')
-binary expressions.c:8:9: error: invalid operands to binary expression ('void (*)(void)' and 'void')
+binary expressions.c:8:9: error: invalid operands to binary expression ('void (void)' and 'void')
 binary expressions.c:10:15: warning: comparison of distinct pointer types ('float *' and 'int *') [-Wcompare-distinct-pointer-types]
 binary expressions.c:11:7: warning: comparison between pointer and integer ('int' and 'int *') [-Wpointer-integer-compare]
 binary expressions.c:12:9: error: invalid operands to binary expression ('double' and 'int *')
@@ -123,7 +133,7 @@ binary expressions.c:33:5: error: expected statement
 binary expressions.c:38:5: error: expected expression
 binary expressions.c:39:13: error: expected expression
 binary expressions.c:48:11: warning: implicit conversion from 'long long' to 'int' changes non-zero value from 1099511627776 to 0 [-Wconstant-conversion]
-binary expressions.c:49:12: error: invalid operands to binary expression ('int' and 'char *')
+binary expressions.c:49:12: error: invalid operands to binary expression ('int' and 'char [4]')
 binary expressions.c:55:9: error: invalid operands to binary expression ('double' and 'struct S')
 binary expressions.c:56:9: error: invalid operands to binary expression ('double' and 'struct S')
 binary expressions.c:57:12: error: cannot take the address of an rvalue
@@ -131,10 +141,14 @@ binary expressions.c:57:9: error: invalid operands to binary expression ('double
 binary expressions.c:62:7: error: invalid operands to binary expression ('int' and 'float')
 binary expressions.c:67:15: error: used type 'void' where arithmetic or pointer type is required
 binary expressions.c:72:16: error: arithmetic on a pointer to an incomplete type 'struct Foo'
-binary expressions.c:77:18: error: invalid operands to binary expression ('char *' and 'char *')
+binary expressions.c:77:18: error: invalid operands to binary expression ('char [64]' and 'char [64]')
 binary expressions.c:92:27: error: invalid application of 'sizeof' to an incomplete type 'struct A'
 binary expressions.c:93:31: error: invalid application of 'sizeof' to an incomplete type 'struct B'
 binary expressions.c:94:27: error: invalid application of 'sizeof' to an incomplete type 'struct C'
 binary expressions.c:98:7: warning: division by zero is undefined [-Wdivision-by-zero]
 binary expressions.c:102:16: error: static assertion expression is not an integral constant expression
+binary expressions.c:108:7: error: invalid operands to binary expression ('const volatile float' and 'const volatile _Atomic(long)')
+binary expressions.c:109:7: error: invalid operands to binary expression ('const volatile _Atomic(long)' and 'const volatile float')
+binary expressions.c:110:13: error: invalid operands to binary expression ('long' and 'const volatile float')
+binary expressions.c:111:7: error: invalid operands to binary expression ('volatile _Atomic(long)' and 'const volatile float')
 */

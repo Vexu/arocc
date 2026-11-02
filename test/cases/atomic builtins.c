@@ -1,6 +1,6 @@
 #include <stdbool.h>
 #include <stdatomic.h>
-
+#include "include/test_helpers.h"
 _Static_assert(memory_order_relaxed == 0, "");
 _Static_assert(memory_order_consume == 1, "");
 _Static_assert(memory_order_acquire == 2, "");
@@ -72,6 +72,23 @@ void foo(void) {
 /* subject to change */
 _Static_assert(ATOMIC_CHAR8_T_LOCK_FREE == 1, "");
 _Static_assert(ATOMIC_POINTER_LOCK_FREE == 1, "");
+
+typedef void *aligned_ptr __attribute__((aligned(16)));
+typedef _Atomic(aligned_ptr) atomic_ptr;
+typedef const volatile atomic_ptr *atomic_address;
+typedef _Atomic(int) atomic_int_type __attribute__((aligned(16)));
+typedef const volatile atomic_int_type *aligned_address __attribute__((aligned(16)));
+
+void *load(atomic_address p) {
+    EXPECT_TYPE(__c11_atomic_load(p, __ATOMIC_SEQ_CST), void *);
+    return atomic_load(p);
+}
+
+void test(aligned_address p, const volatile _Atomic(const int *) *q) {
+    EXPECT_TYPE(__c11_atomic_load(p, __ATOMIC_RELAXED), int);
+    EXPECT_TYPE(__c11_atomic_load(q, __ATOMIC_SEQ_CST), const int *);
+    EXPECT_TYPE(atomic_load_explicit(p, memory_order_acquire), int);
+}
 
 
 /** manifest:
