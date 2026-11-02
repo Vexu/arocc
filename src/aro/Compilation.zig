@@ -923,9 +923,8 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
                 }
             }
 
-            if (target.cpu.has(.arm, .thumb2) or target.cpu.arch.isThumb()
-                // or target.cpu.has(.arm, .thumb_mode)
-            ) {
+            const is_thumb = arch.isThumb() or target.cpu.has(.arm, .mclass);
+            if (target.cpu.has(.arm, .thumb2) or is_thumb) {
                 try define(w, "__thumb__");
             }
             // ARM ISA means we are not M profile
@@ -961,7 +960,6 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
                 try define(w, "__ARM_FEATURE_DSP");
             }
 
-            const is_thumb = arch == .thumb or arch == .thumbeb or target.cpu.has(.arm, .mclass);
             if ((is_thumb and target.cpu.has(.arm, .hwdiv)) or
                 (!is_thumb and target.cpu.has(.arm, .hwdiv_arm)))
             {
