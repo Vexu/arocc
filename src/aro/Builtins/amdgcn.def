@@ -86,7 +86,7 @@ __builtin_amdgcn_buffer_wbinvl1
 
 __builtin_amdgcn_buffer_wbinvl1_vol
     .param_str = "v"
-    .features = "ci_insts"
+    .features = "gfx7"
 
 __builtin_amdgcn_class
     .param_str = "bdi"
@@ -103,17 +103,17 @@ __builtin_amdgcn_classh
 
 __builtin_amdgcn_cluster_id_x
     .param_str = "Ui"
-    .features = "gfx1250_insts"
+    .features = "gfx12_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_cluster_id_y
     .param_str = "Ui"
-    .features = "gfx1250_insts"
+    .features = "gfx12_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_cluster_id_z
     .param_str = "Ui"
-    .features = "gfx1250_insts"
+    .features = "gfx12_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_cluster_load_async_to_lds_b8
@@ -153,72 +153,72 @@ __builtin_amdgcn_cluster_load_b128
 
 __builtin_amdgcn_cluster_workgroup_flat_id
     .param_str = "Ui"
-    .features = "gfx1250_insts"
+    .features = "gfx12_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_cluster_workgroup_id_x
     .param_str = "Ui"
-    .features = "gfx1250_insts"
+    .features = "gfx12_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_cluster_workgroup_id_y
     .param_str = "Ui"
-    .features = "gfx1250_insts"
+    .features = "gfx12_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_cluster_workgroup_id_z
     .param_str = "Ui"
-    .features = "gfx1250_insts"
+    .features = "gfx12_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_cluster_workgroup_max_flat_id
     .param_str = "Ui"
-    .features = "gfx1250_insts"
+    .features = "gfx12_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_cluster_workgroup_max_id_x
     .param_str = "Ui"
-    .features = "gfx1250_insts"
+    .features = "gfx12_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_cluster_workgroup_max_id_y
     .param_str = "Ui"
-    .features = "gfx1250_insts"
+    .features = "gfx12_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_cluster_workgroup_max_id_z
     .param_str = "Ui"
-    .features = "gfx1250_insts"
+    .features = "gfx12_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_cooperative_atomic_load_8x16B
     .param_str = "E4iE4i*IicC*"
-    .features = "gfx1250_insts,wavefrontsize32"
+    .features = "gfx12_5,wavefrontsize32"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_cooperative_atomic_load_16x8B
     .param_str = "E2iE2i*IicC*"
-    .features = "gfx1250_insts,wavefrontsize32"
+    .features = "gfx12_5,wavefrontsize32"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_cooperative_atomic_load_32x4B
     .param_str = "ii*IicC*"
-    .features = "gfx1250_insts,wavefrontsize32"
+    .features = "gfx12_5,wavefrontsize32"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_cooperative_atomic_store_8x16B
     .param_str = "vE4i*E4iIicC*"
-    .features = "gfx1250_insts,wavefrontsize32"
+    .features = "gfx12_5,wavefrontsize32"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_cooperative_atomic_store_16x8B
     .param_str = "vE2i*E2iIicC*"
-    .features = "gfx1250_insts,wavefrontsize32"
+    .features = "gfx12_5,wavefrontsize32"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_cooperative_atomic_store_32x4B
     .param_str = "vi*iIicC*"
-    .features = "gfx1250_insts,wavefrontsize32"
+    .features = "gfx12_5,wavefrontsize32"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_cos_bf16
@@ -257,12 +257,12 @@ __builtin_amdgcn_cubetc
 
 __builtin_amdgcn_cvt_f16_bf8
     .param_str = "xiIi"
-    .features = "gfx1250_insts"
+    .features = "gfx12_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_cvt_f16_fp8
     .param_str = "xiIi"
-    .features = "gfx1250_insts"
+    .features = "gfx12_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_cvt_f32_bf8
@@ -286,7 +286,7 @@ __builtin_amdgcn_cvt_off_f32_i4
 
 __builtin_amdgcn_cvt_pk_bf8_f16
     .param_str = "sE2x"
-    .features = "gfx1250_insts"
+    .features = "gfx12_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_cvt_pk_bf8_f32
@@ -296,12 +296,12 @@ __builtin_amdgcn_cvt_pk_bf8_f32
 
 __builtin_amdgcn_cvt_pk_f16_bf8
     .param_str = "E2xs"
-    .features = "gfx1250_insts"
+    .features = "gfx12_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_cvt_pk_f16_fp8
     .param_str = "E2xs"
-    .features = "gfx1250_insts"
+    .features = "gfx12_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_cvt_pk_f32_bf8
@@ -316,7 +316,7 @@ __builtin_amdgcn_cvt_pk_f32_fp8
 
 __builtin_amdgcn_cvt_pk_fp8_f16
     .param_str = "sE2x"
-    .features = "gfx1250_insts"
+    .features = "gfx12_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_cvt_pk_fp8_f32
@@ -357,87 +357,87 @@ __builtin_amdgcn_cvt_pkrtz
 
 __builtin_amdgcn_cvt_scale_pk8_bf16_bf8
     .param_str = "E8yE2UiUiIUi"
-    .features = "gfx1250_insts"
+    .features = "gfx12_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_cvt_scale_pk8_bf16_fp4
     .param_str = "E8yUiUiIUi"
-    .features = "gfx1250_insts"
+    .features = "gfx12_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_cvt_scale_pk8_bf16_fp8
     .param_str = "E8yE2UiUiIUi"
-    .features = "gfx1250_insts"
+    .features = "gfx12_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_cvt_scale_pk8_f16_bf8
     .param_str = "E8xE2UiUiIUi"
-    .features = "gfx1250_insts"
+    .features = "gfx12_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_cvt_scale_pk8_f16_fp4
     .param_str = "E8xUiUiIUi"
-    .features = "gfx1250_insts"
+    .features = "gfx12_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_cvt_scale_pk8_f16_fp8
     .param_str = "E8xE2UiUiIUi"
-    .features = "gfx1250_insts"
+    .features = "gfx12_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_cvt_scale_pk8_f32_bf8
     .param_str = "E8fE2UiUiIUi"
-    .features = "gfx1250_insts"
+    .features = "gfx12_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_cvt_scale_pk8_f32_fp4
     .param_str = "E8fUiUiIUi"
-    .features = "gfx1250_insts"
+    .features = "gfx12_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_cvt_scale_pk8_f32_fp8
     .param_str = "E8fE2UiUiIUi"
-    .features = "gfx1250_insts"
+    .features = "gfx12_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_cvt_scale_pk16_bf16_bf6
     .param_str = "E16yE3UiUiIUi"
-    .features = "gfx1250_insts"
+    .features = "gfx12_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_cvt_scale_pk16_bf16_fp6
     .param_str = "E16yE3UiUiIUi"
-    .features = "gfx1250_insts"
+    .features = "gfx12_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_cvt_scale_pk16_f16_bf6
     .param_str = "E16xE3UiUiIUi"
-    .features = "gfx1250_insts"
+    .features = "gfx12_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_cvt_scale_pk16_f16_fp6
     .param_str = "E16xE3UiUiIUi"
-    .features = "gfx1250_insts"
+    .features = "gfx12_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_cvt_scale_pk16_f32_bf6
     .param_str = "E16fE3UiUiIUi"
-    .features = "gfx1250_insts"
+    .features = "gfx12_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_cvt_scale_pk16_f32_fp6
     .param_str = "E16fE3UiUiIUi"
-    .features = "gfx1250_insts"
+    .features = "gfx12_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_cvt_scalef32_2xpk16_bf6_f32
     .param_str = "E6UiE16fE16ff"
-    .features = "gfx950_insts"
+    .features = "gfx9_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_cvt_scalef32_2xpk16_fp6_f32
     .param_str = "E6UiE16fE16ff"
-    .features = "gfx950_insts"
+    .features = "gfx9_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_cvt_scalef32_f16_bf8
@@ -462,77 +462,77 @@ __builtin_amdgcn_cvt_scalef32_f32_fp8
 
 __builtin_amdgcn_cvt_scalef32_pk8_bf8_bf16
     .param_str = "E2UiE8yf"
-    .features = "gfx1250_insts"
+    .features = "gfx12_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_cvt_scalef32_pk8_bf8_f16
     .param_str = "E2UiE8xf"
-    .features = "gfx1250_insts"
+    .features = "gfx12_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_cvt_scalef32_pk8_bf8_f32
     .param_str = "E2UiE8ff"
-    .features = "gfx1250_insts"
+    .features = "gfx12_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_cvt_scalef32_pk8_fp4_bf16
     .param_str = "UiE8yf"
-    .features = "gfx1250_insts"
+    .features = "gfx12_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_cvt_scalef32_pk8_fp4_f16
     .param_str = "UiE8xf"
-    .features = "gfx1250_insts"
+    .features = "gfx12_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_cvt_scalef32_pk8_fp4_f32
     .param_str = "UiE8ff"
-    .features = "gfx1250_insts"
+    .features = "gfx12_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_cvt_scalef32_pk8_fp8_bf16
     .param_str = "E2UiE8yf"
-    .features = "gfx1250_insts"
+    .features = "gfx12_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_cvt_scalef32_pk8_fp8_f16
     .param_str = "E2UiE8xf"
-    .features = "gfx1250_insts"
+    .features = "gfx12_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_cvt_scalef32_pk8_fp8_f32
     .param_str = "E2UiE8ff"
-    .features = "gfx1250_insts"
+    .features = "gfx12_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_cvt_scalef32_pk16_bf6_bf16
     .param_str = "E3UiE16yf"
-    .features = "gfx1250_insts"
+    .features = "gfx12_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_cvt_scalef32_pk16_bf6_f16
     .param_str = "E3UiE16xf"
-    .features = "gfx1250_insts"
+    .features = "gfx12_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_cvt_scalef32_pk16_bf6_f32
     .param_str = "E3UiE16ff"
-    .features = "gfx1250_insts"
+    .features = "gfx12_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_cvt_scalef32_pk16_fp6_bf16
     .param_str = "E3UiE16yf"
-    .features = "gfx1250_insts"
+    .features = "gfx12_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_cvt_scalef32_pk16_fp6_f16
     .param_str = "E3UiE16xf"
-    .features = "gfx1250_insts"
+    .features = "gfx12_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_cvt_scalef32_pk16_fp6_f32
     .param_str = "E3UiE16ff"
-    .features = "gfx1250_insts"
+    .features = "gfx12_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_cvt_scalef32_pk32_bf6_bf16
@@ -707,77 +707,77 @@ __builtin_amdgcn_cvt_scalef32_sr_fp8_f32
 
 __builtin_amdgcn_cvt_scalef32_sr_pk8_bf8_bf16
     .param_str = "E2UiE8yUif"
-    .features = "gfx1250_insts"
+    .features = "gfx12_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_cvt_scalef32_sr_pk8_bf8_f16
     .param_str = "E2UiE8xUif"
-    .features = "gfx1250_insts"
+    .features = "gfx12_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_cvt_scalef32_sr_pk8_bf8_f32
     .param_str = "E2UiE8fUif"
-    .features = "gfx1250_insts"
+    .features = "gfx12_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_cvt_scalef32_sr_pk8_fp4_bf16
     .param_str = "UiE8yUif"
-    .features = "gfx1250_insts"
+    .features = "gfx12_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_cvt_scalef32_sr_pk8_fp4_f16
     .param_str = "UiE8xUif"
-    .features = "gfx1250_insts"
+    .features = "gfx12_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_cvt_scalef32_sr_pk8_fp4_f32
     .param_str = "UiE8fUif"
-    .features = "gfx1250_insts"
+    .features = "gfx12_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_cvt_scalef32_sr_pk8_fp8_bf16
     .param_str = "E2UiE8yUif"
-    .features = "gfx1250_insts"
+    .features = "gfx12_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_cvt_scalef32_sr_pk8_fp8_f16
     .param_str = "E2UiE8xUif"
-    .features = "gfx1250_insts"
+    .features = "gfx12_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_cvt_scalef32_sr_pk8_fp8_f32
     .param_str = "E2UiE8fUif"
-    .features = "gfx1250_insts"
+    .features = "gfx12_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_cvt_scalef32_sr_pk16_bf6_bf16
     .param_str = "E3UiE16yUif"
-    .features = "gfx1250_insts"
+    .features = "gfx12_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_cvt_scalef32_sr_pk16_bf6_f16
     .param_str = "E3UiE16xUif"
-    .features = "gfx1250_insts"
+    .features = "gfx12_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_cvt_scalef32_sr_pk16_bf6_f32
     .param_str = "E3UiE16fUif"
-    .features = "gfx1250_insts"
+    .features = "gfx12_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_cvt_scalef32_sr_pk16_fp6_bf16
     .param_str = "E3UiE16yUif"
-    .features = "gfx1250_insts"
+    .features = "gfx12_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_cvt_scalef32_sr_pk16_fp6_f16
     .param_str = "E3UiE16xUif"
-    .features = "gfx1250_insts"
+    .features = "gfx12_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_cvt_scalef32_sr_pk16_fp6_f32
     .param_str = "E3UiE16fUif"
-    .features = "gfx1250_insts"
+    .features = "gfx12_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_cvt_scalef32_sr_pk32_bf6_bf16
@@ -827,7 +827,7 @@ __builtin_amdgcn_cvt_scalef32_sr_pk_fp4_f32
 
 __builtin_amdgcn_cvt_sr_bf8_f16
     .param_str = "ixiUiIi"
-    .features = "gfx1250_insts"
+    .features = "gfx12_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_cvt_sr_bf8_f32
@@ -847,7 +847,7 @@ __builtin_amdgcn_cvt_sr_f16_f32
 
 __builtin_amdgcn_cvt_sr_fp8_f16
     .param_str = "ixiUiIi"
-    .features = "gfx1250_insts"
+    .features = "gfx12_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_cvt_sr_fp8_f32
@@ -867,7 +867,7 @@ __builtin_amdgcn_cvt_sr_pk_bf16_f32
 
 __builtin_amdgcn_cvt_sr_pk_f16_f32
     .param_str = "E2xffi"
-    .features = "gfx1250_insts"
+    .features = "gfx12_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_dispatch_ptr
@@ -926,21 +926,21 @@ __builtin_amdgcn_ds_append
 
 __builtin_amdgcn_ds_atomic_async_barrier_arrive_b64
     .param_str = "vLi*3"
-    .features = "gfx1250_insts"
+    .features = "gfx12_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_ds_atomic_barrier_arrive_rtn_b64
     .param_str = "LiLi*3Li"
-    .features = "gfx1250_insts"
+    .features = "gfx12_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_ds_atomic_fadd_f32
     .param_str = "ff*3f"
-    .features = "gfx8_insts"
+    .features = "gfx8"
 
 __builtin_amdgcn_ds_atomic_fadd_f64
     .param_str = "dd*3d"
-    .features = "gfx90a_insts"
+    .features = "gfx9_0a"
 
 __builtin_amdgcn_ds_atomic_fadd_v2bf16
     .param_str = "E2sE2s*3E2s"
@@ -958,24 +958,24 @@ __builtin_amdgcn_ds_bpermute
 
 __builtin_amdgcn_ds_bpermute_fi_b32
     .param_str = "iii"
-    .features = "gfx12_insts"
+    .features = "gfx12"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_ds_bvh_stack_push4_pop1_rtn
     .param_str = "E2UiUiUiE4UiIi"
-    .features = "gfx11_insts"
+    .features = "gfx11"
 
 __builtin_amdgcn_ds_bvh_stack_push8_pop1_rtn
     .param_str = "E2UiUiUiE8UiIi"
-    .features = "gfx12_insts"
+    .features = "gfx12"
 
 __builtin_amdgcn_ds_bvh_stack_push8_pop2_rtn
     .param_str = "E2UWiUiUiE8UiIi"
-    .features = "gfx12_insts"
+    .features = "gfx12"
 
 __builtin_amdgcn_ds_bvh_stack_rtn
     .param_str = "E2UiUiUiE4UiIi"
-    .features = "gfx11_insts"
+    .features = "gfx11"
 
 __builtin_amdgcn_ds_consume
     .param_str = "ii*3"
@@ -1007,7 +1007,7 @@ __builtin_amdgcn_ds_gws_sema_p
 
 __builtin_amdgcn_ds_gws_sema_release_all
     .param_str = "vUi"
-    .features = "ci_insts"
+    .features = "gfx7"
 
 __builtin_amdgcn_ds_gws_sema_v
     .param_str = "vUi"
@@ -1025,22 +1025,22 @@ __builtin_amdgcn_ds_load_tr6_b96_v3i32
 
 __builtin_amdgcn_ds_load_tr8_b64_v2i32
     .param_str = "E2iE2i*3"
-    .features = "gfx1250_insts,wavefrontsize32"
+    .features = "gfx12_5,wavefrontsize32"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_ds_load_tr16_b128_v8bf16
     .param_str = "E8yE8y*3"
-    .features = "gfx1250_insts,wavefrontsize32"
+    .features = "gfx12_5,wavefrontsize32"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_ds_load_tr16_b128_v8f16
     .param_str = "E8hE8h*3"
-    .features = "gfx1250_insts,wavefrontsize32"
+    .features = "gfx12_5,wavefrontsize32"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_ds_load_tr16_b128_v8i16
     .param_str = "E8sE8s*3"
-    .features = "gfx1250_insts,wavefrontsize32"
+    .features = "gfx12_5,wavefrontsize32"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_ds_permute
@@ -1049,32 +1049,32 @@ __builtin_amdgcn_ds_permute
 
 __builtin_amdgcn_ds_read_tr4_b64_v2i32
     .param_str = "E2iE2i*3"
-    .features = "gfx950_insts"
+    .features = "gfx9_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_ds_read_tr6_b96_v3i32
     .param_str = "E3iE3i*3"
-    .features = "gfx950_insts"
+    .features = "gfx9_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_ds_read_tr8_b64_v2i32
     .param_str = "E2iE2i*3"
-    .features = "gfx950_insts"
+    .features = "gfx9_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_ds_read_tr16_b64_v4bf16
     .param_str = "E4yE4y*3"
-    .features = "gfx950_insts"
+    .features = "gfx9_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_ds_read_tr16_b64_v4f16
     .param_str = "E4hE4h*3"
-    .features = "gfx950_insts"
+    .features = "gfx9_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_ds_read_tr16_b64_v4i16
     .param_str = "E4sE4s*3"
-    .features = "gfx950_insts"
+    .features = "gfx9_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_ds_swizzle
@@ -1131,11 +1131,11 @@ __builtin_amdgcn_fence
 
 __builtin_amdgcn_flat_atomic_fadd_f32
     .param_str = "ff*0f"
-    .features = "gfx940_insts"
+    .features = "gfx9_4"
 
 __builtin_amdgcn_flat_atomic_fadd_f64
     .param_str = "dd*0d"
-    .features = "gfx90a_insts"
+    .features = "gfx9_0a"
 
 __builtin_amdgcn_flat_atomic_fadd_v2bf16
     .param_str = "E2sE2s*0E2s"
@@ -1149,25 +1149,25 @@ __builtin_amdgcn_flat_atomic_fadd_v2f16
 
 __builtin_amdgcn_flat_atomic_fmax_f64
     .param_str = "dd*0d"
-    .features = "gfx90a_insts"
+    .features = "gfx9_0a"
 
 __builtin_amdgcn_flat_atomic_fmin_f64
     .param_str = "dd*0d"
-    .features = "gfx90a_insts"
+    .features = "gfx9_0a"
 
 __builtin_amdgcn_flat_load_monitor_b32
     .param_str = "ii*0IiIi"
-    .features = "gfx1250_insts"
+    .features = "gfx12_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_flat_load_monitor_b64
     .param_str = "E2iE2i*0IiIi"
-    .features = "gfx1250_insts"
+    .features = "gfx12_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_flat_load_monitor_b128
     .param_str = "E4iE4i*0IiIi"
-    .features = "gfx1250_insts"
+    .features = "gfx12_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_flat_prefetch
@@ -1181,7 +1181,7 @@ __builtin_amdgcn_fmed3f
 
 __builtin_amdgcn_fmed3h
     .param_str = "hhhh"
-    .features = "gfx9_insts"
+    .features = "gfx9"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_fract
@@ -1232,7 +1232,7 @@ __builtin_amdgcn_global_atomic_fadd_f32
 
 __builtin_amdgcn_global_atomic_fadd_f64
     .param_str = "dd*1d"
-    .features = "gfx90a_insts"
+    .features = "gfx9_0a"
 
 __builtin_amdgcn_global_atomic_fadd_v2bf16
     .param_str = "E2sE2s*1E2s"
@@ -1246,11 +1246,11 @@ __builtin_amdgcn_global_atomic_fadd_v2f16
 
 __builtin_amdgcn_global_atomic_fmax_f64
     .param_str = "dd*1d"
-    .features = "gfx90a_insts"
+    .features = "gfx9_0a"
 
 __builtin_amdgcn_global_atomic_fmin_f64
     .param_str = "dd*1d"
-    .features = "gfx90a_insts"
+    .features = "gfx9_0a"
 
 __builtin_amdgcn_global_load_async_lds
     .param_str = "vv*1v*3IUiIiIUi"
@@ -1258,22 +1258,22 @@ __builtin_amdgcn_global_load_async_lds
 
 __builtin_amdgcn_global_load_async_to_lds_b8
     .param_str = "vc*1c*3IiIi"
-    .features = "gfx1250_insts"
+    .features = "gfx12_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_global_load_async_to_lds_b32
     .param_str = "vi*1i*3IiIi"
-    .features = "gfx1250_insts"
+    .features = "gfx12_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_global_load_async_to_lds_b64
     .param_str = "vE2i*1E2i*3IiIi"
-    .features = "gfx1250_insts"
+    .features = "gfx12_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_global_load_async_to_lds_b128
     .param_str = "vE4i*1E4i*3IiIi"
-    .features = "gfx1250_insts"
+    .features = "gfx12_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_global_load_lds
@@ -1282,17 +1282,17 @@ __builtin_amdgcn_global_load_lds
 
 __builtin_amdgcn_global_load_monitor_b32
     .param_str = "ii*1IiIi"
-    .features = "gfx1250_insts"
+    .features = "gfx12_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_global_load_monitor_b64
     .param_str = "E2iE2i*1IiIi"
-    .features = "gfx1250_insts"
+    .features = "gfx12_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_global_load_monitor_b128
     .param_str = "E4iE4i*1IiIi"
-    .features = "gfx1250_insts"
+    .features = "gfx12_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_global_load_tr4_b64_v2i32
@@ -1307,62 +1307,62 @@ __builtin_amdgcn_global_load_tr6_b96_v3i32
 
 __builtin_amdgcn_global_load_tr8_b64_v2i32
     .param_str = "E2iE2i*1"
-    .features = "gfx1250_insts,wavefrontsize32"
+    .features = "gfx12_5,wavefrontsize32"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_global_load_tr16_b128_v8bf16
     .param_str = "E8yE8y*1"
-    .features = "gfx1250_insts,wavefrontsize32"
+    .features = "gfx12_5,wavefrontsize32"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_global_load_tr16_b128_v8f16
     .param_str = "E8hE8h*1"
-    .features = "gfx1250_insts,wavefrontsize32"
+    .features = "gfx12_5,wavefrontsize32"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_global_load_tr16_b128_v8i16
     .param_str = "E8sE8s*1"
-    .features = "gfx1250_insts,wavefrontsize32"
+    .features = "gfx12_5,wavefrontsize32"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_global_load_tr_b64_i32
     .param_str = "ii*1"
-    .features = "gfx12_insts,wavefrontsize64"
+    .features = "gfx12,wavefrontsize64"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_global_load_tr_b64_v2i32
     .param_str = "E2iE2i*1"
-    .features = "gfx12_insts,wavefrontsize32"
+    .features = "gfx12,wavefrontsize32"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_global_load_tr_b128_v4bf16
     .param_str = "E4yE4y*1"
-    .features = "gfx12_insts,wavefrontsize64"
+    .features = "gfx12,wavefrontsize64"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_global_load_tr_b128_v4f16
     .param_str = "E4hE4h*1"
-    .features = "gfx12_insts,wavefrontsize64"
+    .features = "gfx12,wavefrontsize64"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_global_load_tr_b128_v4i16
     .param_str = "E4sE4s*1"
-    .features = "gfx12_insts,wavefrontsize64"
+    .features = "gfx12,wavefrontsize64"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_global_load_tr_b128_v8bf16
     .param_str = "E8yE8y*1"
-    .features = "gfx12_insts,wavefrontsize32"
+    .features = "gfx12,wavefrontsize32"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_global_load_tr_b128_v8f16
     .param_str = "E8hE8h*1"
-    .features = "gfx12_insts,wavefrontsize32"
+    .features = "gfx12,wavefrontsize32"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_global_load_tr_b128_v8i16
     .param_str = "E8sE8s*1"
-    .features = "gfx12_insts,wavefrontsize32"
+    .features = "gfx12,wavefrontsize32"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_global_prefetch
@@ -1372,22 +1372,22 @@ __builtin_amdgcn_global_prefetch
 
 __builtin_amdgcn_global_store_async_from_lds_b8
     .param_str = "vc*1c*3IiIi"
-    .features = "gfx1250_insts"
+    .features = "gfx12_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_global_store_async_from_lds_b32
     .param_str = "vi*1i*3IiIi"
-    .features = "gfx1250_insts"
+    .features = "gfx12_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_global_store_async_from_lds_b64
     .param_str = "vE2i*1E2i*3IiIi"
-    .features = "gfx1250_insts"
+    .features = "gfx12_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_global_store_async_from_lds_b128
     .param_str = "vE4i*1E4i*3IiIi"
-    .features = "gfx1250_insts"
+    .features = "gfx12_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_grid_size_x
@@ -1410,32 +1410,32 @@ __builtin_amdgcn_iglp_opt
 
 __builtin_amdgcn_image_bvh8_intersect_ray
     .param_str = "E10UiUWifUcE3fE3fUiE4UiE3f*E3f*"
-    .features = "gfx12_insts"
+    .features = "gfx12"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_image_bvh_dual_intersect_ray
     .param_str = "E10UiUWifUcE3fE3fE2UiE4UiE3f*E3f*"
-    .features = "gfx12_insts"
+    .features = "gfx12"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_image_bvh_intersect_ray
     .param_str = "E4UiUifE4fE4fE4fE4Ui"
-    .features = "gfx10_insts"
+    .features = "gfx10"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_image_bvh_intersect_ray_h
     .param_str = "E4UiUifE4fE4xE4xE4Ui"
-    .features = "gfx10_insts"
+    .features = "gfx10"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_image_bvh_intersect_ray_l
     .param_str = "E4UiUWifE4fE4fE4fE4Ui"
-    .features = "gfx10_insts"
+    .features = "gfx10"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_image_bvh_intersect_ray_lh
     .param_str = "E4UiUWifE4fE4xE4xE4Ui"
-    .features = "gfx10_insts"
+    .features = "gfx10"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_image_gather4_lz_2d_v4f32_f32
@@ -2106,7 +2106,7 @@ __builtin_amdgcn_mfma_f32_4x4x2bf16
 
 __builtin_amdgcn_mfma_f32_4x4x4bf16_1k
     .param_str = "E4fE4sE4sE4fIiIiIi"
-    .features = "gfx90a_insts"
+    .features = "gfx9_0a"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_mfma_f32_4x4x4f16
@@ -2126,7 +2126,7 @@ __builtin_amdgcn_mfma_f32_16x16x2bf16
 
 __builtin_amdgcn_mfma_f32_16x16x4bf16_1k
     .param_str = "E16fE4sE4sE16fIiIiIi"
-    .features = "gfx90a_insts"
+    .features = "gfx9_0a"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_mfma_f32_16x16x4f16
@@ -2151,7 +2151,7 @@ __builtin_amdgcn_mfma_f32_16x16x8bf16
 
 __builtin_amdgcn_mfma_f32_16x16x16bf16_1k
     .param_str = "E4fE4sE4sE4fIiIiIi"
-    .features = "gfx90a_insts"
+    .features = "gfx9_0a"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_mfma_f32_16x16x16f16
@@ -2171,12 +2171,12 @@ __builtin_amdgcn_mfma_f32_16x16x32_bf8_fp8
 
 __builtin_amdgcn_mfma_f32_16x16x32_bf16
     .param_str = "E4fE8yE8yE4fIiIiIi"
-    .features = "gfx950_insts"
+    .features = "gfx9_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_mfma_f32_16x16x32_f16
     .param_str = "E4fE8xE8xE4fIiIiIi"
-    .features = "gfx950_insts"
+    .features = "gfx9_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_mfma_f32_16x16x32_fp8_bf8
@@ -2216,7 +2216,7 @@ __builtin_amdgcn_mfma_f32_32x32x4bf16
 
 __builtin_amdgcn_mfma_f32_32x32x4bf16_1k
     .param_str = "E32fE4sE4sE32fIiIiIi"
-    .features = "gfx90a_insts"
+    .features = "gfx9_0a"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_mfma_f32_32x32x4f16
@@ -2226,7 +2226,7 @@ __builtin_amdgcn_mfma_f32_32x32x4f16
 
 __builtin_amdgcn_mfma_f32_32x32x8bf16_1k
     .param_str = "E16fE4sE4sE16fIiIiIi"
-    .features = "gfx90a_insts"
+    .features = "gfx9_0a"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_mfma_f32_32x32x8f16
@@ -2246,12 +2246,12 @@ __builtin_amdgcn_mfma_f32_32x32x16_bf8_fp8
 
 __builtin_amdgcn_mfma_f32_32x32x16_bf16
     .param_str = "E16fE8yE8yE16fIiIiIi"
-    .features = "gfx950_insts"
+    .features = "gfx9_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_mfma_f32_32x32x16_f16
     .param_str = "E16fE8xE8xE16fIiIiIi"
-    .features = "gfx950_insts"
+    .features = "gfx9_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_mfma_f32_32x32x16_fp8_bf8
@@ -2266,12 +2266,12 @@ __builtin_amdgcn_mfma_f32_32x32x16_fp8_fp8
 
 __builtin_amdgcn_mfma_f64_4x4x4f64
     .param_str = "ddddIiIiIi"
-    .features = "gfx90a_insts"
+    .features = "gfx9_0a"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_mfma_f64_16x16x4f64
     .param_str = "E4dddE4dIiIiIi"
-    .features = "gfx90a_insts"
+    .features = "gfx9_0a"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_mfma_i32_4x4x4i8
@@ -2296,7 +2296,7 @@ __builtin_amdgcn_mfma_i32_16x16x32_i8
 
 __builtin_amdgcn_mfma_i32_16x16x64_i8
     .param_str = "E4iE4iE4iE4iIiIiIi"
-    .features = "gfx950_insts"
+    .features = "gfx9_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_mfma_i32_32x32x4i8
@@ -2316,17 +2316,17 @@ __builtin_amdgcn_mfma_i32_32x32x16_i8
 
 __builtin_amdgcn_mfma_i32_32x32x32_i8
     .param_str = "E16iE4iE4iE16iIiIiIi"
-    .features = "gfx950_insts"
+    .features = "gfx9_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_mfma_scale_f32_16x16x128_f8f6f4
     .param_str = "E4fE8ZiE8ZiE4fIiIiIiiIii"
-    .features = "gfx950_insts"
+    .features = "gfx9_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_mfma_scale_f32_32x32x64_f8f6f4
     .param_str = "E16fE8ZiE8ZiE16fIiIiIiiIii"
-    .features = "gfx950_insts"
+    .features = "gfx9_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_mov_dpp
@@ -2336,7 +2336,7 @@ __builtin_amdgcn_mov_dpp
 
 __builtin_amdgcn_mov_dpp8
     .param_str = "UiUiIUi"
-    .features = "gfx10_insts"
+    .features = "gfx10"
     .attributes = .{ .@"const" = true, .custom_typecheck = true }
 
 __builtin_amdgcn_mqsad_pk_u16_u8
@@ -2356,7 +2356,7 @@ __builtin_amdgcn_msad_u8
 
 __builtin_amdgcn_perm
     .param_str = "UiUiUiUi"
-    .features = "gfx8_insts"
+    .features = "gfx8"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_perm_pk16_b4_u4
@@ -2376,7 +2376,7 @@ __builtin_amdgcn_perm_pk16_b8_u4
 
 __builtin_amdgcn_permlane16
     .param_str = "UiUiUiUiUiIbIb"
-    .features = "gfx10_insts"
+    .features = "gfx10"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_permlane16_swap
@@ -2386,7 +2386,7 @@ __builtin_amdgcn_permlane16_swap
 
 __builtin_amdgcn_permlane16_var
     .param_str = "UiUiUiUiIbIb"
-    .features = "gfx12_insts"
+    .features = "gfx12"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_permlane32_swap
@@ -2396,42 +2396,42 @@ __builtin_amdgcn_permlane32_swap
 
 __builtin_amdgcn_permlane64
     .param_str = "UiUi"
-    .features = "gfx11_insts"
+    .features = "gfx11"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_permlane_bcast
     .param_str = "iiii"
-    .features = "gfx1250_insts,wavefrontsize32"
+    .features = "gfx12_5,wavefrontsize32"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_permlane_down
     .param_str = "iiii"
-    .features = "gfx1250_insts,wavefrontsize32"
+    .features = "gfx12_5,wavefrontsize32"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_permlane_idx_gen
     .param_str = "iii"
-    .features = "gfx1250_insts,wavefrontsize32"
+    .features = "gfx12_5,wavefrontsize32"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_permlane_up
     .param_str = "iiii"
-    .features = "gfx1250_insts,wavefrontsize32"
+    .features = "gfx12_5,wavefrontsize32"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_permlane_xor
     .param_str = "iiii"
-    .features = "gfx1250_insts,wavefrontsize32"
+    .features = "gfx12_5,wavefrontsize32"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_permlanex16
     .param_str = "UiUiUiUiUiIbIb"
-    .features = "gfx10_insts"
+    .features = "gfx10"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_permlanex16_var
     .param_str = "UiUiUiUiIbIb"
-    .features = "gfx12_insts"
+    .features = "gfx12"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_pk_add_max_i16
@@ -2624,35 +2624,35 @@ __builtin_amdgcn_s_barrier
 
 __builtin_amdgcn_s_barrier_init
     .param_str = "vv*i"
-    .features = "gfx12_insts"
+    .features = "gfx12"
 
 __builtin_amdgcn_s_barrier_join
     .param_str = "vv*"
-    .features = "gfx12_insts"
+    .features = "gfx12"
 
 __builtin_amdgcn_s_barrier_leave
     .param_str = "vIs"
-    .features = "gfx12_insts"
+    .features = "gfx12"
 
 __builtin_amdgcn_s_barrier_signal
     .param_str = "vIi"
-    .features = "gfx12_insts"
+    .features = "gfx12"
 
 __builtin_amdgcn_s_barrier_signal_isfirst
     .param_str = "bIi"
-    .features = "gfx12_insts"
+    .features = "gfx12"
 
 __builtin_amdgcn_s_barrier_signal_var
     .param_str = "vv*i"
-    .features = "gfx12_insts"
+    .features = "gfx12"
 
 __builtin_amdgcn_s_barrier_wait
     .param_str = "vIs"
-    .features = "gfx12_insts"
+    .features = "gfx12"
 
 __builtin_amdgcn_s_bitreplicate
     .param_str = "UWiUi"
-    .features = "gfx9_insts"
+    .features = "gfx9"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_s_buffer_load_f16
@@ -2749,34 +2749,34 @@ __builtin_amdgcn_s_buffer_load_v16i32
 
 __builtin_amdgcn_s_buffer_prefetch_data
     .param_str = "vQbIiUi"
-    .features = "gfx12_insts"
+    .features = "gfx12"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_s_cluster_barrier
     .param_str = "v"
-    .features = "gfx1250_insts"
+    .features = "gfx12_5"
 
 __builtin_amdgcn_s_dcache_inv
     .param_str = "v"
 
 __builtin_amdgcn_s_dcache_inv_vol
     .param_str = "v"
-    .features = "ci_insts"
+    .features = "gfx7"
 
 __builtin_amdgcn_s_dcache_wb
     .param_str = "v"
-    .features = "gfx8_insts"
+    .features = "gfx8"
 
 __builtin_amdgcn_s_decperflevel
     .param_str = "vIi"
 
 __builtin_amdgcn_s_get_barrier_state
     .param_str = "Uii"
-    .features = "gfx12_insts"
+    .features = "gfx12"
 
 __builtin_amdgcn_s_get_named_barrier_state
     .param_str = "Uiv*"
-    .features = "gfx12_insts"
+    .features = "gfx12"
 
 __builtin_amdgcn_s_getpc
     .param_str = "UWi"
@@ -2797,11 +2797,11 @@ __builtin_amdgcn_s_memtime
 
 __builtin_amdgcn_s_monitor_sleep
     .param_str = "vIs"
-    .features = "gfx1250_insts"
+    .features = "gfx12_5"
 
 __builtin_amdgcn_s_prefetch_data
     .param_str = "vvC*Ui"
-    .features = "gfx12_insts"
+    .features = "gfx12"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_s_sendmsg
@@ -2809,11 +2809,11 @@ __builtin_amdgcn_s_sendmsg
 
 __builtin_amdgcn_s_sendmsg_rtn
     .param_str = "UiIUi"
-    .features = "gfx11_insts"
+    .features = "gfx11"
 
 __builtin_amdgcn_s_sendmsg_rtnl
     .param_str = "UWiIUi"
-    .features = "gfx11_insts"
+    .features = "gfx11"
 
 __builtin_amdgcn_s_sendmsghalt
     .param_str = "vIiUi"
@@ -2833,30 +2833,30 @@ __builtin_amdgcn_s_sleep
 
 __builtin_amdgcn_s_sleep_var
     .param_str = "vUi"
-    .features = "gfx12_insts"
+    .features = "gfx12"
 
 __builtin_amdgcn_s_ttracedata
     .param_str = "vi"
 
 __builtin_amdgcn_s_ttracedata_imm
     .param_str = "vIs"
-    .features = "gfx10_insts"
+    .features = "gfx10"
 
 __builtin_amdgcn_s_wait_asynccnt
     .param_str = "vIUs"
-    .features = "gfx1250_insts"
+    .features = "gfx12_5"
 
 __builtin_amdgcn_s_wait_event
     .param_str = "vIs"
-    .features = "gfx11_insts"
+    .features = "gfx11"
 
 __builtin_amdgcn_s_wait_event_export_ready
     .param_str = "v"
-    .features = "gfx11_insts"
+    .features = "gfx11"
 
 __builtin_amdgcn_s_wait_tensorcnt
     .param_str = "vIUs"
-    .features = "gfx1250_insts"
+    .features = "gfx12_5"
 
 __builtin_amdgcn_s_waitcnt
     .param_str = "vIi"
@@ -2882,12 +2882,12 @@ __builtin_amdgcn_sad_u16
 
 __builtin_amdgcn_sat_pk4_i4_i8
     .param_str = "UsUi"
-    .features = "gfx1250_insts"
+    .features = "gfx12_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_sat_pk4_u4_u8
     .param_str = "UsUi"
-    .features = "gfx1250_insts"
+    .features = "gfx12_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_sbfe
@@ -2942,12 +2942,12 @@ __builtin_amdgcn_sinh
 
 __builtin_amdgcn_smfmac_f32_16x16x32_bf16
     .param_str = "E4fE4sE8sE4fiIiIi"
-    .features = "gfx940_insts"
+    .features = "gfx9_4"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_smfmac_f32_16x16x32_f16
     .param_str = "E4fE4xE8xE4fiIiIi"
-    .features = "gfx940_insts"
+    .features = "gfx9_4"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_smfmac_f32_16x16x64_bf8_bf8
@@ -2962,12 +2962,12 @@ __builtin_amdgcn_smfmac_f32_16x16x64_bf8_fp8
 
 __builtin_amdgcn_smfmac_f32_16x16x64_bf16
     .param_str = "E4fE8yE16yE4fiIiIi"
-    .features = "gfx950_insts"
+    .features = "gfx9_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_smfmac_f32_16x16x64_f16
     .param_str = "E4fE8xE16xE4fiIiIi"
-    .features = "gfx950_insts"
+    .features = "gfx9_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_smfmac_f32_16x16x64_fp8_bf8
@@ -2982,32 +2982,32 @@ __builtin_amdgcn_smfmac_f32_16x16x64_fp8_fp8
 
 __builtin_amdgcn_smfmac_f32_16x16x128_bf8_bf8
     .param_str = "E4fE4iE8iE4fiIiIi"
-    .features = "gfx950_insts"
+    .features = "gfx9_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_smfmac_f32_16x16x128_bf8_fp8
     .param_str = "E4fE4iE8iE4fiIiIi"
-    .features = "gfx950_insts"
+    .features = "gfx9_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_smfmac_f32_16x16x128_fp8_bf8
     .param_str = "E4fE4iE8iE4fiIiIi"
-    .features = "gfx950_insts"
+    .features = "gfx9_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_smfmac_f32_16x16x128_fp8_fp8
     .param_str = "E4fE4iE8iE4fiIiIi"
-    .features = "gfx950_insts"
+    .features = "gfx9_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_smfmac_f32_32x32x16_bf16
     .param_str = "E16fE4sE8sE16fiIiIi"
-    .features = "gfx940_insts"
+    .features = "gfx9_4"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_smfmac_f32_32x32x16_f16
     .param_str = "E16fE4xE8xE16fiIiIi"
-    .features = "gfx940_insts"
+    .features = "gfx9_4"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_smfmac_f32_32x32x32_bf8_bf8
@@ -3022,12 +3022,12 @@ __builtin_amdgcn_smfmac_f32_32x32x32_bf8_fp8
 
 __builtin_amdgcn_smfmac_f32_32x32x32_bf16
     .param_str = "E16fE8yE16yE16fiIiIi"
-    .features = "gfx950_insts"
+    .features = "gfx9_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_smfmac_f32_32x32x32_f16
     .param_str = "E16fE8xE16xE16fiIiIi"
-    .features = "gfx950_insts"
+    .features = "gfx9_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_smfmac_f32_32x32x32_fp8_bf8
@@ -3042,42 +3042,42 @@ __builtin_amdgcn_smfmac_f32_32x32x32_fp8_fp8
 
 __builtin_amdgcn_smfmac_f32_32x32x64_bf8_bf8
     .param_str = "E16fE4iE8iE16fiIiIi"
-    .features = "gfx950_insts"
+    .features = "gfx9_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_smfmac_f32_32x32x64_bf8_fp8
     .param_str = "E16fE4iE8iE16fiIiIi"
-    .features = "gfx950_insts"
+    .features = "gfx9_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_smfmac_f32_32x32x64_fp8_bf8
     .param_str = "E16fE4iE8iE16fiIiIi"
-    .features = "gfx950_insts"
+    .features = "gfx9_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_smfmac_f32_32x32x64_fp8_fp8
     .param_str = "E16fE4iE8iE16fiIiIi"
-    .features = "gfx950_insts"
+    .features = "gfx9_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_smfmac_i32_16x16x64_i8
     .param_str = "E4iE2iE4iE4iiIiIi"
-    .features = "gfx940_insts"
+    .features = "gfx9_4"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_smfmac_i32_16x16x128_i8
     .param_str = "E4iE4iE8iE4iiIiIi"
-    .features = "gfx950_insts"
+    .features = "gfx9_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_smfmac_i32_32x32x32_i8
     .param_str = "E16iE2iE4iE16iiIiIi"
-    .features = "gfx940_insts"
+    .features = "gfx9_4"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_smfmac_i32_32x32x64_i8
     .param_str = "E16iE4iE8iE16iiIiIi"
-    .features = "gfx950_insts"
+    .features = "gfx9_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_sqrt
@@ -3325,12 +3325,12 @@ __builtin_amdgcn_tanhh
 
 __builtin_amdgcn_tensor_load_to_lds
     .param_str = "vE4UiE8iE4iE4iE8iIi"
-    .features = "gfx1250_insts"
+    .features = "gfx12_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_tensor_store_from_lds
     .param_str = "vE4UiE8iE4iE4iE8iIi"
-    .features = "gfx1250_insts"
+    .features = "gfx12_5"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_trig_preop
@@ -3524,12 +3524,12 @@ __builtin_amdgcn_wmma_bf16_16x16x16_bf16_w64_gfx12
 
 __builtin_amdgcn_wmma_bf16_16x16x32_bf16
     .param_str = "E8yIbE16yIbE16yIsE8yIbIb"
-    .features = "gfx1250_insts,wavefrontsize32"
+    .features = "gfx12_5,wavefrontsize32"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_wmma_bf16f32_16x16x32_bf16
     .param_str = "E8yIbE16yIbE16yIsE8fIbIb"
-    .features = "gfx1250_insts,wavefrontsize32"
+    .features = "gfx12_5,wavefrontsize32"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_wmma_f16_16x16x16_f16_tied_w32
@@ -3564,52 +3564,52 @@ __builtin_amdgcn_wmma_f16_16x16x16_f16_w64_gfx12
 
 __builtin_amdgcn_wmma_f16_16x16x32_f16
     .param_str = "E8xIbE16xIbE16xIsE8xIbIb"
-    .features = "gfx1250_insts,wavefrontsize32"
+    .features = "gfx12_5,wavefrontsize32"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_wmma_f16_16x16x64_bf8_bf8
     .param_str = "E8xE8iE8iIsE8xIbIb"
-    .features = "gfx1250_insts,wavefrontsize32"
+    .features = "gfx12_5,wavefrontsize32"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_wmma_f16_16x16x64_bf8_fp8
     .param_str = "E8xE8iE8iIsE8xIbIb"
-    .features = "gfx1250_insts,wavefrontsize32"
+    .features = "gfx12_5,wavefrontsize32"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_wmma_f16_16x16x64_fp8_bf8
     .param_str = "E8xE8iE8iIsE8xIbIb"
-    .features = "gfx1250_insts,wavefrontsize32"
+    .features = "gfx12_5,wavefrontsize32"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_wmma_f16_16x16x64_fp8_fp8
     .param_str = "E8xE8iE8iIsE8xIbIb"
-    .features = "gfx1250_insts,wavefrontsize32"
+    .features = "gfx12_5,wavefrontsize32"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_wmma_f16_16x16x128_bf8_bf8
     .param_str = "E8xE16iE16iIsE8xIbIb"
-    .features = "gfx1250_insts,wavefrontsize32"
+    .features = "gfx12_5,wavefrontsize32"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_wmma_f16_16x16x128_bf8_fp8
     .param_str = "E8xE16iE16iIsE8xIbIb"
-    .features = "gfx1250_insts,wavefrontsize32"
+    .features = "gfx12_5,wavefrontsize32"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_wmma_f16_16x16x128_fp8_bf8
     .param_str = "E8xE16iE16iIsE8xIbIb"
-    .features = "gfx1250_insts,wavefrontsize32"
+    .features = "gfx12_5,wavefrontsize32"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_wmma_f16_16x16x128_fp8_fp8
     .param_str = "E8xE16iE16iIsE8xIbIb"
-    .features = "gfx1250_insts,wavefrontsize32"
+    .features = "gfx12_5,wavefrontsize32"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_wmma_f32_16x16x4_f32
     .param_str = "E8fIbE2fIbE2fIsE8fIbIb"
-    .features = "gfx1250_insts,wavefrontsize32"
+    .features = "gfx12_5,wavefrontsize32"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_wmma_f32_16x16x16_bf8_bf8_w32_gfx12
@@ -3694,62 +3694,62 @@ __builtin_amdgcn_wmma_f32_16x16x16_fp8_fp8_w64_gfx12
 
 __builtin_amdgcn_wmma_f32_16x16x32_bf16
     .param_str = "E8fIbE16yIbE16yIsE8fIbIb"
-    .features = "gfx1250_insts,wavefrontsize32"
+    .features = "gfx12_5,wavefrontsize32"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_wmma_f32_16x16x32_f16
     .param_str = "E8fIbE16xIbE16xIsE8fIbIb"
-    .features = "gfx1250_insts,wavefrontsize32"
+    .features = "gfx12_5,wavefrontsize32"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_wmma_f32_16x16x64_bf8_bf8
     .param_str = "E8fE8iE8iIsE8fIbIb"
-    .features = "gfx1250_insts,wavefrontsize32"
+    .features = "gfx12_5,wavefrontsize32"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_wmma_f32_16x16x64_bf8_fp8
     .param_str = "E8fE8iE8iIsE8fIbIb"
-    .features = "gfx1250_insts,wavefrontsize32"
+    .features = "gfx12_5,wavefrontsize32"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_wmma_f32_16x16x64_fp8_bf8
     .param_str = "E8fE8iE8iIsE8fIbIb"
-    .features = "gfx1250_insts,wavefrontsize32"
+    .features = "gfx12_5,wavefrontsize32"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_wmma_f32_16x16x64_fp8_fp8
     .param_str = "E8fE8iE8iIsE8fIbIb"
-    .features = "gfx1250_insts,wavefrontsize32"
+    .features = "gfx12_5,wavefrontsize32"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_wmma_f32_16x16x128_bf8_bf8
     .param_str = "E8fE16iE16iIsE8fIbIb"
-    .features = "gfx1250_insts,wavefrontsize32"
+    .features = "gfx12_5,wavefrontsize32"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_wmma_f32_16x16x128_bf8_fp8
     .param_str = "E8fE16iE16iIsE8fIbIb"
-    .features = "gfx1250_insts,wavefrontsize32"
+    .features = "gfx12_5,wavefrontsize32"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_wmma_f32_16x16x128_f8f6f4
     .param_str = "E8fIiE16iIiE16iIsE8f"
-    .features = "gfx1250_insts,wavefrontsize32"
+    .features = "gfx12_5,wavefrontsize32"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_wmma_f32_16x16x128_fp8_bf8
     .param_str = "E8fE16iE16iIsE8fIbIb"
-    .features = "gfx1250_insts,wavefrontsize32"
+    .features = "gfx12_5,wavefrontsize32"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_wmma_f32_16x16x128_fp8_fp8
     .param_str = "E8fE16iE16iIsE8fIbIb"
-    .features = "gfx1250_insts,wavefrontsize32"
+    .features = "gfx12_5,wavefrontsize32"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_wmma_f32_32x16x128_f4
     .param_str = "E16fE16iE8iIsE16f"
-    .features = "gfx1250_insts,wavefrontsize32"
+    .features = "gfx12_5,wavefrontsize32"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_wmma_f64_16x16x4_f64
@@ -3809,27 +3809,27 @@ __builtin_amdgcn_wmma_i32_16x16x32_iu4_w64_gfx12
 
 __builtin_amdgcn_wmma_i32_16x16x64_iu8
     .param_str = "E8iIbE8iIbE8iE8iIbIb."
-    .features = "gfx1250_insts,wavefrontsize32"
+    .features = "gfx12_5,wavefrontsize32"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_wmma_scale16_f32_16x16x128_f8f6f4
     .param_str = "E8fIiE16iIiE16iIsE8fIiIiLiIiIiLiIbIb"
-    .features = "gfx1250_insts,wavefrontsize32"
+    .features = "gfx12_5,wavefrontsize32"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_wmma_scale16_f32_32x16x128_f4
     .param_str = "E16fE16iE8iIsE16fIiIiLiIiIiLiIbIb"
-    .features = "gfx1250_insts,wavefrontsize32"
+    .features = "gfx12_5,wavefrontsize32"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_wmma_scale_f32_16x16x128_f8f6f4
     .param_str = "E8fIiE16iIiE16iIsE8fIiIiiIiIiiIbIb"
-    .features = "gfx1250_insts,wavefrontsize32"
+    .features = "gfx12_5,wavefrontsize32"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_wmma_scale_f32_32x16x128_f4
     .param_str = "E16fE16iE8iIsE16fIiIiiIiIiiIbIb"
-    .features = "gfx1250_insts,wavefrontsize32"
+    .features = "gfx12_5,wavefrontsize32"
     .attributes = .{ .@"const" = true }
 
 __builtin_amdgcn_workgroup_id_x

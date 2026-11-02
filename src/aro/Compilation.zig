@@ -732,9 +732,9 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
                 try define(w, "__APX_F__");
             }
 
-            if (target.cpu.hasAll(.x86, &.{ .egpr, .inline_asm_use_gpr32 })) {
-                try define(w, "__APX_INLINE_ASM_USE_GPR32__");
-            }
+            // if (target.cpu.hasAll(.x86, &.{ .egpr, .inline_asm_use_gpr32 })) {
+            //     try define(w, "__APX_INLINE_ASM_USE_GPR32__");
+            // }
 
             if (target.cpu.has(.x86, .cx8)) {
                 try define(w, "__GCC_HAVE_SYNC_COMPARE_AND_SWAP_8");
@@ -803,19 +803,21 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
                 try w.print("#define _MIPS_ARCH_{s} 1\n", .{upper});
             }
 
-            if (!target.cpu.has(.mips, .noabicalls)) {
+            if (comp.code_gen_options.pic_level != .none
+                // !target.cpu.has(.mips, .noabicalls)
+            ) {
                 try define(w, "__mips_abicalls");
                 if (target.os.tag.isBSD()) {
                     try define(w, "__ABICALLS__");
                 }
             }
 
-            if (target.cpu.has(.mips, .soft_float)) {
-                try define(w, "__mips_soft_float");
-            } else {
-                try define(w, "__mips_hard_float");
-            }
-            if (target.cpu.has(.mips, .single_float)) {
+            // if (target.cpu.has(.mips, .soft_float)) {
+            //     try define(w, "__mips_soft_float");
+            // } else {
+            //     try define(w, "__mips_hard_float");
+            // }
+            if (target.cpu.has(.mips, .fpu_s) and !target.cpu.has(.mips, .fpu_d)) {
                 try define(w, "__mips_single_float");
             }
             {
@@ -826,14 +828,14 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
                 };
                 try w.print("#define __mips_fpr {d}\n", .{fpr});
                 const fpset: u8 = if (target.defaultMipsFpMode() == .fp64 or
-                    target.cpu.has(.mips, .single_float)) 32 else 16;
+                    (target.cpu.has(.mips, .fpu_s) and !target.cpu.has(.mips, .fpu_d))) 32 else 16;
                 try w.print("#define _MIPS_FPSET {d}\n", .{fpset});
-                const spfpset: u8 = if (target.cpu.has(.mips, .nooddspreg) or
+                const spfpset: u8 = if ( //target.cpu.has(.mips, .nooddspreg) or
                     target.defaultMipsFpMode() == .fpxx) 16 else 32;
                 try w.print("#define _MIPS_SPFPSET {d}\n", .{spfpset});
             }
-            if (target.cpu.has(.mips, .mips16)) try define(w, "__mips16");
-            if (target.cpu.has(.mips, .micromips)) try define(w, "__mips_micromips");
+            // if (target.cpu.has(.mips, .mips16)) try define(w, "__mips16");
+            // if (target.cpu.has(.mips, .micromips)) try define(w, "__mips_micromips");
             if (target.cpu.has(.mips, .nan2008)) try define(w, "__mips_nan2008");
             if (target.cpu.has(.mips, .abs2008)) try define(w, "__mips_abs2008");
             if (target.cpu.has(.mips, .dspr3)) {
@@ -921,7 +923,9 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
                 }
             }
 
-            if (target.cpu.has(.arm, .thumb2) or target.cpu.has(.arm, .thumb_mode)) {
+            if (target.cpu.has(.arm, .thumb2) or target.cpu.arch.isThumb()
+                // or target.cpu.has(.arm, .thumb_mode)
+            ) {
                 try define(w, "__thumb__");
             }
             // ARM ISA means we are not M profile
@@ -1129,7 +1133,7 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
                 try w.print("#define __ARM_FEATURE_LDREX 0x{x}\n", .{@as(u4, @bitCast(ldrex))});
             }
 
-            if (!target.cpu.has(.arm, .strict_align)) {
+            if (!target.cpu.has(.arm, .no_unaligned_access)) {
                 try define(w, "__ARM_FEATURE_UNALIGNED");
             }
 
@@ -1248,9 +1252,9 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
                 try define(w, "__ARM_FEATURE_SME");
                 try define(w, "__ARM_FEATURE_LOCALLY_STREAMING");
             }
-            if (target.cpu.has(.aarch64, .fmv)) {
-                try define(w, "__HAVE_FUNCTION_MULTI_VERSIONING");
-            }
+            // if (target.cpu.has(.aarch64, .fmv)) {
+            //     try define(w, "__HAVE_FUNCTION_MULTI_VERSIONING");
+            // }
             if (target.cpu.has(.aarch64, .sha3)) {
                 try define(w, "__ARM_FEATURE_SHA3");
                 try define(w, "__ARM_FEATURE_SHA512");
@@ -1259,7 +1263,7 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
                 try define(w, "__ARM_FEATURE_SM3");
                 try define(w, "__ARM_FEATURE_SM4");
             }
-            if (!target.cpu.has(.aarch64, .strict_align)) {
+            if (!target.cpu.has(.aarch64, .no_unaligned_access)) {
                 try define(w, "__ARM_FEATURE_UNALIGNED");
             }
             if (target.cpu.hasAll(.aarch64, &.{ .neon, .fullfp16 })) {
@@ -1340,10 +1344,10 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
             try define(w, "__s390x__");
             try define(w, "__zarch__");
 
-            if (target.cpu.has(.s390x, .transactional_execution)) {
+            if (target.cpu.has(.s390x, .te)) {
                 try define(w, "__HTM__");
             }
-            if (target.cpu.has(.s390x, .vector)) {
+            if (target.cpu.has(.s390x, .vx)) {
                 try define(w, "__VX__");
             }
         },

@@ -2,7 +2,7 @@
 
 __builtin_addf128_round_to_odd
     .param_str = "LLdLLdLLd"
-    .features = "float128"
+#    .features = "float128"
 
 __builtin_addg6s
     .param_str = "UiUiUi"
@@ -630,7 +630,7 @@ __builtin_altivec_vmuleuw
 
 __builtin_altivec_vmulhsh
     .param_str = "V8SsV8SsV8Ss"
-    .features = "future_vector"
+#    .features = "future_vector"
 
 __builtin_altivec_vmulhsw
     .param_str = "V4SiV4SiV4Si"
@@ -638,7 +638,7 @@ __builtin_altivec_vmulhsw
 
 __builtin_altivec_vmulhuh
     .param_str = "V8UsV8UsV8Us"
-    .features = "future_vector"
+#    .features = "future_vector"
 
 __builtin_altivec_vmulhuw
     .param_str = "V4UiV4UiV4Ui"
@@ -1025,7 +1025,7 @@ __builtin_divdeu
 
 __builtin_divf128_round_to_odd
     .param_str = "LLdLLdLLd"
-    .features = "float128"
+#    .features = "float128"
 
 __builtin_divwe
     .param_str = "SiSiSi"
@@ -1037,7 +1037,7 @@ __builtin_divweu
 
 __builtin_fmaf128_round_to_odd
     .param_str = "LLdLLdLLdLLd"
-    .features = "float128"
+#    .features = "float128"
 
 __builtin_get_texasr
     .param_str = "LUi"
@@ -1061,7 +1061,7 @@ __builtin_get_tfiar
 
 __builtin_mulf128_round_to_odd
     .param_str = "LLdLLdLLd"
-    .features = "float128"
+#    .features = "float128"
 
 __builtin_pack_longdouble
     .param_str = "Lddd"
@@ -1602,11 +1602,11 @@ __builtin_setrnd
 
 __builtin_sqrtf128_round_to_odd
     .param_str = "LLdLLd"
-    .features = "float128"
+#    .features = "float128"
 
 __builtin_subf128_round_to_odd
     .param_str = "LLdLLdLLd"
-    .features = "float128"
+#    .features = "float128"
 
 __builtin_tabort
     .param_str = "UiUi"
@@ -1658,7 +1658,7 @@ __builtin_tresume
 
 __builtin_truncf128_round_to_odd
     .param_str = "dLLd"
-    .features = "float128"
+#    .features = "float128"
 
 __builtin_tsr
     .param_str = "UiUi"
@@ -1717,11 +1717,11 @@ __builtin_vsx_lxvw4x_be
 
 __builtin_vsx_scalar_extract_expq
     .param_str = "ULLiLLd"
-    .features = "float128"
+#    .features = "float128"
 
 __builtin_vsx_scalar_insert_exp_qp
     .param_str = "LLdLLdULLi"
-    .features = "float128"
+#    .features = "float128"
 
 __builtin_vsx_strmb
     .param_str = "vCc*IiV16Uc"

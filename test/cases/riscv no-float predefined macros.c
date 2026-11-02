@@ -14,5 +14,5 @@ int ok;
 
 /** manifest:
 syntax
-args = --target=riscv64-linux-gnu -mcpu=generic_rv64
+args = --target=riscv64-linux-gnu -mcpu=rv64i
 */
