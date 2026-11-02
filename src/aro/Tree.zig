@@ -2027,6 +2027,8 @@ pub const Node = union(enum) {
                 .compound_stmt,
                 .compound_stmt_three,
                 .if_stmt,
+                .if_init,
+                .if_full,
                 .switch_stmt,
                 .case_stmt,
                 .default_stmt,
