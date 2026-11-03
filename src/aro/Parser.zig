@@ -385,7 +385,8 @@ fn eatIdentifier(p: *Parser) !?TokenIndex {
 fn expectIdentifier(p: *Parser) Error!TokenIndex {
     const actual = p.tok_ids[p.tok_i];
     if (actual != .identifier and actual != .extended_identifier) {
-        return p.errExpectedToken(.identifier, actual);
+        try p.errExpectedToken(.identifier);
+        return error.ParsingFailed;
     }
 
     return (try p.eatIdentifier()) orelse error.ParsingFailed;
@@ -402,7 +403,10 @@ fn eatToken(p: *Parser, id: Token.Id) ?TokenIndex {
 fn expectToken(p: *Parser, expected: Token.Id) Error!TokenIndex {
     assert(expected != .identifier and expected != .extended_identifier); // use expectIdentifier
     const actual = p.tok_ids[p.tok_i];
-    if (actual != expected) return p.errExpectedToken(expected, actual);
+    if (actual != expected) {
+        try p.errExpectedToken(expected);
+        return error.ParsingFailed;
+    }
     defer p.tok_i += 1;
     return p.tok_i;
 }
@@ -767,13 +771,13 @@ fn addNode(p: *Parser, node: Tree.Node) Allocator.Error!Node.Index {
     return p.tree.addNode(node);
 }
 
-fn errExpectedToken(p: *Parser, expected: Token.Id, actual: Token.Id) Error {
+fn errExpectedToken(p: *Parser, expected: Token.Id) Compilation.Error!void {
+    const actual = p.tok_ids[p.tok_i];
     switch (actual) {
         .invalid => try p.err(p.tok_i, .expected_invalid, .{expected}),
         .eof => try p.err(p.tok_i, .expected_eof, .{expected}),
         else => try p.err(p.tok_i, .expected_token, .{ expected, actual }),
     }
-    return error.ParsingFailed;
 }
 
 /// Recursively sets the defintion field of `tentative_decl` to `definition`.
@@ -1766,7 +1770,6 @@ fn decl(p: *Parser, kind: enum { simple, full }) Error!bool {
         if (completes_tentative_array) _ = p.tentative_defs.orderedRemove(.tentativeArray(interned_name));
         try p.addMaybeUnusued(decl_node);
 
-        if (kind == .simple) break;
         if (p.eatToken(.comma) == null) break;
 
         p.wip_attrs.restore(declarator_attr_state);
@@ -2279,7 +2282,8 @@ fn attribute(p: *Parser, syntax: Attribute.Syntax) Error!void {
 fn attrIdentifier(p: *Parser) !TokenIndex {
     const res = p.tok_i;
     if (!p.tok_ids[p.tok_i].isMacroIdentifier()) {
-        return p.errExpectedToken(.identifier, p.tok_ids[p.tok_i]);
+        try p.errExpectedToken(.identifier);
+        return error.ParsingFailed;
     }
     _ = (try p.eatIdentifier()) orelse {
         p.tok_i += 1;
@@ -3312,11 +3316,10 @@ fn recordDecl(p: *Parser) Error!bool {
     }
 
     if (p.eatToken(.semicolon) == null) {
-        const tok_id = p.tok_ids[p.tok_i];
-        if (tok_id == .r_brace) {
+        if (p.tok_ids[p.tok_i] == .r_brace) {
             try p.err(p.tok_i, .missing_semicolon, .{});
         } else {
-            return p.errExpectedToken(.semicolon, tok_id);
+            try p.errExpectedToken(.semicolon);
         }
     }
 
@@ -5379,10 +5382,7 @@ fn asmOperand(p: *Parser, kind: enum { output, input }) Error!Tree.Node.AsmStmt.
 
     const constraint = try p.asmStr();
 
-    const l_paren = p.eatToken(.l_paren) orelse {
-        try p.err(p.tok_i, .expected_token, .{ p.tok_ids[p.tok_i], Token.Id.l_paren });
-        return error.ParsingFailed;
-    };
+    const l_paren = try p.expectToken(.l_paren);
     var res = try p.expectWithClosing(expr, .r_paren);
     try p.expectClosing(l_paren, .r_paren);
     if (kind == .output and !p.tree.isLval(res.node)) {
@@ -5409,7 +5409,7 @@ fn gnuAsmStmt(p: *Parser, quals: Tree.GNUAssemblyQualifiers, asm_tok: TokenIndex
     try p.checkAsmStr(asm_str.val, l_paren);
 
     if (p.tok_ids[p.tok_i] == .r_paren) {
-        if (quals.goto) try p.err(p.tok_i, .expected_token, .{ Tree.Token.Id.r_paren, p.tok_ids[p.tok_i] });
+        if (quals.goto) try p.errExpectedToken(.r_paren);
 
         return try p.addNode(.{
             .asm_stmt = .{
@@ -5494,7 +5494,7 @@ fn gnuAsmStmt(p: *Parser, quals: Tree.GNUAssemblyQualifiers, asm_tok: TokenIndex
     }
 
     if (!quals.goto and (p.tok_ids[p.tok_i] != .r_paren or ate_extra_colon)) {
-        try p.err(p.tok_i, .expected_token, .{ Tree.Token.Id.r_paren, p.tok_ids[p.tok_i] });
+        try p.errExpectedToken(.r_paren);
         return error.ParsingFailed;
     }
 
@@ -5523,8 +5523,7 @@ fn gnuAsmStmt(p: *Parser, quals: Tree.GNUAssemblyQualifiers, asm_tok: TokenIndex
             if (p.eatToken(.comma) == null) break;
         }
     } else if (quals.goto) {
-        try p.err(p.tok_i, .expected_token, .{ Token.Id.colon, p.tok_ids[p.tok_i] });
-        return error.ParsingFailed;
+        try p.errExpectedToken(.colon);
     }
 
     // TODO: validate
@@ -5953,7 +5952,8 @@ fn selectionHeader(p: *Parser, kind: enum { scalar, int }) Error!struct { ?Node.
         } })
     else
         null;
-    if (opt_init) |init| {
+
+    const expect_expr = if (opt_init) |init| blk: {
         const c2y = p.comp.langopts.standard.atLeast(.c2y);
         try p.err(init.tok(&p.tree), if (c2y) .pre_c2y_selection_header else .c2y_selection_header, .{
             switch (kind) {
@@ -5961,12 +5961,15 @@ fn selectionHeader(p: *Parser, kind: enum { scalar, int }) Error!struct { ?Node.
                 .int => "switch",
             },
         });
-    }
-    const expect_expr = if (opt_init) |_| p.eatToken(.semicolon) != null else true;
-    const opt_cond = try p.expr();
+        const semicolon = p.eatToken(.semicolon) != null;
+        if (!semicolon and p.tok_ids[p.tok_i] != .r_paren and p.decl_buf.items.len > decl_buf_top + 1)
+            try p.errExpectedToken(.semicolon);
+        break :blk semicolon;
+    } else true;
+    var opt_cond = try p.expr();
+    if (expect_expr) _ = try p.expectResult(opt_cond);
 
-    const cond = if (expect_expr) cond: {
-        var cond = try p.expectResult(opt_cond);
+    const cond = if (opt_cond) |*cond| cond: {
         const cond_tok = cond.node.tok(&p.tree);
         try cond.lvalConversion(p);
         try cond.usualUnaryConversion(p, cond_tok);
