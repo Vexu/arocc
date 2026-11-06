@@ -5945,7 +5945,7 @@ fn selectionHeader(p: *Parser, kind: enum { scalar, int }) Error!struct { ?Node.
     defer p.decl_buf.items.len = decl_buf_top;
     const first = p.tok_i;
 
-    var opt_init = if (try p.decl(.simple))
+    const opt_init = if (try p.decl(.simple))
         try p.addNode(.{ .decl_stmt = .{
             .decls = p.decl_buf.items[decl_buf_top..],
             .first_tok = first,
@@ -5996,8 +5996,17 @@ fn selectionHeader(p: *Parser, kind: enum { scalar, int }) Error!struct { ?Node.
             .scalar => if (qt.scalarKind(p.comp) == .none) try p.err(decl_tok, .non_scalar_cond_decl, .{qt}),
             .int => if (!qt.isRealInt(p.comp)) try p.err(decl_tok, .non_int_cond_decl, .{qt}),
         };
-        opt_init = null;
-        break :cond init;
+
+        var res: Result = .{
+            .qt = qt,
+            .node = try p.addNode(.{ .decl_ref_expr = .{
+                .decl = decl_stmt.decls[0],
+                .name_tok = decl_tok,
+                .qt = qt,
+            } }),
+        };
+        try res.valueConversion(p);
+        break :cond res.node;
     };
 
     return .{ opt_init, cond };

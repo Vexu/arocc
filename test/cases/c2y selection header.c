@@ -18,9 +18,14 @@ void entry() {
     if (int x = 1, y = 2;) { }
 }
 
+int switch_duplicates() {
+    switch(int x = 1) { case 1: return 1; case 1: return 1;}
+    return 0;
+}
+
 /** manifest:
 syntax
-args = -std=c2y -Wpre-c2y-compat
+args = -std=c2y -Wpre-c2y-compat  -target x86_64-linux-musl
 
 c2y selection header.c:2:9: warning: declarations in if conditions are incompatible with C standards before C2y [-Wpre-c2y-compat]
 c2y selection header.c:12:13: error: declaration in condition can only declare a single objec
@@ -29,4 +34,6 @@ c2y selection header.c:14:13: error: variable declaration in condition must have
 c2y selection header.c:15:21: error: declaration in condition must be a variable
 c2y selection header.c:17:26: error: expected ';', found 'an identifier'
 c2y selection header.c:18:26: error: expected expression
+c2y selection header.c:22:48: error: duplicate case value '1'
+c2y selection header.c:22:30: note: previous case defined here
 */
