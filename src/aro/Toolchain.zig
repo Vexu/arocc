@@ -120,9 +120,9 @@ pub fn discover(tc: *Toolchain) !void {
         .linux,
         => if (target.cpu.arch == .hexagon)
             .{ .unknown = {} } // TODO
-        else if (target.cpu.arch.isMIPS())
+        else if (target.cpu.arch.isMips())
             .{ .unknown = {} } // TODO
-        else if (target.cpu.arch.isPowerPC())
+        else if (target.cpu.arch.isPowerpc())
             .{ .unknown = {} } // TODO
         else if (target.cpu.arch == .ve)
             .{ .unknown = {} } // TODO

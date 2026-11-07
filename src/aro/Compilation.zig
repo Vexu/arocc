@@ -807,7 +807,7 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
                 // !target.cpu.has(.mips, .noabicalls)
             ) {
                 try define(w, "__mips_abicalls");
-                if (target.os.tag.isBSD()) {
+                if (target.os.tag == .freebsd or target.os.tag == .openbsd) {
                     try define(w, "__ABICALLS__");
                 }
             }

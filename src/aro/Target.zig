@@ -110,11 +110,11 @@ pub const SubArch = enum {
         // if (arch.isPowerPC()) {
         //     if (sub == .powerpc_spe) return @backingInt(std.Target.powerpc.Feature.spe);
         // } else
-        if (arch.isMIPS32()) {
+        if (arch.isMips32()) {
             return @backingInt(std.Target.mips.Feature.mips32r6);
-        } else if (arch.isMIPS64()) {
+        } else if (arch.isMips64()) {
             return @backingInt(std.Target.mips.Feature.mips64r6);
-        } else if (arch.isSpirV()) {
+        } else if (arch.isSpirv()) {
             const spirv = std.Target.spirv.Feature;
             return @backingInt(switch (sub) {
                 // .spirv_v10 => spirv.v1_0,
@@ -126,7 +126,7 @@ pub const SubArch = enum {
                 .spirv_v16 => spirv.v1_6,
                 else => return null,
             });
-        } else if (arch.isAARCH64()) {
+        } else if (arch.isAarch64()) {
             const aarch64 = std.Target.aarch64.Feature;
             return @backingInt(switch (sub) {
                 .arm_v8_1a => aarch64.v8_1a,
@@ -214,12 +214,12 @@ pub const SubArch = enum {
                 .arm_v7em => &cpu.cortex_m4,
                 else => null,
             };
-        } else if (arch.isMIPS32()) {
+        } else if (arch.isMips32()) {
             return switch (sub) {
                 .mips_r6 => &std.Target.mips.cpu.mips32r6,
                 else => null,
             };
-        } else if (arch.isMIPS64()) {
+        } else if (arch.isMips64()) {
             return switch (sub) {
                 .mips_r6 => &std.Target.mips.cpu.mips64r6,
                 else => null,
@@ -608,10 +608,9 @@ pub fn systemCompiler(target: *const Target) LangOpts.Compiler {
     // the rest for documentation as fn returns .clang
     if (target.os.tag.isDarwin() or
         target.abi.isAndroid() or
-        target.os.tag.isBSD() or
+        target.os.tag == .freebsd or
+        target.os.tag == .openbsd or
         target.os.tag == .fuchsia or
-        target.os.tag == .illumos or
-        target.os.tag == .haiku or
         target.cpu.arch == .hexagon)
     {
         return .clang;
@@ -651,7 +650,7 @@ pub fn hasHalfPrecisionFloatABI(target: *const Target) bool {
 }
 
 pub fn hasAArch64ACLETypes(target: *const Target) bool {
-    return target.cpu.arch.isAARCH64();
+    return target.cpu.arch.isAarch64();
 }
 
 pub fn hasProtectedVisibility(target: *const Target) bool {
@@ -1458,7 +1457,7 @@ pub fn isPIEDefault(target: *const Target) DefaultPIStatus {
 }
 
 pub fn ppcElfVersion(target: *const Target) u32 {
-    std.debug.assert(target.cpu.arch.isPowerPC());
+    std.debug.assert(target.cpu.arch.isPowerpc());
     return switch (target.cpu.arch) {
         .powerpc64le => 2,
         .powerpc64 => if ((target.os.isAtLeast(.freebsd, .{ .major = 13, .minor = 0, .patch = 0 }) orelse false) or target.os.tag == .openbsd or target.abi.isMusl())
@@ -2059,7 +2058,7 @@ pub fn cpuModelForTargetQuadruple(
         },
         .mips, .mipsel, .mips64, .mips64el => {
             const cpu = std.Target.mips.cpu;
-            const is_64 = arch.isMIPS64();
+            const is_64 = arch.isMips64();
 
             // see clang: `mips::getMipsCPUAndABI`,
             var model: *const Cpu.Model = if (is_64) &cpu.mips64r2 else &cpu.mips32r2;

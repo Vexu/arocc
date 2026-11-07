@@ -557,9 +557,9 @@ fn scanGCCForMultilibs(
     var detected: Multilib.Detected = .{};
     if (target.cpu.arch == .csky) {
         // TODO
-    } else if (target.cpu.arch.isMIPS()) {
+    } else if (target.cpu.arch.isMips()) {
         // TODO
-    } else if (target.cpu.arch.isRISCV()) {
+    } else if (target.cpu.arch.isRiscv()) {
         // TODO
     } else if (target.cpu.arch == .msp430) {
         // TODO
