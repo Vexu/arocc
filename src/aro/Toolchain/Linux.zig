@@ -41,7 +41,7 @@ fn buildExtraOpts(self: *Linux, tc: *const Toolchain) !void {
         self.extra_opts.appendAssumeCapacity("relro");
     }
 
-    if ((target.cpu.arch.isArm() and !target.cpu.arch.isThumb()) or target.cpu.arch.isAARCH64() or is_android) {
+    if ((target.cpu.arch.isArm() and !target.cpu.arch.isThumb()) or target.cpu.arch.isAarch64() or is_android) {
         try self.extra_opts.ensureUnusedCapacity(gpa, 2);
         self.extra_opts.appendAssumeCapacity("-z");
         self.extra_opts.appendAssumeCapacity("max-page-size=4096");
@@ -51,7 +51,7 @@ fn buildExtraOpts(self: *Linux, tc: *const Toolchain) !void {
         try self.extra_opts.append(gpa, "-X");
     }
 
-    if (!target.cpu.arch.isMIPS() and target.cpu.arch != .hexagon) {
+    if (!target.cpu.arch.isMips() and target.cpu.arch != .hexagon) {
         const hash_style = if (is_android) .both else self.distro.getHashStyle();
         try self.extra_opts.append(gpa, switch (hash_style) {
             inline else => |tag| "--hash-style=" ++ @tagName(tag),
@@ -199,7 +199,7 @@ pub fn buildLinkerArgs(self: *const Linux, tc: *const Toolchain, argv: *std.Arra
         try tc.err("Unknown target triple", .{});
         return;
     }
-    if (tc.comp.target.cpu.arch.isRISCV()) {
+    if (tc.comp.target.cpu.arch.isRiscv()) {
         try argv.append(gpa, "-X");
     }
     if (tc.opts.shared) {

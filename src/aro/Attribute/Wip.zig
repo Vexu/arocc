@@ -1148,7 +1148,7 @@ fn applyNeonVector(wip: *Wip, kind: Type.Vector.Kind) !void {
     const valid_elem_ty = blk: {
         if (kind == .neon_poly) {
             const int_ty = qt.get(comp, .int) orelse break :blk false;
-            const poly_unsigned = comp.target.cpu.arch.isAARCH64();
+            const poly_unsigned = comp.target.cpu.arch.isAarch64();
             break :blk if (poly_unsigned)
                 switch (int_ty) {
                     .uchar, .ushort, .ulong, .ulong_long => true,
@@ -1168,7 +1168,7 @@ fn applyNeonVector(wip: *Wip, kind: Type.Vector.Kind) !void {
             },
             .float => |float| switch (float) {
                 .float, .fp16, .bf16 => true,
-                .double => comp.target.cpu.arch.isAARCH64(),
+                .double => comp.target.cpu.arch.isAarch64(),
                 else => false,
             },
             .storage_float => |storage_float| switch (storage_float) {
@@ -1305,15 +1305,15 @@ fn applyCallingConvention(wip: *Wip) !void {
     const supported = check: switch (cc) {
         .default => unreachable,
         .cdecl => !(comp.target.cpu.arch.isArm() and comp.target.os.tag != .windows) and
-            !comp.target.cpu.arch.isPowerPC64() and
-            !comp.target.cpu.arch.isSpirV(),
-        .aarch64_sve_pcs, .aarch64_vector_pcs => comp.target.cpu.arch.isAARCH64(),
+            !comp.target.cpu.arch.isPowerpc64() and
+            !comp.target.cpu.arch.isSpirv(),
+        .aarch64_sve_pcs, .aarch64_vector_pcs => comp.target.cpu.arch.isAarch64(),
         .arm_aapcs_vfp, .arm_aapcs => comp.target.cpu.arch.isArm(),
-        .riscv_vector_cc, .riscv_vls_cc => comp.target.cpu.arch.isRISCV(),
-        .ms_abi => if (ms_abi) continue :check .cdecl else (comp.target.cpu.arch == .x86_64 or comp.target.cpu.arch.isAARCH64()),
+        .riscv_vector_cc, .riscv_vls_cc => comp.target.cpu.arch.isRiscv(),
+        .ms_abi => if (ms_abi) continue :check .cdecl else (comp.target.cpu.arch == .x86_64 or comp.target.cpu.arch.isAarch64()),
         .sysv_abi => if (ms_abi) comp.target.cpu.arch == .x86_64 else continue :check .cdecl,
         .fastcall, .regcall, .stdcall, .thiscall => comp.target.cpu.arch == .x86,
-        .vectorcall => comp.target.cpu.arch == .x86 or comp.target.cpu.arch == .x86_64 or comp.target.cpu.arch.isAARCH64(),
+        .vectorcall => comp.target.cpu.arch == .x86 or comp.target.cpu.arch == .x86_64 or comp.target.cpu.arch.isAarch64(),
     };
     if (!supported) {
         try wip.err(.callconv_not_supported, .{attr});
