@@ -610,11 +610,7 @@ pub fn systemCompiler(target: *const Target) LangOpts.Compiler {
         target.abi.isAndroid() or
         target.os.tag == .freebsd or
         target.os.tag == .openbsd or
-        target.os.tag == .netbsd or
-        target.os.tag == .dragonfly or
         target.os.tag == .fuchsia or
-        target.os.tag == .illumos or
-        target.os.tag == .haiku or
         target.cpu.arch == .hexagon)
     {
         return .clang;
