@@ -6006,6 +6006,7 @@ fn selectionHeader(p: *Parser, kind: enum { scalar, int }) Error!struct { ?Node.
             } }),
         };
         try res.valueConversion(p);
+        try res.usualUnaryConversion(p, decl_tok);
         break :cond res.node;
     };
 
