@@ -5962,7 +5962,7 @@ fn selectionHeader(p: *Parser, kind: enum { scalar, int }) Error!struct { ?Node.
             },
         });
         const semicolon = p.eatToken(.semicolon) != null;
-        if (!semicolon and p.tok_ids[p.tok_i] != .r_paren and p.decl_buf.items.len > decl_buf_top + 1)
+        if (!semicolon and p.tok_ids[p.tok_i] != .r_paren)
             try p.errExpectedToken(.semicolon);
         break :blk semicolon;
     } else true;
