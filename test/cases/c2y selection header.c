@@ -23,6 +23,20 @@ int switch_duplicates() {
     return 0;
 }
 
+int bar(void);
+void foo(void) {
+    if (int x = 1 bar()) {}
+    switch (int x = 1 bar()) {}
+    if (int x = 1 x) {}
+    switch (int x = 1 x) {}
+
+    if (int x = 1; bar()) {}
+    switch (int x = 1; bar()) {}
+    if (int x = 1; x) {}
+    switch (int x = 1; x) {}
+}
+
+
 /** manifest:
 syntax
 args = -std=c2y -Wpre-c2y-compat  -target x86_64-linux-musl
@@ -36,4 +50,8 @@ c2y selection header.c:17:26: error: expected ';', found 'an identifier'
 c2y selection header.c:18:26: error: expected expression
 c2y selection header.c:22:48: error: duplicate case value '1'
 c2y selection header.c:22:30: note: previous case defined here
+c2y selection header.c:28:19: error: expected ';', found 'an identifier'
+c2y selection header.c:29:23: error: expected ';', found 'an identifier'
+c2y selection header.c:30:19: error: expected ';', found 'an identifier'
+c2y selection header.c:31:23: error: expected ';', found 'an identifier'
 */

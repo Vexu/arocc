@@ -255,3 +255,132 @@ function: 'fn () int'
      expr:
       int_literal: 'int' (value: 0)
 
+function: 'fn () int'
+ name: bar
+
+function: 'fn () void'
+ name: foo
+ body:
+  compound_stmt
+    if_stmt
+     init:
+      decl_stmt
+        variable: 'int'
+         name: x
+         init:
+          int_literal: 'int' (value: 1)
+     cond:
+      call_expr: 'int'
+       callee:
+        implicit cast: (function_to_pointer) '*fn () int'
+          decl_ref_expr: 'fn () int' lvalue
+           name: bar
+     then:
+      compound_stmt
+
+    switch_stmt
+     init:
+      decl_stmt
+        variable: 'int'
+         name: x
+         init:
+          int_literal: 'int' (value: 1)
+     cond:
+      call_expr: 'int'
+       callee:
+        implicit cast: (function_to_pointer) '*fn () int'
+          decl_ref_expr: 'fn () int' lvalue
+           name: bar
+     body:
+      compound_stmt
+
+    if_stmt
+     init:
+      decl_stmt
+        variable: 'int'
+         name: x
+         init:
+          int_literal: 'int' (value: 1)
+     cond:
+      implicit cast: (lval_to_rval) 'int'
+        decl_ref_expr: 'int' lvalue
+         name: x
+     then:
+      compound_stmt
+
+    switch_stmt
+     init:
+      decl_stmt
+        variable: 'int'
+         name: x
+         init:
+          int_literal: 'int' (value: 1)
+     cond:
+      implicit cast: (lval_to_rval) 'int'
+        decl_ref_expr: 'int' lvalue
+         name: x
+     body:
+      compound_stmt
+
+    if_stmt
+     init:
+      decl_stmt
+        variable: 'int'
+         name: x
+         init:
+          int_literal: 'int' (value: 1)
+     cond:
+      call_expr: 'int'
+       callee:
+        implicit cast: (function_to_pointer) '*fn () int'
+          decl_ref_expr: 'fn () int' lvalue
+           name: bar
+     then:
+      compound_stmt
+
+    switch_stmt
+     init:
+      decl_stmt
+        variable: 'int'
+         name: x
+         init:
+          int_literal: 'int' (value: 1)
+     cond:
+      call_expr: 'int'
+       callee:
+        implicit cast: (function_to_pointer) '*fn () int'
+          decl_ref_expr: 'fn () int' lvalue
+           name: bar
+     body:
+      compound_stmt
+
+    if_stmt
+     init:
+      decl_stmt
+        variable: 'int'
+         name: x
+         init:
+          int_literal: 'int' (value: 1)
+     cond:
+      implicit cast: (lval_to_rval) 'int'
+        decl_ref_expr: 'int' lvalue
+         name: x
+     then:
+      compound_stmt
+
+    switch_stmt
+     init:
+      decl_stmt
+        variable: 'int'
+         name: x
+         init:
+          int_literal: 'int' (value: 1)
+     cond:
+      implicit cast: (lval_to_rval) 'int'
+        decl_ref_expr: 'int' lvalue
+         name: x
+     body:
+      compound_stmt
+
+    implicit return_stmt: 'void'
+
