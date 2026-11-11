@@ -1,6 +1,6 @@
 const std = @import("std");
 
-pub const Id = packed struct(u32) {
+pub const Id = bitpack struct(u32) {
     index: enum(u31) {
         unused = std.math.maxInt(u31) - 0,
         generated = std.math.maxInt(u31) - 1,

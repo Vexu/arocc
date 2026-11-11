@@ -58,7 +58,7 @@ pub const Language = enum {
     c23_lang,
 };
 
-pub const Attributes = packed struct {
+pub const Attributes = bitpack struct {
     /// Function does not return
     noreturn: bool = false,
 

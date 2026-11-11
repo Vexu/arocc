@@ -74,7 +74,7 @@ mabicalls: ?bool = null,
 dynamic_nopic: ?bool = null,
 ropi: bool = false,
 rwpi: bool = false,
-debug_dump_letters: packed struct(u3) {
+debug_dump_letters: bitpack struct(u3) {
     d: bool = false,
     m: bool = false,
     n: bool = false,

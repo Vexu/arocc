@@ -36,7 +36,7 @@ const Sdk = union(enum) {
     driverkit,
     iphoneos,
     iphonesimulator,
-    macosx: packed struct { catalyst: bool },
+    macosx: bitpack struct { catalyst: bool },
     appletvos,
     appletvsimulator,
     xros,
