@@ -276,7 +276,7 @@ pub fn main(init: std.process.Init.Minimal) !void {
     );
 
     try writer.writeAll(
-        \\const Node = packed struct {
+        \\const Node = bitpack struct {
         \\    char: u8,
         \\    /// Nodes are numbered with "an integer which gives the number of words that
         \\    /// would be accepted by the automaton starting from that state." This numbering

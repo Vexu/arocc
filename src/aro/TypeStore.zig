@@ -57,13 +57,13 @@ const Repr = struct {
         typedef,
     };
 
-    const FuncAttrs = packed struct(u32) {
+    const FuncAttrs = bitpack struct(u32) {
         kind: Type.Func.Kind,
         cc: Type.Func.CallingConvention,
         _: u26 = 0,
     };
 
-    const PointerAttrs = packed struct(u32) {
+    const PointerAttrs = bitpack struct(u32) {
         bounds: Type.Pointer.Bounds,
         nullability: Type.Pointer.Nullability,
         _: u27 = 0,
@@ -126,7 +126,7 @@ const Index = enum(u29) {
 
 const TypeStore = @This();
 
-pub const QualType = packed struct(u32) {
+pub const QualType = bitpack struct(u32) {
     @"const": bool = false,
     @"volatile": bool = false,
     restrict: bool = false,

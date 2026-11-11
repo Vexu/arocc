@@ -127,7 +127,7 @@ pub const Standard = enum {
     }
 };
 
-pub const ArmLdrex = packed struct(u4) {
+pub const ArmLdrex = bitpack struct(u4) {
     b: bool = false, // byte (8-bit)
     h: bool = false, // half (16-bit)
     w: bool = false, // word (32-bit)

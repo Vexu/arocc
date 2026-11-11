@@ -218,7 +218,7 @@ string_ids: struct {
     sigjmp_buf: StringId,
     ucontext_t: StringId,
 },
-va_arg_pack_ctx: packed struct {
+va_arg_pack_ctx: bitpack struct {
     valid: bool = false,
     variadic: bool = false,
     typed: bool = false,

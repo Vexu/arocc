@@ -557,7 +557,7 @@ pub const Tag = enum(u8) {
     };
 };
 
-pub const PackedU64 = packed struct(u64) {
+pub const PackedU64 = bitpack struct(u64) {
     a: u32,
     b: u32,
 

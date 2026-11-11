@@ -985,7 +985,7 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
             const float_abi = target.armFloatAbi();
 
             // ACLE 6.5.1 Hardware Floating Point. The value of __ARM_FP.
-            const HwFp = packed struct(u4) {
+            const HwFp = bitpack struct(u4) {
                 _unused: u1 = 0,
                 /// half (16-bit)
                 hp: bool = false,
@@ -998,7 +998,7 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
                     return @bitCast(self);
                 }
             };
-            const Fpu = packed struct(u5) {
+            const Fpu = bitpack struct(u5) {
                 vfp2: bool = false,
                 vfp3: bool = false,
                 vfp4: bool = false,
