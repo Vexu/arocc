@@ -407,7 +407,19 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
 
     // os macros
     switch (target.os.tag) {
-        .linux => try defineStd(w, "linux", is_gnu),
+        .linux => {
+            try defineStd(w, "linux", is_gnu);
+
+            if (target.abi.isAndroid()) {
+                try define(w, "__ANDROID__");
+
+                const api = target.os.version_range.linux.android;
+                try w.print("#define __ANDROID_MIN_SDK_VERSION__ {d}\n", .{api});
+
+                // Match clang historical compatibility.
+                try w.writeAll("#define __ANDROID_API__ __ANDROID_MIN_SDK_VERSION__\n");
+            }
+        },
         .windows => {
             try define(w, "_WIN32");
             if (ptr_width == 64) {
@@ -537,9 +549,6 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
         .ps5,
         => try defineStd(w, "unix", is_gnu),
         else => {},
-    }
-    if (target.abi.isAndroid()) {
-        try define(w, "__ANDROID__");
     }
 
     // architecture macros
