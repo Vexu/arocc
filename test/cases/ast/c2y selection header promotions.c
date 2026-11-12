@@ -85,10 +85,9 @@ function: 'fn (input: unsigned char) int'
             decl_ref_expr: 'unsigned char' lvalue
              name: input
      cond:
-      implicit cast: (int_cast) 'int'
-        implicit cast: (lval_to_rval) 'unsigned char'
-          decl_ref_expr: 'unsigned char' lvalue
-           name: x
+      implicit cast: (lval_to_rval) 'unsigned char'
+        decl_ref_expr: 'unsigned char' lvalue
+         name: x
      then:
       return_stmt: 'int'
        expr:
