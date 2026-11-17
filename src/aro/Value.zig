@@ -280,6 +280,15 @@ pub fn intCast(v: *Value, dest_ty: QualType, comp: *Compilation) !IntCastChangeK
     }
 }
 
+/// Casts an integer to `dest_ty` and back to `src_ty`, possibly changing it.
+pub fn roundTrip(v: *Value, src_ty: QualType, dest_ty: QualType, comp: *Compilation) !enum { changed, unchanged } {
+    const original = v.*;
+    _ = try v.intCast(dest_ty, comp);
+    _ = try v.intCast(src_ty, comp);
+    const equal = v.compare(.eq, original, comp);
+    return if (equal) .unchanged else .changed;
+}
+
 /// Converts the stored value to a float of the specified type
 /// `.none` value remains unchanged.
 pub fn floatCast(v: *Value, dest_ty: QualType, comp: *Compilation) !void {

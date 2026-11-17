@@ -15,4 +15,6 @@ int bar(unsigned char input) {
 /** manifest:
 syntax
 args = -std=c2y -target x86_64-linux-musl
+
+c2y selection header promotions.c:4:14: warning: overflow converting case value to switch condition type (258 to 2) [-Wswitch]
 */
