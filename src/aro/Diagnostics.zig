@@ -131,6 +131,7 @@ pub const Option = enum {
     @"backslash-newline-escape",
     @"pointer-to-int-cast",
     @"gnu-case-range",
+    @"switch",
     @"c++-compat",
     vla,
     @"float-overflow-conversion",
@@ -296,6 +297,7 @@ pub const Option = enum {
         .@"sizeof-array-argument",
         .uninitialized,
         .@"unknown-pragmas",
+        .@"switch",
     };
 
     pub const all = most ++ [_]Option{

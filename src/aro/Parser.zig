@@ -55,6 +55,7 @@ const Switch = struct {
     default: ?TokenIndex = null,
     ranges: std.ArrayList(Range) = .empty,
     qt: QualType,
+    unpromoted_qt: QualType,
     comp: *const Compilation,
 
     const Range = struct {
@@ -62,6 +63,27 @@ const Switch = struct {
         last: Value,
         tok: TokenIndex,
     };
+
+    fn coerceCase(s: *const Switch, p: *Parser, item: *Result, tok: TokenIndex) Error!void {
+        if (s.qt.isInvalid() or s.unpromoted_qt.isInvalid() or item.qt.isInvalid() or
+            !s.qt.isRealInt(p.comp) or !item.qt.isRealInt(p.comp) or
+            s.unpromoted_qt.hasIncompleteSize(p.comp))
+        {
+            return item.coerce(p, s.qt, tok, .assign);
+        }
+
+        try item.valueConversion(p);
+        const unpromoted_qt = if (s.unpromoted_qt.get(p.comp, .@"enum")) |enum_ty| enum_ty.tag.? else s.unpromoted_qt;
+        if (item.val.opt_ref != .none and unpromoted_qt.bitSizeof(p.comp) < item.qt.bitSizeof(p.comp)) {
+            var converted = item.*;
+            if (try converted.val.roundTrip(item.qt, unpromoted_qt, p.comp) == .changed) {
+                try p.err(tok, .case_value_overflow, .{ item.*, converted });
+            }
+        }
+
+        // Truncation is diagnosed against the unpromoted type above.
+        try item.castToIntExtra(p, s.qt, tok, null);
+    }
 
     fn add(s: *Switch, first: Value, last: Value, tok: TokenIndex) !?Range {
         for (s.ranges.items) |range| {
@@ -5677,7 +5699,7 @@ fn attributedStmt(p: *Parser, check_unused: bool) Error!Node.Index {
         const l_paren = try p.expectToken(.l_paren);
         try p.syms.pushScope(p);
         defer p.syms.popScope();
-        const opt_init, const cond = try p.selectionHeader(.scalar);
+        const opt_init, const cond, _ = try p.selectionHeader(.scalar);
         try p.expectClosing(l_paren, .r_paren);
 
         const then_body = try p.stmt(true);
@@ -5708,12 +5730,13 @@ fn attributedStmt(p: *Parser, check_unused: bool) Error!Node.Index {
         const l_paren = try p.expectToken(.l_paren);
         try p.syms.pushScope(p);
         defer p.syms.popScope();
-        const opt_init, const cond = try p.selectionHeader(.int);
+        const opt_init, const cond, const unpromoted_qt = try p.selectionHeader(.int);
         try p.expectClosing(l_paren, .r_paren);
 
         const old_switch = p.@"switch";
         var @"switch": Switch = .{
             .qt = cond.qt(&p.tree),
+            .unpromoted_qt = unpromoted_qt,
             .comp = p.comp,
         };
         p.@"switch" = &@"switch";
@@ -5940,7 +5963,7 @@ fn declStmt(p: *Parser) Error!?Node.Index {
 /// : expr
 /// | decl expr
 /// | decl = initializer
-fn selectionHeader(p: *Parser, kind: enum { scalar, int }) Error!struct { ?Node.Index, Node.Index } {
+fn selectionHeader(p: *Parser, kind: enum { scalar, int }) Error!struct { ?Node.Index, Node.Index, QualType } {
     const decl_buf_top = p.decl_buf.items.len;
     defer p.decl_buf.items.len = decl_buf_top;
     const first = p.tok_i;
@@ -5969,9 +5992,10 @@ fn selectionHeader(p: *Parser, kind: enum { scalar, int }) Error!struct { ?Node.
     var opt_cond = try p.expr();
     if (expect_expr) _ = try p.expectResult(opt_cond);
 
-    const cond = if (opt_cond) |*cond| cond: {
+    const cond, const unpromoted_qt = if (opt_cond) |*cond| cond: {
         const cond_tok = cond.node.tok(&p.tree);
         try cond.lvalConversion(p);
+        const unpromoted_qt = cond.qt;
         try cond.usualUnaryConversion(p, cond_tok);
         if (!cond.qt.isInvalid()) switch (kind) {
             .scalar => if (cond.qt.scalarKind(p.comp) == .none) try p.err(cond_tok, .non_scalar_cond, .{cond.qt}),
@@ -5979,7 +6003,7 @@ fn selectionHeader(p: *Parser, kind: enum { scalar, int }) Error!struct { ?Node.
         };
 
         try cond.saveValue(p);
-        break :cond cond.node;
+        break :cond .{ cond.node, unpromoted_qt };
     } else cond: {
         const init = opt_init.?;
         const decl_stmt = init.get(&p.tree).decl_stmt;
@@ -6006,11 +6030,12 @@ fn selectionHeader(p: *Parser, kind: enum { scalar, int }) Error!struct { ?Node.
             } }),
         };
         try res.valueConversion(p);
+        const unpromoted_qt = res.qt;
         if (kind == .int) try res.usualUnaryConversion(p, decl_tok);
-        break :cond res.node;
+        break :cond .{ res.node, unpromoted_qt };
     };
 
-    return .{ opt_init, cond };
+    return .{ opt_init, cond, unpromoted_qt };
 }
 
 /// labeledStmt
@@ -6105,10 +6130,10 @@ fn labeledStmt(p: *Parser) Error!?Node.Index {
             if (@"switch".qt.hasIncompleteSize(p.comp)) break :check; // error already reported for incomplete size
 
             // Coerce to switch condition type
-            try first_item.coerce(p, @"switch".qt, case + 1, .assign);
+            try @"switch".coerceCase(p, &first_item, case + 1);
             try first_item.putValue(p);
             if (second_item) |*item| {
-                try item.coerce(p, @"switch".qt, ellipsis + 1, .assign);
+                try @"switch".coerceCase(p, item, ellipsis + 1);
                 try item.putValue(p);
             }
 
@@ -7459,6 +7484,10 @@ pub const Result = struct {
     }
 
     fn castToInt(res: *Result, p: *Parser, int_qt: QualType, tok: TokenIndex) Error!void {
+        return res.castToIntExtra(p, int_qt, tok, .int_value_changed);
+    }
+
+    fn castToIntExtra(res: *Result, p: *Parser, int_qt: QualType, tok: TokenIndex, overflow_diag: ?Diagnostic) Error!void {
         if (res.qt.isInvalid()) return;
         std.debug.assert(!int_qt.isInvalid());
         if (int_qt.hasIncompleteSize(p.comp)) {
@@ -7509,7 +7538,7 @@ pub const Result = struct {
             const value_change_kind = try res.val.intCast(int_qt, p.comp);
             switch (value_change_kind) {
                 .none => {},
-                .truncated => try p.errValueChanged(tok, .int_value_changed, res.*, old_val, int_qt),
+                .truncated => if (overflow_diag) |diag| try p.errValueChanged(tok, diag, res.*, old_val, int_qt),
                 .sign_changed => try p.err(tok, .sign_conversion, .{ res.qt, int_qt }),
             }
 

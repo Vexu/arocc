@@ -355,6 +355,12 @@ pub const duplicate_switch_case: Diagnostic = .{
     .kind = .@"error",
 };
 
+pub const case_value_overflow: Diagnostic = .{
+    .fmt = "overflow converting case value to switch condition type ({value} to {value})",
+    .kind = .warning,
+    .opt = .@"switch",
+};
+
 pub const multiple_default: Diagnostic = .{
     .fmt = "multiple default cases in the same switch",
     .kind = .@"error",
