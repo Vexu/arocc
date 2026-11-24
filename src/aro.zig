@@ -26,6 +26,7 @@ pub const version_str = backend.version_str;
 pub const version = backend.version;
 
 test {
+    _ = @import("aro/Attribute/Map.zig");
     _ = @import("aro/Builtins.zig");
     _ = @import("aro/Compilation.zig");
     _ = @import("aro/InitList.zig");

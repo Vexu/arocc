@@ -14,6 +14,11 @@ pub const unimplemented: Diagnostic = .{
     .kind = .warning,
 };
 
+pub const unsupported_storage: Diagnostic = .{
+    .fmt = "{at} attribute is not supported",
+    .kind = .@"fatal error",
+};
+
 pub const arg_count_zero: Diagnostic = .{
     .fmt = "{at} attribute takes no arguments",
     .kind = .@"error",

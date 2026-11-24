@@ -172,7 +172,7 @@ pub fn put(map: *Map, gpa: mem.Allocator, attribute: Attribute) !Ref {
             try map.extra.append(gpa, attribute.tok);
             try map.putString(gpa, name);
         },
-        else => @panic("TODO"),
+        else => return error.UnsupportedAttribute,
     }
 
     const index = map.attributes.len;
@@ -333,4 +333,19 @@ pub fn hasAttribute(map: *const Map, opt_node: anytype, tag: Attribute.Tag) bool
         if (attr.args == tag) return true;
     }
     return false;
+}
+
+test "put rejects unsupported attributes" {
+    const gpa = std.testing.allocator;
+    var map: Map = .{};
+    defer map.deinit(gpa);
+
+    try std.testing.expectError(error.UnsupportedAttribute, map.put(gpa, .{
+        .args = .artificial,
+        .syntax = .gnu,
+        .name = .{ .gnu = .artificial },
+        .tok = 0,
+    }));
+    try std.testing.expectEqual(0, map.attributes.len);
+    try std.testing.expectEqual(0, map.extra.items.len);
 }
