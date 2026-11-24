@@ -175,7 +175,11 @@ fn runCaseExtra(io: Io, aro_exe: []const u8, test_case: TestCase, stats: *Stats)
         stats.recordResult(.fail);
         return;
     };
-    const target = try std.zig.system.resolveTargetQuery(io, query);
+
+    const target = b: {
+        var zig_target_diags: std.zig.system.ResolveTargetDiagnostics = .none;
+        break :b try std.zig.system.resolveTargetQuery(io, arena, query, &zig_target_diags);
+    };
     switch (target.os.tag) {
         .ios, .macos => {
             switch (target.cpu.arch) {

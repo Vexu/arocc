@@ -139,7 +139,7 @@ pub const SubArch = enum {
                 .arm_v8_8a => aarch64.v8_8a,
                 .arm_v8_9a => aarch64.v8_9a,
                 .arm_v8m_baseline => return null,
-                .arm_v8r => aarch64.v8r,
+                .arm_v8r => aarch64.rclass,
                 .arm_v9 => aarch64.v9a,
                 .arm_v9_1a => aarch64.v9_1a,
                 .arm_v9_2a => aarch64.v9_2a,
@@ -163,16 +163,10 @@ pub const SubArch = enum {
                 .arm_v6k => arm.v6k,
                 .arm_v6m => arm.v6m,
                 .arm_v6t2 => arm.v6t2,
-                .arm_v7 => arm.v7a,
-                .arm_v7a => arm.v7a,
-                .arm_v7r => arm.v7r,
-                .arm_v7em => arm.v7em,
+                .arm_v7, .arm_v7a, .arm_v7r, .arm_v7em, .arm_v7m, .arm_v7ve => arm.v7,
                 .arm_v7k => return null,
-                .arm_v7m => arm.v7m,
                 .arm_v7s => return null,
-                .arm_v7ve => arm.v7ve,
-                .arm_v8 => arm.v8a,
-                .arm_v8r => arm.v8r,
+                .arm_v8, .arm_v8r => arm.v8,
                 .arm_v8_1a => arm.v8_1a,
                 .arm_v8_1m_mainline => arm.v8_1m_main,
                 .arm_v8_2a => arm.v8_2a,
@@ -209,9 +203,32 @@ pub const SubArch = enum {
                 .arm_v6k => &cpu.mpcore,
                 .arm_v6t2 => &cpu.arm1156t2_s,
                 .arm_v6m => &cpu.cortex_m0,
+                .arm_v7, .arm_v7a => &cpu.armv7a,
                 .arm_v7r => &cpu.cortex_r4,
                 .arm_v7m => &cpu.cortex_m3,
                 .arm_v7em => &cpu.cortex_m4,
+                .arm_v7ve => &cpu.armv7ve,
+                .arm_v8 => &cpu.armv8a,
+                .arm_v8_1a => &cpu.armv8_1a,
+                .arm_v8_2a => &cpu.armv8_2a,
+                .arm_v8_3a => &cpu.armv8_3a,
+                .arm_v8_4a => &cpu.armv8_4a,
+                .arm_v8_5a => &cpu.armv8_5a,
+                .arm_v8_6a => &cpu.armv8_6a,
+                .arm_v8_7a => &cpu.armv8_7a,
+                .arm_v8_8a => &cpu.armv8_8a,
+                .arm_v8_9a => &cpu.armv8_9a,
+                .arm_v8_1m_mainline => &cpu.armv8_1m_main,
+                .arm_v8m_baseline => &cpu.armv8m,
+                .arm_v8m_mainline => &cpu.armv8m_main,
+                .arm_v8r => &cpu.armv8r,
+                .arm_v9 => &cpu.armv9a,
+                .arm_v9_1a => &cpu.armv9_1a,
+                .arm_v9_2a => &cpu.armv9_2a,
+                .arm_v9_3a => &cpu.armv9_3a,
+                .arm_v9_4a => &cpu.armv9_4a,
+                .arm_v9_5a => &cpu.armv9_5a,
+                .arm_v9_6a => &cpu.armv9_6a,
                 else => null,
             };
         } else if (arch.isMips32()) {
@@ -526,7 +543,7 @@ pub fn ignoreNonZeroSizedBitfieldTypeAlignment(target: *const Target) bool {
     switch (target.cpu.arch) {
         .avr => return true,
         .arm => {
-            if (std.Target.arm.featureSetHas(target.cpu.features, .has_v7)) {
+            if (std.Target.arm.featureSetHas(target.cpu.features, .v7)) {
                 switch (target.os.tag) {
                     .ios => return true,
                     else => return false,
@@ -549,7 +566,7 @@ pub fn minZeroWidthBitfieldAlignment(target: *const Target) ?u29 {
     switch (target.cpu.arch) {
         .avr => return 8,
         .arm => {
-            if (std.Target.arm.featureSetHas(target.cpu.features, .has_v7)) {
+            if (std.Target.arm.featureSetHas(target.cpu.features, .v7)) {
                 switch (target.os.tag) {
                     .ios => return 32,
                     else => return null,
@@ -567,8 +584,8 @@ pub fn unnamedFieldAffectsAlignment(target: *const Target) bool {
             return true;
         },
         .armeb => {
-            if (std.Target.arm.featureSetHas(target.cpu.features, .has_v7)) {
-                if (Abi.default(target.cpu.arch, target.os.tag) == .eabi) return true;
+            if (std.Target.arm.featureSetHas(target.cpu.features, .v7)) {
+                if (Abi.default(target.cpu.arch, target.os.tag) == .sf) return true;
             }
         },
         .arm => return true,
@@ -595,8 +612,20 @@ pub fn defaultAlignment(target: *const Target) u29 {
         .avr => return 1,
         .arm => if (target.abi.isAndroid() or target.os.tag == .ios) return 16 else return 8,
         .sparc => if (std.Target.sparc.featureSetHas(target.cpu.features, .v9)) return 16 else return 8,
-        .mips, .mipsel => switch (target.abi) {
-            .none, .gnuabi64 => return 16,
+        .mips,
+        .mipsel,
+        .mipsf32,
+        .mipsf32el,
+        .mipsf64,
+        .mipsf64el,
+        .mipsf64n8,
+        .mipsf64n8el,
+        .mipsn8,
+        .mipsn8el,
+        .mipsr6,
+        .mipsr6el,
+        => switch (target.abi) {
+            .none => return 16,
             else => return 8,
         },
         .s390x, .armeb, .thumbeb, .thumb => return 8,
@@ -989,10 +1018,24 @@ pub fn parseVendorName(query: []const u8) ?Vendor {
     return Vendor.parse(lower);
 }
 
+const abi_compat_aliases = std.StaticStringMap(Abi).initComptime(.{
+    .{ "abin32", .n32 },
+    .{ "eabi", .sf },
+    .{ "eabihf", .none },
+    .{ "gnuabi64", .gnu },
+    .{ "gnuabin32", .gnun32 },
+    .{ "gnueabi", .gnusf },
+    .{ "gnueabihf", .gnu },
+    .{ "muslabi64", .musl },
+    .{ "muslabin32", .musln32 },
+    .{ "musleabi", .muslsf },
+    .{ "musleabihf", .musl },
+});
+
 pub fn parseAbiName(query: []const u8) ?Abi {
     var buf: [64]u8 = undefined;
     const lower = toLower(query, &buf) orelse return null;
-    return std.meta.stringToEnum(Abi, lower);
+    return std.meta.stringToEnum(Abi, lower) orelse abi_compat_aliases.get(lower);
 }
 
 pub fn isAbi(target: *const Target, query: []const u8) bool {
@@ -1107,6 +1150,16 @@ pub fn get32BitArchVariant(target: *const Target) ?Target {
         .microblazeel,
         .mips,
         .mipsel,
+        .mipsf32,
+        .mipsf32el,
+        .mipsf64,
+        .mipsf64el,
+        .mipsf64n8,
+        .mipsf64n8el,
+        .mipsn8,
+        .mipsn8el,
+        .mipsr6,
+        .mipsr6el,
         .nvptx,
         .or1k,
         .powerpc,
@@ -1134,6 +1187,10 @@ pub fn get32BitArchVariant(target: *const Target) ?Target {
         .loongarch64 => copy.cpu.arch = .loongarch32,
         .mips64 => copy.cpu.arch = .mips,
         .mips64el => copy.cpu.arch = .mipsel,
+        .mips64n8 => copy.cpu.arch = .mipsn8,
+        .mips64n8el => copy.cpu.arch = .mipsn8el,
+        .mips64r6 => copy.cpu.arch = .mipsr6,
+        .mips64r6el => copy.cpu.arch = .mipsr6el,
         .nvptx64 => copy.cpu.arch = .nvptx,
         .powerpc64 => copy.cpu.arch = .powerpc,
         .powerpc64le => copy.cpu.arch = .powerpcle,
@@ -1185,6 +1242,10 @@ pub fn get64BitArchVariant(target: *const Target) ?Target {
         .loongarch64,
         .mips64,
         .mips64el,
+        .mips64n8,
+        .mips64n8el,
+        .mips64r6,
+        .mips64r6el,
         .nvptx64,
         .powerpc64,
         .powerpc64le,
@@ -1202,8 +1263,12 @@ pub fn get64BitArchVariant(target: *const Target) ?Target {
         .armeb => copy.cpu.arch = .aarch64_be,
         .hppa => copy.cpu.arch = .hppa64,
         .loongarch32 => copy.cpu.arch = .loongarch64,
-        .mips => copy.cpu.arch = .mips64,
-        .mipsel => copy.cpu.arch = .mips64el,
+        .mips, .mipsf32, .mipsf64 => copy.cpu.arch = .mips64,
+        .mipsel, .mipsf32el, .mipsf64el => copy.cpu.arch = .mips64el,
+        .mipsn8, .mipsf64n8 => copy.cpu.arch = .mips64n8,
+        .mipsn8el, .mipsf64n8el => copy.cpu.arch = .mips64n8el,
+        .mipsr6 => copy.cpu.arch = .mips64r6,
+        .mipsr6el => copy.cpu.arch = .mips64r6el,
         .nvptx => copy.cpu.arch = .nvptx64,
         .powerpc => copy.cpu.arch = .powerpc64,
         .powerpcle => copy.cpu.arch = .powerpc64le,
@@ -1243,10 +1308,28 @@ pub fn toLLVMTriple(target: *const Target, buf: []u8) []const u8 {
         .loongarch32 => "loongarch32",
         .loongarch64 => "loongarch64",
         .m68k => "m68k",
-        .mips => "mips",
-        .mips64 => "mips64",
-        .mips64el => "mips64el",
-        .mipsel => "mipsel",
+        .mips,
+        .mipsf32,
+        .mipsf64,
+        .mipsf64n8,
+        .mipsn8,
+        => "mips",
+        .mipsel,
+        .mipsf32el,
+        .mipsf64el,
+        .mipsf64n8el,
+        .mipsn8el,
+        => "mipsel",
+        .mips64,
+        .mips64n8,
+        => "mips64",
+        .mips64el,
+        .mips64n8el,
+        => "mips64el",
+        .mipsr6 => "mipsisa32r6",
+        .mipsr6el => "mipsisa32r6el",
+        .mips64r6 => "mipsisa64r6",
+        .mips64r6el => "mipsisa64r6el",
         .msp430 => "msp430",
         .nvptx => "nvptx",
         .nvptx64 => "nvptx64",
@@ -1355,37 +1438,29 @@ pub fn toLLVMTriple(target: *const Target, buf: []u8) []const u8 {
     writer.writeByte('-') catch unreachable;
 
     const llvm_abi = switch (target.abi) {
-        .none => if (target.os.tag == .maccatalyst) "macabi" else "unknown",
-        .abin32,
+        .none => if (target.cpu.arch.isArm()) "eabihf" else if (target.os.tag == .maccatalyst) "macabi" else "unknown",
+        .call0,
+        .f32,
         .ilp32,
-        .x32,
         => "unknown",
 
         .android => "android",
-        .androideabi => "androideabi",
-        .call0 => "call0",
-        .eabi => "eabi",
-        .eabihf => "eabihf",
-        .gnu => "gnu",
-        .gnuabi64 => "gnuabi64",
-        .gnuabin32 => "gnuabin32",
-        .gnueabi => "gnueabi",
-        .gnueabihf => "gnueabihf",
+        .gnu => if (target.cpu.arch.isArm() and target.os.tag != .windows) "gnueabihf" else "gnu",
+        .gnun32, .gnun32sf => "gnuabin32",
         .gnuf32 => "gnuf32",
-        .gnusf => "gnusf",
+        .gnusf => if (target.cpu.arch.isArm()) "gnueabi" else "gnusf",
         .gnux32 => "gnux32",
         .msvc => "msvc",
-        .musl => "musl",
-        .muslabi64 => "muslabi64",
-        .muslabin32 => "muslabin32",
-        .musleabi => "musleabi",
-        .musleabihf => "musleabihf",
+        .musl => if (target.cpu.arch.isArm()) "musleabihf" else "musl",
+        .musln32, .musln32sf => "muslabin32",
         .muslf32 => "muslf32",
-        .muslsf => "muslsf",
+        .muslsf => if (target.cpu.arch.isArm()) "musleabi" else "muslsf",
         .muslx32 => "muslx32",
-        .ohos => "ohos",
-        .ohoseabi => "ohoseabi",
+        .n32, .n32f32, .n32sf => "muslabin32", // https://github.com/ziglang/zig/issues/25649
+        .ohos, .ohossf => "ohos",
+        .sf => if (target.cpu.arch.isArm()) "eabi" else "unknown",
         .simulator => "simulator",
+        .x32, .x32sf => "muslx32", // https://github.com/ziglang/zig/issues/25649
     };
     writer.writeAll(llvm_abi) catch unreachable;
     return writer.buffered();
@@ -1676,7 +1751,7 @@ pub fn cTypeAlignment(target: *const Target, c_type: std.Target.CType) u16 {
 }
 
 pub fn standardDynamicLinkerPath(target: *const Target) std.Target.DynamicLinker {
-    return .standard(target.cpu, target.os.tag, target.abi);
+    return .standard(target.cpu.arch, target.os.tag, target.abi);
 }
 
 /// Parse ABI string in `<abi>(.?<version>)?` format.
@@ -1724,11 +1799,11 @@ test parseAbi {
     const V = std.SemanticVersion;
     var query: std.Target.Query = .{};
     try parseAbi(&query, "gnuabin322.3", null);
-    try testing.expect(query.abi == .gnuabin32);
+    try testing.expect(query.abi == .gnun32);
     try testing.expectEqual(query.glibc_version, V{ .major = 2, .minor = 3, .patch = 0 });
 
     try parseAbi(&query, "gnuabin32.2.3", null);
-    try testing.expect(query.abi == .gnuabin32);
+    try testing.expect(query.abi == .gnun32);
     try testing.expectEqual(query.glibc_version, V{ .major = 2, .minor = 3, .patch = 0 });
 
     try parseAbi(&query, "android17", null);
@@ -1847,66 +1922,57 @@ pub fn parseOs(result: *std.Target.Query, text: []const u8, version_string: ?*[]
 
 pub fn armVersion(target: Target) ?struct { version: u8, string: []const u8 } {
     assert(target.cpu.arch.isArm());
-    for ([_]struct { std.Target.arm.Feature, []const u8 }{
-        .{ .v9_6a, "9_6A" },
-        .{ .v9_5a, "9_5A" },
-        .{ .v9_4a, "9_4A" },
-        .{ .v9_3a, "9_3A" },
-        .{ .v9_2a, "9_2A" },
-        .{ .v9_1a, "9_1A" },
-        .{ .v9a, "9A" },
+    const string = armVersionString(target.cpu) orelse return null;
+    return .{
+        .version = string[0] - '0',
+        .string = string,
+    };
+}
 
-        .{ .v8_9a, "8_9A" },
-        .{ .v8_8a, "8_8A" },
-        .{ .v8_7a, "8_7A" },
-        .{ .v8_6a, "8_6A" },
-        .{ .v8_5a, "8_5A" },
-        .{ .v8_4a, "8_4A" },
-        .{ .v8_3a, "8_3A" },
-        .{ .v8_2a, "8_2A" },
-        .{ .v8_1a, "8_1A" },
-        .{ .v8_1m_main, "8_1M_MAIN" },
-        .{ .v8a, "8A" },
-        .{ .v8r, "8R" },
-        .{ .v8m_main, "8M_MAIN" },
-        .{ .v8m, "8M_BASE" },
-
-        .{ .v7ve, "7VE" },
-        .{ .v7a, "7A" },
-        .{ .v7r, "7R" },
-        .{ .v7m, "7M" },
-        .{ .v7em, "7EM" },
-        .{ .has_v7, "7A" }, // bare armv7 with no profile: default to A
-
-        .{ .v6t2, "6T2" },
-        .{ .v6kz, "6KZ" },
-        .{ .v6k, "6K" },
-        .{ .v6j, "6J" },
-        .{ .v6sm, "6SM" },
-        .{ .v6m, "6M" },
-        .{ .v6, "6" },
-
-        .{ .v5tej, "5TEJ" },
-        .{ .v5te, "5TE" },
-        .{ .v5t, "5T" },
-
-        .{ .v4t, "4T" },
-        .{ .v4, "4" },
-
-        .{ .v3m, "3M" },
-        .{ .v3, "3" },
-
-        .{ .v2a, "2A" },
-        .{ .v2, "2" },
-    }) |fs| {
-        if (target.cpu.features.isEnabled(@backingInt(fs[0]))) {
-            return .{
-                .version = fs[1][0] - '0',
-                .string = fs[1],
-            };
-        }
+fn armVersionString(cpu: Cpu) ?[]const u8 {
+    for ([_]struct { []const std.Target.arm.Feature, []const u8 }{
+        .{ &.{ .rclass, .v8 }, "8R" },
+        .{ &.{.v9_6a}, "9_6A" },
+        .{ &.{.v9_5a}, "9_5A" },
+        .{ &.{.v9_4a}, "9_4A" },
+        .{ &.{.v9_3a}, "9_3A" },
+        .{ &.{.v9_2a}, "9_2A" },
+        .{ &.{.v9_1a}, "9_1A" },
+        .{ &.{.v9a}, "9A" },
+        .{ &.{.v8_9a}, "8_9A" },
+        .{ &.{.v8_8a}, "8_8A" },
+        .{ &.{.v8_7a}, "8_7A" },
+        .{ &.{.v8_6a}, "8_6A" },
+        .{ &.{.v8_5a}, "8_5A" },
+        .{ &.{.v8_4a}, "8_4A" },
+        .{ &.{.v8_3a}, "8_3A" },
+        .{ &.{.v8_2a}, "8_2A" },
+        .{ &.{.v8_1a}, "8_1A" },
+        .{ &.{.v8}, "8A" },
+        .{ &.{.v8_1m_main}, "8_1M_MAIN" },
+        .{ &.{.v8m_main}, "8M_MAIN" },
+        .{ &.{ .mclass, .dsp, .v7 }, "7EM" },
+        .{ &.{ .mclass, .v7 }, "7M" },
+        .{ &.{ .rclass, .v7 }, "7R" },
+        .{ &.{ .v7, .virtualization }, "7VE" },
+        .{ &.{.v7}, "7A" },
+        .{ &.{.v6t2}, "6T2" },
+        .{ &.{.v8m}, "8M_BASE" },
+        .{ &.{.v6m}, "6M" },
+        .{ &.{ .trustzone, .v6k }, "6KZ" },
+        .{ &.{.v6k}, "6K" },
+        .{ &.{.v6}, "6" },
+        .{ &.{.v5te}, "5TE" },
+        .{ &.{.v5t}, "5T" },
+        .{ &.{.v4t}, "4T" },
+        .{ &.{.v4}, "4" },
+        .{ &.{.v3m}, "3M" },
+        .{ &.{.v3}, "3" },
+        .{ &.{.v2a}, "2A" },
+        .{ &.{.v2}, "2" },
+    }) |entry| {
+        if (cpu.hasAll(.arm, entry[0])) return entry[1];
     }
-
     return null;
 }
 
@@ -1956,11 +2022,32 @@ pub const MipsAbi = enum { o32, n32, n64 };
 
 pub fn mipsAbi(target: *const Target) MipsAbi {
     return switch (target.abi) {
-        .gnuabin32, .muslabin32, .abin32 => .n32,
+        .gnun32, .musln32, .n32 => .n32,
         else => switch (target.cpu.arch) {
-            .mips, .mipsel => .o32,
-            .mips64, .mips64el => .n64,
-            else => unreachable,
+            .mips,
+            .mipsel,
+            .mipsf32,
+            .mipsf32el,
+            .mipsf64,
+            .mipsf64el,
+            .mipsf64n8,
+            .mipsf64n8el,
+            .mipsn8,
+            .mipsn8el,
+            .mipsr6,
+            .mipsr6el,
+            => .o32,
+            .mips64,
+            .mips64el,
+            .mips64n8,
+            .mips64n8el,
+            .mips64r6,
+            .mips64r6el,
+            => .n64,
+            inline else => |arch| {
+                if (arch.isMips()) @compileError(std.fmt.comptimePrint("unhandled arch: {t}", .{arch}));
+                unreachable;
+            },
         },
     };
 }
@@ -2112,22 +2199,22 @@ pub fn armFloatAbi(target: *const Target) ArmFloatAbi {
         },
         .windows => .hard,
         .netbsd => switch (abi) {
-            .eabihf, .gnueabihf => .hard,
+            .none, .gnu => .hard,
             else => .soft,
         },
         // FreeBSD honours only `gnueabihf`, not `eabihf`.
         .freebsd => switch (abi) {
-            .gnueabihf => .hard,
+            .gnu => .hard,
             else => .soft,
         },
         .openbsd, .haiku => .soft_fp,
         .fuchsia => .hard,
         else => switch (abi) {
             // clang checks `Triple.isOHOSFamily()` ahead of the environment switch.
-            .ohos, .ohoseabi => .soft,
-            .eabihf, .gnueabihf, .musleabihf => .hard,
+            .ohos, .ohossf => .soft,
+            .none, .gnu, .musl => .hard,
             // EABI is always AAPCS, and if it was not marked 'hard', it's softfp.
-            .eabi, .gnueabi, .musleabi, .android, .androideabi => .soft_fp,
+            .sf, .gnusf, .muslsf, .android => .soft_fp,
             else => .soft,
         },
     };
