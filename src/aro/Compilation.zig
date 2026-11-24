@@ -1186,7 +1186,7 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
             try w.print("#define __ARM_ACLE {d}\n", .{acle_version});
 
             const arm_version: u8 = if (target.cpu.has(.aarch64, .v9a)) 9 else 8;
-            const arm_profile: u8 = if (target.cpu.has(.aarch64, .v8r)) 'R' else 'A';
+            const arm_profile: u8 = if (target.cpu.has(.aarch64, .rclass)) 'R' else 'A';
             try w.print("#define __ARM_ARCH {d}\n", .{arm_version});
             try w.print("#define __ARM_ARCH_PROFILE '{c}'\n", .{arm_profile});
 

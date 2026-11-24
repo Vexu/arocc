@@ -6,8 +6,8 @@
 #error incorrect floating-point ABI macro
 #endif
 
-#if __riscv_flen != 64
-#error invalid __riscv_flen
+#if defined(__riscv_flen)
+#error unexpected __riscv_flen
 #endif
 
 int ok;

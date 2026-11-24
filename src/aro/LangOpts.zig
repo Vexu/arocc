@@ -246,7 +246,7 @@ pub fn setTargetOptions(self: *LangOpts, target: Target) void {
                 const ldrex: ArmLdrex = switch (arm_version) {
                     6 => if (target.cpu.has(.arm, .mclass))
                         .none
-                    else if (target.cpu.has(.arm, .v6k) or target.cpu.has(.arm, .v6kz))
+                    else if (target.cpu.has(.arm, .v6k) and !target.cpu.has(.arm, .v6t2))
                         .all
                     else
                         .{ .w = true },

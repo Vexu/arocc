@@ -1122,8 +1122,13 @@ fn parseTarget(
         }
     }
 
-    const zig_target = std.zig.system.resolveTargetQuery(d.comp.io, query) catch |e|
-        return d.fatal("unable to resolve target: {s}", .{errorDescription(e)});
+    const zig_target = b: {
+        var zig_target_arena: std.heap.ArenaAllocator = .init(d.comp.gpa);
+        defer zig_target_arena.deinit();
+        var zig_target_diags: std.zig.system.ResolveTargetDiagnostics = .none;
+        break :b std.zig.system.resolveTargetQuery(d.comp.io, zig_target_arena.allocator(), query, &zig_target_diags) catch |e|
+            return d.fatal("unable to resolve target: {s}", .{errorDescription(e)});
+    };
 
     if (query.isNative()) {
         if (zig_target.os.tag.isDarwin()) {
