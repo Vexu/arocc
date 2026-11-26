@@ -679,5 +679,5 @@ pub fn fatal(tc: *const Toolchain, comptime fmt: []const u8, args: anytype) erro
 
     Diagnostics.formatArgs(&allocating.writer, fmt, args) catch return error.OutOfMemory;
     try tc.comp.diagnostics.add(.{ .kind = .@"fatal error", .text = allocating.written(), .location = null });
-    unreachable;
+    return error.FatalError;
 }
