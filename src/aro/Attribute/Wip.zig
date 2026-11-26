@@ -341,12 +341,15 @@ fn add(wip: *Wip, args: Attribute.Args) !void {
     const parser = wip.current.parser;
     const gpa = parser.comp.gpa;
     const current = wip.current.attr;
-    const ref = try parser.tree.attr_map.put(gpa, .{
+    const ref = parser.tree.attr_map.put(gpa, .{
         .args = args,
         .name = current.name,
         .syntax = current.syntax,
         .tok = current.tok,
-    });
+    }) catch |er| switch (er) {
+        error.OutOfMemory => return error.OutOfMemory,
+        error.UnsupportedAttribute => return wip.err(.unsupported_storage, .{current}),
+    };
     try wip.applied.append(gpa, ref);
 }
 

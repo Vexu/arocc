@@ -20,7 +20,8 @@ const Target = @import("Target.zig");
 const Toolchain = @import("Toolchain.zig");
 const Tree = @import("Tree.zig");
 
-const AsmCodeGenFn = fn (target: std.Target, tree: *const Tree) Compilation.Error!Assembly;
+pub const AsmCodeGenError = Compilation.Error || error{UnsupportedArchitecture};
+const AsmCodeGenFn = fn (target: std.Target, tree: *const Tree) AsmCodeGenError!Assembly;
 
 pub const Linker = enum {
     ld,
@@ -1151,7 +1152,7 @@ pub fn fatal(d: *Driver, comptime fmt: []const u8, args: anytype) error{ FatalEr
 
     Diagnostics.formatArgs(&allocating.writer, fmt, args) catch return error.OutOfMemory;
     try d.diagnostics.add(.{ .kind = .@"fatal error", .text = allocating.written(), .location = null });
-    unreachable;
+    return error.FatalError;
 }
 
 pub fn printDiagnosticsStats(d: *Driver) void {
@@ -1512,7 +1513,14 @@ fn processSource(
             .{},
         );
 
-        const assembly = try asm_fn(comp.target.toZigTarget(), &tree);
+        const target = comp.target.toZigTarget();
+        const assembly = asm_fn(target, &tree) catch |asm_err| switch (asm_err) {
+            error.UnsupportedArchitecture => return d.fatal(
+                "assembly code generation is not supported for {s}",
+                .{@tagName(target.cpu.arch)},
+            ),
+            else => |comp_err| return comp_err,
+        };
         defer assembly.deinit(gpa);
 
         if (d.only_preprocess_and_compile) {
