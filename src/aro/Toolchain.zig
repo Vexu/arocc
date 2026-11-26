@@ -395,7 +395,12 @@ pub fn buildLinkerArgs(tc: *Toolchain, argv: *std.ArrayList([]const u8), output_
     return switch (tc.inner) {
         .uninitialized => unreachable,
         .linux => |*linux| linux.buildLinkerArgs(tc, argv, output_name, link_objects),
-        .darwin, .unknown => @panic("This toolchain does not support linking yet"),
+        .darwin, .unknown => blk: {
+            const target = tc.getTarget();
+            break :blk tc.fatal("linking is not supported for target {s}-{s}-{s}", .{
+                @tagName(target.cpu.arch), @tagName(target.os.tag), @tagName(target.abi),
+            });
+        },
     };
 }
 
