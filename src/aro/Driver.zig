@@ -1152,7 +1152,7 @@ pub fn fatal(d: *Driver, comptime fmt: []const u8, args: anytype) error{ FatalEr
 
     Diagnostics.formatArgs(&allocating.writer, fmt, args) catch return error.OutOfMemory;
     try d.diagnostics.add(.{ .kind = .@"fatal error", .text = allocating.written(), .location = null });
-    unreachable;
+    return error.FatalError;
 }
 
 pub fn printDiagnosticsStats(d: *Driver) void {
