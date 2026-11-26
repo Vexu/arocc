@@ -1087,7 +1087,7 @@ fn fatal(pp: *Preprocessor, raw: RawToken, comptime fmt: []const u8, args: anyty
             .line = raw.line,
         }).expand(pp.comp),
     });
-    unreachable;
+    return error.FatalError;
 }
 
 fn fatalNotFound(pp: *Preprocessor, tok: TokenWithExpansionLocs, filename: []const u8) Compilation.Error {
