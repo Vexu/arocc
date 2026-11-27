@@ -79,7 +79,14 @@ test "minUnsignedBits" {
     var comp = try Compilation.init(.testing);
     defer comp.deinit();
     const target_query = try std.Target.Query.parse(.{ .arch_os_abi = "x86_64-linux-gnu" });
-    comp.target = .fromZigTarget(try std.zig.system.resolveTargetQuery(std.testing.io, target_query));
+
+    const zig_target = b: {
+        var zig_target_arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
+        defer zig_target_arena.deinit();
+        var zig_target_diags: std.zig.system.ResolveTargetDiagnostics = .none;
+        break :b try std.zig.system.resolveTargetQuery(std.testing.io, zig_target_arena.allocator(), target_query, &zig_target_diags);
+    };
+    comp.target = .fromZigTarget(zig_target);
 
     try Test.checkIntBits(&comp, 0, 0);
     try Test.checkIntBits(&comp, 1, 1);
@@ -114,7 +121,13 @@ test "minSignedBits" {
     var comp = try Compilation.init(.testing);
     defer comp.deinit();
     const target_query = try std.Target.Query.parse(.{ .arch_os_abi = "x86_64-linux-gnu" });
-    comp.target = .fromZigTarget(try std.zig.system.resolveTargetQuery(std.testing.io, target_query));
+    const zig_target = b: {
+        var zig_target_arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
+        defer zig_target_arena.deinit();
+        var zig_target_diags: std.zig.system.ResolveTargetDiagnostics = .none;
+        break :b try std.zig.system.resolveTargetQuery(std.testing.io, zig_target_arena.allocator(), target_query, &zig_target_diags);
+    };
+    comp.target = .fromZigTarget(zig_target);
 
     try Test.checkIntBits(&comp, -1, 1);
     try Test.checkIntBits(&comp, -2, 2);

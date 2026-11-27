@@ -64,6 +64,9 @@ foo.c: 1:4: error: something went wrong
 Fuzz testing requires [AFLplusplus](https://github.com/AFLplusplus/AFLplusplus). Run `zig build fuzz` to build the fuzz target,
 then `afl-fuzz -i test/cases -o test/fuzz-output -- ./zig-out/bin/arofuzz`
 
+The default build links Zig's instrumented native objects with `afl-clang-fast`, so the two toolchains can use
+different LLVM versions. To use LTO with compatible LLVM toolchains, pass `-Dafl-clang-lto-path=afl-clang-lto`.
+
 A Dockerfile is provided to make it easier to get started with fuzzing. It requires two build args,
 `ZIG_VERSION` and `ZIG_PUBKEY`. `ZIG_VERSION` should be the release filename from https://ziglang.org/download/, _without_
 the `.tar.xz` extension. `ZIG_PUBKEY` should be the minisign public key on https://ziglang.org/download/. You can also

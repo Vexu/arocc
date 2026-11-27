@@ -1,4 +1,10 @@
 #include <unistd.h>
+
+#ifdef ARO_FUZZ_TRACE_PC_GUARD
+#include <stdint.h>
+__attribute__((weak)) __thread uintptr_t __sancov_lowest_stack;
+#endif
+
 __AFL_FUZZ_INIT();
 
 void compile_c_buf(unsigned char *buf, int len);

@@ -321,8 +321,8 @@ fn getMultiarchTriple(target: *const Target) ?[]const u8 {
     const is_android = target.abi.isAndroid();
     const is_mips_r6 = std.Target.mips.featureSetHas(target.cpu.features, .mips32r6);
     return switch (target.cpu.arch) {
-        .arm, .thumb => if (is_android) "arm-linux-androideabi" else if (target.abi == .gnueabihf) "arm-linux-gnueabihf" else "arm-linux-gnueabi",
-        .armeb, .thumbeb => if (target.abi == .gnueabihf) "armeb-linux-gnueabihf" else "armeb-linux-gnueabi",
+        .arm, .thumb => if (is_android) "arm-linux-androideabi" else if (target.abi == .gnu) "arm-linux-gnueabihf" else "arm-linux-gnueabi",
+        .armeb, .thumbeb => if (target.abi == .gnu) "armeb-linux-gnueabihf" else "armeb-linux-gnueabi",
         .aarch64 => if (is_android) "aarch64-linux-android" else "aarch64-linux-gnu",
         .aarch64_be => "aarch64_be-linux-gnu",
         .x86 => if (is_android) "i686-linux-android" else "i386-linux-gnu",
@@ -483,7 +483,11 @@ test Linux {
 
     const raw_triple = "x86_64-linux-gnu";
     const target_query = try std.Target.Query.parse(.{ .arch_os_abi = raw_triple });
-    comp.target = .fromZigTarget(try std.zig.system.resolveTargetQuery(fake_io, target_query));
+    const zig_target = b: {
+        var zig_target_diags: std.zig.system.ResolveTargetDiagnostics = .none;
+        break :b try std.zig.system.resolveTargetQuery(fake_io, arena, target_query, &zig_target_diags);
+    };
+    comp.target = .fromZigTarget(zig_target);
     comp.langopts.setEmulatedCompiler(.gcc);
 
     var opts: Toolchain.Options = .{ .raw_target_triple = raw_triple };

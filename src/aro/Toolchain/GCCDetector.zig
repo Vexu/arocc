@@ -247,7 +247,7 @@ fn collectLibDirsAndTriples(
         },
         .arm, .thumb => {
             lib_dirs.appendSliceAssumeCapacity(&ARMLibDirs);
-            if (target.abi == .gnueabihf) {
+            if (target.abi == .gnu) {
                 triple_aliases.appendSliceAssumeCapacity(&ARMHFTriples);
             } else {
                 triple_aliases.appendSliceAssumeCapacity(&ARMTriples);
@@ -255,7 +255,7 @@ fn collectLibDirsAndTriples(
         },
         .armeb, .thumbeb => {
             lib_dirs.appendSliceAssumeCapacity(&ARMebLibDirs);
-            if (target.abi == .gnueabihf) {
+            if (target.abi == .gnu) {
                 triple_aliases.appendSliceAssumeCapacity(&ARMebHFTriples);
             } else {
                 triple_aliases.appendSliceAssumeCapacity(&ARMebTriples);

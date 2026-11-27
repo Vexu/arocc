@@ -30,7 +30,7 @@ fn generateDef(b: *Build, input_name: []const u8) Build.Module.Import {
     };
 }
 
-fn addFuzzStep(b: *Build, target: std.Build.ResolvedTarget, afl_clang_lto_path: []const u8, aro_module: *std.Build.Module) !void {
+fn addFuzzStep(b: *Build, target: std.Build.ResolvedTarget, afl_clang_lto_path: ?[]const u8, aro_module: *std.Build.Module) !void {
     const fuzz_step = b.step("fuzz", "Build executable for fuzz testing.");
     const fuzz_lib = b.addLibrary(.{
         .name = "fuzz-lib",
@@ -39,16 +39,20 @@ fn addFuzzStep(b: *Build, target: std.Build.ResolvedTarget, afl_clang_lto_path: 
             .optimize = .debug,
             .target = target,
             .single_threaded = true,
+            .link_libc = true,
         }),
         .use_llvm = true,
         .use_lld = true,
     });
-    fuzz_lib.lto = .full;
+    const use_lto = afl_clang_lto_path != null;
+    fuzz_lib.lto = if (use_lto) .full else .none;
+    fuzz_lib.sanitize_coverage_trace_pc_guard = !use_lto;
     fuzz_lib.bundle_compiler_rt = true;
     fuzz_lib.pie = true;
 
     fuzz_lib.root_module.addImport("aro", aro_module);
-    const fuzz_compile = b.addSystemCommand(&.{afl_clang_lto_path});
+    const fuzz_compile = b.addSystemCommand(&.{afl_clang_lto_path orelse "afl-clang-fast"});
+    if (!use_lto) fuzz_compile.addArg("-DARO_FUZZ_TRACE_PC_GUARD");
     fuzz_compile.addFileArg(b.path("test/fuzz/main.c"));
     fuzz_compile.addArg("-o");
     const fuzz_exe = fuzz_compile.addOutputFileArg("arofuzz");
@@ -69,7 +73,7 @@ pub fn build(b: *Build) !void {
     // between debug, safe, fast, and small.
     const mode = b.standardOptimizeOption(.{});
 
-    const afl_clang_lto_path = b.option([]const u8, "afl-clang-lto-path", "Path to afl-clang-lto") orelse "afl-clang-lto";
+    const afl_clang_lto_path = b.option([]const u8, "afl-clang-lto-path", "Path to afl-clang-lto");
     const enable_linker_build_id = b.option(bool, "enable-linker-build-id", "pass --build-id to linker") orelse false;
     const default_linker = b.option([]const u8, "default-linker", "Default linker aro will use if none is supplied via -fuse-ld") orelse "ld";
     const default_sysroot = b.option([]const u8, "default-sysroot", "Default <path> to all compiler invocations for --sysroot=<path>.") orelse "";

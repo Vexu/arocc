@@ -40,7 +40,6 @@ fn compileSlice(buf: []const u8) !void {
     });
     defer comp.deinit();
 
-    try comp.addDefaultPragmaHandlers();
     try comp.initSearchPath(&.{.{ .kind = .system, .path = aro_dir }}, false);
 
     const user_source = try comp.addSourceFromBuffer("<STDIN>", buf);
@@ -53,7 +52,6 @@ fn compileSlice(buf: []const u8) !void {
 fn processSource(comp: *Compilation, builtin: Source, user_source: Source) !void {
     var pp = try Preprocessor.init(comp, .{ .base_file = user_source.id });
     defer pp.deinit();
-    try pp.addBuiltinMacros();
 
     _ = try pp.preprocess(builtin);
     const eof = try pp.preprocess(user_source);
